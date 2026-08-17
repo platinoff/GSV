@@ -45,6 +45,23 @@
 - `GET /data/{file}` is a basename allowlist (`gsv_*.json` / `rust_ratio.json`); `omni.toml` is not served.
 - SLI terminal: no `bash`/`node`/`npm`/`cat`; `cargo`/`git` subcommand allowlists.
 
+## HTTP response hardening (band 134)
+
+Every response (including 403/413) carries:
+
+| Header | Value |
+|--------|--------|
+| `Content-Security-Policy` | `default-src 'self'` + inline script/style (embedded UI) + `frame-ancestors 'none'` |
+| `X-Content-Type-Options` | `nosniff` |
+| `X-Frame-Options` | `DENY` |
+| `Referrer-Policy` | `no-referrer` |
+| `Permissions-Policy` | camera/microphone/geolocation `()` |
+| `Cross-Origin-Opener-Policy` | `same-origin` |
+| `Cross-Origin-Resource-Policy` | `same-origin` |
+| `Cache-Control` | `no-store` |
+
+POST bodies over **256 KiB** (`security::MAX_BODY_BYTES`) → 413 `{ok:false,error:"request body too large"}`. Axum `DefaultBodyLimit` matches that cap for chunked bodies without `Content-Length`.
+
 ## Stand smoke (`gsv-http-stand-smoke`, band 126)
 
 Live HTTP smoke бінарника сервера — мірор poolAI `poolai-http-stand-smoke` (PH-S1900):

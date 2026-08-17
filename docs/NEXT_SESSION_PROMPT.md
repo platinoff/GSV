@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-17 (band 133 **PH-S1969…S1978** ✅ · **horizon band 134** · localhost security · VDT kit Accepted)
+**Оновлено:** 2026-08-17 (band 134 **PH-S1979…S1988** ✅ · **horizon band 135** · HTTP response hardening · VDT kit Accepted)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -14,7 +14,7 @@
 project scan (**warnings first**) → drain наступного band (**без** mid-push) →
 Speeds · Rust panel → vision-sync → **один** commit → **`git push` + самарі**.
 
-Якщо **gsv:** черга — [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) **після band 133**.
+Якщо **gsv:** черга — [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) **після band 134**.
 Kit уже в дереві (`.cursor/rules/`, `.agents/skills/`, `gsv.code-workspace`).
 Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics.sh`. Disk: `bash scripts/check_target_disk.sh`.
 
@@ -160,7 +160,9 @@ Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics
   node-search table from `/api/ui/card/node-search`; JS `tab` helper removed.
   **band 133** (PH-S1969…S1978) ✅ — localhost security: `--allow-lan` bind, CSRF POST gate,
   terminal cargo/git allowlists, `/data/{file}` allowlist, preview canonicalize.
-  **Наступний band 134**: project scan у наступній сесії `абракадабра`.
+  **band 134** (PH-S1979…S1988) ✅ — HTTP response hardening: CSP / nosniff / DENY / no-store,
+  POST body cap 256 KiB.
+  **Наступний band 135**: project scan у наступній сесії `абракадабра`.
 
 ## Канон GSV
 
@@ -187,6 +189,7 @@ band 130 ✅ (chrome shell — real wires + Rust RSS ticker) ·
 band 131 ✅ (Rust shell — live CSS + layout nav HTML) ·
 band 132 ✅ (Rust header chrome HTML + node-search fragment) ·
 band 133 ✅ (localhost security — bind + CSRF + terminal + data allowlist) ·
+band 134 ✅ (HTTP response hardening — CSP / nosniff / no-store / POST 256 KiB) ·
 не комітити kit-only в PoolAI як «замість» GSV drain ·
 staging `GSV/data/*` / `certs/*.pem` /
 `.env` · mid-push · build/test при запущеному `gsv-server` · обхід ratio-смуги Rust-кодом замість compact UI ·

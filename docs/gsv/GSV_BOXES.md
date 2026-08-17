@@ -81,6 +81,7 @@ Rust модуль: `ide/` (read-only).
 - Аудит у Tracker; результат — JSON/stdout.
 - Обмеження: whitelist SLI-каталогу (без `bash`/`node`/`npm`/`cat`), cargo/git subcommand allowlist, sandbox (без `..` / shell metacharacters).
 - Mutating POST з не-loopback `Origin` або `Sec-Fetch-Site: cross-site` → 403.
+- POST body > 256 KiB → 413 `{ok:false}`. Responses include CSP / nosniff / `Cache-Control: no-store`.
 
 ## 8. Rust tests / benchmarks hook (без перекомпіляції)
 

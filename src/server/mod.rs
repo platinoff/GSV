@@ -4,8 +4,8 @@ use std::convert::Infallible;
 use std::time::Duration;
 
 use axum::body::Bytes;
-use axum::extract::{Path, Query, Request, State};
-use axum::http::{HeaderMap, StatusCode};
+use axum::extract::{DefaultBodyLimit, Path, Query, Request, State};
+use axum::http::{header, HeaderMap, HeaderName, HeaderValue, Method, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{Html, IntoResponse, Response};
@@ -163,26 +163,58 @@ pub fn router(state: AppState) -> Router {
         .route("/data/{file}", get(api_data_file))
         .route("/events", get(events))
         .route("/assets/vision.svg", get(api_vision_svg))
-        .layer(middleware::from_fn(reject_cross_site_post))
+        .layer(DefaultBodyLimit::max(crate::security::MAX_BODY_BYTES))
+        .layer(middleware::from_fn(security_gate))
         .with_state(state)
 }
 
-/// Browser cross-site POSTs (and non-loopback Origin) never mutate this process.
-async fn reject_cross_site_post(req: Request, next: Next) -> Response {
-    if req.method() == axum::http::Method::POST {
+fn insert_security_headers(headers: &mut HeaderMap) {
+    for (name, value) in crate::security::SECURITY_HEADERS {
+        if let (Ok(n), Ok(v)) = (
+            HeaderName::from_bytes(name.as_bytes()),
+            HeaderValue::from_str(value),
+        ) {
+            headers.insert(n, v);
+        }
+    }
+}
+
+fn secured(mut res: Response) -> Response {
+    insert_security_headers(res.headers_mut());
+    res
+}
+
+/// CSRF POST gate, POST body cap, then CSP / nosniff / no-store on every reply.
+async fn security_gate(req: Request, next: Next) -> Response {
+    if req.method() == Method::POST {
+        let content_length = req
+            .headers()
+            .get(header::CONTENT_LENGTH)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse().ok());
+        if let Err(msg) = crate::security::gate_content_length(content_length) {
+            return secured(err_json(StatusCode::PAYLOAD_TOO_LARGE, msg));
+        }
         let site = req
             .headers()
             .get("sec-fetch-site")
             .and_then(|v| v.to_str().ok());
         let origin = req
             .headers()
-            .get(axum::http::header::ORIGIN)
+            .get(header::ORIGIN)
             .and_then(|v| v.to_str().ok());
         if let Err(msg) = crate::security::gate_post(site, origin) {
-            return err_json(StatusCode::FORBIDDEN, msg);
+            return secured(err_json(StatusCode::FORBIDDEN, msg));
         }
     }
-    next.run(req).await
+    let res = next.run(req).await;
+    if res.status() == StatusCode::PAYLOAD_TOO_LARGE {
+        return secured(err_json(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "request body too large",
+        ));
+    }
+    secured(res)
 }
 
 async fn index() -> Html<&'static str> {

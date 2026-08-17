@@ -1,7 +1,8 @@
-//! Local-bind / CSRF / data-file contracts (band 133).
+//! Local-bind / CSRF / data-file / HTTP header contracts (bands 133–134).
 //!
 //! Defensive checks only: loopback Origin is accepted, cross-site POST is
-//! forbidden, `/data/{file}` stays on the allowlist, Omni GET has no `api_key`.
+//! forbidden, `/data/{file}` stays on the allowlist, Omni GET has no `api_key`,
+//! responses carry CSP / nosniff / no-store, oversized POST is 413.
 
 use std::path::PathBuf;
 
@@ -146,4 +147,91 @@ async fn omni_config_get_has_no_api_key_field() {
         );
         assert!(row["key_set"].is_boolean(), "provider {id} missing key_set");
     }
+}
+
+fn header_str(res: &axum::http::Response<Body>, name: &str) -> String {
+    res.headers()
+        .get(name)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string()
+}
+
+#[tokio::test]
+async fn health_response_carries_security_headers() {
+    let app = app();
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/health")
+                .method(Method::GET)
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(header_str(&res, "x-content-type-options"), "nosniff");
+    assert_eq!(header_str(&res, "x-frame-options"), "DENY");
+    assert_eq!(header_str(&res, "referrer-policy"), "no-referrer");
+    assert_eq!(header_str(&res, "cache-control"), "no-store");
+    let csp = header_str(&res, "content-security-policy");
+    assert!(csp.contains("default-src 'self'"), "csp={csp}");
+    assert!(csp.contains("frame-ancestors 'none'"), "csp={csp}");
+    assert_eq!(
+        header_str(&res, "cross-origin-opener-policy"),
+        "same-origin"
+    );
+}
+
+#[tokio::test]
+async fn forbidden_post_also_carries_security_headers() {
+    let app = app();
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/terminal")
+                .method(Method::POST)
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::ORIGIN, "https://example.com")
+                .body(Body::from(r#"{"command":"echo gsv-hdr"}"#))
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(res.status(), StatusCode::FORBIDDEN);
+    assert_eq!(header_str(&res, "x-content-type-options"), "nosniff");
+    assert_eq!(header_str(&res, "cache-control"), "no-store");
+}
+
+#[tokio::test]
+async fn oversized_post_is_payload_too_large() {
+    let app = app();
+    let blob = "x".repeat(gsv::security::MAX_BODY_BYTES);
+    let payload = format!(r#"{{"command":"{blob}"}}"#);
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/terminal")
+                .method(Method::POST)
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::ORIGIN, "http://127.0.0.1:9999")
+                .body(Body::from(payload))
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(res.status(), StatusCode::PAYLOAD_TOO_LARGE);
+    let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .expect("body");
+    let json: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+    assert_eq!(json["ok"], false);
+    assert!(json["error"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("too large"));
 }

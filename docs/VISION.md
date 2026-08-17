@@ -36,6 +36,8 @@ live `:root` CSS via `GET /api/ui/load-palette` + `GET /api/ui/load-theme` (stub
 + node-search table from `GET /api/ui/card/node-search?q=&layer=`; `CARD_NAMES` 31 / chrome 8; JS `tab` removed.
 **band 133 (PH-S1969…S1978, ✅)** — localhost security: loopback bind (`--allow-lan`), CSRF POST gate,
 terminal subcommand allowlists, `/data/{file}` basename allowlist, preview canonicalize.
+**band 134 (PH-S1979…S1988, ✅)** — HTTP response hardening: CSP / nosniff / DENY / no-store on every
+reply; POST body cap 256 KiB → 413 `{ok:false}`.
 
 ## Що це
 

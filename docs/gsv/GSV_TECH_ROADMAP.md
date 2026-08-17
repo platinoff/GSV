@@ -18,6 +18,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 131** (Rust shell CSS + layout nav HTML) **✅** ·
 **band 132** (Rust header chrome HTML + node-search fragment) **✅** ·
 **band 133** (localhost security: bind + CSRF + terminal + data allowlist) **✅** ·
+**band 134** (HTTP response hardening: CSP / nosniff / no-store + POST body cap) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -409,6 +410,24 @@ Owner 2026-08-17: security check on `gsv-server` (loopback default, mutating POS
 | **PH-S1976** | Contracts | `tests/gsv_security_contracts.rs` + terminal/preview unit tests — **✅** |
 | **PH-S1977** | Docs canon | SERVER/BOXES/ARCHITECTURE/VISION + MEMORY/HANDOFF/NEXT band 133 — **✅** |
 | **PH-S1978** | Band close | ratio ≥96%; fmt/clippy/test; vision-sync; one commit + push — **✅** |
+
+## Спринти (band 134) — HTTP response hardening ✅
+
+Owner 2026-08-17: after bind/CSRF, `gsv-server` still shipped HTML/JSON with no CSP, no
+`nosniff`, and a 2 MiB default POST body. Band 134 closes that gap.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S1979** | Scope + queue | roadmap band 134; `extensions.json` `active_sprint` = `PH-S1979` — **✅** |
+| **PH-S1980** | Header constants | `security::SECURITY_HEADERS` + `CSP` (frame-ancestors none, default-src self) — **✅** |
+| **PH-S1981** | Response middleware | `security_gate` inserts CSP / nosniff / DENY / no-referrer / COOP / CORP on every reply — **✅** |
+| **PH-S1982** | Cache-Control | `Cache-Control: no-store` on all responses (live dashboard, no stale API) — **✅** |
+| **PH-S1983** | Body limit | `MAX_BODY_BYTES` 256 KiB; `gate_content_length` + `DefaultBodyLimit` — **✅** |
+| **PH-S1984** | 413 JSON | oversized POST → 413 `{ok:false,error}` (canonical shape) — **✅** |
+| **PH-S1985** | Contracts | unit header/limit tests + `gsv_security_contracts` GET/403/413 — **✅** |
+| **PH-S1986** | Docs canon | SERVER/BOXES/ARCHITECTURE/VISION + MEMORY/HANDOFF/NEXT band 134 — **✅** |
+| **PH-S1987** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy — **✅** |
+| **PH-S1988** | Band close | tests green; vision-sync; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

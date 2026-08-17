@@ -4,6 +4,13 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-17 · band 134 ✅)
+
+- **Band 134:** HTTP response hardening — CSP / nosniff / `X-Frame-Options: DENY` / `Cache-Control: no-store` / COOP+CORP on every reply; POST body cap 256 KiB → 413 `{ok:false}`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.34%** (rust 14498 / product 15049) · **261** tests · clippy 0. Vision rev **501**.
+- **Канон продукту:** Rust **95–100%** / wasm **0–5%** (завжди), без Python/Java; bins — лише `src/bin/`.
+- **VDT kit:** GSV = точка входу (`.agents/skills/`, generic `.cursor/rules/`, `gsv.code-workspace`, [`PRODUCTS.md`](gsv/PRODUCTS.md)). `GSV_VDT_KIT.md` Status=Accepted.
+
 ## Стан (2026-08-17 · band 133 ✅)
 
 - **Band 133:** localhost security — `--allow-lan` for off-loopback bind; CSRF POST gate (`Sec-Fetch-Site` / Origin); SLI terminal cargo/git allowlists (no `bash`/`node`/`npm`/`cat`); `/data/{file}` basename allowlist; preview canonicalize.
@@ -71,6 +78,12 @@
   (GSV_SERVER/GSV_BOXES/README/roadmap band 126) · ratio hold **96.87%** · **Vision rev 493**.
 
 ## Що зроблено
+
+### Band 134 (PH-S1979…S1988, ✅ 2026-08-17) — HTTP response hardening
+- `security::SECURITY_HEADERS` + `CSP` + `MAX_BODY_BYTES` (256 KiB) + `gate_content_length`.
+- `server::security_gate`: CSRF POST gate + body cap + insert headers on every reply (including 403/413).
+- Axum `DefaultBodyLimit::max(MAX_BODY_BYTES)` for chunked bodies.
+- `tests/gsv_security_contracts.rs`: health headers, 403 still nosniff/no-store, oversized POST 413 JSON.
 
 ### Band 133 (PH-S1969…S1978, ✅ 2026-08-17) — localhost security hardening
 - `src/security.rs`: loopback bind (`ensure_bind_host` + `--allow-lan`), POST gate (`gate_post`), `/data/{file}` allowlist (`DATA_FILES`; `omni.toml` not served).
