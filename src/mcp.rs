@@ -10,7 +10,7 @@ use serde_json::{json, Value};
 
 use crate::boxes::omni::proxy::chat_completions;
 use crate::boxes::terminal;
-use crate::boxes::{ide, ratio, sli, toolchain};
+use crate::boxes::{hooks, ide, ratio, sli, toolchain, update};
 use crate::state::AppState;
 use crate::GSV_SERVER_NAME;
 
@@ -77,6 +77,30 @@ pub fn tools_list() -> Vec<Value> {
                 "required": ["command"]
             }),
         ),
+        tool("gsv_vision_map", "Vision map (layers L0–L5 + edge kinds).", object_schema()),
+        tool("gsv_vision_board", "Sprint board (open/closed/planned + progress).", object_schema()),
+        tool(
+            "gsv_vision_progress",
+            "Sprint progress (status counts + per-layer nodes).",
+            object_schema(),
+        ),
+        tool("gsv_vision_speeds", "Speed index (latest test-CI + bench history).", object_schema()),
+        tool(
+            "gsv_vision_rust",
+            "Rust diagnostics (warnings/errors + top clippy codes).",
+            object_schema(),
+        ),
+        tool(
+            "gsv_hooks_tests",
+            "Tests hook: read-only artifacts under target/ (no rebuild).",
+            object_schema(),
+        ),
+        tool(
+            "gsv_hooks_bench",
+            "Bench hook: Criterion dirs + speed index (no rebuild).",
+            object_schema(),
+        ),
+        tool("gsv_update", "Update box: binary vs source mtime, git HEAD.", object_schema()),
     ]
 }
 
@@ -92,6 +116,14 @@ const TOOL_NAMES: &[&str] = &[
     "gsv_omni_chat",
     "gsv_ide_sessions",
     "gsv_terminal",
+    "gsv_vision_map",
+    "gsv_vision_board",
+    "gsv_vision_progress",
+    "gsv_vision_speeds",
+    "gsv_vision_rust",
+    "gsv_hooks_tests",
+    "gsv_hooks_bench",
+    "gsv_update",
 ];
 
 /// Stable tool name list (tests / GET /mcp).
@@ -142,12 +174,16 @@ pub fn rpc_error(id: Option<Value>, code: i32, message: impl Into<String>) -> Va
 
 /// Discovery payload for `GET /mcp` (not a JSON-RPC session).
 pub fn http_info() -> Value {
+    let tools = tool_names();
     json!({
         "ok": true,
         "name": SERVER_ID,
         "protocol": PROTOCOL_VERSION,
         "transport": "streamable-http",
-        "tools": tool_names(),
+        "stdio": "gsv-mcp",
+        "http": "/mcp",
+        "tools": tools,
+        "tool_count": tools.len(),
     })
 }
 
@@ -235,6 +271,29 @@ async fn call_tool(state: &AppState, params: &Value) -> Value {
         }
         "gsv_terminal" => tool_terminal(state, &args),
         "gsv_omni_chat" => tool_omni(state, &args).await,
+        "gsv_vision_map" => tool_ok(crate::boxes::vision::wire_map(
+            &state.repo_root,
+            &state.data_dir,
+        )),
+        "gsv_vision_board" => tool_ok(crate::boxes::vision::wire_sprint_board(
+            &state.repo_root,
+            &state.data_dir,
+        )),
+        "gsv_vision_progress" => tool_ok(crate::boxes::vision::wire_sprint_progress(
+            &state.repo_root,
+            &state.data_dir,
+        )),
+        "gsv_vision_speeds" => tool_ok(crate::boxes::vision::wire_speed_index(
+            &state.repo_root,
+            &state.data_dir,
+        )),
+        "gsv_vision_rust" => tool_ok(crate::boxes::vision::wire_rust_diagnostics(
+            &state.repo_root,
+            &state.data_dir,
+        )),
+        "gsv_hooks_tests" => tool_ok(to_json(hooks::tests_wire(&state.repo_root))),
+        "gsv_hooks_bench" => tool_ok(to_json(hooks::bench_wire(&state.repo_root))),
+        "gsv_update" => tool_ok(to_json(update::wire(state))),
         "" => tool_err("missing tool name"),
         other => tool_err(format!("unknown tool: {other}")),
     }
@@ -391,10 +450,18 @@ mod tests {
             "gsv_omni_chat",
             "gsv_ide_sessions",
             "gsv_terminal",
+            "gsv_vision_map",
+            "gsv_vision_board",
+            "gsv_vision_progress",
+            "gsv_vision_speeds",
+            "gsv_vision_rust",
+            "gsv_hooks_tests",
+            "gsv_hooks_bench",
+            "gsv_update",
         ] {
             assert!(names.contains(&n), "missing {n}");
         }
-        assert_eq!(names.len(), 11);
+        assert_eq!(names.len(), 19);
     }
 
     #[tokio::test]
@@ -564,6 +631,14 @@ mod tests {
             (24, "gsv_vision_feed"),
             (25, "gsv_vision_queue"),
             (26, "gsv_ide_sessions"),
+            (27, "gsv_vision_map"),
+            (28, "gsv_vision_board"),
+            (29, "gsv_vision_progress"),
+            (31, "gsv_vision_speeds"),
+            (32, "gsv_vision_rust"),
+            (33, "gsv_hooks_tests"),
+            (34, "gsv_hooks_bench"),
+            (35, "gsv_update"),
         ] {
             let (is_err, text) = tool_text(&s, id, name, json!({})).await;
             assert!(!is_err, "{name} isError text={text}");
@@ -597,6 +672,9 @@ mod tests {
         assert_eq!(info["transport"], "streamable-http");
         let listed = info["tools"].as_array().expect("tools");
         assert_eq!(listed.len(), TOOL_NAMES.len());
+        assert_eq!(info["tool_count"], TOOL_NAMES.len() as u64);
+        assert_eq!(info["stdio"], "gsv-mcp");
+        assert_eq!(info["http"], "/mcp");
     }
 
     #[tokio::test]

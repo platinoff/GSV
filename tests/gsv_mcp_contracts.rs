@@ -65,6 +65,9 @@ async fn get_mcp_discovers_openbot() {
     assert_eq!(json["protocol"], PROTOCOL_VERSION);
     let tools = json["tools"].as_array().expect("tools");
     assert_eq!(tools.len(), mcp::tool_names().len());
+    assert_eq!(json["tool_count"], tools.len() as u64);
+    assert_eq!(json["stdio"], "gsv-mcp");
+    assert_eq!(json["http"], "/mcp");
 }
 
 #[tokio::test]
@@ -99,7 +102,7 @@ async fn post_initialize_and_tools_list() {
     assert!(names.contains(&"gsv_health"));
     assert!(names.contains(&"gsv_terminal"));
     assert!(names.contains(&"gsv_omni_chat"));
-    assert_eq!(names.len(), 11);
+    assert_eq!(names.len(), 19);
 }
 
 #[tokio::test]
@@ -181,6 +184,15 @@ async fn omni_defaults_to_dry_run() {
         "omni tool text={text}"
     );
     assert!(!text.contains("sk-"), "secrets must stay redacted: {text}");
+}
+
+#[test]
+fn grok_project_overlay_registers_openbot() {
+    let toml = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/.grok/config.toml"))
+        .expect(".grok/config.toml");
+    assert!(toml.contains("[mcp_servers.gsv_mcp_openbot]"));
+    assert!(toml.contains("gsv-mcp"));
+    assert!(toml.contains("startup_timeout_sec"));
 }
 
 #[tokio::test]

@@ -126,7 +126,7 @@ fn ui_helpers_match_js_semantics() {
     assert!(tab(&["a"], Vec::new()).contains("<span class='dim'>—</span>"));
     assert!(bar(50.0).contains("width:50%"));
     assert!(bar(120.0).contains("width:100%"));
-    assert_eq!(CARD_NAMES.len(), 31);
+    assert_eq!(CARD_NAMES.len(), 32);
 }
 
 #[tokio::test]
@@ -144,10 +144,26 @@ async fn ui_card_omni_renders_summary_providers_models() {
     assert!(html.contains("<th>id</th><th>name</th><th>state</th><th>key</th><th>base_url</th>"));
 }
 
+#[tokio::test]
+async fn ui_card_mcp_renders_openbot_tools() {
+    let (app, _state) = app();
+    let (status, json) = get_card(&app, "mcp").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["ok"], true);
+    assert_eq!(json["card"], "mcp");
+    let html = json["html"].as_str().expect("html");
+    assert!(html.contains("gsv_mcp_openbot"), "name: {html}");
+    assert!(html.contains("stdio <kbd>gsv-mcp</kbd>"), "stdio: {html}");
+    assert!(html.contains("http <kbd>/mcp</kbd>"), "http: {html}");
+    assert!(html.contains("<kbd>gsv_health</kbd>"), "tool: {html}");
+    assert!(html.contains("<th>tool</th>"), "table: {html}");
+}
+
 /// The rustCards the thin JS glue fetches via `getText` (mirror of
 /// `rustCards` in `GSV/ui/index.html`).
-const RUST_CARDS: [&str; 23] = [
+const RUST_CARDS: [&str; 24] = [
     "health",
+    "mcp",
     "update",
     "tracker",
     "sli",
@@ -321,7 +337,8 @@ async fn ui_index_cards_are_offline_stable() {
     assert!(
         html.contains("\"preview\"")
             && html.contains("\"terminal\"")
-            && html.contains("\"sprint-focus\""),
+            && html.contains("\"sprint-focus\"")
+            && html.contains("\"mcp\""),
         "rustCards includes layout ops/sprint cards"
     );
     assert!(

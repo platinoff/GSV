@@ -100,6 +100,7 @@ body.panel-fs-active .card{display:none!important}body.panel-fs-active .card.ful
 <nav id="shellNav" class="shell-nav" aria-label="GSV groups"></nav>
 <main id="grid">
   <section class="card" data-card="health" data-group="ops"><h2>Health <span class="hint">/api/health</span></h2><div class="body" id="b-health">…</div></section>
+  <section class="card" data-card="mcp" data-group="ops"><h2>MCP <span class="hint">GET /mcp · gsv-mcp</span></h2><div class="body" id="b-mcp">…</div></section>
   <section class="card" data-card="tracker" data-group="ops"><h2>Tracker <span class="hint">/api/tracker</span></h2><div class="body" id="b-tracker">…</div></section>
   <section class="card" data-card="sli" data-group="ops"><h2>SLI console <span class="hint">/api/sli</span></h2><div class="body" id="b-sli">…</div></section>
   <section class="card" data-card="toolchain" data-group="ops"><h2>Toolchain <span class="hint">/api/toolchain</span></h2><div class="body" id="b-toolchain">…</div></section>
@@ -272,7 +273,7 @@ async function getText(card) {
     markStatus(e.message || "offline");
   }
 }
-const rustCards = ["health", "update", "tracker", "sli", "toolchain", "hooks-tests", "hooks-bench", "ratio", "vision", "vision-map", "sprint-map", "sprint-queue", "sprint-progress", "sprint-board", "speed-index", "rust-diagnostics", "omni", "ide", "vision-sync", "doc-preview", "preview", "terminal", "sprint-focus"];
+const rustCards = ["health", "mcp", "update", "tracker", "sli", "toolchain", "hooks-tests", "hooks-bench", "ratio", "vision", "vision-map", "sprint-map", "sprint-queue", "sprint-progress", "sprint-board", "speed-index", "rust-diagnostics", "omni", "ide", "vision-sync", "doc-preview", "preview", "terminal", "sprint-focus"];
 async function resync() {
   const results = await Promise.allSettled([refreshMeta(), refreshTrail(), loadRssTicker(), ...rustCards.map(getText)]);
   const failed = results.filter(r => r.status === "rejected").length;

@@ -20,6 +20,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 133** (localhost security: bind + CSRF + terminal + data allowlist) **✅** ·
 **band 134** (HTTP response hardening: CSP / nosniff / no-store + POST body cap) **✅** ·
 **band 135** (gsv_mcp_openbot — MCP for OpenCode / Cursor / Grok Bot) **✅** ·
+**band 136** (MCP Galaxy UI + remaining read tools) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -449,6 +450,24 @@ Do **not** embed Grok Bot’s cloud computer or fork OpenCode into `gsv-server`.
 | **PH-S1996** | Contracts | MCP initialize/tools tests; no extra shell; loc-audit still ≥96% — **✅** |
 | **PH-S1997** | Docs | SERVER/BOXES/ARCHITECTURE + README MCP row; Grok Bot = client (tunnel = owner opt-in) — **✅** |
 | **PH-S1998** | Band close | fmt/clippy/test; vision-sync; one commit + push — **✅** |
+
+## Спринти (band 136) — MCP Galaxy UI + remaining read tools ✅
+
+Owner 2026-08-17: after band 135, `gsv_mcp_openbot` had no Galaxy card and only 11 tools.
+Band 136 wraps the remaining read-only boxes and shows the server on the dashboard.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S1999** | Scope + queue | this band; `extensions.json` `active_sprint` = `PH-S1999` — **✅** |
+| **PH-S2000** | Extra read tools | `gsv_vision_{map,board,progress,speeds,rust}` + `gsv_hooks_{tests,bench}` + `gsv_update` (19 tools) — **✅** |
+| **PH-S2001** | Discovery wire | `GET /mcp` `stdio` / `http` / `tool_count` (same payload as the card) — **✅** |
+| **PH-S2002** | MCP card | `render_mcp` + `CARD_NAMES` 32 + ops group; `GET /api/ui/card/mcp` — **✅** |
+| **PH-S2003** | UI glue | `data-card="mcp"` + `rustCards` 24 — **✅** |
+| **PH-S2004** | Grok overlay | `.grok/config.toml` `[mcp_servers.gsv_mcp_openbot]` (project scope) — **✅** |
+| **PH-S2005** | Contracts | mcp tools 19 + ui/server/stand-smoke card + grok overlay — **✅** |
+| **PH-S2006** | Docs canon | MCP_OPENBOT / SERVER / BOXES / HANDOFF / NEXT / MEMORY / roadmap — **✅** |
+| **PH-S2007** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy — **✅** |
+| **PH-S2008** | Band close | tests green; vision-sync; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

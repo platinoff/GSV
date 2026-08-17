@@ -1,18 +1,19 @@
 # gsv_mcp_openbot — GSV as an MCP server
 
-**Status:** Implemented (band **135**, `PH-S1989…S1998` ✅) · **Date:** 2026-08-17
+**Status:** Implemented (band **136**, `PH-S1999…S2008` ✅ · band 135 `PH-S1989…S1998` ✅) · **Date:** 2026-08-17
 **Deciders:** owner
 
 GSV exposes one MCP server named **`gsv_mcp_openbot`**. OpenCode, Cursor, Grok CLI, and Grok Bot consume the **same** tools. Those products stay **clients** — they are not embedded inside `gsv-server`.
 
-## Landed (band 135)
+## Landed (band 135–136)
 
 | Piece | Where |
 |-------|--------|
 | Stdio JSON-RPC (NDJSON) | `src/bin/gsv_mcp.rs` + `src/mcp.rs` · `cargo run --quiet --bin gsv-mcp` |
-| HTTP | `GET /mcp` (discovery) · `POST /mcp` (JSON-RPC); loopback unless `--allow-lan` |
-| Auto-register | `.mcp.json` · `.cursor/mcp.json` · `opencode.json` `mcp.gsv_mcp_openbot` |
-| Tools | `gsv_health` / `gsv_tracker` / `gsv_ratio` / `gsv_sli` / `gsv_toolchain` / `gsv_vision_{manifest,feed,queue}` / `gsv_omni_chat` (dry-run default) / `gsv_ide_sessions` / `gsv_terminal` (HTTP allowlist) |
+| HTTP | `GET /mcp` (discovery: `stdio` / `http` / `tool_count`) · `POST /mcp` (JSON-RPC); loopback unless `--allow-lan` |
+| Auto-register | `.mcp.json` · `.cursor/mcp.json` · `opencode.json` `mcp.gsv_mcp_openbot` · `.grok/config.toml` |
+| Galaxy card | `GET /api/ui/card/mcp` (`render_mcp`, ops group, `CARD_NAMES` 32) |
+| Tools (19) | health / tracker / ratio / sli / toolchain / vision_{manifest,feed,queue,map,board,progress,speeds,rust} / omni_chat (dry-run default) / ide_sessions / terminal (HTTP allowlist) / hooks_{tests,bench} / update |
 | Faster cold start | `target/debug/gsv-mcp.exe` after `cargo build --bin gsv-mcp` |
 
 Grok Bot tunnel of `/mcp` to the public internet remains an **owner opt-in**. Do not port-forward in v1.
@@ -56,7 +57,7 @@ When band 135 lands, `gsv_mcp_openbot` should appear **without** the owner pasti
 | `.mcp.json` (repo root) | Grok CLI + anything that reads project MCP |
 | `.cursor/mcp.json` | Cursor + Grok Bot (Cursor MCP policy) |
 | `opencode.json` → `mcp.gsv_mcp_openbot` | OpenCode local stdio |
-| `.grok/config.toml` (optional `--scope project`) | Grok CLI project overlay |
+| `.grok/config.toml` | Grok CLI project overlay (`[mcp_servers.gsv_mcp_openbot]`) |
 
 Local command (sketch):
 
@@ -85,7 +86,9 @@ Prefer a built `target/debug/gsv-mcp.exe` in docs once the bin exists (faster co
 | `gsv_sli` | SLI catalog |
 | `gsv_toolchain` | Toolchain inventory |
 | `gsv_ratio` | Ratio / `gsv-loc-audit` |
-| `gsv_vision_*` | manifest / feed / sprint-queue |
+| `gsv_vision_*` | manifest / feed / sprint-queue / map / board / progress / speeds / rust-diagnostics |
+| `gsv_hooks_*` | tests + bench hooks (read `target/`, no rebuild) |
+| `gsv_update` | Update box (binary vs source mtime) |
 | `gsv_omni_chat` | OmniRouter `POST /api/omni/v1/chat/completions` |
 | `gsv_ide_sessions` | IDE box (OpenCode + Cursor sessions, read) |
 | `gsv_terminal` | SLI terminal **same allowlist** as HTTP (no extra shell) |

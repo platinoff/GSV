@@ -110,6 +110,7 @@ pub const UI_GROUPS: [UiGroup; 4] = [
         label: "Ops",
         cards: &[
             "health",
+            "mcp",
             "update",
             "tracker",
             "sli",
@@ -810,6 +811,46 @@ fn format_number(n: u64) -> String {
     s
 }
 
+/// MCP `gsv_mcp_openbot` card (`GET /mcp`).
+pub fn render_mcp(d: &Value) -> String {
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let tools = arr(&d["tools"]);
+    if tools.is_empty() && s(&d["name"]).is_empty() {
+        return empty_html("mcp");
+    }
+    let count = u(&d["tool_count"]).max(tools.len() as u64);
+    let mut out = format!(
+        "<div class='dim'>{} · {} · tools {}</div>",
+        esc(&s(&d["name"])),
+        esc(&s(&d["protocol"])),
+        count
+    );
+    let stdio = s(&d["stdio"]);
+    let http = s(&d["http"]);
+    if !stdio.is_empty() || !http.is_empty() {
+        out.push_str(&format!(
+            "<div>stdio <kbd>{}</kbd> · http <kbd>{}</kbd></div>",
+            esc(if stdio.is_empty() { "—" } else { &stdio }),
+            esc(if http.is_empty() { "—" } else { &http })
+        ));
+    }
+    if tools.is_empty() {
+        out.push_str(&empty_html("mcp tools"));
+        return out;
+    }
+    let rows: Vec<Vec<String>> = tools
+        .iter()
+        .map(|t| {
+            let name = t.as_str().map(str::to_string).unwrap_or_else(|| s(t));
+            vec![format!("<kbd>{}</kbd>", esc(&name))]
+        })
+        .collect();
+    out.push_str(&tab(&["tool"], rows));
+    out
+}
+
 /// Health card (`/api/health`).
 pub fn render_health(d: &Value) -> String {
     if let Some(msg) = not_ok(d) {
@@ -1185,6 +1226,7 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
         "rust-diagnostics" => Some(render_rust_diagnostics(d)),
         "omni" => Some(render_omni(d)),
         "health" => Some(render_health(d)),
+        "mcp" => Some(render_mcp(d)),
         "update" => Some(render_update(d)),
         "ide" => Some(render_ide(d)),
         "vision" => Some(render_vision(d)),
@@ -1207,7 +1249,7 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
 }
 
 /// Server-rendered card names (stable contract for `/api/ui/card/:name`).
-pub const CARD_NAMES: [&str; 31] = [
+pub const CARD_NAMES: [&str; 32] = [
     "tracker",
     "sli",
     "toolchain",
@@ -1222,6 +1264,7 @@ pub const CARD_NAMES: [&str; 31] = [
     "rust-diagnostics",
     "omni",
     "health",
+    "mcp",
     "update",
     "ide",
     "vision",
@@ -1612,14 +1655,30 @@ mod tests {
         assert!(render_card("panel-dock", &d).is_some());
         assert!(render_card("fullscreen", &d).is_some());
         assert!(render_card("node-search", &d).is_some());
+        assert!(render_card("mcp", &d).is_some());
         assert!(render_card("nope", &d).is_none());
-        assert_eq!(CARD_NAMES.len(), 31);
+        assert_eq!(CARD_NAMES.len(), 32);
         assert!(render_card("health", &d).is_some());
         assert!(render_card("ide", &d).is_some());
         assert!(render_card("vision", &d).is_some());
         assert!(render_card("preview", &d).is_some());
         assert!(render_card("terminal", &d).is_some());
         assert!(render_card("sprint-focus", &d).is_some());
+        let mcp = render_mcp(&serde_json::json!({
+            "ok": true,
+            "name": "gsv_mcp_openbot",
+            "protocol": "2025-03-26",
+            "stdio": "gsv-mcp",
+            "http": "/mcp",
+            "tool_count": 2,
+            "tools": ["gsv_health", "gsv_update"]
+        }));
+        assert!(mcp.contains("gsv_mcp_openbot"), "{mcp}");
+        assert!(mcp.contains("tools 2"), "{mcp}");
+        assert!(mcp.contains("<kbd>gsv_health</kbd>"), "{mcp}");
+        assert!(mcp.contains("stdio <kbd>gsv-mcp</kbd>"), "{mcp}");
+        assert!(render_mcp(&serde_json::json!({ "ok": false, "error": "down" })).contains("down"));
+        assert!(render_mcp(&serde_json::json!({})).contains("mcp — no data"));
     }
 
     #[test]

@@ -567,6 +567,17 @@ async fn ui_layout_endpoint_returns_four_groups() {
         .as_str()
         .expect("health")
         .contains("uptime_secs"));
+    let (mcp_status, mcp_json) = get(&app, "/api/ui/card/mcp").await;
+    assert_eq!(mcp_status, StatusCode::OK);
+    let mcp_html = mcp_json["html"].as_str().expect("mcp html");
+    assert!(
+        mcp_html.contains("gsv_mcp_openbot"),
+        "mcp card name: {mcp_html}"
+    );
+    assert!(
+        mcp_html.contains("<kbd>gsv_health</kbd>"),
+        "mcp card tools: {mcp_html}"
+    );
     let (rss_status, rss_json) = get(&app, "/api/ui/card/rss-ticker").await;
     assert_eq!(rss_status, StatusCode::OK);
     let rss_html = rss_json["html"].as_str().expect("rss html");

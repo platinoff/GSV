@@ -38,6 +38,8 @@ live `:root` CSS via `GET /api/ui/load-palette` + `GET /api/ui/load-theme` (stub
 terminal subcommand allowlists, `/data/{file}` basename allowlist, preview canonicalize.
 **band 134 (PH-S1979…S1988, ✅)** — HTTP response hardening: CSP / nosniff / DENY / no-store on every
 reply; POST body cap 256 KiB → 413 `{ok:false}`.
+**band 136 (PH-S1999…S2008, ✅)** — MCP Galaxy UI (`GET /api/ui/card/mcp`, `CARD_NAMES` 32) +
+remaining read-only MCP tools (19) + `.grok/config.toml`.
 
 ## Що це
 

@@ -573,6 +573,7 @@ async fn card_wire(state: &AppState, name: &str, q: &CardQuery) -> Result<Value,
             "whitelist": crate::boxes::terminal::WHITELIST,
         }),
         "health" => health(state),
+        "mcp" => crate::mcp::http_info(),
         "update" => json!(crate::boxes::update::wire(state)),
         "ide" => {
             let selection = state.ide_selection.try_read().ok().and_then(|s| s.clone());

@@ -1,6 +1,6 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-08-17 (band 135 `gsv_mcp_openbot` ✅)
+**Оновлено:** 2026-08-17 (band 136 `mcp_galaxy_ui` ✅)
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
 **`абракадабра`** → `scripts/list-vdt-products.sh` → **AskQuestion на проєкти з environment**
@@ -8,21 +8,24 @@
 drain ≤10 PH-S* → Speeds + Rust panel (`bin/record-test-speed.sh` + `bin/record-rust-diagnostics.sh`) → vision-sync → **один commit** → **`git push` + самарі**.
 
 Якщо вибір **gsv:** project scan у [`gsv/GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md)
-(наступний band після 135). MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+(наступний band після 136). MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
 Канон ролей: [`GSV_ROLES.md`](GSV_ROLES.md). Реєстр: [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
 
 ## Стан зараз
 
-- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–134 · **135 ✅**.
+- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–135 · **136 ✅**.
+- **Band 136:** MCP Galaxy UI — `GET /api/ui/card/mcp` (`render_mcp`, `CARD_NAMES` 32, `rustCards` 24);
+  8 extra read tools (vision map/board/progress/speeds/rust + hooks + update) → **19** tools;
+  `.grok/config.toml` project overlay. Discovery `GET /mcp` now includes `stdio` / `http` / `tool_count`.
 - **Band 135:** `gsv_mcp_openbot` — `gsv-mcp` stdio JSON-RPC + `GET`/`POST /mcp`; tools wrap boxes;
   auto-register `.mcp.json` / `.cursor/mcp.json` / `opencode.json`; Omni dry-run default;
   terminal = HTTP allowlist; Grok Bot = client (tunnel = owner opt-in).
 - **Band 134:** HTTP response hardening — CSP / nosniff / DENY / no-store / COOP+CORP; POST 256 KiB cap → 413 `{ok:false}`.
 - **VDT kit (band 127):** shared `.agents/skills/` + generic `.cursor/rules/` + `gsv.code-workspace` + `PRODUCTS.md`.
   Discover: `scripts/list-vdt-products.sh` (не hardcoded `gsv | poolai`).
-- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.01%** (rust 15414 / product 16055) · **289** green · clippy 0 · fmt clean.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.04%** (rust 15590 / product 16232) · **291** green · clippy 0 · fmt clean.
 - **Сервер:** canon порт **9999** (`DEFAULT_PORT`; 8765 — Hyper-V reserved range).
-- **Vision rev:** **502** (band 135 `gsv-vision-sync`).
+- **Vision rev:** **503** (band 136 `gsv-vision-sync`).
 - **Live UI** — `gsv-server` → `http://127.0.0.1:9999/`. MCP stdio — `cargo run --quiet --bin gsv-mcp`.
 - **Band 133:** localhost security — `--allow-lan`; CSRF POST gate; terminal cargo/git allowlists; `/data/{file}` allowlist; preview canonicalize.
 - **FM:** band 127 = PoolAI FM §5.108 (PH-S1909…S1918 ✅). Master horizon poolAI: band 128.

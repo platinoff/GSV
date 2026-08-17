@@ -4,6 +4,16 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-17 · band 136 ✅)
+
+- **Band 136:** MCP Galaxy UI — `render_mcp` / `GET /api/ui/card/mcp` (`CARD_NAMES` **32**,
+  `rustCards` **24**, ops group). Extra read tools: vision map/board/progress/speeds/rust,
+  hooks tests/bench, update → **19** tools. `GET /mcp` adds `stdio` / `http` / `tool_count`.
+  Grok CLI project overlay: `.grok/config.toml` `[mcp_servers.gsv_mcp_openbot]`.
+- **VDT kit:** `абракадабра` Step 0 still `scripts/list-vdt-products.sh` (environment, not hardcoded pair).
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.04%** (rust 15590 / product 16232) · **291** tests · clippy 0. Vision rev **503**.
+- **Канон продукту:** Rust **95–100%** / wasm **0–5%** (завжди), без Python/Java; bins — лише `src/bin/`.
+
 ## Стан (2026-08-17 · band 135 ✅)
 
 - **Band 135:** `gsv_mcp_openbot` — `src/mcp.rs` + `gsv-mcp` stdio JSON-RPC (NDJSON) +
