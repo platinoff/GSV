@@ -14,7 +14,7 @@ All git in **MSYS2 bash** (`C:\msys64\usr\bin\bash.exe`). Prefer an external UCR
 2. Stage **only sprint files** — never `git add -A`.
 3. Conventional Commits: `<type>(<scope>): <subject>`.
 4. If the commit has product code (`src/`, `tests/`, `crates/`, `Cargo.toml`) — body **Summary:** what changed + which `cargo` commands actually ran.
-5. Push only at session end (`абракадабра` step 6). GSV GitHub remote is optional until the owner adds one.
+5. Push only at session end (`абракадабра` / `abrakadabra` step 6). GSV GitHub remote is optional until the owner adds one.
 
 **Types:** `feat` `fix` `docs` `style` `refactor` `perf` `test` `build` `ci` `chore` `revert`
 

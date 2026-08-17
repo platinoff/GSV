@@ -42,6 +42,8 @@ reply; POST body cap 256 KiB → 413 `{ok:false}`.
 remaining read-only MCP tools (19) + `.grok/config.toml`.
 **band 137 (PH-S2009…S2018, ✅)** — MCP vision completeness: sprint-map / doc-preview /
 node-search / summary / sync / extensions / preview (26 tools; preview same confine as HTTP).
+**band 138 (PH-S2019…S2028, ✅)** — MCP resources + prompts: 6 `gsv://` URIs + 3 prompts
+(`gsv_status` / `gsv_vision_brief` / `gsv_drain`); Galaxy card lists both.
 
 ## Що це
 

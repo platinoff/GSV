@@ -2,7 +2,7 @@
 
 Registered Rust products the host skill [`abracadabra`](../../.agents/skills/abracadabra/SKILL.md) can **drain** (HANDOFF, tests, ratio).
 
-**Discovery is not this table.** When the owner writes `абракадабра`, the agent runs
+**Discovery is not this table.** When the owner writes `абракадабра` or `abrakadabra`, the agent runs
 [`scripts/list-vdt-products.sh`](../../scripts/list-vdt-products.sh) and asks about
 **projects visible in the environment** (workspace folders + sibling git repos).
 This file only **enriches** a pick that is already registered.
@@ -22,7 +22,7 @@ Discovered but **not** in this table (example: `S:/rust/omniroute`) → S0 + git
 |-------------------------|---------------------------|
 | `.agents/skills/` (except product-only skills) | FM / concept / DIGEST |
 | Generic `.cursor/rules/` (S0, MSYS2, git, rust style) | Product test aliases (`test-ci`, Playwright admin, OpenAPI gap) |
-| `абракадабра` router (discover → ask) | Product HANDOFF / NEXT / roadmap journal |
+| `абракадабра` / `abrakadabra` router (discover → ask) | Product HANDOFF / NEXT / roadmap journal |
 
 ## New product checklist
 

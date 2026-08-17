@@ -5,12 +5,12 @@ alwaysApply: true
 
 # GSV — точка входу VDT
 
-Цей workspace (`S:\rust\GSV`) — **спільний агентський кіт** (правила, скіли, `абракадабра`).
+Цей workspace (`S:\rust\GSV`) — **спільний агентський кіт** (правила, скіли, `абракадабра` / `abrakadabra`).
 Продуктовий код живе в зареєстрованих репо (PoolAI, цей ж GSV як продукт, далі — нові).
 
 Канон: [`docs/gsv/GSV_VDT_KIT.md`](../../docs/gsv/GSV_VDT_KIT.md).
 
-## Коли власник пише `абракадабра`
+## Коли власник пише `абракадабра` або `abrakadabra`
 
 1. **Спочатку** `bash scripts/list-vdt-products.sh` — проєкти з **environment** (workspace + git-сусіди під `S:/rust`), не захардкоджені `gsv | poolai`.
 2. `AskQuestion` / `question`: один пункт на кожен рядок скану. `PRODUCTS.md` лише збагачує зареєстровані.
@@ -23,7 +23,7 @@ alwaysApply: true
 |----------------------------------|-----------------|
 | `.agents/skills/`, generic `.cursor/rules/` | FM, concept, product test aliases |
 | S0 диск, MSYS2, git hygiene | PoolAI `cargo test-ci`, GSV `cargo test` |
-| Роутер `абракадабра` | HANDOFF / NEXT того продукту |
+| Роутер `абракадабра` / `abrakadabra` | HANDOFF / NEXT того продукту |
 
 ## Shell
 

@@ -22,6 +22,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 135** (gsv_mcp_openbot — MCP for OpenCode / Cursor / Grok Bot) **✅** ·
 **band 136** (MCP Galaxy UI + remaining read tools) **✅** ·
 **band 137** (MCP vision completeness) **✅** ·
+**band 138** (MCP resources + prompts) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -488,6 +489,26 @@ node-search / sync / extensions / summary / preview. Band 137 wraps those boxes
 | **PH-S2016** | Docs canon | MCP_OPENBOT / SERVER / BOXES / ARCHITECTURE / HANDOFF / NEXT / MEMORY / roadmap — **✅** |
 | **PH-S2017** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy — **✅** |
 | **PH-S2018** | Band close | tests green; vision-sync; one commit + push — **✅** |
+
+## Спринти (band 138) — MCP resources + prompts ✅
+
+Owner 2026-08-17: after band 137, agents had 26 tools but no MCP `resources/*`
+or `prompts/*`. Band 138 advertises both, allowlists `gsv://` URIs (same path
+confine as preview), and ships three drain prompts. Kit trigger alias
+`abrakadabra` lands with the docs canon.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2019** | Scope + queue | this band; `extensions.json` `active_sprint` = `PH-S2019`; `abrakadabra` alias — **✅** |
+| **PH-S2020** | Capabilities | `initialize` advertises `resources` + `prompts` (`listChanged: false`) — **✅** |
+| **PH-S2021** | resources/list | 6 `gsv://` URIs (vision manifest/feed/extensions + docs mcp/handoff/next) — **✅** |
+| **PH-S2022** | resources/read | allowlist + `preview::resolve`; traversal / `file://` / unknown → `-32602` — **✅** |
+| **PH-S2023** | prompts | `prompts/list` + `prompts/get` (`gsv_status` / `gsv_vision_brief` / `gsv_drain`) — **✅** |
+| **PH-S2024** | Discovery + card | `GET /mcp` `resource_count`/`prompt_count`; Galaxy card lists both — **✅** |
+| **PH-S2025** | Contracts | mcp unit + `gsv_mcp_contracts` + ui card resources/prompts — **✅** |
+| **PH-S2026** | Docs canon | MCP_OPENBOT / SERVER / BOXES / ARCHITECTURE / HANDOFF / NEXT / MEMORY / roadmap — **✅** |
+| **PH-S2027** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy — **✅** |
+| **PH-S2028** | Band close | tests green; vision-sync; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

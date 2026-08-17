@@ -3,6 +3,7 @@
 //! Stdio (`gsv-mcp`) and optional HTTP `POST /mcp` share [`handle_value`].
 //! Tools wrap Tracker / SLI / Toolchain / Ratio / Vision / Omni / IDE / terminal /
 //! preview; they do not add a second shell. Secrets in tool output are redacted.
+//! Band 138: allowlisted `gsv://` `resources/*` and named `prompts/*`.
 
 use axum::body::to_bytes;
 use axum::http::{HeaderMap, HeaderValue};
@@ -162,6 +163,104 @@ pub fn tools_list() -> Vec<Value> {
     ]
 }
 
+const RESOURCE_URIS: &[&str] = &[
+    "gsv://vision/manifest",
+    "gsv://vision/feed",
+    "gsv://vision/extensions",
+    "gsv://docs/mcp-openbot",
+    "gsv://docs/handoff",
+    "gsv://docs/next",
+];
+
+const PROMPT_NAMES: &[&str] = &["gsv_status", "gsv_vision_brief", "gsv_drain"];
+
+struct ResourceSpec {
+    uri: &'static str,
+    name: &'static str,
+    description: &'static str,
+    mime: &'static str,
+    rel: &'static str,
+}
+
+const RESOURCES: &[ResourceSpec] = &[
+    ResourceSpec {
+        uri: "gsv://vision/manifest",
+        name: "Vision manifest",
+        description: "Galaxy graph (nodes, layers, edges).",
+        mime: "application/json",
+        rel: "docs/vision/manifest.json",
+    },
+    ResourceSpec {
+        uri: "gsv://vision/feed",
+        name: "Vision feed",
+        description: "Sprint ticker items.",
+        mime: "application/json",
+        rel: "docs/vision/feed.json",
+    },
+    ResourceSpec {
+        uri: "gsv://vision/extensions",
+        name: "Vision extensions",
+        description: "Active sprint, scopes, panels.",
+        mime: "application/json",
+        rel: "docs/vision/extensions.json",
+    },
+    ResourceSpec {
+        uri: "gsv://docs/mcp-openbot",
+        name: "MCP openbot canon",
+        description: "gsv_mcp_openbot design and client wiring.",
+        mime: "text/markdown",
+        rel: "docs/gsv/GSV_MCP_OPENBOT.md",
+    },
+    ResourceSpec {
+        uri: "gsv://docs/handoff",
+        name: "Session handoff",
+        description: "GSV HANDOFF for the next drain session.",
+        mime: "text/markdown",
+        rel: "docs/HANDOFF_NEW_SESSION.md",
+    },
+    ResourceSpec {
+        uri: "gsv://docs/next",
+        name: "Next session prompt",
+        description: "Copy-paste prompt for the next GSV session.",
+        mime: "text/markdown",
+        rel: "docs/NEXT_SESSION_PROMPT.md",
+    },
+];
+
+struct PromptSpec {
+    name: &'static str,
+    description: &'static str,
+    text: &'static str,
+}
+
+const PROMPTS: &[PromptSpec] = &[
+    PromptSpec {
+        name: "gsv_status",
+        description: "Summarize GSV health, LOC ratio, and vision revision.",
+        text: "Summarize GSV status. Call gsv_health, gsv_ratio, and gsv_vision. Report ok, rust ratio vs 96% stretch, vision revision, and next sprint. Keep secrets redacted.",
+    },
+    PromptSpec {
+        name: "gsv_vision_brief",
+        description: "Brief the current vision map and active sprint.",
+        text: "Brief GSV vision. Call gsv_vision_sprint_map and gsv_vision_extensions. Name the active sprint, in-scope modules, and any drift from gsv_vision_sync.",
+    },
+    PromptSpec {
+        name: "gsv_drain",
+        description: "Start a VDT drain: next PH-S* band after the last closed sprint.",
+        text: "Start a GSV VDT drain. Read gsv://docs/next if needed, then gsv_vision_queue. Propose the next ≤10 PH-S* after the last closed band. Do not push mid-drain. Shell is MSYS2 bash.",
+    },
+];
+
+/// Stable resource URI list (tests / GET /mcp).
+pub fn resource_uris() -> &'static [&'static str] {
+    RESOURCE_URIS
+}
+
+/// Stable prompt name list (tests / GET /mcp).
+pub fn prompt_names() -> &'static [&'static str] {
+    PROMPT_NAMES
+}
+
 const TOOL_NAMES: &[&str] = &[
     "gsv_health",
     "gsv_tracker",
@@ -240,6 +339,8 @@ pub fn rpc_error(id: Option<Value>, code: i32, message: impl Into<String>) -> Va
 /// Discovery payload for `GET /mcp` (not a JSON-RPC session).
 pub fn http_info() -> Value {
     let tools = tool_names();
+    let resources = resource_uris();
+    let prompts = prompt_names();
     json!({
         "ok": true,
         "name": SERVER_ID,
@@ -249,6 +350,10 @@ pub fn http_info() -> Value {
         "http": "/mcp",
         "tools": tools,
         "tool_count": tools.len(),
+        "resources": resources,
+        "resource_count": resources.len(),
+        "prompts": prompts,
+        "prompt_count": prompts.len(),
     })
 }
 
@@ -288,6 +393,16 @@ async fn handle_one(state: &AppState, value: Value) -> Option<Value> {
         "ping" => Some(rpc_result(id, json!({}))),
         "tools/list" => Some(rpc_result(id, json!({ "tools": tools_list() }))),
         "tools/call" => Some(rpc_result(id, call_tool(state, &params).await)),
+        "resources/list" => Some(rpc_result(id, json!({ "resources": resources_list() }))),
+        "resources/read" => match resources_read(state, &params) {
+            Ok(result) => Some(rpc_result(id, result)),
+            Err(msg) => Some(rpc_error(id, -32602, msg)),
+        },
+        "prompts/list" => Some(rpc_result(id, json!({ "prompts": prompts_list() }))),
+        "prompts/get" => match prompts_get(&params) {
+            Ok(result) => Some(rpc_result(id, result)),
+            Err(msg) => Some(rpc_error(id, -32602, msg)),
+        },
         "notifications/initialized" | "notifications/cancelled" => None,
         _ if id.is_none() => None,
         _ => Some(rpc_error(id, -32601, format!("method not found: {method}"))),
@@ -297,13 +412,89 @@ async fn handle_one(state: &AppState, value: Value) -> Option<Value> {
 fn initialize_result(state: &AppState) -> Value {
     json!({
         "protocolVersion": PROTOCOL_VERSION,
-        "capabilities": { "tools": { "listChanged": false } },
+        "capabilities": {
+            "tools": { "listChanged": false },
+            "resources": { "subscribe": false, "listChanged": false },
+            "prompts": { "listChanged": false }
+        },
         "serverInfo": {
             "name": SERVER_ID,
             "version": *state.version,
         },
-        "instructions": "GSV box tools. Terminal uses the HTTP SLI allowlist. Omni chat defaults to dry-run."
+        "instructions": "GSV box tools plus allowlisted gsv:// resources and prompts. Terminal uses the HTTP SLI allowlist. Omni chat defaults to dry-run."
     })
+}
+
+fn resources_list() -> Vec<Value> {
+    RESOURCES
+        .iter()
+        .map(|r| {
+            json!({
+                "uri": r.uri,
+                "name": r.name,
+                "description": r.description,
+                "mimeType": r.mime
+            })
+        })
+        .collect()
+}
+
+fn uri_rejected(uri: &str) -> bool {
+    uri.is_empty() || uri.contains("..") || uri.contains('\\') || !uri.starts_with("gsv://")
+}
+
+fn resources_read(state: &AppState, params: &Value) -> Result<Value, String> {
+    let uri = params.get("uri").and_then(Value::as_str).unwrap_or("");
+    if uri.is_empty() {
+        return Err("uri required".into());
+    }
+    if uri_rejected(uri) {
+        return Err("unknown resource".into());
+    }
+    let spec = RESOURCES
+        .iter()
+        .find(|r| r.uri == uri)
+        .ok_or_else(|| "unknown resource".to_string())?;
+    let path = crate::boxes::preview::resolve(&state.repo_root, spec.rel)?;
+    let text = std::fs::read_to_string(&path).map_err(|e| format!("read: {e}"))?;
+    Ok(json!({
+        "contents": [{
+            "uri": spec.uri,
+            "mimeType": spec.mime,
+            "text": text
+        }]
+    }))
+}
+
+fn prompts_list() -> Vec<Value> {
+    PROMPTS
+        .iter()
+        .map(|p| {
+            json!({
+                "name": p.name,
+                "description": p.description,
+                "arguments": []
+            })
+        })
+        .collect()
+}
+
+fn prompts_get(params: &Value) -> Result<Value, String> {
+    let name = params.get("name").and_then(Value::as_str).unwrap_or("");
+    if name.is_empty() {
+        return Err("name required".into());
+    }
+    let spec = PROMPTS
+        .iter()
+        .find(|p| p.name == name)
+        .ok_or_else(|| "unknown prompt".to_string())?;
+    Ok(json!({
+        "description": spec.description,
+        "messages": [{
+            "role": "user",
+            "content": { "type": "text", "text": spec.text }
+        }]
+    }))
 }
 
 async fn call_tool(state: &AppState, params: &Value) -> Value {
@@ -369,7 +560,11 @@ async fn call_tool(state: &AppState, params: &Value) -> Value {
         )),
         "gsv_vision_doc_preview" => {
             let id = arg_str(&args, "id");
-            let id = if id.is_empty() { "galaxy_grid" } else { id.as_str() };
+            let id = if id.is_empty() {
+                "galaxy_grid"
+            } else {
+                id.as_str()
+            };
             tool_ok(crate::boxes::vision::wire_doc_preview(
                 &state.repo_root,
                 &state.data_dir,
@@ -378,7 +573,10 @@ async fn call_tool(state: &AppState, params: &Value) -> Value {
         }
         "gsv_vision_node_search" => {
             let q = arg_str(&args, "q");
-            let layer = args.get("layer").and_then(Value::as_str).filter(|s| !s.is_empty());
+            let layer = args
+                .get("layer")
+                .and_then(Value::as_str)
+                .filter(|s| !s.is_empty());
             tool_ok(crate::boxes::vision::wire_node_search(
                 &state.repo_root,
                 &state.data_dir,
@@ -849,13 +1047,8 @@ mod tests {
     #[tokio::test]
     async fn preview_rejects_traversal() {
         let s = state();
-        let (is_err, text) = tool_text(
-            &s,
-            51,
-            "gsv_preview",
-            json!({ "file": "../../etc/hosts" }),
-        )
-        .await;
+        let (is_err, text) =
+            tool_text(&s, 51, "gsv_preview", json!({ "file": "../../etc/hosts" })).await;
         assert!(is_err);
         assert!(
             text.contains("traversal") || text.contains("outside") || text.contains("rejected"),
@@ -866,15 +1059,13 @@ mod tests {
     #[tokio::test]
     async fn preview_renders_cargo_toml() {
         let s = state();
-        let (is_err, text) = tool_text(
-            &s,
-            52,
-            "gsv_preview",
-            json!({ "file": "Cargo.toml" }),
-        )
-        .await;
+        let (is_err, text) =
+            tool_text(&s, 52, "gsv_preview", json!({ "file": "Cargo.toml" })).await;
         assert!(!is_err, "{text}");
-        assert!(text.contains("Cargo.toml") || text.contains("html"), "{text}");
+        assert!(
+            text.contains("Cargo.toml") || text.contains("html"),
+            "{text}"
+        );
     }
 
     #[tokio::test]
@@ -898,5 +1089,108 @@ mod tests {
         .await;
         assert!(!is_err, "{text}");
         assert!(text.contains("ok") || text.contains("results"), "{text}");
+    }
+
+    #[tokio::test]
+    async fn initialize_advertises_resources_and_prompts() {
+        let s = state();
+        let out = rpc(&s, 60, "initialize", json!({})).await;
+        let caps = &out["result"]["capabilities"];
+        assert!(caps["tools"].is_object());
+        assert!(caps["resources"].is_object());
+        assert!(caps["prompts"].is_object());
+        assert_eq!(caps["resources"]["listChanged"], false);
+        assert_eq!(caps["prompts"]["listChanged"], false);
+    }
+
+    #[tokio::test]
+    async fn resources_list_is_allowlisted_gsv_uris() {
+        let s = state();
+        let out = rpc(&s, 61, "resources/list", json!({})).await;
+        let listed = out["result"]["resources"].as_array().expect("resources");
+        assert_eq!(RESOURCES.len(), RESOURCE_URIS.len());
+        assert_eq!(PROMPTS.len(), PROMPT_NAMES.len());
+        assert_eq!(listed.len(), RESOURCE_URIS.len());
+        for (item, expected) in listed.iter().zip(RESOURCE_URIS.iter()) {
+            assert_eq!(item["uri"], *expected);
+            assert!(item["uri"].as_str().unwrap_or("").starts_with("gsv://"));
+            assert!(item["mimeType"].as_str().unwrap_or("").contains('/'));
+            assert!(item["name"].as_str().unwrap_or("").len() > 3);
+        }
+    }
+
+    #[tokio::test]
+    async fn resources_read_manifest_and_reject_unknown() {
+        let s = state();
+        let out = rpc(
+            &s,
+            62,
+            "resources/read",
+            json!({ "uri": "gsv://vision/manifest" }),
+        )
+        .await;
+        let text = out["result"]["contents"][0]["text"].as_str().unwrap_or("");
+        assert!(out.get("error").is_none(), "{out}");
+        assert!(text.contains("nodes") || text.contains("layers"), "{text}");
+        assert_eq!(out["result"]["contents"][0]["mimeType"], "application/json");
+
+        let bad = rpc(
+            &s,
+            63,
+            "resources/read",
+            json!({ "uri": "file:///etc/passwd" }),
+        )
+        .await;
+        assert_eq!(bad["error"]["code"], -32602);
+
+        let trav = rpc(
+            &s,
+            64,
+            "resources/read",
+            json!({ "uri": "gsv://vision/../../../.env" }),
+        )
+        .await;
+        assert_eq!(trav["error"]["code"], -32602);
+    }
+
+    #[tokio::test]
+    async fn prompts_list_and_get_status() {
+        let s = state();
+        let listed = rpc(&s, 65, "prompts/list", json!({})).await;
+        let prompts = listed["result"]["prompts"].as_array().expect("prompts");
+        assert_eq!(prompts.len(), PROMPT_NAMES.len());
+        for (item, expected) in prompts.iter().zip(PROMPT_NAMES.iter()) {
+            assert_eq!(item["name"], *expected);
+            assert!(item["description"].as_str().unwrap_or("").len() > 8);
+        }
+
+        let got = rpc(&s, 66, "prompts/get", json!({ "name": "gsv_status" })).await;
+        assert!(got.get("error").is_none(), "{got}");
+        assert_eq!(got["result"]["messages"][0]["role"], "user");
+        let text = got["result"]["messages"][0]["content"]["text"]
+            .as_str()
+            .unwrap_or("");
+        assert!(
+            text.contains("gsv_health") || text.contains("ratio"),
+            "{text}"
+        );
+
+        let unknown = rpc(&s, 67, "prompts/get", json!({ "name": "nope" })).await;
+        assert_eq!(unknown["error"]["code"], -32602);
+    }
+
+    #[test]
+    fn http_info_lists_resources_and_prompts() {
+        let info = http_info();
+        assert_eq!(info["resource_count"], RESOURCE_URIS.len() as u64);
+        assert_eq!(info["prompt_count"], PROMPT_NAMES.len() as u64);
+        assert_eq!(
+            info["resources"].as_array().map(|a| a.len()),
+            Some(RESOURCE_URIS.len())
+        );
+        assert_eq!(
+            info["prompts"].as_array().map(|a| a.len()),
+            Some(PROMPT_NAMES.len())
+        );
     }
 }

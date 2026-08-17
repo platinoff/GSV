@@ -5,7 +5,7 @@ alwaysApply: true
 
 # VDT session (shared kit)
 
-Host workspace is **`S:\rust\GSV`**. Step 0 of `абракадабра`: `scripts/list-vdt-products.sh` then AskQuestion on **those** rows. [`docs/gsv/PRODUCTS.md`](../../docs/gsv/PRODUCTS.md) enriches registered picks (HANDOFF / tests / ratio).
+Host workspace is **`S:\rust\GSV`**. Step 0 of `абракадабра` / `abrakadabra`: `scripts/list-vdt-products.sh` then AskQuestion on **those** rows. [`docs/gsv/PRODUCTS.md`](../../docs/gsv/PRODUCTS.md) enriches registered picks (HANDOFF / tests / ratio).
 
 ## S0 (disk before git/cargo)
 
@@ -19,7 +19,7 @@ export RUSTUP_TOOLCHAIN="${RUSTUP_TOOLCHAIN:-stable-x86_64-pc-windows-gnu}"
 # GSV product: unset CARGO_TARGET_DIR; PoolAI: CARGO_TARGET_DIR=/s/rust/poolAI/target
 ```
 
-## Drain (`абракадабра`)
+## Drain (`абракадабра` / `abrakadabra`)
 
 1. Project scan — **warnings first** (clippy / diagnostics).
 2. ≤10 open PH-S*; no mid-drain push.

@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-17 (**band 137 `mcp_vision_complete` ✅**)
+**Оновлено:** 2026-08-17 (**band 138 `mcp_resources_prompts` ✅**)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -9,13 +9,19 @@
 абракадабра
 ```
 
+або
+
+```
+abrakadabra
+```
+
 **Порядок:** `bash scripts/list-vdt-products.sh` → AskQuestion **на ці рядки** (вікно GSV ≠ автоматично продукт GSV) →
 **S0 диск** (`df -h /s` → `cargo clean` за потреби) →
 project scan (**warnings first**) → drain наступного band (**без** mid-push) →
 Speeds · Rust panel → vision-sync → **один** commit → **`git push` + самарі**.
 
-Якщо **gsv:** черга — [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) **після band 137**
-(project scan; MCP 26 tools already in tree).
+Якщо **gsv:** черга — [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) **після band 138**
+(project scan; MCP 26 tools + 6 resources + 3 prompts already in tree).
 Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics.sh`. Disk: `bash scripts/check_target_disk.sh`.
 
 **⚠️ Зупинити `gsv-server` перед `cargo test`/`build`** (блокує `target/debug/gsv-server.exe`);
@@ -168,7 +174,9 @@ Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics
   remaining read tools (19) + `.grok/config.toml`.
   **band 137** (PH-S2009…S2018) ✅ — MCP vision completeness (`gsv_vision` + sprint-map /
   doc-preview / node-search / sync / extensions / preview) → **26** tools.
-  **Наступний band**: project scan у наступній сесії `абракадабра`.
+  **band 138** (PH-S2019…S2028) ✅ — MCP resources + prompts (`gsv://` allowlist +
+  `gsv_status` / `gsv_vision_brief` / `gsv_drain`) + `abrakadabra` trigger alias.
+  **Наступний band**: project scan у наступній сесії `абракадабра` / `abrakadabra`.
 
 ## Канон GSV
 
@@ -199,6 +207,7 @@ band 134 ✅ (HTTP response hardening — CSP / nosniff / no-store / POST 256 Ki
 band 135 ✅ (`gsv_mcp_openbot` — stdio `gsv-mcp` + `/mcp`) ·
 band 136 ✅ (MCP Galaxy UI + remaining read tools) ·
 band 137 ✅ (MCP vision completeness — 26 tools) ·
+band 138 ✅ (MCP resources + prompts — 6 `gsv://` + 3 prompts) ·
 не комітити kit-only в PoolAI як «замість» GSV drain ·
 staging `GSV/data/*` / `certs/*.pem` /
 `.env` · mid-push · build/test при запущеному `gsv-server` · обхід ratio-смуги Rust-кодом замість compact UI ·

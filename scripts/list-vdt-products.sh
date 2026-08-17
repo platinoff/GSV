@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Discover VDT products from the live environment (workspace + sibling git repos).
-# Used by «абракадабра» Step 0 — do not hardcode gsv|poolai.
+# Used by «абракадабра» / «abrakadabra» Step 0 — do not hardcode gsv|poolai.
 set -euo pipefail
 
 KIT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"

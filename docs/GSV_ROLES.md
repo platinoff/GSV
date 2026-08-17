@@ -4,7 +4,7 @@
 
 **Точка входу VDT:** цей репо тримає спільні правила/скіли для будь-якого
 зареєстрованого Rust-продукту. Відкривати Cursor на `S:\rust\GSV` (або `gsv.code-workspace`), далі
-`абракадабра` сканує environment і питає **з яким проєктом** працювати. Enrichment — [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
+`абракадабра` / `abrakadabra` сканує environment і питає **з яким проєктом** працювати. Enrichment — [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
 Канон розділення kit vs product — [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md).
 
 Дзеркало історичних PoolAI rules лишається в дереві PoolAI як **продуктовий шар**
@@ -15,7 +15,7 @@
 | Роль | Хто | Відповідальність |
 |------|-----|------------------|
 | **Власник / креативний директор** | Людина | Візія (Galaxy StarWalker Vision), пріоритети, BLOCKED/Deferred, фінальний push за бажанням |
-| **Оркестратор** | Головний агент Cursor / OpenCode | Звичайна сесія: один **PH-S***. **`абракадабра`:** scan environment → AskQuestion продукт → S0 (**диск/clean першим**) → project scan (**warnings першими**) → drain band продукту → **один commit + `git push` + самарі в кінці** |
+| **Оркестратор** | Головний агент Cursor / OpenCode | Звичайна сесія: один **PH-S***. **`абракадабра` / `abrakadabra`:** scan environment → AskQuestion продукт → S0 (**диск/clean першим**) → project scan (**warnings першими**) → drain band продукту → **один commit + `git push` + самарі в кінці** |
 | **Субагенти** | Task tool | Вузькі підзадачі (explore/shell/generalPurpose); результат повертається оркестратору |
 
 ## Канон сесії (GSV)

@@ -11,6 +11,6 @@ alwaysApply: false
 - Modules via `mod.rs`. Bins only under `src/bin/`.
 - **No Python** product files (`.py`, `requirements.txt`, `pyproject.toml`, venv). **No Java** unless the owner asks.
 - After code changes: `cargo fmt --all` then the product’s test command ([`docs/gsv/PRODUCTS.md`](../../docs/gsv/PRODUCTS.md)).
-- Clippy warnings that fit 1–3 files → top of the `абракадабра` band.
+- Clippy warnings that fit 1–3 files → top of the `абракадабра` / `abrakadabra` band.
 
 Product error types stay in the product (`AppError` in GSV `src/app_error.rs`; PoolAI `src/core/error.rs`).

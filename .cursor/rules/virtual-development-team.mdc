@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Virtual development team (shared)
 
-Entry: [`.agents/skills/abracadabra/`](../../.agents/skills/abracadabra/SKILL.md). Session: [`vdt-session.mdc`](vdt-session.mdc). Roles: [`vdt-roles.mdc`](vdt-roles.mdc).
+Entry: [`.agents/skills/abracadabra/`](../../.agents/skills/abracadabra/SKILL.md) (`абракадабра` / `abrakadabra`). Session: [`vdt-session.mdc`](vdt-session.mdc). Roles: [`vdt-roles.mdc`](vdt-roles.mdc).
 
 ```mermaid
 flowchart LR

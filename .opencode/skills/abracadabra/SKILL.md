@@ -1,17 +1,18 @@
 ---
 name: abracadabra
 description: >-
-  Trigger word «абракадабра» starts a VDT drain session. FIRST discover products
-  from the live environment (workspace folders + sibling git repos), ask which
-  one to work with, THEN run project-scan → drain → one commit + push. Host
-  workspace is GSV (`S:\rust\GSV`). Use when the owner literally writes
-  «абракадабра» in a new session (Cursor or OpenCode).
+  Trigger words абракадабра, abrakadabra, or abracadabra start a VDT drain
+  session. FIRST discover products from the live environment (workspace folders
+  + sibling git repos), ask which one to work with, THEN run project-scan →
+  drain → one commit + push. Host workspace is GSV (`S:\rust\GSV`). Use when
+  the owner writes абракадабра or abrakadabra (or abracadabra) in a new
+  session (Cursor or OpenCode).
 metadata:
   audience: gsv-vdt-kit
   clients: cursor-opencode
 ---
 
-# «абракадабра» — VDT drain session (GSV host)
+# «абракадабра» / `abrakadabra` — VDT drain session (GSV host)
 
 Works the same in **Cursor** and **OpenCode**. Git canon for this skill is
 **`S:\rust\GSV/.agents/skills/abracadabra/`**. Client copies under `.cursor/skills/`
@@ -24,7 +25,8 @@ Kit split: [`docs/gsv/GSV_VDT_KIT.md`](../../../docs/gsv/GSV_VDT_KIT.md).
 
 ## Step 0 — Discover environment projects (ALWAYS first)
 
-When the owner writes `абракадабра`, **before anything else** discover which
+When the owner writes `абракадабра` **or** `abrakadabra` (same session;
+`abracadabra` is the skill folder name), **before anything else** discover which
 projects are actually on this machine, then ask which one to work with.
 
 Do **not** hardcode a two-option `gsv | poolai` list. The question UI must show

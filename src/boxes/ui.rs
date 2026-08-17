@@ -821,11 +821,17 @@ pub fn render_mcp(d: &Value) -> String {
         return empty_html("mcp");
     }
     let count = u(&d["tool_count"]).max(tools.len() as u64);
+    let resources = arr(&d["resources"]);
+    let prompts = arr(&d["prompts"]);
+    let resource_count = u(&d["resource_count"]).max(resources.len() as u64);
+    let prompt_count = u(&d["prompt_count"]).max(prompts.len() as u64);
     let mut out = format!(
-        "<div class='dim'>{} · {} · tools {}</div>",
+        "<div class='dim'>{} · {} · tools {} · resources {} · prompts {}</div>",
         esc(&s(&d["name"])),
         esc(&s(&d["protocol"])),
-        count
+        count,
+        resource_count,
+        prompt_count
     );
     let stdio = s(&d["stdio"]);
     let http = s(&d["http"]);
@@ -848,6 +854,26 @@ pub fn render_mcp(d: &Value) -> String {
         })
         .collect();
     out.push_str(&tab(&["tool"], rows));
+    if !resources.is_empty() {
+        let rrows: Vec<Vec<String>> = resources
+            .iter()
+            .map(|t| {
+                let name = t.as_str().map(str::to_string).unwrap_or_else(|| s(t));
+                vec![format!("<kbd>{}</kbd>", esc(&name))]
+            })
+            .collect();
+        out.push_str(&tab(&["resource"], rrows));
+    }
+    if !prompts.is_empty() {
+        let prows: Vec<Vec<String>> = prompts
+            .iter()
+            .map(|t| {
+                let name = t.as_str().map(str::to_string).unwrap_or_else(|| s(t));
+                vec![format!("<kbd>{}</kbd>", esc(&name))]
+            })
+            .collect();
+        out.push_str(&tab(&["prompt"], prows));
+    }
     out
 }
 
@@ -1671,11 +1697,19 @@ mod tests {
             "stdio": "gsv-mcp",
             "http": "/mcp",
             "tool_count": 2,
-            "tools": ["gsv_health", "gsv_update"]
+            "tools": ["gsv_health", "gsv_update"],
+            "resource_count": 1,
+            "resources": ["gsv://vision/manifest"],
+            "prompt_count": 1,
+            "prompts": ["gsv_status"]
         }));
         assert!(mcp.contains("gsv_mcp_openbot"), "{mcp}");
         assert!(mcp.contains("tools 2"), "{mcp}");
+        assert!(mcp.contains("resources 1"), "{mcp}");
+        assert!(mcp.contains("prompts 1"), "{mcp}");
         assert!(mcp.contains("<kbd>gsv_health</kbd>"), "{mcp}");
+        assert!(mcp.contains("<kbd>gsv://vision/manifest</kbd>"), "{mcp}");
+        assert!(mcp.contains("<kbd>gsv_status</kbd>"), "{mcp}");
         assert!(mcp.contains("stdio <kbd>gsv-mcp</kbd>"), "{mcp}");
         assert!(render_mcp(&serde_json::json!({ "ok": false, "error": "down" })).contains("down"));
         assert!(render_mcp(&serde_json::json!({})).contains("mcp — no data"));

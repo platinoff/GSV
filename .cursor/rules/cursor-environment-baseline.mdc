@@ -15,7 +15,7 @@ Verified on this machine (2026-07-27):
 ## Drain settings
 
 - Run Mode: **Auto-review** (not Run Everything). Steer: [`.cursor/permissions.json`](../permissions.json).
-- Chat mode for `абракадабра`: **Agent**. Plan only for ambiguous scope.
+- Chat mode for `абракадабра` / `abrakadabra`: **Agent**. Plan only for ambiguous scope.
 - Cursor Router Auto: **Balance** or **Intelligence** (not Cost) for long drain.
 - Skills canon: [`.agents/skills/`](../../.agents/skills/). Do not paste full skill bodies into rules.
 - Do not add project `sandbox.json` without OWNER (Windows VDT / MSYS2).

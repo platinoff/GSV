@@ -23,7 +23,7 @@ PoolAI тримає лише продуктовий шар + вказівник 
    - `.agents/skills/` (Abracadabra + generic marketplace: architecture, TDD, debug, …)
    - `.cursor/rules/` — generic VDT (S0 диск, MSYS2, git, ролі, rust style)
    - дзеркала `.cursor/skills/` і `.opencode/skills/` (Windows: **copy**, не symlink)
-2. **Cursor відкривати на GSV.** `абракадабра` **спочатку** сканує environment
+2. **Cursor відкривати на GSV.** `абракадабра` / `abrakadabra` **спочатку** сканує environment
    (`scripts/list-vdt-products.sh`) і питає з **яким із видимих проєктів** працювати.
    `PRODUCTS.md` збагачує зареєстровані (HANDOFF / тести / ratio), не є єдиним списком опцій.
    Робота в дереві того репо (`S:\rust\poolAI`, `S:\rust\GSV`, далі — нові).
@@ -49,7 +49,7 @@ PoolAI тримає лише продуктовий шар + вказівник 
 | `S:\rust\GSV` | правила/скіли GSV (kit + продукт) |
 | multi-root `*.code-workspace` (GSV перший + продукти) | кіт з GSV + файли продуктів у сайдбарі |
 
-Наступна сесія: **File → Open Folder → `S:\rust\GSV`**, потім у чат: `абракадабра`.
+Наступна сесія: **File → Open Folder → `S:\rust\GSV`**, потім у чат: `абракадабра` або `abrakadabra`.
 
 Не відкривати PoolAI як єдиний корінь, якщо ціль — GSV-кіт: інакше drain знову піде в FM PoolAI.
 

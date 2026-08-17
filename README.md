@@ -21,7 +21,7 @@
   <a href="#-presentations">Presentations</a> ·
   <a href="#-boxes">Boxes</a> ·
   <a href="#-omnirouter">OmniRouter</a> ·
-  <a href="#-абракадабра">абракадабра</a> ·
+  <a href="#-абракадабра">абракадабра / abrakadabra</a> ·
   <a href="#-support--donate">Donate</a>
 </p>
 
@@ -35,12 +35,12 @@ GSV is a standalone crate (`S:\rust\GSV`, sibling of PoolAI — not a subfolder)
 |---|---|
 | **Live dashboard** | `gsv-server` → [http://127.0.0.1:9999/](http://127.0.0.1:9999/) (SSE, offline-safe, Update instead of reload) |
 | **Ratio gate** | `gsv-loc-audit --stretch-96` — Rust **95–100%** (stretch ≥96%) |
-| **VDT entry** | Open this folder in Cursor / OpenCode, type `абракадабра` — the agent lists **environment projects**, then asks which one to work with |
+| **VDT entry** | Open this folder in Cursor / OpenCode, type `абракадабра` or `abrakadabra` — the agent lists **environment projects**, then asks which one to work with |
 | **MCP** | [`gsv_mcp_openbot`](docs/gsv/GSV_MCP_OPENBOT.md) — one MCP server for OpenCode, Cursor, Grok CLI, and Grok Bot |
 
 ```mermaid
 flowchart LR
-  Owner[Owner] --> Ask[абракадабра]
+  Owner[Owner] --> Ask["абракадабра / abrakadabra"]
   Ask --> Scan[list-vdt-products]
   Scan --> Pick[AskQuestion: env projects]
   Pick --> Drain[S0 → scan → band]
@@ -143,7 +143,9 @@ Config: `data/omni.toml` (keys redacted in the UI). Env overrides: `OMNI_<PROVID
 
 GSV is also the **VDT kit** (rules, skills, drain loop). Opening this folder does **not** mean the product is GSV.
 
-1. Owner types `абракадабра`.
+Same trigger in Latin: **`abrakadabra`**. Either spelling starts the same drain (`abracadabra` is the skill folder name).
+
+1. Owner types `абракадабра` or `abrakadabra`.
 2. Agent runs `scripts/list-vdt-products.sh` — workspace folders **and** sibling git repos under `S:/rust` (today that is GSV, PoolAI, omniroute, …).
 3. AskQuestion / OpenCode `question`: **which of those do we work with?**
 4. S0 disk → warnings-first scan → drain ≤10 PH-S* → one commit + push.
@@ -160,7 +162,7 @@ One MCP server GSV owns; OpenCode / Cursor / Grok CLI / Grok Bot are **clients**
 cargo run --quiet --bin gsv-mcp
 ```
 
-Auto-register: `.mcp.json` · `.cursor/mcp.json` · `opencode.json` · `.grok/config.toml`. HTTP twin: `GET`/`POST http://127.0.0.1:9999/mcp` (loopback; LAN needs `--allow-lan`). Galaxy card: `/api/ui/card/mcp`. **26 tools** (vision completeness + preview confine). Grok Bot public tunnel is an owner opt-in — not on by default.
+Auto-register: `.mcp.json` · `.cursor/mcp.json` · `opencode.json` · `.grok/config.toml`. HTTP twin: `GET`/`POST http://127.0.0.1:9999/mcp` (loopback; LAN needs `--allow-lan`). Galaxy card: `/api/ui/card/mcp`. **26 tools** + **6 `gsv://` resources** + **3 prompts**. Grok Bot public tunnel is an owner opt-in — not on by default.
 
 Canon: [`docs/gsv/GSV_MCP_OPENBOT.md`](docs/gsv/GSV_MCP_OPENBOT.md).
 

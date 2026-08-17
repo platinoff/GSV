@@ -3,6 +3,7 @@
 //! Initialize + tools/list + tools/call over `POST /mcp`; GET discovery;
 //! terminal stays on the HTTP allowlist (no extra shell); Omni defaults to dry-run.
 //! Band 137: vision completeness (26 tools) + preview confine.
+//! Band 138: resources/list+read (gsv:// allowlist) + prompts/list+get.
 
 use std::path::PathBuf;
 
@@ -69,6 +70,12 @@ async fn get_mcp_discovers_openbot() {
     assert_eq!(json["tool_count"], tools.len() as u64);
     assert_eq!(json["stdio"], "gsv-mcp");
     assert_eq!(json["http"], "/mcp");
+    let resources = json["resources"].as_array().expect("resources");
+    assert_eq!(resources.len(), mcp::resource_uris().len());
+    assert_eq!(json["resource_count"], resources.len() as u64);
+    let prompts = json["prompts"].as_array().expect("prompts");
+    assert_eq!(prompts.len(), mcp::prompt_names().len());
+    assert_eq!(json["prompt_count"], prompts.len() as u64);
 }
 
 #[tokio::test]
@@ -91,6 +98,8 @@ async fn post_initialize_and_tools_list() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(init["result"]["serverInfo"]["name"], SERVER_ID);
     assert!(init["result"]["capabilities"]["tools"].is_object());
+    assert!(init["result"]["capabilities"]["resources"].is_object());
+    assert!(init["result"]["capabilities"]["prompts"].is_object());
 
     let (status, listed) = mcp_post(
         &app,
@@ -293,6 +302,74 @@ async fn vision_complete_and_preview_tools() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(json["result"]["isError"], true);
+}
+
+#[tokio::test]
+async fn resources_and_prompts_over_http() {
+    let app = app();
+    let (status, listed) = mcp_post(
+        &app,
+        json!({ "jsonrpc": "2.0", "id": 11, "method": "resources/list" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let resources = listed["result"]["resources"].as_array().expect("resources");
+    assert_eq!(resources.len(), mcp::resource_uris().len());
+    assert!(resources
+        .iter()
+        .any(|r| r["uri"] == "gsv://vision/manifest"));
+
+    let (status, read) = mcp_post(
+        &app,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 12,
+            "method": "resources/read",
+            "params": { "uri": "gsv://docs/mcp-openbot" }
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let text = read["result"]["contents"][0]["text"].as_str().unwrap_or("");
+    assert!(text.contains("gsv_mcp_openbot"), "{text}");
+
+    let (status, rejected) = mcp_post(
+        &app,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 13,
+            "method": "resources/read",
+            "params": { "uri": "gsv://docs/../../../.env" }
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(rejected["error"]["code"], -32602);
+
+    let (status, prompts) = mcp_post(
+        &app,
+        json!({ "jsonrpc": "2.0", "id": 14, "method": "prompts/list" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let names = prompts["result"]["prompts"].as_array().expect("prompts");
+    assert_eq!(names.len(), mcp::prompt_names().len());
+
+    let (status, got) = mcp_post(
+        &app,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 15,
+            "method": "prompts/get",
+            "params": { "name": "gsv_drain" }
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let text = got["result"]["messages"][0]["content"]["text"]
+        .as_str()
+        .unwrap_or("");
+    assert!(text.contains("PH-S") || text.contains("drain"), "{text}");
 }
 
 #[tokio::test]
