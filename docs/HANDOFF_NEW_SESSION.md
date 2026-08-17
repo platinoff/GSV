@@ -1,21 +1,34 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-08-16 (band 126 **PH-S1899…S1908** ✅ · ratio **96.87%** · tests **230** · clippy **0**)
+**Оновлено:** 2026-08-17 (band 127 **PH-S1909…S1918** ✅ · VDT kit Accepted · ratio hold · tests **230**)
 
-**Наступна сесія:** **`абракадабра`** → S0 диск/git → project scan (warnings first) → drain ≤10 PH-S*
-→ Speeds + Rust panel → vision-sync → **один commit** → **`git push` + самарі**. Канон:
-[`GSV_ROLES.md`](GSV_ROLES.md).
+**Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
+**`абракадабра`** → **AskQuestion: gsv | poolai** → S0 диск/git → project scan (warnings first) →
+drain ≤10 PH-S* → Speeds + Rust panel → vision-sync → **один commit** → **`git push` + самарі**.
+
+Якщо вибір **gsv:** horizon = наступний band у [`gsv/GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md)
+після 127. Канон ролей: [`GSV_ROLES.md`](GSV_ROLES.md). Реєстр: [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
+Kit: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md).
 
 ## Стан зараз
 
-- **GSV** — окремий Rust-first проєкт (`GSV/`), bands 102 · 108 · 109 · 110 · 111 · 112 · 113 · 114 · 115 · 116 · 117 · 118 · 119 · 120 · 121 · 125 · 126 **✅**.
-- **Ratio:** `cargo run --bin gsv-loc-audit -- --stretch-96` → **96.87%** (rust 11176 / product 11537, gate ≥95% ✅, stretch-96 ≥96% ✅) → `GSV/data/rust_ratio.json`.
-- **Тести:** `cargo test` → **230** green (102 lib + 3 stand-smoke bin + 8 omni + 7 ratio + 32 server + 6 stand-smoke contracts + 12 ui + 8 update + 52 vision) · **clippy 0** · **fmt clean**.
-- **Сервер:** canon порт **9999** (`DEFAULT_PORT`; 8765 — Hyper-V reserved range). Стара нотатка
-  8870/8891 — історична; див. `GSV/src/lib.rs`.
-- **FM:** band 126 = §5.107 (PH-S1899…S1908 ✅). Master horizon poolAI: band 127.
-- **Vision rev:** 493 (band 126 vision-sync close).
-  Vision box: `boxes/vision.rs` + `gsv-vision-sync` bin +
+- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125 · 126 · **127 ✅**.
+- **VDT kit (band 127):** shared `.agents/skills/` + generic `.cursor/rules/` + `gsv.code-workspace` + `PRODUCTS.md`.
+- **Ratio:** `cargo run --bin gsv-loc-audit -- --stretch-96` → **97.04%** (rust 11820 / product 12181, gate ≥95% ✅, stretch-96 ≥96% ✅) → `GSV/data/rust_ratio.json`.
+- **Тести:** `cargo test` → **230** green · **clippy 0** · **fmt clean**.
+- **Сервер:** canon порт **9999** (`DEFAULT_PORT`; 8765 — Hyper-V reserved range).
+- **FM:** band 127 = PoolAI FM §5.108 (PH-S1909…S1918 ✅). Master horizon poolAI: band 128.
+- **Vision rev:** **494** (band 127 `gsv-vision-sync`).
+  Live UI — `gsv-server` → `http://127.0.0.1:9999/`.
+- **poolAI ratio:** **95.04%** (advisory hold, `--ratio96-docs-canon --advisory --min-ratio 0.95`).
+
+### Історія боксів (bands 109–126)
+
+- **GSV** bands 102 · 108 · 109 · 110 · 111 · 112 · 113 · 114 · 115 · 116 · 117 · 118 · 119 · 120 · 121 · 125 · 126 **✅**.
+- **Тести (band 126):** **230** green (102 lib + 3 stand-smoke bin + 8 omni + 7 ratio + 32 server + 6 stand-smoke contracts + 12 ui + 8 update + 52 vision).
+- **Сервер:** canon порт **9999**. Стара нотатка 8870/8891 — історична; див. `src/lib.rs`.
+- **FM (до 127):** band 126 = §5.107 (PH-S1899…S1908 ✅).
+- **Vision (band 126):** rev 493. Vision box: `boxes/vision.rs` + `gsv-vision-sync` bin +
   `GET /api/vision*`; snapshot `GSV/data/gsv_manifest.json` + `gsv_feed.json` + `gsv_extensions.json` (rev 492).
   Band 110: `GET /api/vision/map`, `GET /assets/vision.svg`, `GET /api/vision/feed?status=`, Vision Map card.
   Band 111: `GET /api/vision/sprint-map` (sprint-scope/queue/session-tracks links + modules + kinds) та

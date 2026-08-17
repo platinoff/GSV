@@ -1,15 +1,21 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-16 (band 126 **PH-S1899…S1908** ✅ · ratio **96.87%** · tests **230**)
+**Оновлено:** 2026-08-17 (band 127 **PH-S1909…S1918** ✅ · **horizon band 128** · VDT kit Accepted · ratio **97.04%** · tests **230** · vision rev **494**)
+
+**Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
+Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
 
 ```
 абракадабра
 ```
 
-**Порядок:** **S0 диск** (`df -h /s` + `check_target_disk.sh` → `cargo clean` за потреби) →
-project scan (**warnings first** — `cargo clippy --all-targets` у GSV, `poolai-rust-diagnostics` у poolAI) →
-drain наступного band (черга — FM §5.12 §5.106 / GSV_TECH_ROADMAP; **без** mid-push) →
-Speeds · Rust panel → vision-sync (`poolai-vision-sync`) → **один** commit → **`git push` + самарі`.
+**Порядок:** AskQuestion **gsv | poolai** (вікно GSV ≠ автоматично продукт GSV) →
+**S0 диск** (`df -h /s` → `cargo clean` за потреби) →
+project scan (**warnings first**) → drain наступного band (**без** mid-push) →
+Speeds · Rust panel → vision-sync → **один** commit → **`git push` + самарі**.
+
+Якщо **gsv:** черга — [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) **після band 127**.
+Kit уже в дереві (`.cursor/rules/`, `.agents/skills/`, `gsv.code-workspace`).
 
 **⚠️ Зупинити `gsv-server` перед `cargo test`/`build`** (блокує `target/debug/gsv-server.exe`);
 після тестів перезапустити на порт 9999.
@@ -135,7 +141,12 @@ Speeds · Rust panel → vision-sync (`poolai-vision-sync`) → **один** com
   contracts **230** (102 unit + 3 bin + 8 omni + 7 ratio + 32 server + 6 stand-smoke +
   12 ui + 8 update + 52 vision); ratio **96.87%** (rust 11176 / product 11537) ✅;
   vision rev **493**; FM §5.12 §5.107.
-  **Наступний band 127**: master backlog (за пріоритетом власника) — FM §5.12 / GSV_TECH_ROADMAP.
+  **band 127** (PH-S1909…S1918) ✅ — GSV VDT kit (точка входу): `GSV_VDT_KIT.md` Accepted;
+  `.agents/skills/` (abracadabra host + marketplace, без `poolai-documentation`);
+  generic `.cursor/rules/` (session/roles/MSYS2/git/rust/cursor baseline);
+  client mirrors `.cursor/skills/` + `.opencode/skills/`; `docs/gsv/PRODUCTS.md`;
+  `gsv.code-workspace`; PoolAI thin pointer kit=GSV; `AGENTS.md` + `GSV_ROLES.md` entry-point.
+  **Наступний band 128**: project scan у наступній сесії `абракадабра`.
 
 ## Канон GSV
 
@@ -155,6 +166,8 @@ band 117 ✅ (GSV legacy vision deactivation) · band 118 ✅ (GSV sprint UI mig
 band 119 ✅ (GSV Galaxy UI full parity — colors + box behaviors) · band 120 ✅ (GSV Ratio 96% stretch) ·
 band 121 ✅ (GSV OmniRouter box parity) · band 125 ✅ (GSV Vision/UI polish — a11y/error/offline/stand contracts) ·
 band 126 ✅ (GSV stand smoke + ops canon) ·
+band 127 ✅ (GSV VDT kit — точка входу) ·
+не комітити kit-only в PoolAI як «замість» GSV drain ·
 staging `GSV/data/*` / `certs/*.pem` /
 `.env` · mid-push · build/test при запущеному `gsv-server` · обхід ratio-смуги Rust-кодом замість compact UI ·
 перенесення legacy `vision.js`/`vision.css` у `GSV/ui/` (знищило б ratio canon).

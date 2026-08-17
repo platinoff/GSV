@@ -1,0 +1,29 @@
+---
+description: Conventional Commits, scoped staging, MSYS2 push
+globs: "{**/*.rs,**/*.toml,**/*.sh,**/*.md}"
+alwaysApply: false
+---
+
+# Git workflow (shared kit)
+
+All git in **MSYS2 bash** (`C:\msys64\usr\bin\bash.exe`). Prefer an external UCRT64 window for push (fewer `index.lock` issues).
+
+## Order
+
+1. `git status --short` in the **product** repo.
+2. Stage **only sprint files** — never `git add -A`.
+3. Conventional Commits: `<type>(<scope>): <subject>`.
+4. If the commit has product code (`src/`, `tests/`, `crates/`, `Cargo.toml`) — body **Summary:** what changed + which `cargo` commands actually ran.
+5. Push only at session end (`абракадабра` step 6). GSV GitHub remote is optional until the owner adds one.
+
+**Types:** `feat` `fix` `docs` `style` `refactor` `perf` `test` `build` `ci` `chore` `revert`
+
+## Never stage
+
+`.env*` · `*.pem` / `*.key` · `certs/*.pem` · `data/*` except `.gitkeep` · `comitmsg/*.txt`
+
+## Do not
+
+- `git commit --amend` after push unless the owner asks
+- `--no-verify` / skip hooks unless the owner asks
+- force-push to `main`

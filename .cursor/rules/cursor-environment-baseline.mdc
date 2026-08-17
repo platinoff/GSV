@@ -1,0 +1,23 @@
+---
+description: Cursor desktop baseline and Run Mode for VDT drain
+globs: .cursor/**/*
+alwaysApply: false
+---
+
+# Cursor environment baseline
+
+Verified on this machine (2026-07-27):
+
+- **Cursor** **3.13.21** (`C:\Program Files\cursor\resources\app\bin\cursor.cmd`)
+- **rustc / cargo** 1.92.0 (`stable-x86_64-pc-windows-gnu`)
+- **git** 2.50.0 (MSYS2 UCRT64)
+
+## Drain settings
+
+- Run Mode: **Auto-review** (not Run Everything). Steer: [`.cursor/permissions.json`](../permissions.json).
+- Chat mode for `абракадабра`: **Agent**. Plan only for ambiguous scope.
+- Cursor Router Auto: **Balance** or **Intelligence** (not Cost) for long drain.
+- Skills canon: [`.agents/skills/`](../../.agents/skills/). Do not paste full skill bodies into rules.
+- Do not add project `sandbox.json` without OWNER (Windows VDT / MSYS2).
+
+`GITHUB_TOKEN` / `ghs_*` — treat as **opaque** (may be JWT ~520). Do not length-check in CI/scripts.

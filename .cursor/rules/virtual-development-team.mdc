@@ -1,0 +1,28 @@
+---
+description: Shared VDT loop — S0, drain, tests, one push at session end
+alwaysApply: true
+---
+
+# Virtual development team (shared)
+
+Entry: [`.agents/skills/abracadabra/`](../../.agents/skills/abracadabra/SKILL.md). Session: [`vdt-session.mdc`](vdt-session.mdc). Roles: [`vdt-roles.mdc`](vdt-roles.mdc).
+
+```mermaid
+flowchart LR
+  Ask[AskQuestion product] --> Disk[S0 disk]
+  Disk --> Scan[Warnings-first scan]
+  Scan --> Drain[Drain band]
+  Drain --> Test[Product tests]
+  Test --> Push[One commit + push + summary]
+```
+
+| Step | Action |
+|------|--------|
+| 0 | Ask **which product** (window ≠ product) |
+| 1 | Disk + clean if needed, then git + that product’s HANDOFF |
+| 2 | Scan; fixable warnings → top of band |
+| 3 | Drain ≤10 PH-S*; **no** mid-push |
+| 4 | Product test command from [`docs/gsv/PRODUCTS.md`](../../docs/gsv/PRODUCTS.md) |
+| 5 | One commit in the **product** repo; push if remote exists; summary always last |
+
+GSV product tests: `cargo fmt -- --check` → `cargo clippy --all-targets` → `cargo test` → `gsv-loc-audit --stretch-96`. PoolAI: `cargo test-ci` in `S:/rust/poolAI`.

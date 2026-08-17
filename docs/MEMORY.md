@@ -4,6 +4,12 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-17 · band 127 ✅)
+
+- **VDT kit:** GSV = точка входу (`.agents/skills/`, generic `.cursor/rules/`, `gsv.code-workspace`, [`PRODUCTS.md`](gsv/PRODUCTS.md)). `GSV_VDT_KIT.md` Status=Accepted.
+- **Канон продукту:** Rust **95–100%** / wasm **0–5%** (завжди), без Python/Java; bins — лише `src/bin/`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **97.04%** (rust 11820 / product 12181) · **230** tests · clippy 0. Vision rev **494**.
+
 ## Стан (2026-08-16 · band 126 ✅)
 
 - **Канон:** Rust **95–100%** / wasm **0–5%** (завжди), без Python/Java; bins — лише `src/bin/`.
@@ -24,6 +30,13 @@
   (GSV_SERVER/GSV_BOXES/README/roadmap band 126) · ratio hold **96.87%** · **Vision rev 493**.
 
 ## Що зроблено
+
+### Band 127 (PH-S1909…S1918, ✅ 2026-08-17) — GSV VDT kit
+- Shared kit in this repo: `.agents/skills/` (abracadabra host + marketplace, no `poolai-documentation`).
+- Generic `.cursor/rules/` (session, roles, MSYS2, git, rust, cursor baseline) + `gsv-vdt-entry.mdc`.
+- Client mirrors `.cursor/skills/` + `.opencode/skills/` (`scripts/sync-vdt-skill-mirrors.sh`).
+- `docs/gsv/GSV_VDT_KIT.md` Accepted · `docs/gsv/PRODUCTS.md` · `gsv.code-workspace`.
+- PoolAI thin pointer (`gsv-kit-pointer.mdc`, fallback abracadabra). `AGENTS.md` + `GSV_ROLES.md` entry-point.
 
 ### Band 102 (PH-S1659…S1668, ✅ 2026-08-01) — GSV migration
 - `GSV/docs/gsv/` канон + `GSV/Cargo.toml` (окремий workspace, `.cargo/config.toml` → `target-dir`).

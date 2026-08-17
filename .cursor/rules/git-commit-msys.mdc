@@ -1,0 +1,24 @@
+---
+description: MSYS2 git commit — HEREDOC message, no amend after push
+globs: .cursor/rules/**
+alwaysApply: false
+---
+
+# Git commit (MSYS2)
+
+Pass the message via HEREDOC (PowerShell here-strings break Conventional Commits):
+
+```bash
+git commit -m "$(cat <<'EOF'
+type(scope): subject
+
+Summary:
+- what changed
+- which cargo commands ran
+EOF
+)"
+```
+
+If a hook rewrites the subject to only `Co-authored-by:`, fix with a **new** commit or an owner-requested amend **before** push. Do not amend after push.
+
+GSV has no `bin/git-commit-tree-msg.sh` (that is PoolAI). Use staged paths + the HEREDOC above.

@@ -1,6 +1,12 @@
 # AGENTS.md — GSV (Galaxy StarWalker Vision)
 
-Standalone Rust-first vision server. **Root:** `S:\rust\GSV` (sibling of PoolAI, not a subfolder).
+Standalone Rust-first vision server **and VDT entry workspace** for registered
+Rust products. **Root:** `S:\rust\GSV` (sibling of PoolAI, not a subfolder).
+
+**Kit (rules / skills / `абракадабра`):** open **this** folder in Cursor. Canon —
+[`docs/gsv/GSV_VDT_KIT.md`](docs/gsv/GSV_VDT_KIT.md). Product code may live in
+another tree (`S:\rust\poolAI`, …); the window being GSV does **not** mean the
+drain target is GSV — the skill asks first.
 
 ## Stack
 
@@ -16,14 +22,16 @@ cd /s/rust/GSV || cd "S:/rust/GSV"
 unset CARGO_TARGET_DIR
 ```
 
-## Session (абракадабра → gsv)
+## Session (`абракадабра` — спочатку вибір продукту)
 
-1. S0 disk: `df -h /s` → `cargo clean` if needed → `git fetch`.
-2. Read `docs/HANDOFF_NEW_SESSION.md`, `docs/NEXT_SESSION_PROMPT.md`, `docs/GSV_ROLES.md`.
-3. Drain next band (`docs/gsv/GSV_TECH_ROADMAP.md`).
-4. Stop `gsv-server` before `cargo test` / `cargo build` (locks `target/debug/gsv-server.exe`).
-5. `cargo fmt --all` → `cargo test` → `cargo clippy --all-targets`.
-6. One commit. GitHub remote is optional (local-only until the owner adds one).
+Trigger skill: `.agents/skills/abracadabra/`. Вікно GSV ≠ автоматично drain GSV.
+
+1. AskQuestion: **gsv** | **poolai** (реєстр розшириться).
+2. S0 disk for **that** product → `git fetch` → its HANDOFF.
+3. Drain next band (GSV: `docs/gsv/GSV_TECH_ROADMAP.md`; PoolAI: FM §5.12).
+4. If **gsv:** stop `gsv-server` before `cargo test` / `cargo build` (locks `target/debug/gsv-server.exe`).
+5. `cargo fmt --all` → product tests (`cargo test` here; `cargo test-ci` in PoolAI).
+6. One commit **in the product repo**. GitHub remote for GSV is optional until the owner adds one.
 
 ## Defaults
 

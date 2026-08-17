@@ -11,6 +11,7 @@ band 118 (GSV sprint UI migration — theme + focus map) **✅** ·
 band 119 (GSV Galaxy UI full parity — colors + box behaviors) **✅** · band 120 (GSV Ratio 96% stretch) **✅** ·
 band 121 (GSV OmniRouter box parity) **✅** · band 125 (GSV Vision/UI polish — a11y/error/offline/stand contracts) **✅** ·
 band 126 (GSV stand smoke + ops canon) **✅** ·
+band 127 (GSV VDT kit — точка входу) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -290,6 +291,26 @@ docs/architecture (✅ ця сесія)
 | **PH-S1906** | poolAI vision parity | FM §5.12 §5.107 + GSV vision README + poolAI HANDOFF/NEXT — **✅** |
 | **PH-S1907** | Vision-sync close | `poolai-vision-sync` rev bump band 126, `--check` ok — **✅** |
 | **PH-S1908** | Band close | Speeds/Rust panel; один commit; `git push` + самарі; gsv-server restart — **✅** |
+
+## Спринти (band 127) — GSV VDT kit (точка входу) ✅
+
+Канон: [`GSV_VDT_KIT.md`](./GSV_VDT_KIT.md) (Status=Accepted). Owner 2026-08-17: GSV тримає спільні
+rules/skills; продукти (PoolAI, GSV-server, далі — нові Rust-репо) лишають лише
+продуктовий шар. **Відкривати Cursor на `S:\rust\GSV`** або `gsv.code-workspace`.
+Реєстр: [`PRODUCTS.md`](./PRODUCTS.md).
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S1909** | Canon Accepted | `GSV_VDT_KIT.md` Status=Accepted; HANDOFF/NEXT/README pointers — **✅** |
+| **PH-S1910** | Abracadabra host | `.agents/skills/abracadabra/` роутить **продукт** (poolai \| gsv); вікно ≠ продукт — **✅** |
+| **PH-S1911** | Generic skills | copy marketplace skills з PoolAI `.agents/skills/` (без `poolai-documentation`) — **✅** |
+| **PH-S1912** | Generic rules | `.cursor/rules/` VDT: session, roles, MSYS2, git, rust-generic, cursor baseline — **✅** |
+| **PH-S1913** | Client mirrors | `.cursor/skills/` + `.opencode/skills/` identical (Windows copy) — **✅** |
+| **PH-S1914** | Product registry | `docs/gsv/PRODUCTS.md` (root, handoff, test cmd, ratio per product) — **✅** |
+| **PH-S1915** | Workspace | `gsv.code-workspace` (GSV перший + PoolAI) — **✅** |
+| **PH-S1916** | PoolAI thin | PoolAI: product-only rules/skills; pointer «kit = GSV» — **✅** |
+| **PH-S1917** | AGENTS / roles | `AGENTS.md` + `GSV_ROLES.md` = entry-point, не лише gsv-server — **✅** |
+| **PH-S1918** | Band close | `cargo test` + loc-audit ≥96%; vision-sync; один commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

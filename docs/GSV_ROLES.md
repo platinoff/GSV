@@ -1,26 +1,31 @@
 # Ролі GSV (Galaxy StarWalker Vision VDT)
 
 Канон ролей для проєкту GSV — окремого Rust-first репозиторію `S:\rust\GSV`.
-Дзеркало [`poolai-agent-roles.mdc`](../../.cursor/rules/poolai-agent-roles.mdc) +
-[`poolai-session-iteration.mdc`](../../.cursor/rules/poolai-session-iteration.mdc),
-адаптоване під статус GSV (FM §5.12 band 102 `PH-S1659…S1668` ✅, band 108 `PH-S1719…S1728`).
+
+**Точка входу VDT:** цей репо тримає спільні правила/скіли для будь-якого
+зареєстрованого Rust-продукту. Відкривати Cursor на `S:\rust\GSV` (або `gsv.code-workspace`), далі
+`абракадабра` питає **який продукт** дренити. Реєстр — [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
+Канон розділення kit vs product — [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md).
+
+Дзеркало історичних PoolAI rules лишається в дереві PoolAI як **продуктовий шар**
+(`poolai-agent-roles.mdc`, `poolai-testing-policy.mdc`, FM). Shared kit більше не копіювати сюди.
 
 ## Ролі
 
 | Роль | Хто | Відповідальність |
 |------|-----|------------------|
 | **Власник / креативний директор** | Людина | Візія (Galaxy StarWalker Vision), пріоритети, BLOCKED/Deferred, фінальний push за бажанням |
-| **Оркестратор** | Головний агент Cursor (Composer) | Звичайна сесія: один **PH-S***. **`абракадабра`:** S0 (**диск/clean першим**) → project scan (**warnings першими**) → 10 PH-S* у §5.12 → drain → **`git push` + самарі завжди в кінці** |
+| **Оркестратор** | Головний агент Cursor / OpenCode | Звичайна сесія: один **PH-S***. **`абракадабра`:** AskQuestion продукт → S0 (**диск/clean першим**) → project scan (**warnings першими**) → drain band продукту → **один commit + `git push` + самарі в кінці** |
 | **Субагенти** | Task tool | Вузькі підзадачі (explore/shell/generalPurpose); результат повертається оркестратору |
 
 ## Канон сесії (GSV)
 
-1. **S0 — диск/git першим**: `df -h /s` / `check_target_disk.sh` → `cargo clean` якщо <5G (12G дешево) → `git fetch` → `git status -sb` → `git log -1`. Обидва проєкти живі: poolAI + GSV.
-2. **Project scan — warnings першими**: пріоритети з §5.12 (GSV перед master-backlog Ratio96), roadmap, docs, code. FM-лічильники вимірювати (`wc -l`, `rg`), не з пам'яті.
-3. **Drain**: до 10 PH-S* у §5.12. **Rust-first** тести: API/grid/job/telegram wire → contract tests; API-only acceptance у Rust `tests/*_contracts.rs` / `*_integration.rs`; **без Python**.
-4. **Speeds + Rust panel**: `record-test-ci-speed.sh` + `record-rust-diagnostics.sh` (poolAI canon).
-5. **Vision-sync**: `poolai-vision-sync --check`.
-6. **Один commit + `git push` + самарі** в кінці сесії. **Не** робити mid-push.
+1. **S0 — диск/git першим**: `df -h /s` → `cargo clean` якщо <5G (12G дешево) → `git fetch` у **репо продукту** → HANDOFF того продукту ([`PRODUCTS.md`](gsv/PRODUCTS.md)).
+2. **Project scan — warnings першими**: clippy / diagnostics, потім roadmap продукту (`GSV_TECH_ROADMAP` або PoolAI FM §5.12).
+3. **Drain**: до 10 PH-S*. **Rust-first** тести. GSV: stop `gsv-server` перед `cargo test`. **без Python**.
+4. **Speeds + Rust panel**: GSV vision `gsv_speed_index.json` / `gsv_rust_diagnostics.json` (empty-tolerant); PoolAI — `record-test-ci-speed.sh` + `record-rust-diagnostics.sh`.
+5. **Vision-sync**: GSV `gsv-vision-sync --check`; PoolAI `poolai-vision-sync --check`.
+6. **Один commit + `git push` + самарі** в кінці сесії **в репо продукту**. **Не** mid-push. GSV GitHub remote — опційно, доки власник не додасть.
 
 **Не делегувати:** фінальний `git push`, закриття спринту в FM §5.12, оновлення `NEXT_SESSION_PROMPT.md`, amend після push.
 

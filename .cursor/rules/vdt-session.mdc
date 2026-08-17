@@ -1,0 +1,33 @@
+---
+description: VDT session — S0 disk first, drain, one commit, no mid-push
+alwaysApply: true
+---
+
+# VDT session (shared kit)
+
+Host workspace is **`S:\rust\GSV`**. Product tree comes from [`docs/gsv/PRODUCTS.md`](../../docs/gsv/PRODUCTS.md) after `абракадабра` AskQuestion.
+
+## S0 (disk before git/cargo)
+
+1. `df -h /s | tail -1` — avail **<5G** → `cargo clean` in **that product’s** `target/`; **<12G** → clean before heavy builds.
+2. `git fetch` → `git status -sb` → `git log -1 --oneline` in the **product** repo.
+3. Read that product’s HANDOFF + NEXT (paths in PRODUCTS.md).
+
+```bash
+export PATH="/c/Users/${USER:-${USERNAME}}/.cargo/bin:$HOME/.cargo/bin:/ucrt64/bin:/usr/bin:$PATH"
+export RUSTUP_TOOLCHAIN="${RUSTUP_TOOLCHAIN:-stable-x86_64-pc-windows-gnu}"
+# GSV product: unset CARGO_TARGET_DIR; PoolAI: CARGO_TARGET_DIR=/s/rust/poolAI/target
+```
+
+## Drain (`абракадабра`)
+
+1. Project scan — **warnings first** (clippy / diagnostics).
+2. ≤10 open PH-S*; no mid-drain push.
+3. Product tests (see PRODUCTS.md) — **stop `gsv-server` before GSV `cargo test`/`build`**.
+4. Vision close for that product, then **one** commit in **that** repo → push if remote exists → summary in chat.
+
+## Hard rules
+
+- Shell: `C:\msys64\usr\bin\bash.exe -lc '…'` — not PowerShell.
+- No `git add -A`. No parallel `cargo` (file lock). Separate `target/` per product.
+- Never stage: `.env*`, `*.pem`/`*.key`, `certs/*.pem`, `data/audit/*` (except `.gitkeep`), `comitmsg/*.txt`.

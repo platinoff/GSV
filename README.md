@@ -2,7 +2,7 @@
 
 **Корінь:** `S:\rust\GSV` (sibling PoolAI, не підтека). Самостійний Rust-first git-репозиторій. Працює **95–100% на Rust**, **0–5% WebAssembly** (завжди), UI — тонкий JS/DOM glue у `ui/` (без Python).
 
-**Версія:** v0.1.0 · **Стан:** band 125 реалізовано (FM §5.12 §5.106 **✅** `PH-S1889…S1898` — Vision/UI polish) · band 126 **in progress** (§5.107 `PH-S1899…S1908` — GSV stand smoke + ops canon). Vision rev **492**.
+**Версія:** v0.1.0 · **Стан:** band 127 реалізовано (VDT kit ✅ `PH-S1909…S1918`) · bands 102+108…126 ✅. Відкривати Cursor на **цьому** корені (`gsv.code-workspace`).
 
 ## Суть
 
@@ -110,6 +110,8 @@ Endpoints: `GET /` (UI), `/api/health`, `/api/tracker`, `/api/sli`, `/api/toolch
 | [`docs/gsv/GSV_BOXES.md`](docs/gsv/GSV_BOXES.md) | Специфікація боксів (Tracker, SLI console, Toolchain, IDE, Update, Preview, SLI terminal, Tests/bench hooks) |
 | [`docs/gsv/GSV_MIGRATION.md`](docs/gsv/GSV_MIGRATION.md) | Історія міграції з PoolAI `GSV/` |
 | [`docs/gsv/GSV_TECH_ROADMAP.md`](docs/gsv/GSV_TECH_ROADMAP.md) | **TechPreroadMap** — логічний порядок → future sprints |
+| [`docs/gsv/GSV_VDT_KIT.md`](docs/gsv/GSV_VDT_KIT.md) | **VDT kit** — точка входу (rules/skills, Accepted band 127) |
+| [`docs/gsv/PRODUCTS.md`](docs/gsv/PRODUCTS.md) | Реєстр продуктів для `абракадабра` |
 | [`docs/GSV_ROLES.md`](docs/GSV_ROLES.md) | Ролі GSV VDT (Власник/Оркестратор/Субагенти), канон сесії, ratio gate |
 
 ## Статус
@@ -125,5 +127,6 @@ Endpoints: `GET /` (UI), `/api/health`, `/api/tracker`, `/api/sli`, `/api/toolch
 | `gsv-loc-audit` + Ratio box + `GET /api/ratio` (Rust ≥95%) | **✅** |
 | Vision boxes + `/api/vision*` + SVG (band 119–125) | **✅** |
 | Stand smoke (`gsv-http-stand-smoke`, 48 checks) + contracts (band 126) | **✅** |
+| VDT kit (shared skills/rules, `gsv.code-workspace`, PRODUCTS.md) (band 127) | **✅** |
 | Тести (230: 102 unit + contracts + omni + ratio + update + ui + vision + stand smoke) | **✅** |
 | Vision docs sync / migration | **⏳ future** |

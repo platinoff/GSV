@@ -1,0 +1,30 @@
+---
+description: GSV is the VDT entry workspace for any registered Rust product
+alwaysApply: true
+---
+
+# GSV — точка входу VDT
+
+Цей workspace (`S:\rust\GSV`) — **спільний агентський кіт** (правила, скіли, `абракадабра`).
+Продуктовий код живе в зареєстрованих репо (PoolAI, цей ж GSV як продукт, далі — нові).
+
+Канон: [`docs/gsv/GSV_VDT_KIT.md`](../../docs/gsv/GSV_VDT_KIT.md).
+
+## Коли власник пише `абракадабра`
+
+1. **Спочатку** спитати який продукт дренити (`AskQuestion` / `question`): **poolai** | **gsv** (реєстр розшириться).
+2. Не підміняти вибір «ми вже в GSV, отже лише GSV» — GSV-вікно ≠ обов’язково GSV-продукт.
+3. Далі — скіл [`.agents/skills/abracadabra/`](../../.agents/skills/abracadabra/SKILL.md).
+
+## Shared vs product
+
+| У цьому репо (kit + GSV-продукт) | У репо продукту |
+|----------------------------------|-----------------|
+| `.agents/skills/`, generic `.cursor/rules/` | FM, concept, product test aliases |
+| S0 диск, MSYS2, git hygiene | PoolAI `cargo test-ci`, GSV `cargo test` |
+| Роутер `абракадабра` | HANDOFF / NEXT того продукту |
+
+## Shell
+
+MSYS2 bash, не PowerShell: `C:\msys64\usr\bin\bash.exe -lc '…'`.
+GSV `target/` — у цьому репо; PoolAI — `CARGO_TARGET_DIR=/s/rust/poolAI/target` лише коли drain **poolai**.

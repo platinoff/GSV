@@ -1,0 +1,25 @@
+{
+  "folders": [
+    {
+      "name": "GSV",
+      "path": "."
+    },
+    {
+      "name": "PoolAI",
+      "path": "../poolAI"
+    }
+  ],
+  "settings": {
+    "terminal.integrated.defaultProfile.windows": "bash (MSYS2)",
+    "terminal.integrated.profiles.windows": {
+      "bash (MSYS2)": {
+        "path": "C:\\msys64\\usr\\bin\\bash.exe",
+        "args": ["-l"],
+        "env": {
+          "MSYSTEM": "UCRT64",
+          "CHERE_INVOKING": "1"
+        }
+      }
+    }
+  }
+}

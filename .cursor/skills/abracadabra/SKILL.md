@@ -1,0 +1,72 @@
+---
+name: abracadabra
+description: >-
+  Trigger word «абракадабра» starts a VDT drain session. FIRST ask the owner to
+  choose the product (poolai | gsv | …), THEN run project-scan → drain → one
+  commit + push. Host workspace is GSV (`S:\rust\GSV`). Use when the owner
+  literally writes «абракадабра» in a new session (Cursor or OpenCode).
+metadata:
+  audience: gsv-vdt-kit
+  clients: cursor-opencode
+---
+
+# «абракадабра» — VDT drain session (GSV host)
+
+Works the same in **Cursor** and **OpenCode**. Git canon for this skill is
+**`S:\rust\GSV/.agents/skills/abracadabra/`**. Client copies under `.cursor/skills/`
+and `.opencode/skills/` must stay identical.
+
+**Open this folder as the Cursor workspace:** `S:\rust\GSV` (kit entry).
+Do not assume the product is GSV just because the window is GSV.
+
+Kit split: [`docs/gsv/GSV_VDT_KIT.md`](../../../docs/gsv/GSV_VDT_KIT.md).
+
+## Step 0 — Choose the product (ALWAYS first)
+
+When the owner writes `абракадабра`, **before anything else** ask which **product**
+to drain. Use the host question UI (one click):
+
+- **Cursor:** `AskQuestion`
+- **OpenCode:** `question`
+
+| Option | Product tree | Canon docs | Flow |
+|--------|--------------|------------|------|
+| **gsv** | `S:\rust\GSV` (`src/`, `tests/`, `ui/`) | `docs/NEXT_SESSION_PROMPT.md`, `docs/GSV_ROLES.md`, `docs/gsv/GSV_TECH_ROADMAP.md` | S0 disk (GSV target) → scan warnings first → drain next band → Speeds + Rust panel → `gsv-vision-sync` → one commit (+ push if remote exists) |
+| **poolai** | `S:\rust\poolAI` | `S:/rust/poolAI/docs/development/NEXT_SESSION_PROMPT.md`, `FUNCTION_MANAGEMENT.md` §5.12 | S0 disk (PoolAI target) → project scan → drain FM §5.12 band → vision close → `cargo test-ci` → one commit + push |
+
+New products: add a row to [`docs/gsv/PRODUCTS.md`](../../../docs/gsv/PRODUCTS.md), then add an option here.
+
+## gsv flow
+
+1. S0 disk (GSV has its own `target/` at `S:/rust/GSV`): `df -h /s` → `cargo clean` if needed → `git fetch` + GSV HANDOFF.
+2. Project scan: warnings first (`cargo clippy --all-targets` in `S:/rust/GSV`) → `docs/gsv/GSV_TECH_ROADMAP.md` unchecked rows → gaps → next band. **VDT kit** (`.cursor/rules`, `.agents/skills`) is an in-tree product gap until band close.
+3. Drain next band (≤10 open PH-S*; no mid-drain push). Work in **`S:/rust/GSV`**.
+4. Vision close: GSV HANDOFF + GSV NEXT → `cargo run --bin gsv-vision-sync` → `--check`.
+5. Test: `cargo test` in `S:/rust/GSV` — **stop `gsv-server` first**.
+6. Git (end of session): one commit in the GSV repo. GitHub remote is optional until the owner adds one.
+
+## poolai flow
+
+Work with **absolute paths** under `S:/rust/poolAI` (this window’s default cwd may be GSV).
+
+1. S0 disk: `df -h /s` + `bash S:/rust/poolAI/scripts/check_target_disk.sh` → `cargo clean` if needed → `git fetch` in PoolAI → HANDOFF → FM §1–§5.1 → NEXT_SESSION → `poolai-vision-sync --check` ok.
+2. Project scan (if §5.12 < 10): warnings/diagnostics first → concept → FM §5.1 → architect → roadmaps → gaps → code → 10 PH-S* into §5.12.
+3. Drain all open PH-S* (no mid-drain push).
+4. Vision close: FM §5.12 ✅ + HANDOFF + NEXT → one `poolai-vision-sync` → rev from manifest → `--check`.
+5. Test: one `cargo fmt --all` → one `cargo test-ci` (`K8S_OPENAPI_ENABLED_VERSION=1.28`, `CARGO_TARGET_DIR=/s/rust/poolAI/target`) → `record-test-ci-speed.sh` + `record-rust-diagnostics.sh`.
+6. Git (end of session): one commit in **PoolAI** → `git push origin main` + summary in chat.
+
+## Hard rules (all products)
+
+- **No** `git add -A`; stage only sprint files.
+- **No** push mid-drain / mid-scan; push + summary always last step.
+- **No** parallel `cargo` (file lock). Separate `target/` per product.
+- **Never** stage: `.env*`, `*.pem`/`*.key`, `certs/*.pem`, `data/audit/*` (except `.gitkeep`), `comitmsg/*.txt`.
+- Warnings >0 or errors >0 fixable → 1–3 PH-S* at the top of the band.
+- Shell is **MSYS2 bash**, not PowerShell: `C:\msys64\usr\bin\bash.exe -lc '…'`.
+
+## See also
+
+- Kit: `docs/gsv/GSV_VDT_KIT.md`
+- GSV: `docs/NEXT_SESSION_PROMPT.md`, `docs/GSV_ROLES.md`, `docs/gsv/GSV_TECH_ROADMAP.md`
+- PoolAI: `S:/rust/poolAI/docs/development/NEXT_SESSION_PROMPT.md`, `S:/rust/poolAI/docs/catalog/FUNCTION_MANAGEMENT.md`

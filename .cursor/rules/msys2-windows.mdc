@@ -1,0 +1,21 @@
+---
+description: MSYS2 UCRT64 bash only — no PowerShell for cargo/git
+alwaysApply: true
+---
+
+# MSYS2 & Windows
+
+**Terminal for all `cargo` / `git` / scripts:** `C:\msys64\usr\bin\bash.exe` (UCRT64). Not PowerShell, not cmd, not WSL `bash`.
+
+```bash
+export PATH="/c/Users/${USER:-${USERNAME}}/.cargo/bin:$HOME/.cargo/bin:/ucrt64/bin:/usr/bin:$PATH"
+export RUSTUP_TOOLCHAIN="${RUSTUP_TOOLCHAIN:-stable-x86_64-pc-windows-gnu}"
+export MSYSTEM=UCRT64
+```
+
+- Paths: `/s/rust/GSV` = `S:\rust\GSV`; `/s/rust/poolAI` = `S:\rust\poolAI`.
+- Toolchain pin lives in each product’s `rust-toolchain.toml` (expect rustc **1.92.0**, `x86_64-pc-windows-gnu`).
+- `npm` / `node`: `/ucrt64/bin` on PATH.
+- Do not run two `cargo` processes on the same `target/` (file lock).
+- GSV `target/` is this repo; PoolAI uses `CARGO_TARGET_DIR=/s/rust/poolAI/target` only when draining **poolai**.
+- Defender may lock `target/`; optional exclusion. Prefer `cargo clean` if `S:` avail <5G.
