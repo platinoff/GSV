@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generated_at": "2026-08-17",
   "host_label": "PLATINOV",
-  "git_head": "34181c6",
+  "git_head": "a789aea",
   "source": "local",
   "notes": [
     "Machine-readable Rust/Clippy warning+error index for vision Rust panel.",
@@ -12,33 +12,11 @@
     "warnings": 0,
     "errors": 0,
     "ok": true,
-    "recorded_at": "2026-08-17T20:24:01Z",
+    "recorded_at": "2026-08-17T20:38:51Z",
     "command": "cargo clippy --message-format=json --all-targets",
-    "wall_secs": 13.467073599999999
+    "wall_secs": 11.8902561
   },
   "history": [
-    {
-      "kind": "rust_diagnostics",
-      "command": "cargo clippy --message-format=json --all-targets --features jwt,https",
-      "warnings": 139,
-      "errors": 7,
-      "ok": false,
-      "recorded_at": "2026-07-28T21:44:56Z",
-      "wall_secs": 185.6193909,
-      "host_label": "PLATINOV",
-      "git_head": "fb466dd2d",
-      "source": "local",
-      "top_codes": [
-        "clippy::needless_borrows_for_generic_args×87",
-        "clippy::too_many_arguments×16",
-        "clippy::await_holding_lock×9",
-        "E0432×5",
-        "clippy::manual_clamp×4",
-        "clippy::nonminimal_bool×3",
-        "E0425×2",
-        "clippy::items_after_test_module×2"
-      ]
-    },
     {
       "kind": "rust_diagnostics",
       "command": "cargo clippy --message-format=json --all-targets --features jwt,https",
@@ -510,9 +488,21 @@
       "errors": 0,
       "ok": true,
       "recorded_at": "2026-08-17T20:24:01Z",
-      "wall_secs": 13.467073599999999,
+      "wall_secs": 13.4670736,
       "host_label": "PLATINOV",
       "git_head": "34181c6",
+      "source": "local"
+    },
+    {
+      "kind": "rust_diagnostics",
+      "command": "cargo clippy --message-format=json --all-targets",
+      "warnings": 0,
+      "errors": 0,
+      "ok": true,
+      "recorded_at": "2026-08-17T20:38:51Z",
+      "wall_secs": 11.8902561,
+      "host_label": "PLATINOV",
+      "git_head": "a789aea",
       "source": "local"
     }
   ]

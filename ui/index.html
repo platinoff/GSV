@@ -85,13 +85,13 @@ body.panel-fs-active .card{display:none!important}body.panel-fs-active .card.ful
   <span class="meta" id="metaTrail" role="status" aria-live="polite">…</span>
   <span id="status" class="badge online" role="status" aria-live="polite">online</span>
   <span id="updateBadge" class="badge update" style="display:none" onclick="doUpdate()" role="status" aria-live="polite" title="GSV binary rebuilt — restart server to apply">Update</span>
-  <div class="header-actions" aria-label="Vision controls">
-    <button id="btnGpu" class="badge gpu" title="GPU mode — Eco low GPU, FX full glow, Ms medium. Click → cycle" aria-label="GPU mode — cycle Eco, FX, Ms" onclick="cycleGpuMode()">FX</button>
-    <button id="btnAuto" class="badge" title="Auto-reload when vision files change" aria-label="Toggle auto-reload" onclick="toggleAuto()">Auto</button>
-    <button onclick="resync()">Resync</button>
-    <button onclick="notifyUpdate()">notify update</button>
-    <button id="btnPower" class="badge" title="Vision power — soft sync / reload" aria-haspopup="true" aria-expanded="false" aria-label="Vision power menu" onclick="togglePowerMenu()">⏻ Power</button>
-    <div id="powerMenu" class="power-menu" role="menu" aria-label="Vision power"><button role="menuitem" onclick="powerSoft()">Soft sync Vision</button><button role="menuitem" onclick="powerReload()">Reload UI</button><button role="menuitem" class="err" onclick="powerOffline()">Force offline</button></div>
+  <div class="header-actions" id="headerActions" aria-label="Vision controls">
+    <button id="btnGpu" class="badge gpu" title="GPU mode — Eco low GPU, FX full glow, Ms medium. Click → cycle" aria-label="GPU mode — cycle Eco, FX, Ms" type="button" data-action="gpu-cycle">FX</button>
+    <button id="btnAuto" class="badge" title="Auto-reload when vision files change" aria-label="Toggle auto-reload" type="button" data-action="auto-toggle">Auto</button>
+    <button type="button" data-action="resync">Resync</button>
+    <button type="button" data-action="notify-update">notify update</button>
+    <button id="btnPower" class="badge" title="Vision power — soft sync / reload" aria-haspopup="true" aria-expanded="false" aria-label="Vision power menu" type="button" data-action="power-toggle">⏻ Power</button>
+    <div id="powerMenu" class="power-menu" role="menu" aria-label="Vision power"><button type="button" role="menuitem" data-action="power-soft">Soft sync Vision</button><button type="button" role="menuitem" data-action="power-reload">Reload UI</button><button type="button" role="menuitem" class="err" data-action="power-offline">Force offline</button></div>
   </div>
 </header>
 <div id="panelDock" class="panel-dock" aria-label="Collapsed panels — click to restore"></div>
@@ -130,11 +130,6 @@ body.panel-fs-active .card{display:none!important}body.panel-fs-active .card.ful
 "use strict";
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-const tab = (h, rows) => {
-  if (!rows.length) rows = [h.map(() => "<span class='dim'>—</span>")];
-  return "<table><tr>" + h.map(x => "<th>" + x + "</th>").join("") + "</tr>" +
-    rows.map(r => "<tr>" + r.map(c => "<td>" + c + "</td>").join("") + "</tr>").join("") + "</table>";
-};
 let offline = false;
 const toast = msg => { const t = $("toast"); t.textContent = msg; t.style.display = "block"; setTimeout(() => { t.style.display = "none"; }, 4000); };
 const setOffline = v => { offline = v; const el = $("status"); el.textContent = v ? "offline" : "online"; el.className = "badge " + (v ? "offline" : "online"); };
@@ -185,6 +180,7 @@ async function loadLayout() {
     const d = await get("api/ui/layout");
     if (!d.ok) return;
     if (d.html) $("shellNav").innerHTML = d.html;
+    if (d.header && $("headerActions")) $("headerActions").innerHTML = d.header;
     const want = (location.hash || "").replace("#", "") || (function(){ try { return localStorage.getItem("gsv.group"); } catch (e) { return ""; } })() || d.default_group || "sprint";
     setGroup(want);
   } catch (e) { setGroup("sprint"); }
@@ -213,13 +209,9 @@ async function searchVisionNodes() {
   const box = $("b-node-search");
   if (!box) return;
   try {
-    const d = await get("api/vision/node-search" + (qs ? "?" + qs : ""));
-    if (!d.ok) { box.innerHTML = "<span class='err'>" + esc(d.error || "search failed") + "</span>"; return; }
-    box.innerHTML = "<div class='dim'>matches <kbd>" + d.total_matches + "</kbd> · shown " +
-      (d.results || []).length + (d.layer ? " · layer <kbd>" + esc(d.layer) + "</kbd>" : "") + "</div>" +
-      tab(["id", "layer", "out", "in", "label", ""], (d.results || []).map(r =>
-        ["<kbd>" + esc(r.id) + "</kbd>", esc(r.layer), r.links_out, r.links_in,
-         "<span class='dim'>" + esc(r.label) + "</span>", "<button type='button' data-open-node='" + esc(r.id) + "'>open</button>"]));
+    const d = await get("api/ui/card/node-search" + (qs ? "?" + qs : ""));
+    if (d.ok) box.innerHTML = d.html;
+    else box.innerHTML = "<span class='err'>" + esc(d.error || "search failed") + "</span>";
   } catch (e) { box.innerHTML = "<span class='err'>" + esc(e.message) + "</span>"; }
 }
 function openSearchNode(id) {
@@ -327,7 +319,18 @@ document.addEventListener("click", (e) => {
   const layer = e.target.closest("[data-map-layer]");
   if (layer) { toggleMapLayer(layer.getAttribute("data-map-layer")); return; }
   const act = e.target.closest("[data-action]");
-  if (act && act.getAttribute("data-action") === "node-search") { searchVisionNodes(); return; }
+  if (act) {
+    const a = act.getAttribute("data-action");
+    if (a === "node-search") { searchVisionNodes(); return; }
+    if (a === "gpu-cycle") { cycleGpuMode(); return; }
+    if (a === "auto-toggle") { toggleAuto(); return; }
+    if (a === "resync") { resync(); return; }
+    if (a === "notify-update") { notifyUpdate(); return; }
+    if (a === "power-toggle") { togglePowerMenu(); return; }
+    if (a === "power-soft") { powerSoft(); return; }
+    if (a === "power-reload") { powerReload(); return; }
+    if (a === "power-offline") { powerOffline(); return; }
+  }
   const ide = e.target.closest("[data-ide-tool]");
   if (ide) { selectIde(ide.getAttribute("data-ide-tool"), ide.getAttribute("data-ide-session")); return; }
   const open = e.target.closest("[data-open-node]");

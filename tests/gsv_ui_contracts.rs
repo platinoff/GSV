@@ -126,7 +126,7 @@ fn ui_helpers_match_js_semantics() {
     assert!(tab(&["a"], Vec::new()).contains("<span class='dim'>—</span>"));
     assert!(bar(50.0).contains("width:50%"));
     assert!(bar(120.0).contains("width:100%"));
-    assert_eq!(CARD_NAMES.len(), 30);
+    assert_eq!(CARD_NAMES.len(), 31);
 }
 
 #[tokio::test]
@@ -343,5 +343,13 @@ async fn ui_index_cards_are_offline_stable() {
     assert!(
         html.contains("d.html") && html.contains("shellNav"),
         "layout nav HTML from layout_wire"
+    );
+    assert!(
+        html.contains("d.header") && html.contains("headerActions"),
+        "layout header HTML from layout_wire"
+    );
+    assert!(
+        html.contains("api/ui/card/node-search"),
+        "node search uses rust chrome card"
     );
 }

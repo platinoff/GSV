@@ -16,6 +16,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 129** (canon port 9999 + dashboard card registry) **✅** ·
 **band 130** (chrome shell: real wires + Rust RSS ticker) **✅** ·
 **band 131** (Rust shell CSS + layout nav HTML) **✅** ·
+**band 132** (Rust header chrome HTML + node-search fragment) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -375,6 +376,21 @@ rules/skills; продукти (PoolAI, GSV-server, далі — нові Rust-�
 | **PH-S1956** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy — **✅** |
 | **PH-S1957** | vision-sync | `gsv-vision-sync` + `--check` — **✅** |
 | **PH-S1958** | Band close | tests green; one commit + push — **✅** |
+
+## Спринти (band 132) — Rust header chrome HTML + node-search fragment ✅
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S1959** | Scope + queue | roadmap band 132; `extensions.json` `active_sprint` = `PH-S1959` (sync with `manifest.next_sprint`) — **✅** |
+| **PH-S1960** | Header HTML | `render_header` GPU/Auto/Resync/Power `data-action`; `GET /api/ui/layout` `header` — **✅** |
+| **PH-S1961** | Node-search renderer | `render_node_search` table HTML from wire; `CARD_NAMES` 31 — **✅** |
+| **PH-S1962** | Chrome registry | `CHROME_CARDS` 8 includes `node-search`; `card_wire` `q`/`layer` — **✅** |
+| **PH-S1963** | UI glue | `loadLayout` injects `header`; search uses `/api/ui/card/node-search`; drop JS `tab` — **✅** |
+| **PH-S1964** | Event delegation | header `data-action` (gpu/auto/resync/power) replaces onclick — **✅** |
+| **PH-S1965** | Contracts | layout header + node-search html + CARD_NAMES 31 — **✅** |
+| **PH-S1966** | Docs canon | VISION/SERVER/BOXES/ARCHITECTURE + MEMORY/HANDOFF/NEXT band 132 — **✅** |
+| **PH-S1967** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy — **✅** |
+| **PH-S1968** | Band close | tests green; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

@@ -455,13 +455,15 @@ async fn api_ui_layout() -> Json<Value> {
 #[derive(serde::Deserialize, Default)]
 struct CardQuery {
     id: Option<String>,
+    q: Option<String>,
+    layer: Option<String>,
 }
 
 /// `GET /api/ui/card/:name` — server-rendered card body HTML fragment.
 ///
 /// Fetches the card's wire payload, renders it with the Rust UI fragment box,
 /// and returns `{ok, card, html}`. Unknown cards return `ok:false` (404).
-async fn card_wire(state: &AppState, name: &str, id: Option<&str>) -> Result<Value, ()> {
+async fn card_wire(state: &AppState, name: &str, q: &CardQuery) -> Result<Value, ()> {
     let wire = match name {
         "tracker" => tracker_wire(state),
         "sli" => json!(sli::wire(&state.repo_root)),
@@ -512,7 +514,7 @@ async fn card_wire(state: &AppState, name: &str, id: Option<&str>) -> Result<Val
         "doc-preview" => crate::boxes::vision::wire_doc_preview(
             &state.repo_root,
             &state.data_dir,
-            id.unwrap_or("galaxy_grid"),
+            q.id.as_deref().unwrap_or("galaxy_grid"),
         ),
         "ratio-box" => crate::boxes::ratio::wire(&state.data_dir),
         "omni" => serde_json::to_value(crate::boxes::omni::wire(&state.omni).await)
@@ -524,6 +526,12 @@ async fn card_wire(state: &AppState, name: &str, id: Option<&str>) -> Result<Val
         "power-menu" => crate::boxes::ui::chrome_power_wire(),
         "panel-dock" => crate::boxes::ui::chrome_dock_wire(),
         "fullscreen" => crate::boxes::ui::chrome_fullscreen_wire(),
+        "node-search" => crate::boxes::vision::wire_node_search(
+            &state.repo_root,
+            &state.data_dir,
+            q.q.as_deref().unwrap_or(""),
+            q.layer.as_deref().filter(|s| !s.is_empty()),
+        ),
         _ => return Err(()),
     };
     Ok(wire)
@@ -534,7 +542,7 @@ async fn api_ui_card(
     Path(name): Path<String>,
     Query(q): Query<CardQuery>,
 ) -> Response {
-    let wire = match card_wire(&state, &name, q.id.as_deref()).await {
+    let wire = match card_wire(&state, &name, &q).await {
         Ok(w) => w,
         Err(()) => return err_json(StatusCode::NOT_FOUND, format!("unknown card: {name}")),
     };
@@ -557,7 +565,7 @@ fn sprint_counts(state: &AppState) -> Value {
 
 async fn api_ui_path(State(state): State<AppState>, Path(segments): Path<Vec<String>>) -> Response {
     let path = segments.join("/");
-    if let Ok(wire) = card_wire(&state, &path, None).await {
+    if let Ok(wire) = card_wire(&state, &path, &CardQuery::default()).await {
         let html = crate::boxes::ui::render_card(&path, &wire).unwrap_or_default();
         return Json(json!({ "ok": true, "card": path, "html": html })).into_response();
     }

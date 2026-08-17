@@ -549,8 +549,18 @@ async fn ui_layout_endpoint_returns_four_groups() {
     let ids: Vec<&str> = groups.iter().filter_map(|g| g["id"].as_str()).collect();
     assert_eq!(ids, vec!["ops", "vision", "sprint", "studio"]);
     let chrome = json["chrome"].as_array().expect("chrome");
-    assert_eq!(chrome.len(), 7);
+    assert_eq!(chrome.len(), 8);
     assert_eq!(chrome[0], "galaxy-backdrop");
+    assert_eq!(chrome[7], "node-search");
+    let header = json["header"].as_str().expect("layout header");
+    assert!(
+        header.contains("data-action='gpu-cycle'"),
+        "layout header actions: {header}"
+    );
+    assert!(
+        header.contains("id='powerMenu'"),
+        "layout header power: {header}"
+    );
     let (h_status, h_json) = get(&app, "/api/ui/card/health").await;
     assert_eq!(h_status, StatusCode::OK);
     assert!(h_json["html"]
@@ -572,6 +582,17 @@ async fn ui_layout_endpoint_returns_four_groups() {
         "{sf_html}"
     );
     assert!(sf_html.contains("default <kbd>FX</kbd>"), "{sf_html}");
+    let (ns_status, ns_json) = get(&app, "/api/ui/card/node-search?q=galaxy").await;
+    assert_eq!(ns_status, StatusCode::OK);
+    let ns_html = ns_json["html"].as_str().expect("node-search html");
+    assert!(
+        ns_html.contains("matches <kbd>"),
+        "node-search summary: {ns_html}"
+    );
+    assert!(
+        ns_html.contains("<th>id</th>"),
+        "node-search table: {ns_html}"
+    );
     let nav_html = json["html"].as_str().expect("layout html");
     assert!(
         nav_html.contains("data-card-jump='health'"),

@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-17 (band 131 **PH-S1949…S1958** ✅ · **horizon band 132** · Rust shell CSS + layout nav HTML · VDT kit Accepted)
+**Оновлено:** 2026-08-17 (band 132 **PH-S1959…S1968** ✅ · **horizon band 133** · Rust header HTML + node-search fragment · VDT kit Accepted)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -14,7 +14,7 @@
 project scan (**warnings first**) → drain наступного band (**без** mid-push) →
 Speeds · Rust panel → vision-sync → **один** commit → **`git push` + самарі**.
 
-Якщо **gsv:** черга — [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) **після band 131**.
+Якщо **gsv:** черга — [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) **після band 132**.
 Kit уже в дереві (`.cursor/rules/`, `.agents/skills/`, `gsv.code-workspace`).
 Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics.sh`. Disk: `bash scripts/check_target_disk.sh`.
 
@@ -156,7 +156,9 @@ Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics
   `GET /api/ui/layout` `chrome` (7).
   **band 131** (PH-S1949…S1958) ✅ — Rust shell: layout nav HTML + live palette/theme CSS
   (`/api/ui/load-palette`, `/api/ui/load-theme`); JS CSS-var mappers removed.
-  **Наступний band 132**: project scan у наступній сесії `абракадабра`.
+  **band 132** (PH-S1959…S1968) ✅ — Rust header chrome HTML (`layout.header` + `data-action`) +
+  node-search table from `/api/ui/card/node-search`; JS `tab` helper removed.
+  **Наступний band 133**: project scan у наступній сесії `абракадабра`.
 
 ## Канон GSV
 
@@ -181,6 +183,7 @@ band 128 ✅ (kit ops + grouped Galaxy UI) ·
 band 129 ✅ (canon port 9999 + dashboard card registry) ·
 band 130 ✅ (chrome shell — real wires + Rust RSS ticker) ·
 band 131 ✅ (Rust shell — live CSS + layout nav HTML) ·
+band 132 ✅ (Rust header chrome HTML + node-search fragment) ·
 не комітити kit-only в PoolAI як «замість» GSV drain ·
 staging `GSV/data/*` / `certs/*.pem` /
 `.env` · mid-push · build/test при запущеному `gsv-server` · обхід ratio-смуги Rust-кодом замість compact UI ·

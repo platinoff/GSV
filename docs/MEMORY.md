@@ -4,6 +4,13 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-17 · band 132 ✅)
+
+- **Band 132:** Rust header chrome HTML — `GET /api/ui/layout` `header` (`render_header` + `data-action`); node-search table via `/api/ui/card/node-search?q=&layer=`; `CARD_NAMES` **31** / chrome **8**; JS `tab` helper removed.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.20%** (rust 13959 / product 14510) · **246** tests · clippy 0. Vision rev **499**.
+- **Канон продукту:** Rust **95–100%** / wasm **0–5%** (завжди), без Python/Java; bins — лише `src/bin/`.
+- **VDT kit:** GSV = точка входу (`.agents/skills/`, generic `.cursor/rules/`, `gsv.code-workspace`, [`PRODUCTS.md`](gsv/PRODUCTS.md)). `GSV_VDT_KIT.md` Status=Accepted.
+
 ## Стан (2026-08-17 · band 131 ✅)
 
 - **Band 131:** Rust shell — `GET /api/ui/layout` `html` (sidebar nav + `data-card-jump`); live `:root` CSS via `/api/ui/load-palette` + `/api/ui/load-theme` (stubs replaced); thin glue `<link>` + `loadLayout` uses `html`.
@@ -57,6 +64,12 @@
   (GSV_SERVER/GSV_BOXES/README/roadmap band 126) · ratio hold **96.87%** · **Vision rev 493**.
 
 ## Що зроблено
+
+### Band 132 (PH-S1959…S1968, ✅ 2026-08-17) — Rust header chrome HTML + node-search fragment
+- `render_header` emits `#headerActions` inner HTML with `data-action` (gpu-cycle / auto-toggle / resync / notify-update / power-*).
+- `layout_wire` includes `header`; thin glue `loadLayout` injects it (static markup remains offline fallback).
+- `render_node_search` table from node-search wire; `GET /api/ui/card/node-search?q=&layer=`; `CARD_NAMES` 31 / `CHROME_CARDS` 8.
+- JS `tab` helper and search-result HTML builder removed; header onclick → event delegation.
 
 ### Band 131 (PH-S1949…S1958, ✅ 2026-08-17) — Rust shell: live palette/theme CSS + layout nav HTML
 - `render_nav` emits inner sidebar HTML with `data-card-jump` / `data-group`; `layout_wire` includes `html`.

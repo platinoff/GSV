@@ -144,7 +144,7 @@ pub const UI_GROUPS: [UiGroup; 4] = [
 ];
 
 /// Chrome-only CARD_NAMES (header/backdrop — not dashboard groups).
-pub const CHROME_CARDS: [&str; 7] = [
+pub const CHROME_CARDS: [&str; 8] = [
     "galaxy-backdrop",
     "starfield",
     "rss-ticker",
@@ -152,9 +152,10 @@ pub const CHROME_CARDS: [&str; 7] = [
     "power-menu",
     "panel-dock",
     "fullscreen",
+    "node-search",
 ];
 
-/// `GET /api/ui/layout` — groups + default group + chrome card ids + nav HTML.
+/// `GET /api/ui/layout` — groups + default group + chrome card ids + nav HTML + header.
 pub fn layout_wire() -> Value {
     serde_json::json!({
         "ok": true,
@@ -166,6 +167,7 @@ pub fn layout_wire() -> Value {
         })).collect::<Vec<_>>(),
         "chrome": CHROME_CARDS,
         "html": render_nav(DEFAULT_GROUP),
+        "header": render_header(),
     })
 }
 
@@ -230,6 +232,23 @@ pub fn render_nav(active: &str) -> String {
         out.push_str("</div>");
     }
     out
+}
+
+/// Inner header-actions HTML for `#headerActions` — GPU / Auto / Resync / Power.
+pub fn render_header() -> String {
+    concat!(
+        "<button id='btnGpu' class='badge gpu' title='GPU mode — Eco low GPU, FX full glow, Ms medium. Click → cycle' aria-label='GPU mode — cycle Eco, FX, Ms' type='button' data-action='gpu-cycle'>FX</button>",
+        "<button id='btnAuto' class='badge' title='Auto-reload when vision files change' aria-label='Toggle auto-reload' type='button' data-action='auto-toggle'>Auto</button>",
+        "<button type='button' data-action='resync'>Resync</button>",
+        "<button type='button' data-action='notify-update'>notify update</button>",
+        "<button id='btnPower' class='badge' title='Vision power — soft sync / reload' aria-haspopup='true' aria-expanded='false' aria-label='Vision power menu' type='button' data-action='power-toggle'>⏻ Power</button>",
+        "<div id='powerMenu' class='power-menu' role='menu' aria-label='Vision power'>",
+        "<button type='button' role='menuitem' data-action='power-soft'>Soft sync Vision</button>",
+        "<button type='button' role='menuitem' data-action='power-reload'>Reload UI</button>",
+        "<button type='button' role='menuitem' class='err' data-action='power-offline'>Force offline</button>",
+        "</div>",
+    )
+    .into()
 }
 
 /// Every dashboard card id appears in exactly one [`UI_GROUPS`] entry.
@@ -1112,6 +1131,43 @@ pub fn render_sprint_focus(d: &Value) -> String {
     )
 }
 
+/// Node-search results table (`/api/vision/node-search` → `/api/ui/card/node-search`).
+pub fn render_node_search(d: &Value) -> String {
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let results = arr(&d["results"]);
+    let total = u(&d["total_matches"]);
+    let layer = s(&d["layer"]);
+    let layer_bit = if layer.is_empty() {
+        String::new()
+    } else {
+        format!(" · layer <kbd>{}</kbd>", esc(&layer))
+    };
+    let rows: Vec<Vec<String>> = results
+        .iter()
+        .map(|r| {
+            let id = s(&r["id"]);
+            vec![
+                format!("<kbd>{}</kbd>", esc(&id)),
+                esc(&s(&r["layer"])),
+                u(&r["links_out"]).to_string(),
+                u(&r["links_in"]).to_string(),
+                format!("<span class='dim'>{}</span>", esc(&s(&r["label"]))),
+                format!(
+                    "<button type='button' data-open-node='{}'>open</button>",
+                    esc(&id)
+                ),
+            ]
+        })
+        .collect();
+    format!(
+        "<div class='dim'>matches <kbd>{total}</kbd> · shown {}{layer_bit}</div>{}",
+        results.len(),
+        tab(&["id", "layer", "out", "in", "label", ""], rows)
+    )
+}
+
 /// Render a named card's body HTML, or `None` for an unknown card name.
 pub fn render_card(name: &str, d: &Value) -> Option<String> {
     match name {
@@ -1145,12 +1201,13 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
         "power-menu" => Some(render_power_menu(d)),
         "panel-dock" => Some(render_panel_dock(d)),
         "fullscreen" => Some(render_fullscreen(d)),
+        "node-search" => Some(render_node_search(d)),
         _ => None,
     }
 }
 
 /// Server-rendered card names (stable contract for `/api/ui/card/:name`).
-pub const CARD_NAMES: [&str; 30] = [
+pub const CARD_NAMES: [&str; 31] = [
     "tracker",
     "sli",
     "toolchain",
@@ -1181,6 +1238,7 @@ pub const CARD_NAMES: [&str; 30] = [
     "power-menu",
     "panel-dock",
     "fullscreen",
+    "node-search",
 ];
 
 /// Galaxy backdrop card body (SVG-backed visual).
@@ -1553,8 +1611,9 @@ mod tests {
         assert!(render_card("power-menu", &d).is_some());
         assert!(render_card("panel-dock", &d).is_some());
         assert!(render_card("fullscreen", &d).is_some());
+        assert!(render_card("node-search", &d).is_some());
         assert!(render_card("nope", &d).is_none());
-        assert_eq!(CARD_NAMES.len(), 30);
+        assert_eq!(CARD_NAMES.len(), 31);
         assert!(render_card("health", &d).is_some());
         assert!(render_card("ide", &d).is_some());
         assert!(render_card("vision", &d).is_some());
@@ -1645,10 +1704,50 @@ mod tests {
         let chrome = wire["chrome"].as_array().expect("chrome");
         assert_eq!(chrome.len(), CHROME_CARDS.len());
         assert_eq!(chrome[0], "galaxy-backdrop");
-        assert_eq!(chrome[chrome.len() - 1], "fullscreen");
+        assert_eq!(chrome[chrome.len() - 1], "node-search");
         let nav_html = wire["html"].as_str().expect("html");
         assert!(nav_html.contains("data-card-jump='health'"), "{nav_html}");
         assert!(nav_html.contains("data-group='ops'"), "{nav_html}");
+        let header = wire["header"].as_str().expect("header");
+        assert!(header.contains("data-action='gpu-cycle'"), "{header}");
+        assert!(header.contains("data-action='power-toggle'"), "{header}");
+        assert!(header.contains("id='powerMenu'"), "{header}");
+        assert!(
+            !header.contains("<header"),
+            "inner HTML only — #headerActions already wraps"
+        );
+    }
+
+    #[test]
+    fn render_header_and_node_search_fragments() {
+        let header = render_header();
+        assert!(header.contains("data-action='resync'"), "{header}");
+        assert!(header.contains("data-action='power-soft'"), "{header}");
+        assert!(header.contains("aria-haspopup='true'"), "{header}");
+        let empty = render_node_search(&serde_json::json!({
+            "ok": true, "total_matches": 0, "results": []
+        }));
+        assert!(empty.contains("matches <kbd>0</kbd>"), "{empty}");
+        assert!(empty.contains("<span class='dim'>—</span>"), "{empty}");
+        let html = render_node_search(&serde_json::json!({
+            "ok": true,
+            "total_matches": 2,
+            "layer": "L0",
+            "results": [{
+                "id": "galaxy_grid",
+                "label": "Galaxy",
+                "layer": "L0",
+                "links_out": 3,
+                "links_in": 1
+            }]
+        }));
+        assert!(
+            html.contains("matches <kbd>2</kbd> · shown 1 · layer <kbd>L0</kbd>"),
+            "{html}"
+        );
+        assert!(html.contains("<kbd>galaxy_grid</kbd>"), "{html}");
+        assert!(html.contains("data-open-node='galaxy_grid'"), "{html}");
+        assert!(html.contains("<th>id</th>"), "{html}");
     }
 
     #[test]

@@ -32,6 +32,8 @@ starfield Eco/FX/Ms counts from `StarfieldMode`, galaxy src+opacity) + Rust RSS 
 **band 131 (PH-S1949…S1958, ✅)** — Rust shell: `GET /api/ui/layout` `html` (sidebar nav + `data-card-jump`);
 live `:root` CSS via `GET /api/ui/load-palette` + `GET /api/ui/load-theme` (stubs replaced); thin glue
 `<link>` + `loadLayout` uses `html` (no JS CSS-var mappers).
+**band 132 (PH-S1959…S1968, ✅)** — Rust header chrome HTML (`GET /api/ui/layout` `header` + `data-action`)
++ node-search table from `GET /api/ui/card/node-search?q=&layer=`; `CARD_NAMES` 31 / chrome 8; JS `tab` removed.
 
 ## Що це
 
