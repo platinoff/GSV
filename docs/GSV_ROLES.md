@@ -25,7 +25,7 @@
 3. **Drain**: до 10 PH-S*. **Rust-first** тести. GSV: stop `gsv-server` перед `cargo test`. **без Python**.
 4. **Speeds + Rust panel**: GSV vision `gsv_speed_index.json` / `gsv_rust_diagnostics.json` (empty-tolerant); PoolAI — `record-test-ci-speed.sh` + `record-rust-diagnostics.sh`.
 5. **Vision-sync**: GSV `gsv-vision-sync --check`; PoolAI `poolai-vision-sync --check`.
-6. **Один commit + `git push` + самарі** в кінці сесії **в репо продукту**. **Не** mid-push. GSV GitHub remote — опційно, доки власник не додасть.
+6. **Один commit + `git push` + самарі** в кінці сесії **в репо продукту**. **Не** mid-push. GSV GitHub remote: `origin` → `https://github.com/platinoff/GSV`.
 
 **Не делегувати:** фінальний `git push`, закриття спринту в FM §5.12, оновлення `NEXT_SESSION_PROMPT.md`, amend після push.
 

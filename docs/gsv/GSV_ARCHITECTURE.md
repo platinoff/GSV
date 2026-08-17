@@ -28,7 +28,7 @@
 
 | Модуль | Роль |
 |--------|------|
-| `gsv_server` | точка входу, rocket/axum+tokio server |
+| `gsv_server` | точка входу, axum+tokio server |
 | `server/` | HTTP/WS routing, static (GSV UI), SSE events |
 | `boxes/` | Tracker, SLI console, Toolchain, IDE, Update, Box preview, SLI terminal, Tests/bench hooks |
 | `sli/` | SLI-функції: парсинг `bin/`+`scripts/`+`src/bin/` → каталог команд |
@@ -39,7 +39,7 @@
 
 ### UI (тонкий JS glue)
 
-`src/ui/` — vanilla HTML+CSS+JS. Панелі: map, sprint-queue, doc-preview + **бокси GSV**. Дані — з Rust API (fetch/SSE). Сторінка переживає офлайн (див. `GSV_SERVER.md`).
+`ui/` — vanilla HTML+CSS+JS (thin glue). Панелі: map, sprint-queue, doc-preview + **бокси GSV**; chrome (RSS ticker, GPU, power) з `/api/ui/card/:name`. Дані — з Rust API (fetch/SSE). Сторінка переживає офлайн (див. `GSV_SERVER.md`).
 
 ## Rust / WebAssembly split
 
@@ -60,7 +60,7 @@
 | SLI-каталог | `gsv_sli.json` (згенерований) | `GSV/data/` |
 | Toolchain-інвентар | `gsv_toolchain.json` | `GSV/data/` |
 | Сесії чатів (opencode/cursor) | read-only | `~/.local/share/opencode/`, `.cursor/` |
-| Метрики (speed, rust diagnostics) | `speed_index.json`, `rust_diagnostics.json` | `docs/development/` (сирці) |
+| Метрики (speed, rust diagnostics) | `speed_index.json`, `rust_diagnostics.json` | `docs/vision/` (сирці) → `GSV/data/gsv_*.json` |
 
 ## Порядок реалізації (коротко)
 

@@ -154,7 +154,7 @@ pub const CHROME_CARDS: [&str; 7] = [
     "fullscreen",
 ];
 
-/// `GET /api/ui/layout` — groups + default group for the thin JS shell.
+/// `GET /api/ui/layout` — groups + default group + chrome card ids for the thin JS shell.
 pub fn layout_wire() -> Value {
     serde_json::json!({
         "ok": true,
@@ -164,6 +164,44 @@ pub fn layout_wire() -> Value {
             "label": g.label,
             "cards": g.cards,
         })).collect::<Vec<_>>(),
+        "chrome": CHROME_CARDS,
+    })
+}
+
+/// Default GPU-mode chrome wire (FX matches StarfieldMode fallback).
+pub fn chrome_gpu_wire() -> Value {
+    serde_json::json!({
+        "ok": true,
+        "mode": "fx",
+        "active": true,
+        "modes": ["eco", "fx", "ms"],
+    })
+}
+
+/// Power-menu chrome wire — actions the header already exposes.
+pub fn chrome_power_wire() -> Value {
+    serde_json::json!({
+        "ok": true,
+        "level": "eco",
+        "actions": [
+            {"id": "soft", "label": "Soft sync Vision"},
+            {"id": "reload", "label": "Reload UI"},
+            {"id": "offline", "label": "Force offline"},
+        ],
+    })
+}
+
+/// Panel-dock chrome wire — collapsed set is client-owned, so default empty.
+pub fn chrome_dock_wire() -> Value {
+    serde_json::json!({ "ok": true, "panels": [] })
+}
+
+/// Fullscreen chrome wire — off until a card is expanded.
+pub fn chrome_fullscreen_wire() -> Value {
+    serde_json::json!({
+        "ok": true,
+        "active": false,
+        "label": "fullscreen",
     })
 }
 
@@ -1144,98 +1182,160 @@ pub const CARD_NAMES: [&str; 30] = [
 
 /// Galaxy backdrop card body (SVG-backed visual).
 fn render_galaxy_backdrop(d: &Value) -> String {
-    let mode = d.get("mode").and_then(Value::as_str).unwrap_or("dark");
-    let stars = d.get("stars").and_then(Value::as_u64).unwrap_or(0);
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let src = s(&d["src"]);
+    if src.is_empty() {
+        return empty_html("galaxy backdrop");
+    }
+    let mode = s(&d["mode"]);
+    let mode = if mode.is_empty() { "dark".into() } else { mode };
+    let opacity = s(&d["opacity"]);
     format!(
-        "<div class='dim'>galaxy backdrop · {mode} mode · {stars} stars</div><div>generated <kbd>{mode}</kbd> svg</div>"
+        "<div class='dim'>galaxy backdrop · {} · opacity {}</div><div>src <kbd>{}</kbd></div>",
+        esc(&mode),
+        esc(&opacity),
+        esc(&src)
     )
 }
 
 /// Starfield card body (eco/fx/ms star counts).
 fn render_starfield(d: &Value) -> String {
-    let eco = d.get("eco").and_then(Value::as_u64).unwrap_or(0);
-    let fx = d.get("fx").and_then(Value::as_u64).unwrap_or(0);
-    let ms = d.get("ms").and_then(Value::as_u64).unwrap_or(0);
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let eco = u(&d["eco"]);
+    let fx = u(&d["fx"]);
+    let ms = u(&d["ms"]);
+    if eco == 0 && fx == 0 && ms == 0 {
+        return empty_html("starfield");
+    }
+    let default = s(&d["default"]);
+    let default_bit = if default.is_empty() {
+        String::new()
+    } else {
+        format!(" · default <kbd>{}</kbd>", esc(&default))
+    };
     format!(
-        "<div>starfield · Eco <span class='ok'>{eco}</span> · FX <span class='ok'>{fx}</span> · Ms <span class='ok'>{ms}</span> stars</div>"
+        "<div>starfield · Eco <span class='ok'>{eco}</span> · FX <span class='ok'>{fx}</span> · Ms <span class='ok'>{ms}</span> stars{default_bit}</div>"
     )
 }
 
-/// RSS ticker card body (latest vision/status feed lines).
+/// RSS ticker body — `<li class='rss-ticker-item'>` rows, duplicated for marquee scroll.
 fn render_rss_ticker(d: &Value) -> String {
-    let items = d
-        .get("items")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    let mut out = String::from("<div class='dim'>vision feed · rss ticker</div>");
-    let rows: Vec<Vec<String>> = items
-        .iter()
-        .map(|it| {
-            let label = it.get("label").and_then(Value::as_str).unwrap_or("");
-            let status = it.get("status").and_then(Value::as_str).unwrap_or("");
-            vec![
-                format!("<kbd>{}</kbd>", esc(label)),
-                format!("<span class='ok'>{}</span>", esc(status)),
-            ]
-        })
-        .collect();
-    out.push_str(&tab(&["item", "status"], rows));
-    out
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let items = arr(&d["items"]);
+    if items.is_empty() {
+        return empty_html("rss ticker");
+    }
+    let mut lis = String::new();
+    for it in &items {
+        let id = {
+            let raw = s(&it["id"]);
+            if raw.is_empty() {
+                s(&it["label"])
+            } else {
+                raw
+            }
+        };
+        let title = s(&it["title"]);
+        let status = s(&it["status"]);
+        let cls = if status == "closed" { "closed" } else { "open" };
+        let title_attr = esc(&format!("{id}: {title}"));
+        lis.push_str(&format!(
+            "<li class='rss-ticker-item {cls}' title='{title_attr}'><strong>{}</strong><span>{}</span></li>",
+            esc(&id),
+            esc(&title)
+        ));
+    }
+    format!("{lis}{lis}")
 }
 
 /// GPU mode card body (current accelerator mode).
 fn render_gpu_mode(d: &Value) -> String {
-    let mode = d.get("mode").and_then(Value::as_str).unwrap_or("unknown");
-    let active = d.get("active").and_then(Value::as_bool).unwrap_or(false);
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let mode = s(&d["mode"]);
+    if mode.is_empty() {
+        return empty_html("gpu mode");
+    }
+    let active = b(&d["active"]);
+    let modes = arr(&d["modes"]);
+    let modes_s = if modes.is_empty() {
+        String::new()
+    } else {
+        let joined = modes
+            .iter()
+            .filter_map(Value::as_str)
+            .map(esc)
+            .collect::<Vec<_>>()
+            .join("/");
+        format!(" · {joined}")
+    };
     format!(
-        "<div>gpu mode <span class='ok'>{}</span> {}</div>",
-        esc(mode),
-        if active { "· active" } else { "· idle" }
+        "<div>gpu mode <span class='ok'>{}</span> {}{modes_s}</div>",
+        esc(&mode),
+        if active { "· active" } else { "· idle" },
     )
 }
 
-/// Power menu card body (power level).
+/// Power menu card body (header actions).
 fn render_power_menu(d: &Value) -> String {
-    let level = d.get("level").and_then(Value::as_str).unwrap_or("eco");
-    let watts = d.get("watts").and_then(Value::as_u64).unwrap_or(0);
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let actions = arr(&d["actions"]);
+    if actions.is_empty() {
+        return empty_html("power menu");
+    }
+    let chips: Vec<String> = actions
+        .iter()
+        .map(|a| format!("<kbd>{}</kbd>", esc(&s(&a["label"]))))
+        .collect();
+    let level = s(&d["level"]);
     format!(
-        "<div>power <span class='ok'>{}</span> · {} W</div>",
-        esc(level),
-        watts
+        "<div>power <span class='ok'>{}</span> · {}</div>",
+        esc(&level),
+        chips.join(" ")
     )
 }
 
 /// Panel dock card body (docked panel list).
 fn render_panel_dock(d: &Value) -> String {
-    let panels = d
-        .get("panels")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let panels = arr(&d["panels"]);
+    if panels.is_empty() {
+        return empty_html("panel dock");
+    }
     let names: Vec<String> = panels
         .iter()
-        .filter_map(|p| p.as_str())
+        .filter_map(Value::as_str)
         .map(|p| format!("<kbd>{}</kbd>", esc(p)))
         .collect();
-    let joined = if names.is_empty() {
-        "<span class='dim'>—</span>".to_string()
-    } else {
-        names.join(" ")
-    };
-    format!("<div>panel dock · {joined}</div>")
+    format!("<div>panel dock · {}</div>", names.join(" "))
 }
 
 /// Fullscreen card body (fullscreen toggle state).
 fn render_fullscreen(d: &Value) -> String {
-    let active = d.get("active").and_then(Value::as_bool).unwrap_or(false);
-    let label = d
-        .get("label")
-        .and_then(Value::as_str)
-        .unwrap_or("fullscreen");
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let active = b(&d["active"]);
+    let label = s(&d["label"]);
+    let label = if label.is_empty() {
+        "fullscreen".into()
+    } else {
+        label
+    };
     format!(
         "<div>{} <span class='{}'>{}</span></div>",
-        esc(label),
+        esc(&label),
         if active { "ok" } else { "dim" },
         if active { "on" } else { "off" }
     )
@@ -1535,6 +1635,60 @@ mod tests {
         assert_eq!(wire["ok"], true);
         assert_eq!(wire["default_group"], DEFAULT_GROUP);
         assert_eq!(wire["groups"].as_array().map(|a| a.len()), Some(4));
+        let chrome = wire["chrome"].as_array().expect("chrome");
+        assert_eq!(chrome.len(), CHROME_CARDS.len());
+        assert_eq!(chrome[0], "galaxy-backdrop");
+        assert_eq!(chrome[chrome.len() - 1], "fullscreen");
+    }
+
+    #[test]
+    fn chrome_renderers_error_empty_and_rss_items() {
+        let err = serde_json::json!({ "ok": false, "error": "stand-error" });
+        for name in CHROME_CARDS {
+            let html = render_card(name, &err).expect(name);
+            assert!(
+                html.contains("<span class='err'>stand-error</span>"),
+                "{name} error: {html}"
+            );
+        }
+        assert!(
+            render_rss_ticker(&serde_json::json!({ "ok": true, "items": [] }))
+                .contains("rss ticker — no data")
+        );
+        let rss = render_rss_ticker(&serde_json::json!({
+            "ok": true,
+            "items": [{ "id": "PH-S1939", "title": "chrome", "status": "open" }]
+        }));
+        assert!(rss.contains("rss-ticker-item open"), "{rss}");
+        assert!(rss.contains("<strong>PH-S1939</strong>"), "{rss}");
+        assert_eq!(
+            rss.matches("rss-ticker-item").count(),
+            2,
+            "marquee duplicates items: {rss}"
+        );
+        let stars = render_starfield(&serde_json::json!({
+            "ok": true, "eco": 48, "fx": 160, "ms": 96, "default": "FX"
+        }));
+        assert!(stars.contains("Eco <span class='ok'>48</span>"), "{stars}");
+        assert!(stars.contains("default <kbd>FX</kbd>"), "{stars}");
+        assert!(
+            render_starfield(&serde_json::json!({ "ok": true })).contains("starfield — no data")
+        );
+        let gpu = render_gpu_mode(&chrome_gpu_wire());
+        assert!(gpu.contains("gpu mode <span class='ok'>fx</span>"), "{gpu}");
+        assert!(gpu.contains("eco/fx/ms"), "{gpu}");
+        let power = render_power_menu(&chrome_power_wire());
+        assert!(power.contains("Soft sync Vision"), "{power}");
+        assert!(render_panel_dock(&chrome_dock_wire()).contains("panel dock — no data"));
+        assert!(render_fullscreen(&chrome_fullscreen_wire()).contains("off"));
+        let galaxy = render_galaxy_backdrop(&serde_json::json!({
+            "ok": true, "mode": "dark", "src": "/api/vision/galaxy.svg", "opacity": "0.15"
+        }));
+        assert!(galaxy.contains("galaxy.svg"), "{galaxy}");
+        assert!(
+            render_galaxy_backdrop(&serde_json::json!({ "ok": true, "src": "" }))
+                .contains("galaxy backdrop — no data")
+        );
     }
 
     #[test]

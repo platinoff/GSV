@@ -1155,6 +1155,37 @@ pub fn wire_feed_filter(repo_root: &Path, data_dir: &Path, status: Option<&str>)
     }
 }
 
+/// Chrome RSS ticker wire — `feed.items` (not the wrapper) for `/api/ui/card/rss-ticker`.
+pub fn chrome_rss_wire(repo_root: &Path, data_dir: &Path) -> Value {
+    let feed = wire_feed_filter(repo_root, data_dir, None);
+    if feed.get("ok").and_then(Value::as_bool) == Some(false) {
+        return json!({
+            "ok": false,
+            "error": feed.get("error").and_then(Value::as_str).unwrap_or("feed unavailable"),
+        });
+    }
+    let items: Vec<Value> = feed
+        .get("feed")
+        .and_then(|f| f.get("items"))
+        .and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .take(30)
+                .map(|it| {
+                    let id = it.get("id").and_then(Value::as_str).unwrap_or("");
+                    json!({
+                        "id": id,
+                        "title": it.get("title").cloned().unwrap_or(json!("")),
+                        "status": it.get("status").cloned().unwrap_or(json!("")),
+                        "label": id,
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    json!({ "ok": true, "items": items })
+}
+
 /// Write-run: read the live sources and persist snapshots.
 pub fn sync(repo_root: &Path, data_dir: &Path) -> Result<SyncReport, String> {
     let manifest = read_manifest(repo_root)?;
@@ -2344,6 +2375,28 @@ pub fn starfield_svg(mode: StarfieldMode) -> String {
     )
 }
 
+/// Chrome starfield wire — real Eco/FX/Ms star counts (not SVG-string heuristics).
+pub fn chrome_starfield_wire() -> Value {
+    json!({
+        "ok": true,
+        "eco": StarfieldMode::Eco.star_count() as u64,
+        "fx": StarfieldMode::Fx.star_count() as u64,
+        "ms": StarfieldMode::Ms.star_count() as u64,
+        "default": StarfieldMode::Fx.label(),
+    })
+}
+
+/// Chrome galaxy backdrop wire — SVG src + legacy opacity.
+pub fn chrome_galaxy_wire() -> Value {
+    let p = GalaxyPalette::legacy();
+    json!({
+        "ok": true,
+        "mode": "dark",
+        "src": "/api/vision/galaxy.svg",
+        "opacity": p.galaxy_bg_opacity,
+    })
+}
+
 /// `GET /api/vision/starfield.svg?mode=` — starfield backdrop (static).
 pub fn starfield_svg_wire(repo_root: &Path, data_dir: &Path, mode: Option<&str>) -> String {
     if let Ok(m) = source_manifest(repo_root, data_dir) {
@@ -2703,6 +2756,13 @@ mod tests {
         let open = wire_feed_filter(&src, &data, Some("open"));
         assert_eq!(open["feed"]["items"].as_array().unwrap().len(), 1);
         assert_eq!(open["feed"]["items"][0]["status"], "open");
+
+        let chrome = chrome_rss_wire(&src, &data);
+        assert_eq!(chrome["ok"], true);
+        let items = chrome["items"].as_array().expect("chrome items");
+        assert_eq!(items.len(), 2);
+        assert!(items.iter().any(|i| i["id"] == "PH-S1729"));
+        assert_eq!(items[0]["label"], items[0]["id"]);
         let _ = std::fs::remove_dir_all(&tmp);
     }
 
@@ -3492,6 +3552,23 @@ mod tests {
         assert!(svg.contains("#7eb8ff"));
         assert!(svg.contains("#c4a5ff"));
         assert!(svg.contains("#06080f"));
+    }
+
+    #[test]
+    fn chrome_starfield_and_galaxy_wires_use_real_counts() {
+        let s = chrome_starfield_wire();
+        assert_eq!(s["ok"], true);
+        assert_eq!(s["eco"], 48);
+        assert_eq!(s["fx"], 160);
+        assert_eq!(s["ms"], 96);
+        assert_eq!(s["default"], "FX");
+        let g = chrome_galaxy_wire();
+        assert_eq!(g["ok"], true);
+        assert_eq!(g["src"], "/api/vision/galaxy.svg");
+        assert_eq!(
+            g["opacity"].as_str(),
+            Some(GalaxyPalette::legacy().galaxy_bg_opacity.as_str())
+        );
     }
 
     #[test]

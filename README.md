@@ -2,7 +2,7 @@
 
 **Корінь:** `S:\rust\GSV` (sibling PoolAI, не підтека). Самостійний Rust-first git-репозиторій. Працює **95–100% на Rust**, **0–5% WebAssembly** (завжди), UI — тонкий JS/DOM glue у `ui/` (без Python).
 
-**Версія:** v0.1.0 · **Стан:** band 127 реалізовано (VDT kit ✅ `PH-S1909…S1918`) · bands 102+108…126 ✅. Відкривати Cursor на **цьому** корені (`gsv.code-workspace`).
+**Версія:** v0.1.0 · **Стан:** band 130 реалізовано (chrome shell ✅ `PH-S1939…S1948`) · bands 102+108…129 ✅. Відкривати Cursor на **цьому** корені (`gsv.code-workspace`).
 
 ## Суть
 
@@ -56,12 +56,12 @@ GSV/
 │                          proxy.rs (OpenAI-сумісний chat completions / models)
 ├── ui/index.html        ← single-page UI (SSE, offline/update/resync)
 ├── tests/
-│   ├── gsv_server_contracts.rs  ← 32 integration tests
+│   ├── gsv_server_contracts.rs  ← 34 integration tests
 │   ├── gsv_omni_contracts.rs    ← 8 OmniRouter integration tests
 │   ├── gsv_ratio_contracts.rs   ← 7 ratio box integration tests
 │   ├── gsv_update_flow.rs       ← 8 update/SSE tests
 │   ├── gsv_ui_contracts.rs      ← 12 UI fragment tests
-│   ├── gsv_vision_contracts.rs  ← 52 vision tests
+│   ├── gsv_vision_contracts.rs  ← 55 vision tests
 │   └── gsv_stand_smoke_contracts.rs ← 6 stand smoke contracts (band 126)
 └── data/                ← gsv_tracker.json, omni.toml, rust_ratio.json (durable stores, gitignored)
 ```
@@ -72,7 +72,7 @@ GSV/
 
 - **Rust-only** runtime/API/ML/RAID/VM/tools. Python заборонено (0× `.py`). Java немає.
 - Бinaries — лише `src/bin/` (`cargo run --bin …`).
-- UI — vanilla HTML+CSS+JS у `src/ui/`; WASM — лише горизонт (0–5%).
+- UI — vanilla HTML+CSS+JS у `ui/`; WASM — лише горизонт (0–5%).
 - Термінал — MSYS2 bash (не PowerShell) для `cargo`/`git`.
 - Rust стиль: `AppError`, `?`, без `unwrap()`/`expect()` у продукті, `Arc<RwLock<T>>`, `tokio`, `tracing`, модулі через `mod.rs`.
 
@@ -85,7 +85,7 @@ export RUSTUP_TOOLCHAIN="stable-x86_64-pc-windows-gnu"
 cd /s/rust/GSV
 unset CARGO_TARGET_DIR
 cargo build --all-targets
-cargo test          # 242 tests (105 unit + contracts + omni + ratio + update + ui + vision + stand smoke)
+cargo test          # 244 tests (107 unit + contracts + omni + ratio + update + ui + vision + stand smoke)
 cargo clippy --all-targets   # 0 warnings/errors
 cargo run --bin gsv-loc-audit -- --stretch-96   # Rust/LOC ratio → data/rust_ratio.json (≥95%, stretch-96 ≥96%)
 cargo run --bin gsv-server -- --port 9999   # live smoke

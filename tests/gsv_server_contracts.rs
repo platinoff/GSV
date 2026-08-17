@@ -548,12 +548,30 @@ async fn ui_layout_endpoint_returns_four_groups() {
     assert_eq!(groups.len(), 4);
     let ids: Vec<&str> = groups.iter().filter_map(|g| g["id"].as_str()).collect();
     assert_eq!(ids, vec!["ops", "vision", "sprint", "studio"]);
+    let chrome = json["chrome"].as_array().expect("chrome");
+    assert_eq!(chrome.len(), 7);
+    assert_eq!(chrome[0], "galaxy-backdrop");
     let (h_status, h_json) = get(&app, "/api/ui/card/health").await;
     assert_eq!(h_status, StatusCode::OK);
     assert!(h_json["html"]
         .as_str()
         .expect("health")
         .contains("uptime_secs"));
+    let (rss_status, rss_json) = get(&app, "/api/ui/card/rss-ticker").await;
+    assert_eq!(rss_status, StatusCode::OK);
+    let rss_html = rss_json["html"].as_str().expect("rss html");
+    assert!(
+        rss_html.contains("rss-ticker-item"),
+        "rss ticker items from feed.feed.items: {rss_html}"
+    );
+    let (sf_status, sf_json) = get(&app, "/api/ui/card/starfield").await;
+    assert_eq!(sf_status, StatusCode::OK);
+    let sf_html = sf_json["html"].as_str().expect("starfield html");
+    assert!(
+        sf_html.contains("Eco <span class='ok'>48</span>"),
+        "{sf_html}"
+    );
+    assert!(sf_html.contains("default <kbd>FX</kbd>"), "{sf_html}");
 }
 
 /// Canonical error-shape contract: every 4xx/5xx JSON error carries

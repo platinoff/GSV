@@ -4,6 +4,13 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-17 · band 130 ✅)
+
+- **Band 130:** chrome shell — rss-ticker from `feed.feed.items`; starfield Eco/FX/Ms counts from `StarfieldMode`; galaxy src+opacity; header ticker via `/api/ui/card/rss-ticker`; layout `chrome` (7).
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.06%** (rust 13707 / product 14269) · **244** tests · clippy 0. Vision rev **497**.
+- **Канон продукту:** Rust **95–100%** / wasm **0–5%** (завжди), без Python/Java; bins — лише `src/bin/`.
+- **VDT kit:** GSV = точка входу (`.agents/skills/`, generic `.cursor/rules/`, `gsv.code-workspace`, [`PRODUCTS.md`](gsv/PRODUCTS.md)). `GSV_VDT_KIT.md` Status=Accepted.
+
 ## Стан (2026-08-17 · band 129 ✅)
 
 - **Band 129:** canon live UI port **9999** (`live_ui_url`, feed/pointer retarget) · `CARD_NAMES` **30** (`preview`/`terminal`/`sprint-focus`) · `rustCards` 23 · sidebar chip jump.
@@ -43,6 +50,12 @@
   (GSV_SERVER/GSV_BOXES/README/roadmap band 126) · ratio hold **96.87%** · **Vision rev 493**.
 
 ## Що зроблено
+
+### Band 130 (PH-S1939…S1948, ✅ 2026-08-17) — chrome shell: real wires + Rust RSS ticker
+- Chrome wires: rss-ticker reads `feed.feed.items` (was empty `feed.items`); starfield 48/160/96 from `StarfieldMode::star_count`; galaxy `/api/vision/galaxy.svg` + palette opacity; gpu default `fx`; power actions; empty client-owned dock.
+- Renderers: `err_html`/`empty_html`; rss ticker `<li class='rss-ticker-item'>` duplicated for marquee.
+- `GET /api/ui/layout` `chrome` array (7). Thin glue: `loadRssTicker` + `resync` use `/api/ui/card/rss-ticker`.
+- Docs: ARCHITECTURE (`ui/` not `src/ui/`, axum, metrics in `docs/vision/`); GSV_ROLES GitHub `platinoff/GSV`.
 
 ### Band 129 (PH-S1929…S1938, ✅ 2026-08-17) — canon port 9999 + dashboard card registry
 - `live_ui_url` (`DEFAULT_HOST`:`DEFAULT_PORT`) for feed samples; `docs/vision/feed.json` + pointer page retarget 8891 → 9999.

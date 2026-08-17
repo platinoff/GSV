@@ -31,7 +31,7 @@
 | POST | `/api/omni/v1/chat/completions` | OpenAI-сумісний proxy (dry-run через `X-Omni-Dry-Run: 1`) |
 | POST | `/api/omni/test` | connectivity check провайдера (`GET {base}/models`) |
 | GET | `/api/health` | health-чек |
-| GET | `/api/ui/layout` | grouped IA (ops/vision/sprint/studio) + default group |
+| GET | `/api/ui/layout` | grouped IA (ops/vision/sprint/studio) + `chrome` (7 header cards) |
 | GET | `/api/ui/card/:name` | Rust-rendered card body HTML (`CARD_NAMES`) |
 | GET | `/events` | SSE: update · offline/online · metrics resync |
 
@@ -47,7 +47,7 @@ cargo run --manifest-path GSV/Cargo.toml --bin gsv-http-stand-smoke -- --base-ur
 ```
 
 - Перевіряє core boxes (`/api/health`, `/api/tracker`, `/api/sli`, `/api/toolchain`, `/api/update`, `/api/ratio`, `/api/omni/status`), усі `/api/vision*` (ok-гейт), SVG-ассети та **усі 30 зареєстрованих карток** `/api/ui/card/:name` (non-empty `html`).
-- Layout: `GET /api/ui/layout` — 4 групи (ops / vision / sprint / studio), default `sprint`.
+- Layout: `GET /api/ui/layout` — 4 групи (ops / vision / sprint / studio), default `sprint`, `chrome` (7 header fragments: galaxy-backdrop / starfield / rss-ticker / gpu-mode / power-menu / panel-dock / fullscreen).
 - `ok`-гейт лише там, де wire має поле `ok` (vision*/ratio/health/cards); struct-wire endpoints (tracker/sli/toolchain/update/omni) — лише 200 + JSON (empty-tolerant).
 - Вихідний код: `GSV/src/bin/gsv_http_stand_smoke.rs`; контракти: `GSV/tests/gsv_stand_smoke_contracts.rs`.
 - Репорт: `{base_url, ok, passed, failed, cases[], tool}`; exit code 1 при будь-якому FAIL.

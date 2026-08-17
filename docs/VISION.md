@@ -26,6 +26,9 @@ Vision rev **492**; ratio **96.87%** ≥96% ✅.
 **band 129 (PH-S1929…S1938, ✅)** — canon port **9999** (`live_ui_url`, feed + pointer retarget from 8891)
 + dashboard card registry: `preview` / `terminal` / `sprint-focus` in `CARD_NAMES` (30) and `rustCards` (23);
 sidebar chips `data-card-jump`; Vision rev **496**.
+**band 130 (PH-S1939…S1948, ✅)** — chrome shell: real `/api/ui/card` wires (rss-ticker from `feed.feed.items`,
+starfield Eco/FX/Ms counts from `StarfieldMode`, galaxy src+opacity) + Rust RSS ticker HTML in the header;
+`GET /api/ui/layout` `chrome` array (7).
 
 ## Що це
 

@@ -14,6 +14,7 @@ band 126 (GSV stand smoke + ops canon) **✅** ·
 band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 128** (kit ops + grouped Galaxy UI) **✅** ·
 **band 129** (canon port 9999 + dashboard card registry) **✅** ·
+**band 130** (chrome shell: real wires + Rust RSS ticker) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -343,6 +344,21 @@ rules/skills; продукти (PoolAI, GSV-server, далі — нові Rust-�
 | **PH-S1936** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy — **✅** |
 | **PH-S1937** | vision-sync | `gsv-vision-sync` + `--check` — **✅** |
 | **PH-S1938** | Band close | tests green; MEMORY/HANDOFF/NEXT; one commit + push — **✅** |
+
+## Спринти (band 130) — chrome shell: real wires + Rust RSS ticker ✅
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S1939** | Scope + queue | roadmap band 130; `extensions.json` `active_sprint` = `PH-S1939` (sync with `manifest.next_sprint`) — **✅** |
+| **PH-S1940** | Real chrome wires | rss-ticker reads `feed.feed.items`; starfield Eco/FX/Ms counts from `StarfieldMode::star_count`; galaxy src+opacity; gpu `fx`; power actions; empty dock — **✅** |
+| **PH-S1941** | Chrome renderers | `err_html`/`empty_html`; rss ticker emits `<li class='rss-ticker-item'>` duplicated for marquee — **✅** |
+| **PH-S1942** | Layout chrome | `GET /api/ui/layout` includes `chrome: CHROME_CARDS` (7) — **✅** |
+| **PH-S1943** | UI glue | `loadRssTicker` → `/api/ui/card/rss-ticker`; `resync` includes ticker — **✅** |
+| **PH-S1944** | Contracts | chrome unit tests + layout/rss/starfield server contracts + index `api/ui/card/rss-ticker` — **✅** |
+| **PH-S1945** | Docs canon | VISION/SERVER/BOXES/ARCHITECTURE/ROLES + MEMORY/HANDOFF/NEXT band 130 — **✅** |
+| **PH-S1946** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy — **✅** |
+| **PH-S1947** | vision-sync | `gsv-vision-sync` + `--check` — **✅** |
+| **PH-S1948** | Band close | tests green; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

@@ -515,51 +515,13 @@ async fn card_wire(state: &AppState, name: &str, id: Option<&str>) -> Result<Val
         "ratio-box" => crate::boxes::ratio::wire(&state.data_dir),
         "omni" => serde_json::to_value(crate::boxes::omni::wire(&state.omni).await)
             .unwrap_or(serde_json::Value::Null),
-        "galaxy-backdrop" => {
-            json!({ "mode": "dark", "stars": 0 })
-        }
-        "starfield" => {
-            let svg =
-                crate::boxes::vision::starfield_svg_wire(&state.repo_root, &state.data_dir, None);
-            let eco = if svg.contains("Eco") { 48u64 } else { 0 };
-            let fx = if svg.contains("FX") { 160u64 } else { 0 };
-            let ms = if svg.contains("Ms") { 96u64 } else { 0 };
-            json!({ "eco": eco, "fx": fx, "ms": ms })
-        }
-        "rss-ticker" => {
-            let feed: Value =
-                crate::boxes::vision::wire_feed_filter(&state.repo_root, &state.data_dir, None);
-            let items: Vec<Value> = feed
-                .get("items")
-                .and_then(|v| v.as_array())
-                .map(|a| a.iter().take(6).cloned().collect())
-                .unwrap_or_default();
-            json!({ "items": items })
-        }
-        "gpu-mode" => {
-            json!({
-                "mode": "auto",
-                "active": true,
-                "gpu": crate::boxes::vision::wire_summary(&state.repo_root, &state.data_dir)
-                    .get("speed_index").cloned().unwrap_or_default()
-            })
-        }
-        "power-menu" => {
-            json!({
-                "level": "eco",
-                "watts": 0,
-                "mode": "default"
-            })
-        }
-        "panel-dock" => {
-            json!({ "panels": ["sprint", "ratio", "vision", "toolchain"] })
-        }
-        "fullscreen" => {
-            json!({
-                "active": false,
-                "label": "fullscreen"
-            })
-        }
+        "galaxy-backdrop" => crate::boxes::vision::chrome_galaxy_wire(),
+        "starfield" => crate::boxes::vision::chrome_starfield_wire(),
+        "rss-ticker" => crate::boxes::vision::chrome_rss_wire(&state.repo_root, &state.data_dir),
+        "gpu-mode" => crate::boxes::ui::chrome_gpu_wire(),
+        "power-menu" => crate::boxes::ui::chrome_power_wire(),
+        "panel-dock" => crate::boxes::ui::chrome_dock_wire(),
+        "fullscreen" => crate::boxes::ui::chrome_fullscreen_wire(),
         _ => return Err(()),
     };
     Ok(wire)

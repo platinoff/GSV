@@ -328,4 +328,8 @@ async fn ui_index_cards_are_offline_stable() {
         html.contains("data-card-jump"),
         "sidebar chips jump to cards"
     );
+    assert!(
+        html.contains("api/ui/card/rss-ticker"),
+        "rss ticker uses rust chrome card"
+    );
 }
