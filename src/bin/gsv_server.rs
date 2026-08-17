@@ -18,12 +18,13 @@ use tracing_subscriber::EnvFilter;
 use gsv::{AppState, DEFAULT_HOST, DEFAULT_PORT, GSV_SERVER_NAME};
 
 /// Simple CLI parser (no external deps): `--port N`, `--host H`, `--repo-root P`,
-/// `--data-dir P`, `--help`.
+/// `--data-dir P`, `--allow-lan`, `--help`.
 fn parse_args() -> (String, u16, Option<PathBuf>, Option<PathBuf>) {
     let mut host = DEFAULT_HOST.to_string();
     let mut port = DEFAULT_PORT;
     let mut repo_root = None;
     let mut data_dir = None;
+    let mut allow_lan = false;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -36,12 +37,19 @@ fn parse_args() -> (String, u16, Option<PathBuf>, Option<PathBuf>) {
             "--host" => host = args.next().unwrap_or_else(|| DEFAULT_HOST.to_string()),
             "--repo-root" => repo_root = args.next().map(PathBuf::from),
             "--data-dir" => data_dir = args.next().map(PathBuf::from),
+            "--allow-lan" => allow_lan = true,
             "--help" | "-h" => {
-                println!("Usage: gsv-server [--host H] [--port N] [--repo-root P] [--data-dir P]");
+                println!(
+                    "Usage: gsv-server [--host H] [--port N] [--repo-root P] [--data-dir P] [--allow-lan]"
+                );
                 std::process::exit(0);
             }
             _ => {}
         }
+    }
+    if let Err(e) = gsv::security::ensure_bind_host(&host, allow_lan) {
+        eprintln!("{e}");
+        std::process::exit(1);
     }
     (host, port, repo_root, data_dir)
 }

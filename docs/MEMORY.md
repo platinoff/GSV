@@ -4,6 +4,13 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-17 · band 133 ✅)
+
+- **Band 133:** localhost security — `--allow-lan` for off-loopback bind; CSRF POST gate (`Sec-Fetch-Site` / Origin); SLI terminal cargo/git allowlists (no `bash`/`node`/`npm`/`cat`); `/data/{file}` basename allowlist; preview canonicalize.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.22%** (rust 14044 / product 14595) · **256** tests · clippy 0. Vision rev **500**.
+- **Канон продукту:** Rust **95–100%** / wasm **0–5%** (завжди), без Python/Java; bins — лише `src/bin/`.
+- **VDT kit:** GSV = точка входу (`.agents/skills/`, generic `.cursor/rules/`, `gsv.code-workspace`, [`PRODUCTS.md`](gsv/PRODUCTS.md)). `GSV_VDT_KIT.md` Status=Accepted.
+
 ## Стан (2026-08-17 · band 132 ✅)
 
 - **Band 132:** Rust header chrome HTML — `GET /api/ui/layout` `header` (`render_header` + `data-action`); node-search table via `/api/ui/card/node-search?q=&layer=`; `CARD_NAMES` **31** / chrome **8**; JS `tab` helper removed.
@@ -64,6 +71,12 @@
   (GSV_SERVER/GSV_BOXES/README/roadmap band 126) · ratio hold **96.87%** · **Vision rev 493**.
 
 ## Що зроблено
+
+### Band 133 (PH-S1969…S1978, ✅ 2026-08-17) — localhost security hardening
+- `src/security.rs`: loopback bind (`ensure_bind_host` + `--allow-lan`), POST gate (`gate_post`), `/data/{file}` allowlist (`DATA_FILES`; `omni.toml` not served).
+- Terminal: drop `bash`/`node`/`npm`/`cat`; cargo/git subcommand allowlists; `..` `\\` `~` forbidden.
+- Preview `resolve`: reject absolute/`ParentDir`; canonicalize under repo root.
+- `tests/gsv_security_contracts.rs`: loopback Origin allowed, non-local Origin + cross-site POST 403, data `..` / unknown / `omni.toml` 400, Omni GET has no `api_key` field.
 
 ### Band 132 (PH-S1959…S1968, ✅ 2026-08-17) — Rust header chrome HTML + node-search fragment
 - `render_header` emits `#headerActions` inner HTML with `data-action` (gpu-cycle / auto-toggle / resync / notify-update / power-*).

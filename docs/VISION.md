@@ -34,6 +34,8 @@ live `:root` CSS via `GET /api/ui/load-palette` + `GET /api/ui/load-theme` (stub
 `<link>` + `loadLayout` uses `html` (no JS CSS-var mappers).
 **band 132 (PH-S1959…S1968, ✅)** — Rust header chrome HTML (`GET /api/ui/layout` `header` + `data-action`)
 + node-search table from `GET /api/ui/card/node-search?q=&layer=`; `CARD_NAMES` 31 / chrome 8; JS `tab` removed.
+**band 133 (PH-S1969…S1978, ✅)** — localhost security: loopback bind (`--allow-lan`), CSRF POST gate,
+terminal subcommand allowlists, `/data/{file}` basename allowlist, preview canonicalize.
 
 ## Що це
 

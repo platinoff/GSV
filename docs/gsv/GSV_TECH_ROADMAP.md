@@ -17,6 +17,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 130** (chrome shell: real wires + Rust RSS ticker) **✅** ·
 **band 131** (Rust shell CSS + layout nav HTML) **✅** ·
 **band 132** (Rust header chrome HTML + node-search fragment) **✅** ·
+**band 133** (localhost security: bind + CSRF + terminal + data allowlist) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -391,6 +392,23 @@ rules/skills; продукти (PoolAI, GSV-server, далі — нові Rust-�
 | **PH-S1966** | Docs canon | VISION/SERVER/BOXES/ARCHITECTURE + MEMORY/HANDOFF/NEXT band 132 — **✅** |
 | **PH-S1967** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy — **✅** |
 | **PH-S1968** | Band close | tests green; one commit + push — **✅** |
+
+## Спринти (band 133) — localhost security hardening ✅
+
+Owner 2026-08-17: security check on `gsv-server` (loopback default, mutating POSTs, SLI terminal, `/data`).
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S1969** | Scope + queue | roadmap band 133; `extensions.json` `active_sprint` = `PH-S1969` — **✅** |
+| **PH-S1970** | Loopback bind | `security::ensure_bind_host`; `--host` off-loopback requires `--allow-lan` — **✅** |
+| **PH-S1971** | CSRF POST gate | `Sec-Fetch-Site: cross-site` / non-loopback `Origin` → 403 `{ok:false}` — **✅** |
+| **PH-S1972** | Terminal whitelist | drop `bash`/`node`/`npm`/`cat`; cargo/git subcommand allowlists; `..` `\\` `~` forbidden — **✅** |
+| **PH-S1973** | Data file allowlist | `GET /data/{file}` basenames only (`DATA_FILES`); `omni.toml` not served — **✅** |
+| **PH-S1974** | Preview confine | `preview::resolve` rejects absolute/`ParentDir`; canonicalize under repo root — **✅** |
+| **PH-S1975** | Omni GET | `/api/omni/config` has `key_set`, no `api_key` field — **✅** |
+| **PH-S1976** | Contracts | `tests/gsv_security_contracts.rs` + terminal/preview unit tests — **✅** |
+| **PH-S1977** | Docs canon | SERVER/BOXES/ARCHITECTURE/VISION + MEMORY/HANDOFF/NEXT band 133 — **✅** |
+| **PH-S1978** | Band close | ratio ≥96%; fmt/clippy/test; vision-sync; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

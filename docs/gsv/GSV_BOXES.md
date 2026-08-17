@@ -71,14 +71,16 @@ Rust модуль: `ide/` (read-only).
 
 - `GET /api/preview?file=…` → HTML з токен-висвітленням (Rust-палітра).
 - Підтримка `.rs`, `.toml`, `.md`, `.js`, `.css`.
+- Шлях лише repo-relative: `ParentDir` / absolute → reject; canonicalize під `repo_root`.
 
 ## 7. SLI terminal (AI → команди)
 
 **Роль:** щоб AI (ШІ) міг посилати команди на сервер.
 
 - `POST /api/terminal {command}` — виконати SLI-команду.
-- Аудит у Tracker; результат — JSON/стdout.
-- Обмеження: whitelist SLI-каталогу, sandbox (без довільних команд поза реєстром).
+- Аудит у Tracker; результат — JSON/stdout.
+- Обмеження: whitelist SLI-каталогу (без `bash`/`node`/`npm`/`cat`), cargo/git subcommand allowlist, sandbox (без `..` / shell metacharacters).
+- Mutating POST з не-loopback `Origin` або `Sec-Fetch-Site: cross-site` → 403.
 
 ## 8. Rust tests / benchmarks hook (без перекомпіляції)
 

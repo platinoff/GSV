@@ -123,6 +123,7 @@ async fn omni_config_read_is_redacted() {
     assert_eq!(status, StatusCode::OK);
     let openai = &json["provider"]["openai"];
     assert!(openai["key_set"].is_boolean());
+    assert!(openai.get("api_key").is_none());
     assert!(openai["enabled"].is_boolean());
     assert!(openai["base_url"]
         .as_str()

@@ -4,8 +4,9 @@ use std::convert::Infallible;
 use std::time::Duration;
 
 use axum::body::Bytes;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Path, Query, Request, State};
 use axum::http::{HeaderMap, StatusCode};
+use axum::middleware::{self, Next};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
@@ -162,7 +163,26 @@ pub fn router(state: AppState) -> Router {
         .route("/data/{file}", get(api_data_file))
         .route("/events", get(events))
         .route("/assets/vision.svg", get(api_vision_svg))
+        .layer(middleware::from_fn(reject_cross_site_post))
         .with_state(state)
+}
+
+/// Browser cross-site POSTs (and non-loopback Origin) never mutate this process.
+async fn reject_cross_site_post(req: Request, next: Next) -> Response {
+    if req.method() == axum::http::Method::POST {
+        let site = req
+            .headers()
+            .get("sec-fetch-site")
+            .and_then(|v| v.to_str().ok());
+        let origin = req
+            .headers()
+            .get(axum::http::header::ORIGIN)
+            .and_then(|v| v.to_str().ok());
+        if let Err(msg) = crate::security::gate_post(site, origin) {
+            return err_json(StatusCode::FORBIDDEN, msg);
+        }
+    }
+    next.run(req).await
 }
 
 async fn index() -> Html<&'static str> {
@@ -1021,16 +1041,10 @@ async fn api_ide_session_history() -> Json<Value> {
 }
 
 async fn api_data_file(State(state): State<AppState>, Path(file): Path<String>) -> Response {
-    let mapped = if file == "sprints.json" || file == "gsv_history.json" {
-        "gsv_tracker.json".to_string()
-    } else {
-        file
+    let safe = match crate::security::data_file_name(&file) {
+        Ok(name) => name,
+        Err(e) => return err_json(StatusCode::BAD_REQUEST, e),
     };
-    let safe = mapped
-        .split('/')
-        .filter(|p| *p != ".." && !p.is_empty())
-        .collect::<Vec<_>>()
-        .join("/");
     let path = state.data_dir.join(&safe);
     match tokio::fs::read_to_string(&path).await {
         Ok(content) => (

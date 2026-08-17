@@ -19,6 +19,7 @@
 
 pub mod app_error;
 pub mod boxes;
+pub mod security;
 pub mod server;
 pub mod state;
 pub mod tracker;

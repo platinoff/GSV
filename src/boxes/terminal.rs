@@ -18,23 +18,53 @@ pub const WHITELIST: &[&str] = &[
     "rustc",
     "rustfmt",
     "git",
-    "bash",
     "ls",
     "echo",
     "pwd",
     "df",
-    "node",
-    "npm",
-    "cat",
     "poolai-loc-audit",
     "poolai-vision-sync",
     "poolai-rust-diagnostics",
     "poolai-speed-index",
+    "gsv-loc-audit",
+    "gsv-vision-sync",
+    "gsv-rust-diagnostics",
+    "gsv-speed-index",
 ];
+
+/// `cargo` second token (no `run` / `install` / `publish`).
+const CARGO_OK: &[&str] = &[
+    "--version",
+    "-V",
+    "-h",
+    "--help",
+    "fmt",
+    "clippy",
+    "check",
+    "test",
+    "build",
+];
+
+/// Read-oriented `git` second token.
+const GIT_OK: &[&str] = &[
+    "--version",
+    "-v",
+    "-h",
+    "--help",
+    "status",
+    "log",
+    "diff",
+    "rev-parse",
+    "branch",
+    "show",
+];
+
+/// Version/help only (`rustc` / `rustfmt` / `cargo-clippy`).
+const VERSION_ONLY: &[&str] = &["--version", "-V", "-v", "-h", "--help"];
 
 /// Characters that are never allowed (shell injection guard).
 const FORBIDDEN: &[char] = &[
-    ';', '&', '|', '`', '$', '\n', '\r', '(', ')', '{', '}', '<', '>',
+    ';', '&', '|', '`', '$', '\n', '\r', '(', ')', '{', '}', '<', '>', '\\', '~',
 ];
 
 /// `POST /api/terminal` body.
@@ -60,17 +90,42 @@ pub fn validate(command: &str) -> Result<(), String> {
     if trimmed.is_empty() {
         return Err("empty command".to_string());
     }
+    if trimmed.contains("..") {
+        return Err("forbidden path traversal".to_string());
+    }
     for ch in FORBIDDEN {
         if trimmed.contains(*ch) {
             return Err(format!("forbidden character: {ch}"));
         }
     }
-    let first = trimmed.split_whitespace().next().unwrap_or_default();
-    if !WHITELIST
-        .iter()
-        .any(|w| first == *w || first.starts_with(&format!("{w} ")))
-    {
+    let mut parts = trimmed.split_whitespace();
+    let first = parts.next().unwrap_or_default();
+    if !WHITELIST.contains(&first) {
         return Err(format!("command not in whitelist: {first}"));
+    }
+    match first {
+        "cargo" => {
+            if let Some(sub) = parts.next() {
+                if !CARGO_OK.contains(&sub) {
+                    return Err(format!("cargo subcommand not allowed: {sub}"));
+                }
+            }
+        }
+        "git" => {
+            if let Some(sub) = parts.next() {
+                if !GIT_OK.contains(&sub) {
+                    return Err(format!("git subcommand not allowed: {sub}"));
+                }
+            }
+        }
+        "rustc" | "rustfmt" | "cargo-clippy" => {
+            if let Some(sub) = parts.next() {
+                if !VERSION_ONLY.contains(&sub) {
+                    return Err(format!("{first} only allows version/help flags"));
+                }
+            }
+        }
+        _ => {}
     }
     Ok(())
 }
@@ -144,11 +199,18 @@ mod tests {
     fn validate_accepts_echo_and_rejects_injection() {
         assert!(validate("echo hello").is_ok());
         assert!(validate("cargo --version").is_ok());
+        assert!(validate("cargo fmt -- --check").is_ok());
+        assert!(validate("git status").is_ok());
         assert!(validate("ls -la").is_ok());
         assert!(validate("echo hi; rm -rf /").is_err());
         assert!(validate("$(rm -rf /)").is_err());
         assert!(validate("rm -rf /").is_err());
         assert!(validate("").is_err());
+        assert!(validate("bash").is_err());
+        assert!(validate("cat README.md").is_err());
+        assert!(validate("cargo run").is_err());
+        assert!(validate("git push").is_err());
+        assert!(validate("echo ../secret").is_err());
     }
 
     #[test]

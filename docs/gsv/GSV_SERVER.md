@@ -35,7 +35,15 @@
 | GET | `/api/ui/card/:name` | Rust-rendered card body HTML (`CARD_NAMES`) |
 | GET | `/api/ui/load-palette` | live Galaxy `:root` CSS (`GalaxyPalette::as_css_root`) |
 | GET | `/api/ui/load-theme` | live sprint `:root` CSS (`SprintThemeReport::as_css_root`) |
+| GET | `/data/{file}` | allowlisted JSON snapshot under `data/` (no `omni.toml`) |
 | GET | `/events` | SSE: update · offline/online · metrics resync |
+
+## Local bind + mutate (band 133)
+
+- Default `--host` is `127.0.0.1`. Off-loopback bind requires `--allow-lan`.
+- POST with `Sec-Fetch-Site: cross-site` or a non-loopback `Origin` → 403 `{ok:false,error}`.
+- `GET /data/{file}` is a basename allowlist (`gsv_*.json` / `rust_ratio.json`); `omni.toml` is not served.
+- SLI terminal: no `bash`/`node`/`npm`/`cat`; `cargo`/`git` subcommand allowlists.
 
 ## Stand smoke (`gsv-http-stand-smoke`, band 126)
 

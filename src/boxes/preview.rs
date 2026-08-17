@@ -34,29 +34,31 @@ const RUST_KEYWORDS: &[&str] = &[
 
 /// Resolve a repo-relative path without traversal.
 pub fn resolve(repo_root: &Path, rel: &str) -> Result<PathBuf, String> {
-    let path = repo_root.join(rel);
+    let rel = rel.trim();
+    if rel.is_empty() {
+        return Err("empty path".to_string());
+    }
+    let rel_path = Path::new(rel);
+    if rel_path.is_absolute() {
+        return Err("path outside repo root".to_string());
+    }
+    for c in rel_path.components() {
+        if !matches!(c, Component::Normal(_) | Component::CurDir) {
+            return Err("path traversal rejected".to_string());
+        }
+    }
+    let path = repo_root.join(rel_path);
     let Ok(meta) = std::fs::metadata(&path) else {
         return Err(format!("file not found: {rel}"));
     };
     if !meta.is_file() {
         return Err(format!("not a file: {rel}"));
     }
-    // Traversal guard: every component must be Normal.
-    let mut iter = path.components();
-    if let Some(Component::RootDir | Component::Prefix(_)) = iter.next() {
-        // absolute — allow only if under repo_root
-        if !path.starts_with(repo_root) {
+    if let (Ok(root), Ok(real)) = (repo_root.canonicalize(), path.canonicalize()) {
+        if !real.starts_with(&root) {
             return Err("path outside repo root".to_string());
         }
-    }
-    let norm = path.components().all(|c| {
-        matches!(
-            c,
-            Component::Normal(_) | Component::RootDir | Component::Prefix(_)
-        )
-    });
-    if !norm {
-        return Err("path traversal rejected".to_string());
+        return Ok(real);
     }
     Ok(path)
 }
@@ -168,6 +170,7 @@ mod tests {
     fn traversal_rejected() {
         let root = Path::new(".");
         assert!(resolve(root, "../../Cargo.toml").is_err());
+        assert!(resolve(root, "/etc/hosts").is_err());
     }
 
     #[test]

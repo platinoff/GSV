@@ -2,7 +2,7 @@
 
 **Корінь:** `S:\rust\GSV` (sibling PoolAI, не підтека). Самостійний Rust-first git-репозиторій. Працює **95–100% на Rust**, **0–5% WebAssembly** (завжди), UI — тонкий JS/DOM glue у `ui/` (без Python).
 
-**Версія:** v0.1.0 · **Стан:** band 132 реалізовано (Rust header HTML + node-search fragment ✅ `PH-S1959…S1968`) · bands 102+108…131 ✅. Відкривати Cursor на **цьому** корені (`gsv.code-workspace`).
+**Версія:** v0.1.0 · **Стан:** band 133 реалізовано (localhost security ✅ `PH-S1969…S1978`) · bands 102+108…132 ✅. Відкривати Cursor на **цьому** корені (`gsv.code-workspace`).
 
 ## Суть
 
@@ -85,7 +85,7 @@ export RUSTUP_TOOLCHAIN="stable-x86_64-pc-windows-gnu"
 cd /s/rust/GSV
 unset CARGO_TARGET_DIR
 cargo build --all-targets
-cargo test          # 246 tests (108 unit + contracts + omni + ratio + update + ui + vision + stand smoke)
+cargo test          # 256 tests (113 unit + security + contracts + omni + ratio + update + ui + vision + stand smoke)
 cargo clippy --all-targets   # 0 warnings/errors
 cargo run --bin gsv-loc-audit -- --stretch-96   # Rust/LOC ratio → data/rust_ratio.json (≥95%, stretch-96 ≥96%)
 cargo run --bin gsv-server -- --port 9999   # live smoke
