@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::vision;
 
@@ -35,11 +36,20 @@ pub struct IdeSelection {
     pub selected_at: String,
 }
 
+/// One preview line from a selected `.jsonl` session.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IdePreviewLine {
+    pub role: String,
+    pub text: String,
+}
+
 /// `/api/ide/sessions` response wire.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IdeWire {
     pub sessions: Vec<IdeSession>,
     pub selection: Option<IdeSelection>,
+    #[serde(default)]
+    pub preview: Vec<IdePreviewLine>,
     pub generated_at: String,
 }
 
@@ -147,11 +157,105 @@ pub fn discover() -> Vec<IdeSession> {
     sessions
 }
 
+fn extract_preview_text(v: &Value) -> String {
+    if let Some(s) = v.get("text").and_then(Value::as_str) {
+        return s.to_string();
+    }
+    if let Some(s) = v.get("content").and_then(Value::as_str) {
+        return s.to_string();
+    }
+    if let Some(s) = v
+        .get("message")
+        .and_then(|m| m.get("content"))
+        .and_then(Value::as_str)
+    {
+        return s.to_string();
+    }
+    if let Some(parts) = v.get("parts").and_then(Value::as_array) {
+        let joined: String = parts
+            .iter()
+            .filter_map(|p| p.get("text").and_then(Value::as_str))
+            .collect::<Vec<_>>()
+            .join(" ");
+        if !joined.is_empty() {
+            return joined;
+        }
+    }
+    String::new()
+}
+
+fn truncate_preview(s: &str, max: usize) -> String {
+    let mut out = String::new();
+    for (i, ch) in s.chars().enumerate() {
+        if i >= max {
+            out.push('…');
+            break;
+        }
+        out.push(ch);
+    }
+    out
+}
+
+/// Last `n` messages from a session file (jsonl or small text). Never panics.
+pub fn preview_messages(path: &Path, n: usize) -> Vec<IdePreviewLine> {
+    let Ok(raw) = fs::read_to_string(path) else {
+        return Vec::new();
+    };
+    let slice = if raw.len() > 65_536 {
+        let start = raw.len().saturating_sub(65_536);
+        &raw[start..]
+    } else {
+        &raw
+    };
+    let mut out = Vec::new();
+    for line in slice.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if let Ok(v) = serde_json::from_str::<Value>(trimmed) {
+            let role = v
+                .get("role")
+                .and_then(Value::as_str)
+                .or_else(|| v.get("type").and_then(Value::as_str))
+                .unwrap_or("message");
+            let text = extract_preview_text(&v);
+            if text.is_empty() {
+                continue;
+            }
+            out.push(IdePreviewLine {
+                role: role.to_string(),
+                text: truncate_preview(text.trim(), 280),
+            });
+        } else if trimmed.len() > 8 {
+            out.push(IdePreviewLine {
+                role: "line".into(),
+                text: truncate_preview(trimmed, 280),
+            });
+        }
+    }
+    if out.len() > n {
+        let drop_n = out.len() - n;
+        out.drain(0..drop_n);
+    }
+    out
+}
+
 /// Serve `/api/ide/sessions`.
 pub fn wire(selection: Option<&IdeSelection>) -> IdeWire {
+    let sessions = discover();
+    let preview = selection
+        .and_then(|sel| {
+            sessions
+                .iter()
+                .find(|s| s.id == sel.session || s.path == sel.session)
+        })
+        .map(|s| preview_messages(Path::new(&s.path), 8))
+        .unwrap_or_default();
     IdeWire {
-        sessions: discover(),
+        sessions,
         selection: selection.cloned(),
+        preview,
         generated_at: vision::rfc3339_now(),
     }
 }
@@ -175,5 +279,22 @@ mod tests {
         };
         let raw = serde_json::to_string(&sel).expect("json");
         assert!(raw.contains("opencode"));
+    }
+
+    #[test]
+    fn preview_messages_parses_jsonl_and_caps() {
+        let dir = std::env::temp_dir().join("gsv_ide_preview_test");
+        let _ = fs::create_dir_all(&dir);
+        let path = dir.join("chat.jsonl");
+        let body = (0..12)
+            .map(|i| format!(r#"{{"role":"user","text":"msg-{i}"}}"#))
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(&path, body).expect("write");
+        let lines = preview_messages(&path, 8);
+        assert_eq!(lines.len(), 8);
+        assert_eq!(lines[0].text, "msg-4");
+        assert_eq!(lines[7].text, "msg-11");
+        let _ = fs::remove_file(&path);
     }
 }

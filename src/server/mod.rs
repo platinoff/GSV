@@ -14,7 +14,7 @@ use futures_util::StreamExt;
 use serde_json::{json, Value};
 use tokio_stream::wrappers::BroadcastStream;
 
-use crate::boxes::ide::{IdeSelection, IdeWire};
+use crate::boxes::ide::IdeSelection;
 use crate::boxes::preview::{resolve as preview_resolve, PreviewParams};
 use crate::boxes::terminal::{run as terminal_run, TerminalRequest, TerminalResponse};
 use crate::boxes::update::UpdateCheckParams;
@@ -84,6 +84,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/ratio/target", get(api_ratio_target))
         .route("/api/ratio/trend", get(api_ratio_trend))
         .route("/api/ui/card/{name}", get(api_ui_card))
+        .route("/api/ui/layout", get(api_ui_layout))
         .route("/ui/{*path}", get(api_ui_path))
         .route("/api/ui/load-palette", get(api_ui_load_palette))
         .route("/api/ui/load-theme", get(api_ui_load_theme))
@@ -229,7 +230,7 @@ async fn api_ui_index() -> Json<Value> {
     Json(json!({
         "ok": true,
         "endpoints": [
-            "/api/ui/card/{name}", "/api/ui/load-palette",
+            "/api/ui/card/{name}", "/api/ui/layout", "/api/ui/load-palette",
             "/api/ui/load-theme", "/api/ui/visual-toggle"
         ],
         "widgets": "/ui/{path}"
@@ -261,11 +262,7 @@ async fn api_toolchain(State(state): State<AppState>) -> Json<Value> {
 
 async fn api_ide_sessions(State(state): State<AppState>) -> Json<Value> {
     let selection = state.ide_selection.try_read().ok().and_then(|s| s.clone());
-    Json(json!(IdeWire {
-        sessions: crate::boxes::ide::discover(),
-        selection,
-        generated_at: vision::rfc3339_now(),
-    }))
+    Json(json!(crate::boxes::ide::wire(selection.as_ref())))
 }
 
 #[derive(serde::Deserialize)]
@@ -449,11 +446,20 @@ async fn api_ui_visual_toggle() -> Json<Value> {
     }))
 }
 
+async fn api_ui_layout() -> Json<Value> {
+    Json(crate::boxes::ui::layout_wire())
+}
+
+#[derive(serde::Deserialize, Default)]
+struct CardQuery {
+    id: Option<String>,
+}
+
 /// `GET /api/ui/card/:name` — server-rendered card body HTML fragment.
 ///
 /// Fetches the card's wire payload, renders it with the Rust UI fragment box,
 /// and returns `{ok, card, html}`. Unknown cards return `ok:false` (404).
-async fn card_wire(state: &AppState, name: &str) -> Result<Value, ()> {
+async fn card_wire(state: &AppState, name: &str, id: Option<&str>) -> Result<Value, ()> {
     let wire = match name {
         "tracker" => tracker_wire(state),
         "sli" => json!(sli::wire(&state.repo_root)),
@@ -476,7 +482,20 @@ async fn card_wire(state: &AppState, name: &str) -> Result<Value, ()> {
             crate::boxes::vision::wire_rust_diagnostics(&state.repo_root, &state.data_dir)
         }
         "sprint-focus" => crate::boxes::vision::wire_summary(&state.repo_root, &state.data_dir),
+        "health" => health(state),
+        "update" => json!(crate::boxes::update::wire(state)),
+        "ide" => {
+            let selection = state.ide_selection.try_read().ok().and_then(|s| s.clone());
+            json!(crate::boxes::ide::wire(selection.as_ref()))
+        }
         "vision" => crate::boxes::vision::wire_summary(&state.repo_root, &state.data_dir),
+        "vision-map" => crate::boxes::vision::wire_map(&state.repo_root, &state.data_dir),
+        "vision-sync" => crate::boxes::vision::wire_sync_status(&state.repo_root, &state.data_dir),
+        "doc-preview" => crate::boxes::vision::wire_doc_preview(
+            &state.repo_root,
+            &state.data_dir,
+            id.unwrap_or("galaxy_grid"),
+        ),
         "ratio-box" => crate::boxes::ratio::wire(&state.data_dir),
         "omni" => serde_json::to_value(crate::boxes::omni::wire(&state.omni).await)
             .unwrap_or(serde_json::Value::Null),
@@ -530,8 +549,12 @@ async fn card_wire(state: &AppState, name: &str) -> Result<Value, ()> {
     Ok(wire)
 }
 
-async fn api_ui_card(State(state): State<AppState>, Path(name): Path<String>) -> Response {
-    let wire = match card_wire(&state, &name).await {
+async fn api_ui_card(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    Query(q): Query<CardQuery>,
+) -> Response {
+    let wire = match card_wire(&state, &name, q.id.as_deref()).await {
         Ok(w) => w,
         Err(()) => return err_json(StatusCode::NOT_FOUND, format!("unknown card: {name}")),
     };
@@ -554,7 +577,7 @@ fn sprint_counts(state: &AppState) -> Value {
 
 async fn api_ui_path(State(state): State<AppState>, Path(segments): Path<Vec<String>>) -> Response {
     let path = segments.join("/");
-    if let Ok(wire) = card_wire(&state, &path).await {
+    if let Ok(wire) = card_wire(&state, &path, None).await {
         let html = crate::boxes::ui::render_card(&path, &wire).unwrap_or_default();
         return Json(json!({ "ok": true, "card": path, "html": html })).into_response();
     }

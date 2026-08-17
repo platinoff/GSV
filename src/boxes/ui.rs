@@ -92,6 +92,113 @@ fn arr(v: &Value) -> Vec<Value> {
     v.as_array().cloned().unwrap_or_default()
 }
 
+/// One dashboard group (sidebar nav).
+#[derive(Debug, Clone, Copy)]
+pub struct UiGroup {
+    pub id: &'static str,
+    pub label: &'static str,
+    pub cards: &'static [&'static str],
+}
+
+/// Default hash/localStorage group.
+pub const DEFAULT_GROUP: &str = "sprint";
+
+/// Grouped information architecture (ops / vision / sprint / studio).
+pub const UI_GROUPS: [UiGroup; 4] = [
+    UiGroup {
+        id: "ops",
+        label: "Ops",
+        cards: &[
+            "health",
+            "update",
+            "tracker",
+            "sli",
+            "toolchain",
+            "hooks-tests",
+            "hooks-bench",
+            "preview",
+            "terminal",
+        ],
+    },
+    UiGroup {
+        id: "vision",
+        label: "Vision",
+        cards: &["vision", "vision-map", "vision-sync", "doc-preview"],
+    },
+    UiGroup {
+        id: "sprint",
+        label: "Sprint",
+        cards: &[
+            "sprint-queue",
+            "sprint-board",
+            "sprint-progress",
+            "sprint-map",
+            "sprint-focus",
+        ],
+    },
+    UiGroup {
+        id: "studio",
+        label: "Studio",
+        cards: &["ide", "omni", "ratio", "speed-index", "rust-diagnostics"],
+    },
+];
+
+/// Chrome-only CARD_NAMES (header/backdrop — not dashboard groups).
+pub const CHROME_CARDS: [&str; 7] = [
+    "galaxy-backdrop",
+    "starfield",
+    "rss-ticker",
+    "gpu-mode",
+    "power-menu",
+    "panel-dock",
+    "fullscreen",
+];
+
+/// `GET /api/ui/layout` — groups + default group for the thin JS shell.
+pub fn layout_wire() -> Value {
+    serde_json::json!({
+        "ok": true,
+        "default_group": DEFAULT_GROUP,
+        "groups": UI_GROUPS.iter().map(|g| serde_json::json!({
+            "id": g.id,
+            "label": g.label,
+            "cards": g.cards,
+        })).collect::<Vec<_>>(),
+    })
+}
+
+/// Sidebar `<nav>` HTML from [`layout_wire`].
+pub fn render_nav(active: &str) -> String {
+    let mut out = String::from("<nav class='shell-nav' aria-label='GSV groups'>");
+    for g in &UI_GROUPS {
+        let cls = if g.id == active {
+            "nav-tab active"
+        } else {
+            "nav-tab"
+        };
+        out.push_str(&format!(
+            "<button type='button' class='{cls}' data-group='{id}' aria-current='{cur}'>{label}</button><div class='nav-chips' data-for='{id}'>",
+            id = g.id,
+            cur = if g.id == active { "page" } else { "false" },
+            label = esc(g.label),
+        ));
+        for c in g.cards {
+            out.push_str(&format!("<a href='#b-{c}'>{c}</a>"));
+        }
+        out.push_str("</div>");
+    }
+    out.push_str("</nav>");
+    out
+}
+
+/// Every dashboard card id appears in exactly one [`UI_GROUPS`] entry.
+pub fn layout_card_ids() -> Vec<&'static str> {
+    UI_GROUPS
+        .iter()
+        .flat_map(|g| g.cards.iter().copied())
+        .collect()
+}
+
 /// Tracker card (`/api/tracker`).
 pub fn render_tracker(d: &Value) -> String {
     if let Some(msg) = not_ok(d) {
@@ -307,7 +414,7 @@ pub fn render_speed_index(d: &Value) -> String {
         return err_html(&msg);
     }
     if !b(&d["present"]) {
-        return "<div class='dim'>no speed_index.json — run bin/record-test-ci-speed.sh</div>"
+        return "<div class='dim'>no speed_index.json — run bin/record-test-speed.sh</div>"
             .to_string();
     }
     let si = &d["speed_index"];
@@ -346,7 +453,7 @@ pub fn render_rust_diagnostics(d: &Value) -> String {
         return err_html(&msg);
     }
     if !b(&d["present"]) {
-        return "<div class='dim'>no rust_diagnostics.json — run bin/record-rust-clippy.sh</div>"
+        return "<div class='dim'>no rust_diagnostics.json — run bin/record-rust-diagnostics.sh</div>"
             .to_string();
     }
     let rd = &d["rust_diagnostics"];
@@ -643,6 +750,279 @@ fn format_number(n: u64) -> String {
     s
 }
 
+/// Health card (`/api/health`).
+pub fn render_health(d: &Value) -> String {
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let avail = b(&d["update_available"]);
+    tab(
+        &["field", "value"],
+        vec![
+            vec!["name".into(), esc(&s(&d["name"]))],
+            vec!["version".into(), esc(&s(&d["version"]))],
+            vec!["uptime_secs".into(), u(&d["uptime_secs"]).to_string()],
+            vec![
+                "ok".into(),
+                format!("<span class='ok'>{}</span>", b(&d["ok"])),
+            ],
+            vec![
+                "update_available".into(),
+                format!(
+                    "<span class='{}'>{}</span>",
+                    if avail { "warn" } else { "ok" },
+                    avail
+                ),
+            ],
+        ],
+    )
+}
+
+/// Update card (`/api/update`).
+pub fn render_update(d: &Value) -> String {
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let avail = b(&d["update_available"]);
+    let head = s(&d["git_head"]);
+    tab(
+        &["field", "value"],
+        vec![
+            vec!["version".into(), esc(&s(&d["version"]))],
+            vec![
+                "git_head".into(),
+                esc(if head.is_empty() { "—" } else { &head }),
+            ],
+            vec![
+                "update_available".into(),
+                format!(
+                    "<span class='{}'>{}</span>",
+                    if avail { "warn" } else { "ok" },
+                    avail
+                ),
+            ],
+            vec!["binary_mtime".into(), u(&d["binary_mtime"]).to_string()],
+            vec![
+                "newest_src_mtime".into(),
+                u(&d["newest_src_mtime"]).to_string(),
+            ],
+        ],
+    )
+}
+
+/// IDE card (`/api/ide/sessions`) — sessions + last messages of the selection.
+pub fn render_ide(d: &Value) -> String {
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let sel = &d["selection"];
+    let mut out = String::new();
+    if sel.is_object() {
+        out.push_str(&format!(
+            "<div class='dim'>selected: <kbd>{}</kbd> / <kbd>{}</kbd></div>",
+            esc(&s(&sel["tool"])),
+            esc(&s(&sel["session"]))
+        ));
+    }
+    let preview = arr(&d["preview"]);
+    if preview.is_empty() {
+        out.push_str(&empty_html("ide preview"));
+    } else {
+        out.push_str("<div class='dim' style='margin-top:6px'>last messages</div>");
+        let rows: Vec<Vec<String>> = preview
+            .iter()
+            .map(|m| {
+                vec![
+                    format!("<kbd>{}</kbd>", esc(&s(&m["role"]))),
+                    esc(&s(&m["text"])),
+                ]
+            })
+            .collect();
+        out.push_str(&tab(&["role", "text"], rows));
+    }
+    let sessions = arr(&d["sessions"]);
+    if sessions.is_empty() {
+        out.push_str(&empty_html("ide sessions"));
+        return out;
+    }
+    let rows: Vec<Vec<String>> = sessions
+        .iter()
+        .take(40)
+        .map(|srow| {
+            let tool = s(&srow["tool"]);
+            let id = s(&srow["id"]);
+            vec![
+                esc(&tool),
+                esc(&s(&srow["label"])),
+                format!("<span class='dim'>{}</span>", esc(&s(&srow["modified"]))),
+                format!(
+                    "<button type='button' data-ide-tool='{}' data-ide-session='{}'>select</button>",
+                    esc(&tool),
+                    esc(&id)
+                ),
+            ]
+        })
+        .collect();
+    out.push_str(&tab(&["tool", "session", "modified", ""], rows));
+    out
+}
+
+/// Vision summary card (`/api/vision`).
+pub fn render_vision(d: &Value) -> String {
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let degraded = if b(&d["degraded"]) {
+        "<span class='err'>degraded — snapshot fallback</span> "
+    } else {
+        ""
+    };
+    let feed = arr(&d["feed_items"]);
+    let mut out = format!(
+        "{degraded}<div>Vision rev <kbd>{}</kbd> · git <span class='dim'>{}</span> · updated <span class='dim'>{}</span></div><div class='dim'>nodes {} · edges {} · next <kbd>{}</kbd> · last closed <kbd>{}</kbd></div>",
+        u(&d["revision"]),
+        esc(&s(&d["git_head"])),
+        esc(&s(&d["updated_at"])),
+        u(&d["nodes_count"]),
+        u(&d["edges_count"]),
+        esc(&s(&d["next_sprint"])),
+        esc(&s(&d["last_sprint_closed"])),
+    );
+    if feed.is_empty() {
+        out.push_str(&empty_html("vision feed"));
+        return out;
+    }
+    let rows: Vec<Vec<String>> = feed
+        .iter()
+        .map(|i| {
+            let st = s(&i["status"]);
+            vec![
+                format!("<kbd>{}</kbd>", esc(&s(&i["id"]))),
+                format!(
+                    "<span class='{}'>{}</span>",
+                    if st == "closed" { "ok" } else { "warn" },
+                    esc(&st)
+                ),
+                esc(&s(&i["title"])),
+            ]
+        })
+        .collect();
+    out.push_str(&tab(&["id", "status", "title"], rows));
+    out
+}
+
+/// Vision map card (`/api/vision/map`).
+pub fn render_vision_map(d: &Value) -> String {
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let layers = arr(&d["layers"]);
+    let kinds = arr(&d["edge_kinds"]);
+    let mut cols = String::new();
+    for l in &layers {
+        let id = s(&l["id"]);
+        cols.push_str(&format!(
+            "<div class='vmap-col' data-map-layer='{id}' style='cursor:pointer' title='filter map by {id}'><div class='vmap-l'>{} · {}</div><div class='dim' style='font-size:11px'>nodes {} · edges {}</div></div>",
+            esc(&id),
+            esc(&s(&l["name"])),
+            u(&l["node_count"]),
+            u(&l["edges_from"]),
+        ));
+    }
+    let kinds_html = if kinds.is_empty() {
+        "<span class='dim'>—</span>".into()
+    } else {
+        kinds
+            .iter()
+            .map(|e| format!("<kbd>{}</kbd>×{}", esc(&s(&e["kind"])), u(&e["count"])))
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    format!(
+        "<div class='dim'>rev <kbd>{}</kbd> · nodes {} · edges {} · <a href='assets/vision.svg' target='_blank' style='font-size:12px'>open vision.svg ↗</a></div><img src='assets/vision.svg' alt='galaxy vision map' style='width:100%;margin:8px 0;border:1px solid var(--line);border-radius:8px;background:var(--panel2)'><div class='vmap'>{cols}</div><div class='dim' style='margin-top:6px'>edge kinds: {kinds_html}</div><div style='margin-top:8px'><input id='nodeSearchQ' type='text' placeholder='search nodes (id / label / path)'><button type='button' data-action='node-search' style='margin-top:6px'>Search</button></div><div id='b-node-search' style='margin-top:8px'></div>",
+        u(&d["revision"]),
+        u(&d["nodes_count"]),
+        u(&d["edges_count"]),
+    )
+}
+
+/// Doc preview card (`/api/vision/doc-preview`).
+pub fn render_doc_preview(d: &Value) -> String {
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let n = &d["node"];
+    if n.get("id").and_then(Value::as_str).unwrap_or("").is_empty() {
+        return empty_html("doc preview");
+    }
+    let sections = arr(&n["sections"]);
+    let sec = if sections.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "<div style='margin-top:4px'>sections: {}</div>",
+            sections
+                .iter()
+                .map(|s| format!("<kbd>{}</kbd>", esc(s.as_str().unwrap_or(""))))
+                .collect::<Vec<_>>()
+                .join(" ")
+        )
+    };
+    let links_out = arr(&d["links_out"]);
+    let links_in = arr(&d["links_in"]);
+    let row = |links: &[Value]| -> String {
+        tab(
+            &["kind", "target"],
+            links
+                .iter()
+                .map(|l| {
+                    vec![
+                        format!("<kbd>{}</kbd>", esc(&s(&l["kind"]))),
+                        format!(
+                            "<kbd>{}</kbd> <span class='dim'>{}</span>",
+                            esc(&s(&l["node"]["id"])),
+                            esc(&s(&l["node"]["label"]))
+                        ),
+                    ]
+                })
+                .collect(),
+        )
+    };
+    format!(
+        "<div><kbd>{}</kbd> · <span class='dim'>{}</span></div><div class='dim'>{}</div><div class='dim'>{}</div>{sec}<div style='margin-top:6px' class='dim'>links out {} · links in {}</div><details style='margin-top:6px'><summary>out</summary>{}</details><details style='margin-top:6px'><summary>in</summary>{}</details>",
+        esc(&s(&n["id"])),
+        esc(&s(&n["layer"])),
+        esc(&s(&n["label"])),
+        esc(&s(&n["path"])),
+        links_out.len(),
+        links_in.len(),
+        row(&links_out),
+        row(&links_in),
+    )
+}
+
+/// Vision sync status card (read-only; Resync button stays in the shell).
+pub fn render_vision_sync(d: &Value) -> String {
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let drift = arr(&d["drift"]);
+    let drift_html = if drift.is_empty() {
+        "<span class='ok'>drift ok</span>".to_string()
+    } else {
+        format!("<span class='err'>drift {}</span>", drift.len())
+    };
+    format!(
+        "<div>rev <kbd>{}</kbd> · git <span class='dim'>{}</span> · {drift_html}</div><div class='dim'>nodes {} · edges {} · feed {}</div><div class='dim' style='font-size:11px'>{}</div>",
+        u(&d["revision"]),
+        esc(&s(&d["git_head"])),
+        u(&d["nodes_count"]),
+        u(&d["edges_count"]),
+        u(&d["feed_items"]),
+        esc(&s(&d["synced_at"])),
+    )
+}
+
 /// Render a named card's body HTML, or `None` for an unknown card name.
 pub fn render_card(name: &str, d: &Value) -> Option<String> {
     match name {
@@ -659,6 +1039,13 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
         "speed-index" => Some(render_speed_index(d)),
         "rust-diagnostics" => Some(render_rust_diagnostics(d)),
         "omni" => Some(render_omni(d)),
+        "health" => Some(render_health(d)),
+        "update" => Some(render_update(d)),
+        "ide" => Some(render_ide(d)),
+        "vision" => Some(render_vision(d)),
+        "vision-map" => Some(render_vision_map(d)),
+        "vision-sync" => Some(render_vision_sync(d)),
+        "doc-preview" => Some(render_doc_preview(d)),
         "galaxy-backdrop" => Some(render_galaxy_backdrop(d)),
         "starfield" => Some(render_starfield(d)),
         "rss-ticker" => Some(render_rss_ticker(d)),
@@ -671,7 +1058,7 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
 }
 
 /// Server-rendered card names (stable contract for `/api/ui/card/:name`).
-pub const CARD_NAMES: [&str; 20] = [
+pub const CARD_NAMES: [&str; 27] = [
     "tracker",
     "sli",
     "toolchain",
@@ -685,6 +1072,13 @@ pub const CARD_NAMES: [&str; 20] = [
     "speed-index",
     "rust-diagnostics",
     "omni",
+    "health",
+    "update",
+    "ide",
+    "vision",
+    "vision-map",
+    "vision-sync",
+    "doc-preview",
     "galaxy-backdrop",
     "starfield",
     "rss-ticker",
@@ -1003,7 +1397,10 @@ mod tests {
         assert!(render_card("panel-dock", &d).is_some());
         assert!(render_card("fullscreen", &d).is_some());
         assert!(render_card("nope", &d).is_none());
-        assert_eq!(CARD_NAMES.len(), 20);
+        assert_eq!(CARD_NAMES.len(), 27);
+        assert!(render_card("health", &d).is_some());
+        assert!(render_card("ide", &d).is_some());
+        assert!(render_card("vision", &d).is_some());
     }
 
     #[test]
@@ -1043,5 +1440,49 @@ mod tests {
         let html = render_omni(&d);
         assert!(html.contains("providers 0 · models 0"));
         assert!(html.contains("omni unavailable"));
+    }
+
+    #[test]
+    fn layout_assigns_each_dashboard_card_once() {
+        let ids = layout_card_ids();
+        let mut seen = std::collections::BTreeSet::new();
+        for id in &ids {
+            assert!(seen.insert(*id), "duplicate layout card {id}");
+        }
+        for chrome in CHROME_CARDS {
+            assert!(
+                !seen.contains(chrome),
+                "chrome card {chrome} must not be in UI_GROUPS"
+            );
+        }
+        for name in CARD_NAMES {
+            if CHROME_CARDS.contains(&name) {
+                continue;
+            }
+            assert!(
+                seen.contains(name),
+                "functional card {name} missing from UI_GROUPS"
+            );
+        }
+        let html = render_nav(DEFAULT_GROUP);
+        assert!(html.contains("data-group='sprint'"));
+        assert!(html.contains("aria-label='GSV groups'"));
+        assert!(html.contains("class='nav-tab active'"));
+        let wire = layout_wire();
+        assert_eq!(wire["ok"], true);
+        assert_eq!(wire["default_group"], DEFAULT_GROUP);
+        assert_eq!(wire["groups"].as_array().map(|a| a.len()), Some(4));
+    }
+
+    #[test]
+    fn render_health_and_ide_error_and_empty() {
+        let err = serde_json::json!({ "ok": false, "error": "stand-error" });
+        assert!(render_health(&err).contains("<span class='err'>stand-error</span>"));
+        assert!(render_ide(&err).contains("<span class='err'>stand-error</span>"));
+        assert!(render_vision(&err).contains("<span class='err'>stand-error</span>"));
+        let empty_ide = render_ide(&serde_json::json!({ "sessions": [], "preview": [] }));
+        assert!(empty_ide.contains("ide sessions — no data"), "{empty_ide}");
+        let empty_doc = render_doc_preview(&serde_json::json!({ "ok": true, "node": {} }));
+        assert!(empty_doc.contains("doc preview — no data"), "{empty_doc}");
     }
 }

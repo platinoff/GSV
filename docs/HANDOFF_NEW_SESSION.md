@@ -1,24 +1,25 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-08-17 (band 127 **PH-S1909…S1918** ✅ · VDT kit Accepted · ratio hold · tests **230**)
+**Оновлено:** 2026-08-17 (band 128 **PH-S1919…S1928** ✅ · kit ops + grouped Galaxy UI · VDT kit Accepted · ratio hold · vision rev bump)
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
 **`абракадабра`** → **AskQuestion: gsv | poolai** → S0 диск/git → project scan (warnings first) →
-drain ≤10 PH-S* → Speeds + Rust panel → vision-sync → **один commit** → **`git push` + самарі**.
+drain ≤10 PH-S* → Speeds + Rust panel (`bin/record-test-speed.sh` + `bin/record-rust-diagnostics.sh`) → vision-sync → **один commit** → **`git push` + самарі**.
 
 Якщо вибір **gsv:** horizon = наступний band у [`gsv/GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md)
-після 127. Канон ролей: [`GSV_ROLES.md`](GSV_ROLES.md). Реєстр: [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
+після 128. Канон ролей: [`GSV_ROLES.md`](GSV_ROLES.md). Реєстр: [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
 Kit: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md).
 
 ## Стан зараз
 
-- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125 · 126 · **127 ✅**.
+- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125 · 126 · 127 · **128 ✅**.
+- **Band 128:** kit scripts/bins (disk, speed, rust-diagnostics) · OpenCode AGENTS + plugin host · grouped Galaxy UI (`GET /api/ui/layout`, sidebar, 27 Rust cards, IDE preview) · GitHub `platinoff/GSV`.
 - **VDT kit (band 127):** shared `.agents/skills/` + generic `.cursor/rules/` + `gsv.code-workspace` + `PRODUCTS.md`.
-- **Ratio:** `cargo run --bin gsv-loc-audit -- --stretch-96` → **97.04%** (rust 11820 / product 12181, gate ≥95% ✅, stretch-96 ≥96% ✅) → `GSV/data/rust_ratio.json`.
-- **Тести:** `cargo test` → **230** green · **clippy 0** · **fmt clean**.
+- **Ratio:** `cargo run --bin gsv-loc-audit -- --stretch-96` → **97.10%** (rust 12435 / product 12806, gate ≥95% ✅, stretch-96 ≥96% ✅) → `GSV/data/rust_ratio.json`.
+- **Тести:** `cargo test` → **238** green · **clippy 0** · **fmt clean**.
 - **Сервер:** canon порт **9999** (`DEFAULT_PORT`; 8765 — Hyper-V reserved range).
 - **FM:** band 127 = PoolAI FM §5.108 (PH-S1909…S1918 ✅). Master horizon poolAI: band 128.
-- **Vision rev:** **494** (band 127 `gsv-vision-sync`).
+- **Vision rev:** **495** (band 128 `gsv-vision-sync`).
   Live UI — `gsv-server` → `http://127.0.0.1:9999/`.
 - **poolAI ratio:** **95.04%** (advisory hold, `--ratio96-docs-canon --advisory --min-ratio 0.95`).
 

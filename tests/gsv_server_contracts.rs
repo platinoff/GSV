@@ -537,6 +537,25 @@ async fn ui_card_endpoint_renders_fragment_and_rejects_unknown() {
     assert_eq!(bad_json["ok"], false);
 }
 
+#[tokio::test]
+async fn ui_layout_endpoint_returns_four_groups() {
+    let (app, _state) = app();
+    let (status, json) = get(&app, "/api/ui/layout").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["ok"], true);
+    assert_eq!(json["default_group"], "sprint");
+    let groups = json["groups"].as_array().expect("groups");
+    assert_eq!(groups.len(), 4);
+    let ids: Vec<&str> = groups.iter().filter_map(|g| g["id"].as_str()).collect();
+    assert_eq!(ids, vec!["ops", "vision", "sprint", "studio"]);
+    let (h_status, h_json) = get(&app, "/api/ui/card/health").await;
+    assert_eq!(h_status, StatusCode::OK);
+    assert!(h_json["html"]
+        .as_str()
+        .expect("health")
+        .contains("uptime_secs"));
+}
+
 /// Canonical error-shape contract: every 4xx/5xx JSON error carries
 /// `{ok:false, error:"…"}` — never a bare string body or nested `error.code`.
 #[tokio::test]

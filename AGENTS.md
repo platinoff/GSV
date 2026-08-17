@@ -31,7 +31,23 @@ Trigger skill: `.agents/skills/abracadabra/`. Вікно GSV ≠ автомат�
 3. Drain next band (GSV: `docs/gsv/GSV_TECH_ROADMAP.md`; PoolAI: FM §5.12).
 4. If **gsv:** stop `gsv-server` before `cargo test` / `cargo build` (locks `target/debug/gsv-server.exe`).
 5. `cargo fmt --all` → product tests (`cargo test` here; `cargo test-ci` in PoolAI).
-6. One commit **in the product repo**. GitHub remote for GSV is optional until the owner adds one.
+6. One commit **in the product repo**. GitHub remote: `origin` → `https://github.com/platinoff/GSV` (create if missing, then `git push`).
+
+## OpenCode (Windows)
+
+OpenCode defaults to PowerShell — **this repo forbids that**. All `cargo` / `git` / scripts:
+
+```
+C:\msys64\usr\bin\bash.exe -lc 'команда'
+```
+
+`абракадабра` in OpenCode uses the `question` tool (not Cursor AskQuestion). Skills: `.agents/skills/` (`opencode.json` → `skills.paths`). Plugin host: `.opencode/package.json` (`@opencode-ai/plugin`). **Do not auto-generate a product UI** — live Galaxy UI is `gsv-server` at `http://127.0.0.1:9999/`.
+
+Cursor ↔ OpenCode: Cursor `AskQuestion` = OpenCode `question`. Shared kit git-canon is this repo; copy (not symlink) to `.cursor/skills/` and `.opencode/skills/` via `bash scripts/sync-vdt-skill-mirrors.sh`.
+
+## Speeds + Rust panel (GSV drain)
+
+After tests: `bash bin/record-test-speed.sh` (or `--skip-run`) and `bash bin/record-rust-diagnostics.sh`. Writers: `gsv-speed-index` / `gsv-rust-diagnostics` → `docs/vision/*.json`. Then `bash bin/gsv-vision-sync.sh`.
 
 ## Defaults
 

@@ -9,7 +9,7 @@ edition = "2021"
 authors = ["PoolAI Team"]
 description = "GSV (Galaxy StarWalker Vision) - Rust-first vision server with boxes (Tracker, SLI, Toolchain, IDE, Update, Preview, Terminal, Hooks)"
 license = "MIT"
-repository = "https://github.com/platinoff/poolAI"
+repository = "https://github.com/platinoff/GSV"
 keywords = ["vision", "monitoring", "dashboard", "rust", "sli"]
 categories = ["command-line-utilities", "web-programming"]
 default-run = "gsv-server"
@@ -30,6 +30,14 @@ path = "src/bin/gsv_vision_sync.rs"
 [[bin]]
 name = "gsv-http-stand-smoke"
 path = "src/bin/gsv_http_stand_smoke.rs"
+
+[[bin]]
+name = "gsv-speed-index"
+path = "src/bin/gsv_speed_index.rs"
+
+[[bin]]
+name = "gsv-rust-diagnostics"
+path = "src/bin/gsv_rust_diagnostics.rs"
 
 [dependencies]
 # Serialization

@@ -48,7 +48,7 @@ Rust модуль: `toolchain/` → `gsv_toolchain.json`.
 **Роль:** портувати opencode + cursor чати; можливість обирати, з чим працювати.
 
 - Читання сесій/чатів opencode (`~/.local/share/opencode/`) та cursor (`.cursor/`).
-- Список сесій у UI; вибір активної → стрічка повідомлень.
+- Список сесій у UI; вибір активної → **останні 8 повідомлень** (`preview_messages` jsonl).
 - Вибір робочого фолдера/спринту.
 
 Rust модуль: `ide/` (read-only).

@@ -1,0 +1,11 @@
+---
+description: VDT runtime stack — Rust-only products, no Python product files, ratio from PRODUCTS.md
+alwaysApply: true
+---
+
+# VDT runtime stack (generic)
+
+- Runtime / API / tools: **Rust** in `src/`, `tests/`, `src/bin/`. No Python product files (`git ls-files '*.py'` empty). No Java.
+- UI: thin HTML/CSS/JS glue only. Do not port large legacy JS (GSV: never copy `docs/vision/vision.js`).
+- Ratio gate is **per product** (`docs/gsv/PRODUCTS.md`): GSV 95–100% (`gsv-loc-audit --stretch-96`); PoolAI 90–95%.
+- Shell: MSYS2 bash. Do not run two `cargo` processes on the same `target/`.

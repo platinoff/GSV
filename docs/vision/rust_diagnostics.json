@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-08-15",
-  "host_label": "github-actions-ubuntu",
-  "git_head": "564b947",
-  "source": "ci",
+  "generated_at": "2026-08-17",
+  "host_label": "PLATINOV",
+  "git_head": "1dfd250",
+  "source": "local",
   "notes": [
     "Machine-readable Rust/Clippy warning+error index for vision Rust panel.",
     "Record via poolai-rust-diagnostics or bin/record-rust-diagnostics.sh (abrakadabra drain + CI)."
@@ -12,34 +12,10 @@
     "warnings": 0,
     "errors": 0,
     "ok": true,
-    "recorded_at": "2026-08-15T02:08:37Z",
-    "command": "cargo clippy --message-format=json --all-targets --features ml,enterprise,cloud,test-utils,job-store-sqlite,prometheus",
-    "wall_secs": 152.185445753
+    "recorded_at": "2026-08-17T19:23:44Z",
+    "command": "cargo clippy --message-format=json --all-targets"
   },
   "history": [
-    {
-      "kind": "rust_diagnostics",
-      "command": "bootstrap",
-      "warnings": 0,
-      "errors": 0,
-      "ok": true,
-      "recorded_at": "2026-07-28T01:10:23Z",
-      "host_label": "bootstrap-ph-svc85",
-      "git_head": "b46b16c98",
-      "source": "local"
-    },
-    {
-      "kind": "rust_diagnostics",
-      "command": "cargo",
-      "warnings": 0,
-      "errors": 0,
-      "ok": true,
-      "recorded_at": "2026-07-28T01:11:36Z",
-      "wall_secs": 0.0681734,
-      "host_label": "PLATINOV",
-      "git_head": "b46b16c98",
-      "source": "local"
-    },
     {
       "kind": "rust_diagnostics",
       "command": "cargo check --message-format=json --lib",
@@ -541,6 +517,28 @@
       "host_label": "github-actions-ubuntu",
       "git_head": "564b947",
       "source": "ci"
+    },
+    {
+      "kind": "rust_diagnostics",
+      "command": "cargo",
+      "warnings": 0,
+      "errors": 0,
+      "ok": true,
+      "recorded_at": "2026-08-17T19:23:20Z",
+      "host_label": "PLATINOV",
+      "git_head": "1dfd250",
+      "source": "local"
+    },
+    {
+      "kind": "rust_diagnostics",
+      "command": "cargo clippy --message-format=json --all-targets",
+      "warnings": 0,
+      "errors": 0,
+      "ok": true,
+      "recorded_at": "2026-08-17T19:23:44Z",
+      "host_label": "PLATINOV",
+      "git_head": "1dfd250",
+      "source": "local"
     }
   ]
 }

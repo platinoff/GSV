@@ -126,7 +126,7 @@ fn ui_helpers_match_js_semantics() {
     assert!(tab(&["a"], Vec::new()).contains("<span class='dim'>—</span>"));
     assert!(bar(50.0).contains("width:50%"));
     assert!(bar(120.0).contains("width:100%"));
-    assert_eq!(CARD_NAMES.len(), 20);
+    assert_eq!(CARD_NAMES.len(), 27);
 }
 
 #[tokio::test]
@@ -144,15 +144,19 @@ async fn ui_card_omni_renders_summary_providers_models() {
     assert!(html.contains("<th>id</th><th>name</th><th>state</th><th>key</th><th>base_url</th>"));
 }
 
-/// The 13 rustCards the thin JS glue fetches via `getText` (mirror of
+/// The rustCards the thin JS glue fetches via `getText` (mirror of
 /// `rustCards` in `GSV/ui/index.html`).
-const RUST_CARDS: [&str; 13] = [
+const RUST_CARDS: [&str; 20] = [
+    "health",
+    "update",
     "tracker",
     "sli",
     "toolchain",
-    "ratio",
     "hooks-tests",
     "hooks-bench",
+    "ratio",
+    "vision",
+    "vision-map",
     "sprint-map",
     "sprint-queue",
     "sprint-progress",
@@ -160,6 +164,9 @@ const RUST_CARDS: [&str; 13] = [
     "speed-index",
     "rust-diagnostics",
     "omni",
+    "ide",
+    "vision-sync",
+    "doc-preview",
 ];
 
 #[test]
@@ -254,6 +261,10 @@ async fn ui_index_a11y_markers_present() {
         "diag chart alt"
     );
     assert!(html.contains("alt=\"sprint focus map\""), "focus map alt");
+    assert!(html.contains("href=\"#grid\""), "skip link");
+    assert!(html.contains("data-group=\"sprint\""), "grouped cards");
+    assert!(html.contains("id=\"shellNav\""), "sidebar nav");
+    assert!(html.contains(":focus-visible"), "focus-visible");
 }
 
 /// A11y contract: cards expose `aria-live` region so updates announce.

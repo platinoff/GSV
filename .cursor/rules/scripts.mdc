@@ -1,0 +1,19 @@
+---
+description: GSV kit scripts — bash only (MSYS2), scripts/ vs bin/ vs src/bin/
+globs: "{scripts/**,bin/**}"
+alwaysApply: false
+---
+
+# Scripts Structure
+
+## Bash only — no PowerShell, no cmd
+
+All git/cargo/scripts: `C:\msys64\usr\bin\bash.exe`. New scripts: `scripts/*.sh` or `bin/*.sh`. **Never** add `.ps1`.
+
+```
+scripts/          kit helpers (disk, git push, skill mirrors)
+bin/              product wrappers (record-test-speed, record-rust-diagnostics, gsv-vision-sync)
+src/bin/          Rust bins only (`cargo run --bin …`)
+```
+
+When adding a script: put it in `scripts/` or `bin/`, document it in `scripts/README.md`, no Python.

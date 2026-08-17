@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-17 (band 127 **PH-S1909…S1918** ✅ · **horizon band 128** · VDT kit Accepted · ratio **97.04%** · tests **230** · vision rev **494**)
+**Оновлено:** 2026-08-17 (band 128 **PH-S1919…S1928** ✅ · **horizon band 129** · kit ops + grouped Galaxy UI · VDT kit Accepted)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -14,8 +14,9 @@
 project scan (**warnings first**) → drain наступного band (**без** mid-push) →
 Speeds · Rust panel → vision-sync → **один** commit → **`git push` + самарі**.
 
-Якщо **gsv:** черга — [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) **після band 127**.
+Якщо **gsv:** черга — [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) **після band 128**.
 Kit уже в дереві (`.cursor/rules/`, `.agents/skills/`, `gsv.code-workspace`).
+Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics.sh`. Disk: `bash scripts/check_target_disk.sh`.
 
 **⚠️ Зупинити `gsv-server` перед `cargo test`/`build`** (блокує `target/debug/gsv-server.exe`);
 після тестів перезапустити на порт 9999.
@@ -146,7 +147,10 @@ Kit уже в дереві (`.cursor/rules/`, `.agents/skills/`, `gsv.code-works
   generic `.cursor/rules/` (session/roles/MSYS2/git/rust/cursor baseline);
   client mirrors `.cursor/skills/` + `.opencode/skills/`; `docs/gsv/PRODUCTS.md`;
   `gsv.code-workspace`; PoolAI thin pointer kit=GSV; `AGENTS.md` + `GSV_ROLES.md` entry-point.
-  **Наступний band 128**: project scan у наступній сесії `абракадабра`.
+  **band 128** (PH-S1919…S1928) ✅ — kit ops + grouped Galaxy UI: disk/git/speed/diagnostics
+  scripts+bins; OpenCode AGENTS + `.opencode/package.json`; `GET /api/ui/layout` + sidebar
+  groups; 27 Rust cards incl. health/update/ide/vision*; IDE jsonl preview; GitHub `platinoff/GSV`.
+  **Наступний band 129**: project scan у наступній сесії `абракадабра`.
 
 ## Канон GSV
 
@@ -167,6 +171,7 @@ band 119 ✅ (GSV Galaxy UI full parity — colors + box behaviors) · band 120 
 band 121 ✅ (GSV OmniRouter box parity) · band 125 ✅ (GSV Vision/UI polish — a11y/error/offline/stand contracts) ·
 band 126 ✅ (GSV stand smoke + ops canon) ·
 band 127 ✅ (GSV VDT kit — точка входу) ·
+band 128 ✅ (kit ops + grouped Galaxy UI) ·
 не комітити kit-only в PoolAI як «замість» GSV drain ·
 staging `GSV/data/*` / `certs/*.pem` /
 `.env` · mid-push · build/test при запущеному `gsv-server` · обхід ratio-смуги Rust-кодом замість compact UI ·

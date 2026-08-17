@@ -1253,6 +1253,24 @@ pub fn wire_sync(repo_root: &Path, data_dir: &Path) -> Value {
     }
 }
 
+/// Read-only sync status for the Vision Sync card (does **not** re-mirror).
+pub fn wire_sync_status(repo_root: &Path, data_dir: &Path) -> Value {
+    let drift = collect_drift(repo_root, data_dir);
+    let summary = wire_summary(repo_root, data_dir);
+    json!({
+        "ok": summary.get("ok").and_then(Value::as_bool).unwrap_or(true),
+        "drift": drift,
+        "revision": summary.get("revision").cloned().unwrap_or(json!(0)),
+        "git_head": summary.get("git_head").cloned().unwrap_or(json!("")),
+        "nodes_count": summary.get("nodes_count").cloned().unwrap_or(json!(0)),
+        "edges_count": summary.get("edges_count").cloned().unwrap_or(json!(0)),
+        "feed_items": summary.get("feed_items").cloned().unwrap_or(json!(0)),
+        "synced_at": summary.get("updated_at").cloned().unwrap_or(json!("")),
+        "error": summary.get("error").cloned().unwrap_or(Value::Null),
+        "degraded": summary.get("degraded").cloned().unwrap_or(json!(false)),
+    })
+}
+
 /// `GET /api/vision/speeds` — speed-index report (latest test-CI + benchmark + history counts).
 pub fn wire_speed_index(repo_root: &Path, data_dir: &Path) -> Value {
     let r = source_speed_index(repo_root, data_dir);
@@ -1295,7 +1313,7 @@ pub fn speed_index_chart_svg(repo_root: &Path, data_dir: &Path) -> String {
     if r.test_ci_history.is_empty() {
         return svg_empty(
             "Speed index history",
-            "no speed_index.json history - run bin/record-test-ci-speed.sh",
+            "no speed_index.json history - run bin/record-test-speed.sh",
         );
     }
     let n = r.test_ci_history.len().min(24);
@@ -1349,7 +1367,7 @@ pub fn rust_diagnostics_chart_svg(repo_root: &Path, data_dir: &Path) -> String {
     if r.history.is_empty() {
         return svg_empty(
             "Rust diagnostics history",
-            "no rust_diagnostics.json history - run bin/record-rust-clippy.sh",
+            "no rust_diagnostics.json history - run bin/record-rust-diagnostics.sh",
         );
     }
     let n = r.history.len().min(24);

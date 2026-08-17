@@ -12,6 +12,7 @@ band 119 (GSV Galaxy UI full parity — colors + box behaviors) **✅** · band 
 band 121 (GSV OmniRouter box parity) **✅** · band 125 (GSV Vision/UI polish — a11y/error/offline/stand contracts) **✅** ·
 band 126 (GSV stand smoke + ops canon) **✅** ·
 band 127 (GSV VDT kit — точка входу) **✅** ·
+**band 128** (kit ops + grouped Galaxy UI) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -311,6 +312,21 @@ rules/skills; продукти (PoolAI, GSV-server, далі — нові Rust-�
 | **PH-S1916** | PoolAI thin | PoolAI: product-only rules/skills; pointer «kit = GSV» — **✅** |
 | **PH-S1917** | AGENTS / roles | `AGENTS.md` + `GSV_ROLES.md` = entry-point, не лише gsv-server — **✅** |
 | **PH-S1918** | Band close | `cargo test` + loc-audit ≥96%; vision-sync; один commit + push — **✅** |
+
+## Спринти (band 128) — kit ops + grouped Galaxy UI ✅
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S1919** | Kit scripts | `scripts/check_target_disk.sh` (`GSV_*` env) + `git-push-only.sh` + `scripts/README.md` — **✅** |
+| **PH-S1920** | Speeds/Rust bins | `gsv-speed-index` + `gsv-rust-diagnostics` + `bin/record-test-speed.sh` + `bin/record-rust-diagnostics.sh` + `bin/gsv-vision-sync.sh` — **✅** |
+| **PH-S1921** | OpenCode + commands | `AGENTS.md` OpenCode canon; `.opencode/package.json`; `.cursor/commands/git-push.md`; generic rules (`scripts`, toolchain, runtime-stack) — **✅** |
+| **PH-S1922** | Layout wire | `UiLayout`/`UI_GROUPS` + `GET /api/ui/layout` + `render_nav`; 4 groups (ops/vision/sprint/studio) — **✅** |
+| **PH-S1923** | Rust cards | `health`/`update`/`ide`/`vision`/`vision-map`/`vision-sync`/`doc-preview` renderers; `CARD_NAMES` 27 — **✅** |
+| **PH-S1924** | Sidebar shell | `ui/index.html` `--sidebar-w` + group visibility; default `#sprint`; skip link + `:focus-visible` — **✅** |
+| **PH-S1925** | IDE preview | `ide::preview_messages` last 8 jsonl lines; `render_ide` tool/session + preview — **✅** |
+| **PH-S1926** | GitHub remote | `Cargo.toml` repository `platinoff/GSV`; `origin` + push at band close — **✅** |
+| **PH-S1927** | Chrome/a11y | power-menu click-outside; `aria-expanded`; layout contracts; hint names `record-test-speed.sh` / `record-rust-diagnostics.sh` — **✅** |
+| **PH-S1928** | Band close | fmt/clippy/test; loc-audit ≥96%; vision-sync; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
