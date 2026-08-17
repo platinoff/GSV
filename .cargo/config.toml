@@ -1,0 +1,9 @@
+# GSV standalone workspace (S:/rust/GSV). Independent from PoolAI target/.
+#
+# An explicit CARGO_TARGET_DIR env var overrides this; when building GSV
+# leave it unset or set CARGO_TARGET_DIR=/s/rust/GSV/target.
+[build]
+target-dir = "target"
+
+[target.x86_64-pc-windows-gnu]
+linker = "x86_64-w64-mingw32-gcc"

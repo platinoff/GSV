@@ -1,0 +1,22 @@
+# Build
+/target
+**/*.exe
+*.pdb
+
+# Durable runtime store (tracker, omni config, ratio JSON)
+/data/*
+!/data/.gitkeep
+
+# Secrets
+.env
+.env.*
+*.pem
+*.key
+secrets/
+
+# IDE / OS
+.idea/
+*.swp
+*.swo
+Thumbs.db
+.DS_Store
