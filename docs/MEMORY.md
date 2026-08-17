@@ -4,6 +4,13 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-17 · band 137 ✅)
+
+- **Band 137:** MCP vision completeness — `gsv_vision` summary + `gsv_vision_{sprint_map,doc_preview,node_search,sync,extensions}` + `gsv_preview` (same confine as HTTP) → **26** tools.
+- **VDT kit:** `абракадабра` Step 0 still `scripts/list-vdt-products.sh` (environment, not hardcoded pair).
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.10%** (rust 15820 / product 16462) · **296** tests · clippy 0. Vision rev **504**.
+- **Канон продукту:** Rust **95–100%** / wasm **0–5%** (завжди), без Python/Java; bins — лише `src/bin/`.
+
 ## Стан (2026-08-17 · band 136 ✅)
 
 - **Band 136:** MCP Galaxy UI — `render_mcp` / `GET /api/ui/card/mcp` (`CARD_NAMES` **32**,

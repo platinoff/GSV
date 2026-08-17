@@ -40,6 +40,8 @@ terminal subcommand allowlists, `/data/{file}` basename allowlist, preview canon
 reply; POST body cap 256 KiB → 413 `{ok:false}`.
 **band 136 (PH-S1999…S2008, ✅)** — MCP Galaxy UI (`GET /api/ui/card/mcp`, `CARD_NAMES` 32) +
 remaining read-only MCP tools (19) + `.grok/config.toml`.
+**band 137 (PH-S2009…S2018, ✅)** — MCP vision completeness: sprint-map / doc-preview /
+node-search / summary / sync / extensions / preview (26 tools; preview same confine as HTTP).
 
 ## Що це
 

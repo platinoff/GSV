@@ -1,11 +1,11 @@
 # gsv_mcp_openbot — GSV as an MCP server
 
-**Status:** Implemented (band **136**, `PH-S1999…S2008` ✅ · band 135 `PH-S1989…S1998` ✅) · **Date:** 2026-08-17
+**Status:** Implemented (band **137**, `PH-S2009…S2018` ✅ · band 136 `PH-S1999…S2008` ✅ · band 135 `PH-S1989…S1998` ✅) · **Date:** 2026-08-17
 **Deciders:** owner
 
 GSV exposes one MCP server named **`gsv_mcp_openbot`**. OpenCode, Cursor, Grok CLI, and Grok Bot consume the **same** tools. Those products stay **clients** — they are not embedded inside `gsv-server`.
 
-## Landed (band 135–136)
+## Landed (band 135–137)
 
 | Piece | Where |
 |-------|--------|
@@ -13,7 +13,7 @@ GSV exposes one MCP server named **`gsv_mcp_openbot`**. OpenCode, Cursor, Grok C
 | HTTP | `GET /mcp` (discovery: `stdio` / `http` / `tool_count`) · `POST /mcp` (JSON-RPC); loopback unless `--allow-lan` |
 | Auto-register | `.mcp.json` · `.cursor/mcp.json` · `opencode.json` `mcp.gsv_mcp_openbot` · `.grok/config.toml` |
 | Galaxy card | `GET /api/ui/card/mcp` (`render_mcp`, ops group, `CARD_NAMES` 32) |
-| Tools (19) | health / tracker / ratio / sli / toolchain / vision_{manifest,feed,queue,map,board,progress,speeds,rust} / omni_chat (dry-run default) / ide_sessions / terminal (HTTP allowlist) / hooks_{tests,bench} / update |
+| Tools (26) | health / tracker / ratio / sli / toolchain / vision (summary) / vision_{manifest,feed,queue,map,board,progress,speeds,rust,sprint_map,doc_preview,node_search,sync,extensions} / omni_chat (dry-run default) / ide_sessions / terminal (HTTP allowlist) / hooks_{tests,bench} / update / preview (repo-relative, same confine as HTTP) |
 | Faster cold start | `target/debug/gsv-mcp.exe` after `cargo build --bin gsv-mcp` |
 
 Grok Bot tunnel of `/mcp` to the public internet remains an **owner opt-in**. Do not port-forward in v1.
@@ -86,7 +86,8 @@ Prefer a built `target/debug/gsv-mcp.exe` in docs once the bin exists (faster co
 | `gsv_sli` | SLI catalog |
 | `gsv_toolchain` | Toolchain inventory |
 | `gsv_ratio` | Ratio / `gsv-loc-audit` |
-| `gsv_vision_*` | manifest / feed / sprint-queue / map / board / progress / speeds / rust-diagnostics |
+| `gsv_vision_*` | summary / manifest / feed / sprint-queue / map / board / progress / speeds / rust-diagnostics / sprint-map / doc-preview / node-search / sync / extensions |
+| `gsv_preview` | Box preview (`file` repo-relative; same confine as `GET /api/preview`) |
 | `gsv_hooks_*` | tests + bench hooks (read `target/`, no rebuild) |
 | `gsv_update` | Update box (binary vs source mtime) |
 | `gsv_omni_chat` | OmniRouter `POST /api/omni/v1/chat/completions` |
@@ -110,6 +111,6 @@ No secrets in tool output (`omni.toml` keys stay redacted). POST body cap and CS
 
 ## See also
 
-- Roadmap sprints: [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) band 135
+- Roadmap sprints: [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) band 135–137
 - Server: [`GSV_SERVER.md`](./GSV_SERVER.md)
 - Boxes: [`GSV_BOXES.md`](./GSV_BOXES.md)

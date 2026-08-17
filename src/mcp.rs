@@ -1,8 +1,8 @@
 //! `gsv_mcp_openbot` — MCP JSON-RPC surface over the existing boxes.
 //!
 //! Stdio (`gsv-mcp`) and optional HTTP `POST /mcp` share [`handle_value`].
-//! Tools wrap Tracker / SLI / Toolchain / Ratio / Vision / Omni / IDE / terminal;
-//! they do not add a second shell. Secrets in tool output are redacted.
+//! Tools wrap Tracker / SLI / Toolchain / Ratio / Vision / Omni / IDE / terminal /
+//! preview; they do not add a second shell. Secrets in tool output are redacted.
 
 use axum::body::to_bytes;
 use axum::http::{HeaderMap, HeaderValue};
@@ -101,6 +101,64 @@ pub fn tools_list() -> Vec<Value> {
             object_schema(),
         ),
         tool("gsv_update", "Update box: binary vs source mtime, git HEAD.", object_schema()),
+        tool(
+            "gsv_vision",
+            "Vision summary (revision, next sprint, git HEAD).",
+            object_schema(),
+        ),
+        tool(
+            "gsv_vision_sprint_map",
+            "Sprint map (scope/queue/session-tracks links + modules).",
+            object_schema(),
+        ),
+        tool(
+            "gsv_vision_doc_preview",
+            "Doc preview for a vision node plus 1-hop neighbors.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "Manifest node id (default galaxy_grid)."
+                    }
+                }
+            }),
+        ),
+        tool(
+            "gsv_vision_node_search",
+            "Search vision nodes by id/label/path/sections.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "q": { "type": "string" },
+                    "layer": {
+                        "type": "string",
+                        "description": "Optional layer filter L0–L5."
+                    }
+                }
+            }),
+        ),
+        tool(
+            "gsv_vision_sync",
+            "Re-mirror vision snapshots and report drift.",
+            object_schema(),
+        ),
+        tool(
+            "gsv_vision_extensions",
+            "Vision extensions (active sprint, scopes, panels).",
+            object_schema(),
+        ),
+        tool(
+            "gsv_preview",
+            "Repo-relative file preview (same confine as GET /api/preview).",
+            json!({
+                "type": "object",
+                "properties": {
+                    "file": { "type": "string", "description": "Repo-relative path." }
+                },
+                "required": ["file"]
+            }),
+        ),
     ]
 }
 
@@ -124,6 +182,13 @@ const TOOL_NAMES: &[&str] = &[
     "gsv_hooks_tests",
     "gsv_hooks_bench",
     "gsv_update",
+    "gsv_vision",
+    "gsv_vision_sprint_map",
+    "gsv_vision_doc_preview",
+    "gsv_vision_node_search",
+    "gsv_vision_sync",
+    "gsv_vision_extensions",
+    "gsv_preview",
 ];
 
 /// Stable tool name list (tests / GET /mcp).
@@ -294,6 +359,42 @@ async fn call_tool(state: &AppState, params: &Value) -> Value {
         "gsv_hooks_tests" => tool_ok(to_json(hooks::tests_wire(&state.repo_root))),
         "gsv_hooks_bench" => tool_ok(to_json(hooks::bench_wire(&state.repo_root))),
         "gsv_update" => tool_ok(to_json(update::wire(state))),
+        "gsv_vision" => tool_ok(crate::boxes::vision::wire_summary(
+            &state.repo_root,
+            &state.data_dir,
+        )),
+        "gsv_vision_sprint_map" => tool_ok(crate::boxes::vision::wire_sprint_map(
+            &state.repo_root,
+            &state.data_dir,
+        )),
+        "gsv_vision_doc_preview" => {
+            let id = arg_str(&args, "id");
+            let id = if id.is_empty() { "galaxy_grid" } else { id.as_str() };
+            tool_ok(crate::boxes::vision::wire_doc_preview(
+                &state.repo_root,
+                &state.data_dir,
+                id,
+            ))
+        }
+        "gsv_vision_node_search" => {
+            let q = arg_str(&args, "q");
+            let layer = args.get("layer").and_then(Value::as_str).filter(|s| !s.is_empty());
+            tool_ok(crate::boxes::vision::wire_node_search(
+                &state.repo_root,
+                &state.data_dir,
+                &q,
+                layer,
+            ))
+        }
+        "gsv_vision_sync" => tool_ok(crate::boxes::vision::wire_sync(
+            &state.repo_root,
+            &state.data_dir,
+        )),
+        "gsv_vision_extensions" => tool_ok(crate::boxes::vision::wire_extensions(
+            &state.repo_root,
+            &state.data_dir,
+        )),
+        "gsv_preview" => tool_preview(state, &args),
         "" => tool_err("missing tool name"),
         other => tool_err(format!("unknown tool: {other}")),
     }
@@ -316,6 +417,27 @@ fn tracker_payload(state: &AppState) -> Value {
         "records": state.tracker.try_read().map(|t| t.records().to_vec()).unwrap_or_default(),
         "generated_at": crate::vision::rfc3339_now(),
     })
+}
+
+fn arg_str(args: &Value, key: &str) -> String {
+    args.get(key)
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string()
+}
+
+fn tool_preview(state: &AppState, args: &Value) -> Value {
+    let file = arg_str(args, "file");
+    if file.is_empty() {
+        return tool_err("file required");
+    }
+    match crate::boxes::preview::resolve(&state.repo_root, &file) {
+        Ok(path) => match crate::boxes::preview::render(&path, &file) {
+            Ok(wire) => tool_ok(to_json(wire)),
+            Err(e) => tool_err(e),
+        },
+        Err(e) => tool_err(e),
+    }
 }
 
 fn tool_terminal(state: &AppState, args: &Value) -> Value {
@@ -458,10 +580,17 @@ mod tests {
             "gsv_hooks_tests",
             "gsv_hooks_bench",
             "gsv_update",
+            "gsv_vision",
+            "gsv_vision_sprint_map",
+            "gsv_vision_doc_preview",
+            "gsv_vision_node_search",
+            "gsv_vision_sync",
+            "gsv_vision_extensions",
+            "gsv_preview",
         ] {
             assert!(names.contains(&n), "missing {n}");
         }
-        assert_eq!(names.len(), 19);
+        assert_eq!(names.len(), 26);
     }
 
     #[tokio::test]
@@ -639,6 +768,10 @@ mod tests {
             (33, "gsv_hooks_tests"),
             (34, "gsv_hooks_bench"),
             (35, "gsv_update"),
+            (36, "gsv_vision"),
+            (37, "gsv_vision_sprint_map"),
+            (38, "gsv_vision_sync"),
+            (39, "gsv_vision_extensions"),
         ] {
             let (is_err, text) = tool_text(&s, id, name, json!({})).await;
             assert!(!is_err, "{name} isError text={text}");
@@ -703,5 +836,67 @@ mod tests {
         assert_eq!(v["id"], Value::Null);
         assert_eq!(v["error"]["code"], -32600);
         assert_eq!(v["jsonrpc"], "2.0");
+    }
+
+    #[tokio::test]
+    async fn preview_requires_file() {
+        let s = state();
+        let (is_err, text) = tool_text(&s, 50, "gsv_preview", json!({})).await;
+        assert!(is_err);
+        assert!(text.contains("file required"));
+    }
+
+    #[tokio::test]
+    async fn preview_rejects_traversal() {
+        let s = state();
+        let (is_err, text) = tool_text(
+            &s,
+            51,
+            "gsv_preview",
+            json!({ "file": "../../etc/hosts" }),
+        )
+        .await;
+        assert!(is_err);
+        assert!(
+            text.contains("traversal") || text.contains("outside") || text.contains("rejected"),
+            "{text}"
+        );
+    }
+
+    #[tokio::test]
+    async fn preview_renders_cargo_toml() {
+        let s = state();
+        let (is_err, text) = tool_text(
+            &s,
+            52,
+            "gsv_preview",
+            json!({ "file": "Cargo.toml" }),
+        )
+        .await;
+        assert!(!is_err, "{text}");
+        assert!(text.contains("Cargo.toml") || text.contains("html"), "{text}");
+    }
+
+    #[tokio::test]
+    async fn doc_preview_and_node_search_ok() {
+        let s = state();
+        let (is_err, text) = tool_text(
+            &s,
+            53,
+            "gsv_vision_doc_preview",
+            json!({ "id": "galaxy_grid" }),
+        )
+        .await;
+        assert!(!is_err, "{text}");
+        assert!(text.starts_with('{'), "{text}");
+        let (is_err, text) = tool_text(
+            &s,
+            54,
+            "gsv_vision_node_search",
+            json!({ "q": "galaxy", "layer": "L0" }),
+        )
+        .await;
+        assert!(!is_err, "{text}");
+        assert!(text.contains("ok") || text.contains("results"), "{text}");
     }
 }

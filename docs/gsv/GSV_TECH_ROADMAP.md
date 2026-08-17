@@ -21,6 +21,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 134** (HTTP response hardening: CSP / nosniff / no-store + POST body cap) **✅** ·
 **band 135** (gsv_mcp_openbot — MCP for OpenCode / Cursor / Grok Bot) **✅** ·
 **band 136** (MCP Galaxy UI + remaining read tools) **✅** ·
+**band 137** (MCP vision completeness) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -468,6 +469,25 @@ Band 136 wraps the remaining read-only boxes and shows the server on the dashboa
 | **PH-S2006** | Docs canon | MCP_OPENBOT / SERVER / BOXES / HANDOFF / NEXT / MEMORY / roadmap — **✅** |
 | **PH-S2007** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy — **✅** |
 | **PH-S2008** | Band close | tests green; vision-sync; one commit + push — **✅** |
+
+## Спринти (band 137) — MCP vision completeness ✅
+
+Owner 2026-08-17: after band 136, agents still lacked sprint-map / doc-preview /
+node-search / sync / extensions / summary / preview. Band 137 wraps those boxes
+(same confine as HTTP). Clippy 0 going in.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2009** | Scope + queue | this band; `extensions.json` `active_sprint` = `PH-S2009` — **✅** |
+| **PH-S2010** | Sprint map + docs | `gsv_vision_sprint_map` + `gsv_vision_doc_preview` (`id`) + `gsv_vision_node_search` (`q`/`layer`) — **✅** |
+| **PH-S2011** | Sync + extensions | `gsv_vision` summary + `gsv_vision_sync` + `gsv_vision_extensions` — **✅** |
+| **PH-S2012** | Preview confine | `gsv_preview` (`file`); traversal / absolute rejected (same as `GET /api/preview`) — **✅** |
+| **PH-S2013** | Schemas | parameterized inputSchema for id / q / layer / file — **✅** |
+| **PH-S2014** | Discovery | `GET /mcp` `tool_count` 26; Galaxy card lists new tools — **✅** |
+| **PH-S2015** | Contracts | mcp unit + `gsv_mcp_contracts` (26 tools, preview reject, doc-preview/search) — **✅** |
+| **PH-S2016** | Docs canon | MCP_OPENBOT / SERVER / BOXES / ARCHITECTURE / HANDOFF / NEXT / MEMORY / roadmap — **✅** |
+| **PH-S2017** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy — **✅** |
+| **PH-S2018** | Band close | tests green; vision-sync; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

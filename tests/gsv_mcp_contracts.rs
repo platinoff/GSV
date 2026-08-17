@@ -2,6 +2,7 @@
 //!
 //! Initialize + tools/list + tools/call over `POST /mcp`; GET discovery;
 //! terminal stays on the HTTP allowlist (no extra shell); Omni defaults to dry-run.
+//! Band 137: vision completeness (26 tools) + preview confine.
 
 use std::path::PathBuf;
 
@@ -102,7 +103,9 @@ async fn post_initialize_and_tools_list() {
     assert!(names.contains(&"gsv_health"));
     assert!(names.contains(&"gsv_terminal"));
     assert!(names.contains(&"gsv_omni_chat"));
-    assert_eq!(names.len(), 19);
+    assert!(names.contains(&"gsv_vision_sprint_map"));
+    assert!(names.contains(&"gsv_preview"));
+    assert_eq!(names.len(), 26);
 }
 
 #[tokio::test]
@@ -250,6 +253,46 @@ async fn ide_and_tracker_tools_ok() {
         assert_eq!(status, StatusCode::OK, "{name}");
         assert_eq!(json["result"]["isError"], false, "{name}");
     }
+}
+
+#[tokio::test]
+async fn vision_complete_and_preview_tools() {
+    let app = app();
+    for (name, arguments) in [
+        ("gsv_vision", json!({})),
+        ("gsv_vision_sprint_map", json!({})),
+        ("gsv_vision_sync", json!({})),
+        ("gsv_vision_extensions", json!({})),
+        ("gsv_vision_doc_preview", json!({ "id": "galaxy_grid" })),
+        ("gsv_vision_node_search", json!({ "q": "sprint" })),
+        ("gsv_preview", json!({ "file": "Cargo.toml" })),
+    ] {
+        let (status, json) = mcp_post(
+            &app,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 9,
+                "method": "tools/call",
+                "params": { "name": name, "arguments": arguments }
+            }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{name}");
+        assert_eq!(json["result"]["isError"], false, "{name} {json}");
+    }
+
+    let (status, json) = mcp_post(
+        &app,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 10,
+            "method": "tools/call",
+            "params": { "name": "gsv_preview", "arguments": { "file": "../secret" } }
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["result"]["isError"], true);
 }
 
 #[tokio::test]

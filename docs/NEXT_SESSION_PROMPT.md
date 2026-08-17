@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-17 (**band 136 `mcp_galaxy_ui` ✅**)
+**Оновлено:** 2026-08-17 (**band 137 `mcp_vision_complete` ✅**)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -14,8 +14,8 @@
 project scan (**warnings first**) → drain наступного band (**без** mid-push) →
 Speeds · Rust panel → vision-sync → **один** commit → **`git push` + самарі**.
 
-Якщо **gsv:** черга — [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) **після band 136**
-(project scan; MCP Galaxy card + 19 tools already in tree).
+Якщо **gsv:** черга — [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) **після band 137**
+(project scan; MCP 26 tools already in tree).
 Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics.sh`. Disk: `bash scripts/check_target_disk.sh`.
 
 **⚠️ Зупинити `gsv-server` перед `cargo test`/`build`** (блокує `target/debug/gsv-server.exe`);
@@ -166,6 +166,8 @@ Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics
   box tools; auto-register `.mcp.json` / `.cursor/mcp.json` / `opencode.json`.
   **band 136** (PH-S1999…S2008) ✅ — MCP Galaxy UI (`/api/ui/card/mcp`, `CARD_NAMES` 32) +
   remaining read tools (19) + `.grok/config.toml`.
+  **band 137** (PH-S2009…S2018) ✅ — MCP vision completeness (`gsv_vision` + sprint-map /
+  doc-preview / node-search / sync / extensions / preview) → **26** tools.
   **Наступний band**: project scan у наступній сесії `абракадабра`.
 
 ## Канон GSV
@@ -196,6 +198,7 @@ band 133 ✅ (localhost security — bind + CSRF + terminal + data allowlist) ·
 band 134 ✅ (HTTP response hardening — CSP / nosniff / no-store / POST 256 KiB) ·
 band 135 ✅ (`gsv_mcp_openbot` — stdio `gsv-mcp` + `/mcp`) ·
 band 136 ✅ (MCP Galaxy UI + remaining read tools) ·
+band 137 ✅ (MCP vision completeness — 26 tools) ·
 не комітити kit-only в PoolAI як «замість» GSV drain ·
 staging `GSV/data/*` / `certs/*.pem` /
 `.env` · mid-push · build/test при запущеному `gsv-server` · обхід ratio-смуги Rust-кодом замість compact UI ·
