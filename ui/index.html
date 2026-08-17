@@ -86,7 +86,7 @@ body.panel-fs-active .card{display:none!important}body.panel-fs-active .card.ful
   <section class="card" data-card="toolchain"><h2>Toolchain <span class="hint">/api/toolchain</span></h2><div class="body" id="b-toolchain">…</div></section>
   <section class="card"><h2>IDE <span class="hint">/api/ide/sessions</span></h2><div class="body" id="b-ide">…</div></section>
   <section class="card"><h2>Update <span class="hint">/api/update</span></h2><div class="body" id="b-update">…</div></section>
-  <section class="card"><h2>Box preview <span class="hint">/api/preview</span></h2><div class="body"><input id="pvFile" type="text" value="GSV/src/bin/gsv_server.rs" placeholder="repo-relative file"><br><br><button onclick="loadPreview()">Render</button><div id="b-preview" style="margin-top:8px"></div></div></section>
+  <section class="card"><h2>Box preview <span class="hint">/api/preview</span></h2><div class="body"><input id="pvFile" type="text" value="src/bin/gsv_server.rs" placeholder="repo-relative file"><br><br><button onclick="loadPreview()">Render</button><div id="b-preview" style="margin-top:8px"></div></div></section>
   <section class="card"><h2>SLI terminal <span class="hint">POST /api/terminal</span></h2><div class="body"><input id="termCmd" type="text" value="echo gsv" placeholder="whitelisted SLI command"><br><br><button onclick="runTerminal()">Run</button><pre class="out" id="b-terminal">…</pre></div></section>
   <section class="card" data-card="hooks-tests"><h2>Tests hooks <span class="hint">/api/hooks/tests</span></h2><div class="body" id="b-hooks-t">…</div></section>
   <section class="card" data-card="hooks-bench"><h2>Bench hooks <span class="hint">/api/hooks/bench</span></h2><div class="body" id="b-hooks-b">…</div></section>

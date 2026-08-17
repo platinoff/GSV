@@ -186,7 +186,7 @@ async fn update_notify_flags_available() {
 #[tokio::test]
 async fn preview_renders_highlighted_html() {
     let (app, _state) = app();
-    let (status, json) = get(&app, "/api/preview?file=GSV/Cargo.toml").await;
+    let (status, json) = get(&app, "/api/preview?file=Cargo.toml").await;
     assert_eq!(status, StatusCode::OK);
     assert!(json["html"].as_str().unwrap_or_default().contains("g-pre"));
     assert_eq!(json["extension"], "toml");
