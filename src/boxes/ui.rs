@@ -154,7 +154,7 @@ pub const CHROME_CARDS: [&str; 7] = [
     "fullscreen",
 ];
 
-/// `GET /api/ui/layout` — groups + default group + chrome card ids for the thin JS shell.
+/// `GET /api/ui/layout` — groups + default group + chrome card ids + nav HTML.
 pub fn layout_wire() -> Value {
     serde_json::json!({
         "ok": true,
@@ -165,6 +165,7 @@ pub fn layout_wire() -> Value {
             "cards": g.cards,
         })).collect::<Vec<_>>(),
         "chrome": CHROME_CARDS,
+        "html": render_nav(DEFAULT_GROUP),
     })
 }
 
@@ -205,9 +206,9 @@ pub fn chrome_fullscreen_wire() -> Value {
     })
 }
 
-/// Sidebar `<nav>` HTML from [`layout_wire`].
+/// Inner sidebar HTML (tabs + chips) for `#shellNav` — no wrapping `<nav>`.
 pub fn render_nav(active: &str) -> String {
-    let mut out = String::from("<nav class='shell-nav' aria-label='GSV groups'>");
+    let mut out = String::new();
     for g in &UI_GROUPS {
         let cls = if g.id == active {
             "nav-tab active"
@@ -221,11 +222,13 @@ pub fn render_nav(active: &str) -> String {
             label = esc(g.label),
         ));
         for c in g.cards {
-            out.push_str(&format!("<a href='#b-{c}'>{c}</a>"));
+            out.push_str(&format!(
+                "<a href='#b-{c}' data-group='{id}' data-card-jump='{c}'>{c}</a>",
+                id = g.id,
+            ));
         }
         out.push_str("</div>");
     }
-    out.push_str("</nav>");
     out
 }
 
@@ -1629,8 +1632,12 @@ mod tests {
         }
         let html = render_nav(DEFAULT_GROUP);
         assert!(html.contains("data-group='sprint'"));
-        assert!(html.contains("aria-label='GSV groups'"));
+        assert!(html.contains("data-card-jump='sprint-queue'"));
         assert!(html.contains("class='nav-tab active'"));
+        assert!(
+            !html.contains("<nav"),
+            "inner HTML only — #shellNav already wraps"
+        );
         let wire = layout_wire();
         assert_eq!(wire["ok"], true);
         assert_eq!(wire["default_group"], DEFAULT_GROUP);
@@ -1639,6 +1646,9 @@ mod tests {
         assert_eq!(chrome.len(), CHROME_CARDS.len());
         assert_eq!(chrome[0], "galaxy-backdrop");
         assert_eq!(chrome[chrome.len() - 1], "fullscreen");
+        let nav_html = wire["html"].as_str().expect("html");
+        assert!(nav_html.contains("data-card-jump='health'"), "{nav_html}");
+        assert!(nav_html.contains("data-group='ops'"), "{nav_html}");
     }
 
     #[test]

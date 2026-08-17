@@ -572,6 +572,52 @@ async fn ui_layout_endpoint_returns_four_groups() {
         "{sf_html}"
     );
     assert!(sf_html.contains("default <kbd>FX</kbd>"), "{sf_html}");
+    let nav_html = json["html"].as_str().expect("layout html");
+    assert!(
+        nav_html.contains("data-card-jump='health'"),
+        "layout html chips: {nav_html}"
+    );
+    assert!(
+        nav_html.contains("data-group='studio'"),
+        "layout html groups: {nav_html}"
+    );
+}
+
+#[tokio::test]
+async fn ui_load_palette_and_theme_are_live_css() {
+    let (app, _state) = app();
+    for (path, needle) in [
+        ("/api/ui/load-palette", "--bg-deep:#06080f;"),
+        (
+            "/api/ui/load-theme",
+            "--sprint-pill-bg:rgba(167, 139, 250, 0.2);",
+        ),
+    ] {
+        let res = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(path)
+                    .method(Method::GET)
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(res.status(), StatusCode::OK, "{path}");
+        let ct = res
+            .headers()
+            .get(header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        assert!(ct.starts_with("text/css"), "{path} content-type: {ct}");
+        let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+            .await
+            .expect("body");
+        let css = String::from_utf8_lossy(&bytes);
+        assert!(css.contains(":root{"), "{path}: {css}");
+        assert!(css.contains(needle), "{path} missing {needle}: {css}");
+    }
 }
 
 /// Canonical error-shape contract: every 4xx/5xx JSON error carries

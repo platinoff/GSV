@@ -71,6 +71,8 @@ pre.out{background:var(--panel2);border:1px solid var(--line);border-radius:6px;
 .panel-dock{position:sticky;top:0;z-index:3;display:none;flex-wrap:wrap;gap:6px;padding:6px 18px;background:var(--panel,#121a2a);border-bottom:1px solid var(--line);align-items:center}.panel-dock.visible{display:flex}.panel-dock .dock-title{font-size:11px;color:var(--dim,#8b9cb8);text-transform:uppercase;letter-spacing:0.06em;margin-right:4px}.dock-chip{padding:2px 8px;border:1px solid var(--line);border-radius:6px;font-size:11px;cursor:pointer;color:var(--accent,#7eb8ff);background:var(--panel2,#141c2e)}.dock-chip:hover{border-color:var(--accent)}
 body.panel-fs-active .card{display:none!important}body.panel-fs-active .card.fullscreen{display:flex!important}
 </style>
+<link rel="stylesheet" href="/api/ui/load-palette">
+<link rel="stylesheet" href="/api/ui/load-theme">
 </head>
 <body data-group="sprint">
 <a class="skip" href="#grid">Skip to cards</a>
@@ -182,11 +184,7 @@ async function loadLayout() {
   try {
     const d = await get("api/ui/layout");
     if (!d.ok) return;
-    const nav = $("shellNav");
-    nav.innerHTML = (d.groups || []).map(g => {
-      const chips = (g.cards || []).map(c => "<a href='#b-" + c + "' data-group='" + g.id + "' data-card-jump='" + c + "'>" + esc(c) + "</a>").join("");
-      return "<button type='button' class='nav-tab' data-group='" + g.id + "'>" + esc(g.label) + "</button><div class='nav-chips'>" + chips + "</div>";
-    }).join("");
+    if (d.html) $("shellNav").innerHTML = d.html;
     const want = (location.hash || "").replace("#", "") || (function(){ try { return localStorage.getItem("gsv.group"); } catch (e) { return ""; } })() || d.default_group || "sprint";
     setGroup(want);
   } catch (e) { setGroup("sprint"); }
@@ -237,7 +235,6 @@ async function powerSoft(){$("powerMenu").classList.remove("open");$("btnPower")
 function powerReload(){$("powerMenu").classList.remove("open");$("btnPower").setAttribute("aria-expanded","false");resync();toast("resync ok")}
 function powerOffline(){$("powerMenu").classList.remove("open");$("btnPower").setAttribute("aria-expanded","false");setOffline(true);toast("forced offline")}
 function syncDock(){const dock=$("panelDock");dock.innerHTML="<span class='dock-title'>docked</span>";let n=0;document.querySelectorAll(".card.collapsed").forEach(card=>{const id=card.getAttribute("data-card")||card.getAttribute("data-id")||card.querySelector("h2").childNodes[0].textContent.trim();const chip=document.createElement("span");chip.className="dock-chip";chip.textContent=id;chip.title="restore "+id;chip.onclick=()=>{card.classList.remove("collapsed");const b=card.querySelector(".actions button");if(b)b.textContent="_";syncDock()};dock.appendChild(chip);n++});dock.classList.toggle("visible",n>0)}
-async function loadGalaxyPalette(){try{const d=await get("api/vision/palette");if(!d.ok)return;const set=(k,v)=>{if(v)document.documentElement.style.setProperty(k,v)};set("--bg-deep",d.bg_deep);set("--bg",d.bg);set("--panel",d.panel);set("--panel-solid",d.panel_solid);set("--border",d.border);set("--border-bright",d.border_bright);set("--text",d.text);set("--muted",d.muted);set("--accent",d.accent);set("--accent-2",d.accent_2);set("--glow",d.glow);set("--sidebar-w",d.sidebar_w);set("--edge-docs",d.edge_docs);set("--edge-code",d.edge_code);set("--edge-toml",d.edge_toml);set("--ext-md",d.ext_md);set("--ext-rs",d.ext_rs);set("--ext-json",d.ext_json);set("--ext-toml",d.ext_toml);set("--sprint",d.sprint);set("--bg-tone",d.bg_tone);set("--galaxy-bg-opacity",d.galaxy_bg_opacity);(d.layers||[]).forEach(l=>set("--"+l.id,l.color));(d.layers_dim||[]).forEach(l=>set("--"+l.id+"-dim",l.color))}catch(e){}}
 async function loadRssTicker(){try{const d=await get("api/ui/card/rss-ticker");const html=d.html||"";if(!d.ok||html.indexOf("rss-ticker-item")<0){$("rssTicker").style.display="none";return}$("rssTicker").style.display="flex";$("rssTickerTrack").innerHTML=html}catch(e){$("rssTicker").style.display="none"}}
 async function testOmniProvider() {
   try {
@@ -253,17 +250,6 @@ async function loadDocPreview() {
     if (d.ok) $("b-doc-preview").innerHTML = d.html;
     else $("b-doc-preview").innerHTML = "<span class='err'>" + esc(d.error || "doc preview unavailable") + "</span>";
   } catch (e) { $("b-doc-preview").innerHTML = "<span class='err'>" + esc(e.message) + "</span>"; }
-}
-async function loadSprintTheme() {
-  try {
-    const d = await get("api/vision/sprint-theme");
-    if (!d.ok) return;
-    const set = (k, v) => { if (v) document.documentElement.style.setProperty(k, v); };
-    set("--sprint", d.sprint); set("--sprint-next", d.sprint_next);
-    set("--sprint-pill-bg", d.pill && d.pill.bg); set("--sprint-pill-border", d.pill && d.pill.border); set("--sprint-pill-color", d.pill && d.pill.color);
-    set("--sprint-chip-bg", d.chip && d.chip.bg); set("--sprint-chip-border", d.chip && d.chip.border);
-    if (d.queue) { set("--sprint-open-border", d.queue.open_border); set("--sprint-open-bg", d.queue.open_bg); set("--sprint-next-border", d.queue.next_border); set("--sprint-next-glow", d.queue.next_glow); set("--sprint-closed-op", d.queue.closed_opacity); }
-  } catch (e) { /* theme is optional */ }
 }
 function loadSprintFocus() {
   const q = ($("focusSprint") || {}).value || "";
@@ -353,7 +339,7 @@ document.addEventListener("click", (e) => {
   }
 });
 window.addEventListener("hashchange", () => { const id = location.hash.replace("#", ""); if (id === "ops" || id === "vision" || id === "sprint" || id === "studio") setGroup(id); });
-loadLayout();resync();loadSprintTheme();loadGalaxyPalette();loadRssTicker();connectSse();
+loadLayout();resync();loadRssTicker();connectSse();
 setInterval(() => refreshMeta().catch(() => setOffline(true)), 30000);
 setInterval(() => { if (autoReload) resync(); }, 60000);
 </script>

@@ -29,6 +29,9 @@ sidebar chips `data-card-jump`; Vision rev **496**.
 **band 130 (PH-S1939…S1948, ✅)** — chrome shell: real `/api/ui/card` wires (rss-ticker from `feed.feed.items`,
 starfield Eco/FX/Ms counts from `StarfieldMode`, galaxy src+opacity) + Rust RSS ticker HTML in the header;
 `GET /api/ui/layout` `chrome` array (7).
+**band 131 (PH-S1949…S1958, ✅)** — Rust shell: `GET /api/ui/layout` `html` (sidebar nav + `data-card-jump`);
+live `:root` CSS via `GET /api/ui/load-palette` + `GET /api/ui/load-theme` (stubs replaced); thin glue
+`<link>` + `loadLayout` uses `html` (no JS CSS-var mappers).
 
 ## Що це
 

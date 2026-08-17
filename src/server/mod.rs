@@ -416,25 +416,27 @@ async fn api_ratio_trend(State(state): State<AppState>) -> Json<Value> {
     }))
 }
 
-async fn api_ui_load_palette() -> Response {
+fn css_response(body: String) -> Response {
     (
         StatusCode::OK,
-        [("Content-Type", "text/css"), ("Cache-Control", "no-cache")],
-        ":root{--galaxy-bg:#0b0f1c;--galaxy-fg:#d8e1ff;--galaxy-accent:#7aa2ff;}\n",
+        [
+            ("Content-Type", "text/css; charset=utf-8"),
+            ("Cache-Control", "no-cache"),
+        ],
+        body,
     )
         .into_response()
 }
 
-async fn api_ui_load_theme() -> Response {
-    (
-        StatusCode::OK,
-        [
-            ("Content-Type", "text/javascript"),
-            ("Cache-Control", "no-cache"),
-        ],
-        "window.GSV_THEME = {name:'galaxy', revision: 488};\n",
-    )
-        .into_response()
+async fn api_ui_load_palette() -> Response {
+    css_response(crate::boxes::vision::palette_stylesheet())
+}
+
+async fn api_ui_load_theme(State(state): State<AppState>) -> Response {
+    css_response(crate::boxes::vision::sprint_theme_stylesheet(
+        &state.repo_root,
+        &state.data_dir,
+    ))
 }
 
 async fn api_ui_visual_toggle() -> Json<Value> {

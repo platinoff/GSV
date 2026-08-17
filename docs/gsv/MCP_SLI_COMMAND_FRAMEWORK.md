@@ -61,8 +61,8 @@ Omni API:     http://127.0.0.1:9999/api/omni/     (returns JSON omni endpoint in
 | `ui.sprint_board` | GET | `/api/vision/sprint-board` | Sprint board report ✅ |
 | `ui.cards` | GET | `/api/ui/card/{name}` | UI card renderers ✅ **19/19 verified working** |
 | **All card types**: tracker, sli, toolchain, ratio, hooks-tests, hooks-bench, sprint-map, sprint-queue, sprint-progress, sprint-board, speed-index, rust-diagnostics, omni, galaxy-backdrop, starfield, rss-ticker, gpu-mode, power-menu, panel-dock, fullscreen | | | |
-| `ui.load_palette` | GET | `/api/ui/load-palette` | Load palette CSS ✅ |
-| `ui.load_theme` | GET | `/api/ui/load-theme` | Load theme JS ✅ |
+| `ui.load_palette` | GET | `/api/ui/load-palette` | Load palette CSS (`:root` from `GalaxyPalette`) ✅ |
+| `ui.load_theme` | GET | `/api/ui/load-theme` | Load sprint theme CSS (`:root` from `SprintThemeReport`) ✅ |
 | `ui.visual_toggle` | GET | `/api/ui/visual-toggle` | Visual effects toggle ✅ |
 | `ui.path` | GET | `/ui/{path}` | UI widget paths ✅ **33/33 verified** (sprint-progress, speed-index, rust-diagnostics, sprint-focus, galaxy-backdrop, starfield, rss-ticker, gpu-mode, power-menu, panel-dock, fullscreen, vision, sprint-board, ratio-box, ratio, ratio/current, ratio/advisory, ratio/goal, ratio/percent, sprint-columns, progress-layers, sprint-open-count, sprint-closed-count, sprint-planned-count, sprint-progress-pct, sprint-remaining, sprint-elapsed, tracker, sli, toolchain, hooks-tests, sprint-map, sprint-queue) |
 | **Note**: All 20 card renderers implemented in `GSV/src/boxes/ui.rs` and wired in `GSV/src/server/mod.rs`. All 61 API GET + 6 POST endpoints verified working on port 9999. SLI metrics use verified working endpoints. |

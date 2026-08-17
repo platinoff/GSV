@@ -15,6 +15,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 128** (kit ops + grouped Galaxy UI) **✅** ·
 **band 129** (canon port 9999 + dashboard card registry) **✅** ·
 **band 130** (chrome shell: real wires + Rust RSS ticker) **✅** ·
+**band 131** (Rust shell CSS + layout nav HTML) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -359,6 +360,21 @@ rules/skills; продукти (PoolAI, GSV-server, далі — нові Rust-�
 | **PH-S1946** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy — **✅** |
 | **PH-S1947** | vision-sync | `gsv-vision-sync` + `--check` — **✅** |
 | **PH-S1948** | Band close | tests green; one commit + push — **✅** |
+
+## Спринти (band 131) — Rust shell: live palette/theme CSS + layout nav HTML ✅
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S1949** | Scope + queue | roadmap band 131; `extensions.json` `active_sprint` = `PH-S1949` (sync with `manifest.next_sprint`) — **✅** |
+| **PH-S1950** | Layout nav HTML | `render_nav` inner HTML + `data-card-jump`; `GET /api/ui/layout` `html` — **✅** |
+| **PH-S1951** | Palette CSS | `palette_stylesheet` / `GET /api/ui/load-palette` live `:root` (not stub) — **✅** |
+| **PH-S1952** | Theme CSS | `SprintThemeReport::as_css_root` / `GET /api/ui/load-theme` `text/css` (not JS stub) — **✅** |
+| **PH-S1953** | UI glue | `<link>` palette+theme; `loadLayout` uses `layout.html`; drop JS CSS-var mappers — **✅** |
+| **PH-S1954** | Contracts | nav/html + CSS content-type unit/server/ui index contracts — **✅** |
+| **PH-S1955** | Docs canon | VISION/SERVER/BOXES/ARCHITECTURE + MEMORY/HANDOFF/NEXT band 131 — **✅** |
+| **PH-S1956** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy — **✅** |
+| **PH-S1957** | vision-sync | `gsv-vision-sync` + `--check` — **✅** |
+| **PH-S1958** | Band close | tests green; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

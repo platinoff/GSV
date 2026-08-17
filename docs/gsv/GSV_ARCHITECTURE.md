@@ -39,7 +39,7 @@
 
 ### UI (тонкий JS glue)
 
-`ui/` — vanilla HTML+CSS+JS (thin glue). Панелі: map, sprint-queue, doc-preview + **бокси GSV**; chrome (RSS ticker, GPU, power) з `/api/ui/card/:name`. Дані — з Rust API (fetch/SSE). Сторінка переживає офлайн (див. `GSV_SERVER.md`).
+`ui/` — vanilla HTML+CSS+JS (thin glue). Панелі: map, sprint-queue, doc-preview + **бокси GSV**; chrome (RSS ticker, GPU, power) з `/api/ui/card/:name`; sidebar nav HTML з `/api/ui/layout` `html`; live `:root` з `/api/ui/load-palette` + `/api/ui/load-theme`. Дані — з Rust API (fetch/SSE). Сторінка переживає офлайн (див. `GSV_SERVER.md`).
 
 ## Rust / WebAssembly split
 

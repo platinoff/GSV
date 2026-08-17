@@ -332,4 +332,16 @@ async fn ui_index_cards_are_offline_stable() {
         html.contains("api/ui/card/rss-ticker"),
         "rss ticker uses rust chrome card"
     );
+    assert!(
+        html.contains("href=\"/api/ui/load-palette\""),
+        "live palette stylesheet"
+    );
+    assert!(
+        html.contains("href=\"/api/ui/load-theme\""),
+        "live sprint theme stylesheet"
+    );
+    assert!(
+        html.contains("d.html") && html.contains("shellNav"),
+        "layout nav HTML from layout_wire"
+    );
 }

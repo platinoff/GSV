@@ -1855,6 +1855,43 @@ pub fn wire_sprint_theme(repo_root: &Path, data_dir: &Path) -> Value {
     }
 }
 
+/// Sprint `:root` vars matching the former JS `loadSprintTheme` setter list.
+impl SprintThemeReport {
+    pub fn as_css_root(&self) -> String {
+        format!(
+            "--sprint:{s};--sprint-next:{sn};--sprint-pill-bg:{pbg};--sprint-pill-border:{pbd};--sprint-pill-color:{pc};--sprint-chip-bg:{cbg};--sprint-chip-border:{cbd};--sprint-open-border:{ob};--sprint-open-bg:{og};--sprint-next-border:{nb};--sprint-next-glow:{ng};--sprint-closed-op:{co};",
+            s = self.sprint,
+            sn = self.sprint_next,
+            pbg = self.pill.bg,
+            pbd = self.pill.border,
+            pc = self.pill.color,
+            cbg = self.chip.bg,
+            cbd = self.chip.border,
+            ob = self.queue.open_border,
+            og = self.queue.open_bg,
+            nb = self.queue.next_border,
+            ng = self.queue.next_glow,
+            co = self.queue.closed_opacity,
+        )
+    }
+}
+
+/// Fallback when the live theme report cannot be built (missing sources).
+fn sprint_theme_css_fallback() -> String {
+    format!(
+        "--sprint:{SPRINT_ACCENT};--sprint-next:{SPRINT_NEXT_COLOR};--sprint-pill-bg:rgba(167, 139, 250, 0.2);--sprint-pill-border:rgba(167, 139, 250, 0.4);--sprint-pill-color:#d4c4ff;--sprint-chip-bg:rgba(167, 139, 250, 0.15);--sprint-chip-border:rgba(167, 139, 250, 0.3);--sprint-open-border:rgba(167, 139, 250, 0.35);--sprint-open-bg:rgba(167, 139, 250, 0.08);--sprint-next-border:{QUEUE_NEXT_BORDER};--sprint-next-glow:{QUEUE_NEXT_GLOW};--sprint-closed-op:0.55;"
+    )
+}
+
+/// `GET /api/ui/load-theme` — live sprint `:root` CSS (not a JS stub).
+pub fn sprint_theme_stylesheet(repo_root: &Path, data_dir: &Path) -> String {
+    let vars = match sprint_theme_report(repo_root, data_dir) {
+        Ok(r) => r.as_css_root(),
+        Err(_) => sprint_theme_css_fallback(),
+    };
+    format!(":root{{{vars}}}\n")
+}
+
 // ---------------------------------------------------------------------------
 // Sprint focus SVG (band 118): Rust-rendered galaxy map with the target sprint
 // highlighted and out-of-scope nodes/edges dimmed (legacy `sprint-dim`:
@@ -2315,6 +2352,11 @@ impl GalaxyPalette {
         vars.push(';');
         vars
     }
+}
+
+/// `GET /api/ui/load-palette` — live `:root` block from [`GalaxyPalette::legacy`].
+pub fn palette_stylesheet() -> String {
+    format!(":root{{{}}}\n", GalaxyPalette::legacy().as_css_root())
 }
 
 /// `GET /api/vision/palette` — full legacy Galaxy palette + revision context.
@@ -3306,6 +3348,15 @@ mod tests {
                 .map(|k| k.color.as_str()),
             Some("#90c490")
         );
+        let css = r.as_css_root();
+        assert!(css.contains("--sprint:#a78bfa;"), "{css}");
+        assert!(
+            css.contains("--sprint-pill-bg:rgba(167, 139, 250, 0.2);"),
+            "{css}"
+        );
+        let sheet = sprint_theme_stylesheet(&src, &data);
+        assert!(sheet.starts_with(":root{"));
+        assert!(sheet.contains("--sprint-closed-op:0.55;"));
         let _ = std::fs::remove_dir_all(&tmp);
     }
 
@@ -3506,6 +3557,9 @@ mod tests {
             assert!(css.contains(needle), "missing {needle}");
         }
         assert!(!css.contains("undefined"));
+        let sheet = palette_stylesheet();
+        assert!(sheet.starts_with(":root{"));
+        assert!(sheet.contains("--bg-deep:#06080f;"));
     }
 
     #[test]

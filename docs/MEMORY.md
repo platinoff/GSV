@@ -4,6 +4,13 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-17 · band 131 ✅)
+
+- **Band 131:** Rust shell — `GET /api/ui/layout` `html` (sidebar nav + `data-card-jump`); live `:root` CSS via `/api/ui/load-palette` + `/api/ui/load-theme` (stubs replaced); thin glue `<link>` + `loadLayout` uses `html`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.19%** (rust 13825 / product 14373) · **245** tests · clippy 0. Vision rev **498**.
+- **Канон продукту:** Rust **95–100%** / wasm **0–5%** (завжди), без Python/Java; bins — лише `src/bin/`.
+- **VDT kit:** GSV = точка входу (`.agents/skills/`, generic `.cursor/rules/`, `gsv.code-workspace`, [`PRODUCTS.md`](gsv/PRODUCTS.md)). `GSV_VDT_KIT.md` Status=Accepted.
+
 ## Стан (2026-08-17 · band 130 ✅)
 
 - **Band 130:** chrome shell — rss-ticker from `feed.feed.items`; starfield Eco/FX/Ms counts from `StarfieldMode`; galaxy src+opacity; header ticker via `/api/ui/card/rss-ticker`; layout `chrome` (7).
@@ -50,6 +57,13 @@
   (GSV_SERVER/GSV_BOXES/README/roadmap band 126) · ratio hold **96.87%** · **Vision rev 493**.
 
 ## Що зроблено
+
+### Band 131 (PH-S1949…S1958, ✅ 2026-08-17) — Rust shell: live palette/theme CSS + layout nav HTML
+- `render_nav` emits inner sidebar HTML with `data-card-jump` / `data-group`; `layout_wire` includes `html`.
+- `GET /api/ui/load-palette` → `GalaxyPalette::as_css_root` `:root` CSS (was hardcoded stub).
+- `GET /api/ui/load-theme` → `SprintThemeReport::as_css_root` `text/css` (was unused JS stub).
+- Thin glue: `<link rel="stylesheet" href="/api/ui/load-palette|load-theme">`; `loadLayout` uses `d.html`; JS CSS-var mappers removed.
+- Offline fallback: inline `:root` in `ui/index.html` remains.
 
 ### Band 130 (PH-S1939…S1948, ✅ 2026-08-17) — chrome shell: real wires + Rust RSS ticker
 - Chrome wires: rss-ticker reads `feed.feed.items` (was empty `feed.items`); starfield 48/160/96 from `StarfieldMode::star_count`; galaxy `/api/vision/galaxy.svg` + palette opacity; gpu default `fx`; power actions; empty client-owned dock.
