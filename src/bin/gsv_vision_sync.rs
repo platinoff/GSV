@@ -36,7 +36,7 @@ fn parse_args() -> (bool, Option<PathBuf>, Option<PathBuf>) {
 fn main() -> ExitCode {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let (check_only, root, data_dir) = parse_args();
-    let repo_root = root.unwrap_or(manifest_dir);
+    let repo_root = root.unwrap_or_else(|| manifest_dir.clone());
     let data = data_dir.unwrap_or_else(|| manifest_dir.join("data"));
 
     if check_only {
