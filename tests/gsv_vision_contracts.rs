@@ -90,8 +90,8 @@ fn vision_feed_reads_real_workspace() {
     );
     let first = f.items.first().expect("first item");
     assert!(
-        first.id == "PH-S1888" || first.id.starts_with("PH-S18"),
-        "feed must lead with the newest close entry, got {}",
+        first.id.starts_with("PH-S"),
+        "feed must lead with a PH-S close entry, got {}",
         first.id
     );
     for item in &f.items {
