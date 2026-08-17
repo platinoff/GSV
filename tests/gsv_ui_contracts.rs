@@ -90,9 +90,9 @@ async fn ui_card_ratio_renders_band_or_missing_store() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(json["ok"], true);
     let html = json["html"].as_str().expect("html");
-    // Without a stored rust_ratio.json the server renders the ok:false body
-    // (missing-store message); with one it renders the band summary.
-    if html.contains("missing rust_ratio.json") {
+    // Without a stored rust_ratio.json the server renders ok:false (read error);
+    // with one it renders the band summary.
+    if html.contains("rust_ratio.json") {
         assert!(html.contains("<span class='err'>"));
     } else {
         assert!(html.contains("Rust ratio"));
