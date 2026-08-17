@@ -4,6 +4,13 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-17 · band 129 ✅)
+
+- **Band 129:** canon live UI port **9999** (`live_ui_url`, feed/pointer retarget) · `CARD_NAMES` **30** (`preview`/`terminal`/`sprint-focus`) · `rustCards` 23 · sidebar chip jump.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.00%** (rust 13502 / product 14064) · **242** tests · clippy 0. Vision rev **496**.
+- **Канон продукту:** Rust **95–100%** / wasm **0–5%** (завжди), без Python/Java; bins — лише `src/bin/`.
+- **VDT kit:** GSV = точка входу (`.agents/skills/`, generic `.cursor/rules/`, `gsv.code-workspace`, [`PRODUCTS.md`](gsv/PRODUCTS.md)). `GSV_VDT_KIT.md` Status=Accepted.
+
 ## Стан (2026-08-17 · band 128 ✅)
 
 - **Band 128:** kit scripts (`check_target_disk`, `git-push-only`) + `gsv-speed-index` / `gsv-rust-diagnostics` + record wrappers · OpenCode AGENTS + `.opencode/package.json` · grouped Galaxy UI (`GET /api/ui/layout`, sidebar, 27 Rust cards, IDE preview) · GitHub `platinoff/GSV`.
@@ -36,6 +43,12 @@
   (GSV_SERVER/GSV_BOXES/README/roadmap band 126) · ratio hold **96.87%** · **Vision rev 493**.
 
 ## Що зроблено
+
+### Band 129 (PH-S1929…S1938, ✅ 2026-08-17) — canon port 9999 + dashboard card registry
+- `live_ui_url` (`DEFAULT_HOST`:`DEFAULT_PORT`) for feed samples; `docs/vision/feed.json` + pointer page retarget 8891 → 9999.
+- `CARD_NAMES` 30: `preview` / `terminal` / `sprint-focus` renderers + `card_wire`; layout cards ⊆ registry.
+- Thin glue: `data-card` + `rustCards` 23; sidebar chips `data-card-jump` set group + scroll.
+- `extensions.json` `active_sprint` catch-up (was stale PH-S1899 vs `manifest.next_sprint`).
 
 ### Band 128 (PH-S1919…S1928, ✅ 2026-08-17) — kit ops + grouped Galaxy UI
 - Kit scripts: `scripts/check_target_disk.sh`, `scripts/git-push-only.sh`, `bin/record-test-speed.sh`, `bin/record-rust-diagnostics.sh`, `bin/gsv-vision-sync.sh`.

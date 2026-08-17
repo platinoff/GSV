@@ -126,7 +126,7 @@ fn ui_helpers_match_js_semantics() {
     assert!(tab(&["a"], Vec::new()).contains("<span class='dim'>—</span>"));
     assert!(bar(50.0).contains("width:50%"));
     assert!(bar(120.0).contains("width:100%"));
-    assert_eq!(CARD_NAMES.len(), 27);
+    assert_eq!(CARD_NAMES.len(), 30);
 }
 
 #[tokio::test]
@@ -146,7 +146,7 @@ async fn ui_card_omni_renders_summary_providers_models() {
 
 /// The rustCards the thin JS glue fetches via `getText` (mirror of
 /// `rustCards` in `GSV/ui/index.html`).
-const RUST_CARDS: [&str; 20] = [
+const RUST_CARDS: [&str; 23] = [
     "health",
     "update",
     "tracker",
@@ -167,6 +167,9 @@ const RUST_CARDS: [&str; 20] = [
     "ide",
     "vision-sync",
     "doc-preview",
+    "preview",
+    "terminal",
+    "sprint-focus",
 ];
 
 #[test]
@@ -223,6 +226,24 @@ fn card_renderers_empty_state_contract() {
     )
     .expect("ratio");
     assert!(ratio.contains("ratio by-category — no data"), "{ratio}");
+
+    let preview =
+        render_card("preview", &serde_json::json!({ "ok": true, "path": "" })).expect("preview");
+    assert!(preview.contains("preview — no data"), "{preview}");
+
+    let terminal = render_card(
+        "terminal",
+        &serde_json::json!({ "ok": true, "whitelist": [] }),
+    )
+    .expect("terminal");
+    assert!(terminal.contains("terminal — no data"), "{terminal}");
+
+    let focus = render_card(
+        "sprint-focus",
+        &serde_json::json!({ "ok": true, "active_sprint": "" }),
+    )
+    .expect("sprint-focus");
+    assert!(focus.contains("sprint focus — no data"), "{focus}");
 }
 
 /// A11y contract: the served UI HTML carries axe-friendly markers — lang,
@@ -297,4 +318,14 @@ async fn ui_index_cards_are_offline_stable() {
         "offline-stable path in getText"
     );
     assert!(html.contains("innerHTML === \"…\""), "no-wipe guard");
+    assert!(
+        html.contains("\"preview\"")
+            && html.contains("\"terminal\"")
+            && html.contains("\"sprint-focus\""),
+        "rustCards includes layout ops/sprint cards"
+    );
+    assert!(
+        html.contains("data-card-jump"),
+        "sidebar chips jump to cards"
+    );
 }

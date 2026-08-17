@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-17 (band 128 **PH-S1919…S1928** ✅ · **horizon band 129** · kit ops + grouped Galaxy UI · VDT kit Accepted)
+**Оновлено:** 2026-08-17 (band 129 **PH-S1929…S1938** ✅ · **horizon band 130** · canon port 9999 + dashboard card registry · VDT kit Accepted)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -14,7 +14,7 @@
 project scan (**warnings first**) → drain наступного band (**без** mid-push) →
 Speeds · Rust panel → vision-sync → **один** commit → **`git push` + самарі**.
 
-Якщо **gsv:** черга — [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) **після band 128**.
+Якщо **gsv:** черга — [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) **після band 129**.
 Kit уже в дереві (`.cursor/rules/`, `.agents/skills/`, `gsv.code-workspace`).
 Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics.sh`. Disk: `bash scripts/check_target_disk.sh`.
 
@@ -150,7 +150,9 @@ Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics
   **band 128** (PH-S1919…S1928) ✅ — kit ops + grouped Galaxy UI: disk/git/speed/diagnostics
   scripts+bins; OpenCode AGENTS + `.opencode/package.json`; `GET /api/ui/layout` + sidebar
   groups; 27 Rust cards incl. health/update/ide/vision*; IDE jsonl preview; GitHub `platinoff/GSV`.
-  **Наступний band 129**: project scan у наступній сесії `абракадабра`.
+  **band 129** (PH-S1929…S1938) ✅ — canon port 9999 (`live_ui_url`, feed/pointer retarget) +
+  `CARD_NAMES` 30 (`preview`/`terminal`/`sprint-focus`) + `rustCards` 23 + sidebar chip jump.
+  **Наступний band 130**: project scan у наступній сесії `абракадабра`.
 
 ## Канон GSV
 
@@ -172,6 +174,7 @@ band 121 ✅ (GSV OmniRouter box parity) · band 125 ✅ (GSV Vision/UI polish �
 band 126 ✅ (GSV stand smoke + ops canon) ·
 band 127 ✅ (GSV VDT kit — точка входу) ·
 band 128 ✅ (kit ops + grouped Galaxy UI) ·
+band 129 ✅ (canon port 9999 + dashboard card registry) ·
 не комітити kit-only в PoolAI як «замість» GSV drain ·
 staging `GSV/data/*` / `certs/*.pem` /
 `.env` · mid-push · build/test при запущеному `gsv-server` · обхід ratio-смуги Rust-кодом замість compact UI ·

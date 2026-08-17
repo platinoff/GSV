@@ -1,6 +1,6 @@
 # PoolAI documentation vision
 
-> **DEACTIVATED (band 117, 2026-08-07):** legacy Galaxy UI (`index.html` + `vision.js`/`vision.css`) визнаний superseded (bands 115–116). `GSV/docs/vision/index.html` тепер — вказівник на GSV; `vision.js`/`vision.css` лишаються як canon-архів (**не видаляємо**), але більше не завантажуються. Живий UI: **GSV** — `gsv-server` → `http://127.0.0.1:8891/` · [`GSV/docs/VISION.md`](../VISION.md) · [`GSV/docs/LEGACY_PARITY.md`](../LEGACY_PARITY.md) · [`GSV_MIGRATION.md`](../gsv/GSV_MIGRATION.md).
+> **DEACTIVATED (band 117, 2026-08-07):** legacy Galaxy UI (`index.html` + `vision.js`/`vision.css`) визнаний superseded (bands 115–116). `GSV/docs/vision/index.html` тепер — вказівник на GSV; `vision.js`/`vision.css` лишаються як canon-архів (**не видаляємо**), але більше не завантажуються. Живий UI: **GSV** — `gsv-server` → `http://127.0.0.1:9999/` · [`GSV/docs/VISION.md`](../VISION.md) · [`GSV/docs/LEGACY_PARITY.md`](../LEGACY_PARITY.md) · [`GSV_MIGRATION.md`](../gsv/GSV_MIGRATION.md).
 
 Ізометрична карта зв’язків **доків ↔ код ↔ спринти** для ітераційної розробки (VDT). Оновлюється разом із закриттям PH-S* / змінами FM §5.11.
 
@@ -18,7 +18,7 @@
 
 ## Як відкрити в Cursor / браузері
 
-> **Live UI (band 117):** `gsv-server` → **`http://127.0.0.1:8891/`** · [`GSV_SERVER.md`](../gsv/GSV_SERVER.md) · [`GSV/docs/VISION.md`](../VISION.md). Нижче — застарілі інструкції для legacy-архіву: `GSV/docs/vision/index.html` тепер вказівник на GSV, `vision.js`/`vision.css` не завантажуються.
+> **Live UI (band 117):** `gsv-server` → **`http://127.0.0.1:9999/`** · [`GSV_SERVER.md`](../gsv/GSV_SERVER.md) · [`GSV/docs/VISION.md`](../VISION.md). Нижче — застарілі інструкції для legacy-архіву: `GSV/docs/vision/index.html` тепер вказівник на GSV, `vision.js`/`vision.css` не завантажуються.
 
 ### Помилка `Unable to resolve resource S:/rust/poolAI/...`
 

@@ -25,7 +25,7 @@ const ENV_BASE: &str = "GSV_BASE_URL";
 
 /// Card names backed by the Rust UI fragment renderers (`boxes::ui::CARD_NAMES`).
 /// Kept in sync via the `cards` contract test in `tests/gsv_stand_smoke_contracts.rs`.
-const CARDS: [&str; 27] = [
+const CARDS: [&str; 30] = [
     "tracker",
     "sli",
     "toolchain",
@@ -46,6 +46,9 @@ const CARDS: [&str; 27] = [
     "vision-map",
     "vision-sync",
     "doc-preview",
+    "preview",
+    "terminal",
+    "sprint-focus",
     "galaxy-backdrop",
     "starfield",
     "rss-ticker",
@@ -489,7 +492,7 @@ mod tests {
                 "card {card} missing from boxes/ui.rs CARD_NAMES"
             );
         }
-        assert_eq!(CARDS.len(), 27);
+        assert_eq!(CARDS.len(), 30);
     }
 
     #[test]

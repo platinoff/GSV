@@ -13,7 +13,7 @@
 | Sprint id / band | FM §5.12 |
 | Виконані команди | shell history / logs |
 | Тривалість кроків | timestamps |
-| LOC / files | `poolai-loc-audit` |
+| LOC / files | `gsv-loc-audit` |
 | Статус / ✅ | FM §5.12 |
 
 Rust модуль: `tracker/` → `gsv_tracker.json`.

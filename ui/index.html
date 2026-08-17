@@ -103,15 +103,15 @@ body.panel-fs-active .card{display:none!important}body.panel-fs-active .card.ful
   <section class="card" data-card="toolchain" data-group="ops"><h2>Toolchain <span class="hint">/api/toolchain</span></h2><div class="body" id="b-toolchain">…</div></section>
   <section class="card" data-card="ide" data-group="studio"><h2>IDE <span class="hint">/api/ide/sessions</span></h2><div class="body" id="b-ide">…</div></section>
   <section class="card" data-card="update" data-group="ops"><h2>Update <span class="hint">/api/update</span></h2><div class="body" id="b-update">…</div></section>
-  <section class="card" data-group="ops" data-id="preview"><h2>Box preview <span class="hint">/api/preview</span></h2><div class="body"><input id="pvFile" type="text" value="src/bin/gsv_server.rs" placeholder="repo-relative file"><br><br><button onclick="loadPreview()">Render</button><div id="b-preview" style="margin-top:8px"></div></div></section>
-  <section class="card" data-group="ops" data-id="terminal"><h2>SLI terminal <span class="hint">POST /api/terminal</span></h2><div class="body"><input id="termCmd" type="text" value="echo gsv" placeholder="whitelisted SLI command"><br><br><button onclick="runTerminal()">Run</button><pre class="out" id="b-terminal">…</pre></div></section>
+  <section class="card" data-card="preview" data-group="ops"><h2>Box preview <span class="hint">/api/preview</span></h2><div class="body"><input id="pvFile" type="text" value="src/bin/gsv_server.rs" placeholder="repo-relative file"><br><br><button onclick="loadPreview()">Render</button><div id="b-preview" style="margin-top:8px">…</div></div></section>
+  <section class="card" data-card="terminal" data-group="ops"><h2>SLI terminal <span class="hint">POST /api/terminal</span></h2><div class="body"><input id="termCmd" type="text" value="echo gsv" placeholder="whitelisted SLI command"><br><br><button onclick="runTerminal()">Run</button><pre class="out" id="b-terminal">…</pre></div></section>
   <section class="card" data-card="hooks-tests" data-group="ops"><h2>Tests hooks <span class="hint">/api/hooks/tests</span></h2><div class="body" id="b-hooks-tests">…</div></section>
   <section class="card" data-card="hooks-bench" data-group="ops"><h2>Bench hooks <span class="hint">/api/hooks/bench</span></h2><div class="body" id="b-hooks-bench">…</div></section>
   <section class="card" data-card="ratio" data-group="studio"><h2>Ratio <span class="hint">/api/ratio</span></h2><div class="body" id="b-ratio">…</div></section>
   <section class="card" data-card="vision" data-group="vision"><h2>Vision <span class="hint">/api/vision</span></h2><div class="body" id="b-vision">…</div></section>
   <section class="card" data-card="vision-map" data-group="vision"><h2>Vision Map <span class="hint">/api/vision/map · /assets/vision.svg</span></h2><div class="body" id="b-vision-map">…</div></section>
   <section class="card" data-card="sprint-map" data-group="sprint"><h2>Sprint Map <span class="hint">/api/vision/sprint-map</span></h2><div class="body" id="b-sprint-map">…</div></section>
-  <section class="card hero" data-group="sprint" data-id="sprint-focus"><h2>Sprint Focus <span class="hint">/api/vision/sprint-focus.svg</span></h2><div class="body"><input id="focusSprint" type="text" value="" placeholder="sprint id (default: active)"><br><br><button onclick="loadSprintFocus()">Show focus</button><img id="i-sprint-focus" src="/api/vision/sprint-focus.svg" alt="sprint focus map" style="display:block;width:100%;margin-top:6px;border:1px solid var(--line);border-radius:8px;background:var(--panel2)"></div></section>
+  <section class="card hero" data-card="sprint-focus" data-group="sprint"><h2>Sprint Focus <span class="hint">/api/vision/sprint-focus.svg</span></h2><div class="body"><input id="focusSprint" type="text" value="" placeholder="sprint id (default: active)"><br><br><button onclick="loadSprintFocus()">Show focus</button><div id="b-sprint-focus" style="margin-top:8px">…</div><img id="i-sprint-focus" src="/api/vision/sprint-focus.svg" alt="sprint focus map" style="display:block;width:100%;margin-top:6px;border:1px solid var(--line);border-radius:8px;background:var(--panel2)"></div></section>
   <section class="card" data-card="doc-preview" data-group="vision"><h2>Doc Preview <span class="hint">/api/vision/doc-preview?id=</span></h2><div class="body"><input id="dpId" type="text" value="galaxy_grid" placeholder="node id"><br><br><button onclick="loadDocPreview()">Show</button><div id="b-doc-preview" style="margin-top:8px">…</div></div></section>
   <section class="card" data-card="vision-sync" data-group="vision"><h2>Vision Sync <span class="hint">/api/vision/sync</span></h2><div class="body"><button onclick="resyncVision()">Resync snapshot</button> <span id="b-vision-sync-status" class="dim" role="status" aria-live="polite">…</span><div id="b-vision-sync" style="margin-top:8px">…</div></div></section>
   <section class="card" data-card="sprint-queue" data-group="sprint"><h2>Sprint Queue <span class="hint">/api/vision/sprint-queue</span></h2><div class="body" id="b-sprint-queue">…</div></section>
@@ -184,7 +184,7 @@ async function loadLayout() {
     if (!d.ok) return;
     const nav = $("shellNav");
     nav.innerHTML = (d.groups || []).map(g => {
-      const chips = (g.cards || []).map(c => "<a href='#b-" + c + "'>" + esc(c) + "</a>").join("");
+      const chips = (g.cards || []).map(c => "<a href='#b-" + c + "' data-group='" + g.id + "' data-card-jump='" + c + "'>" + esc(c) + "</a>").join("");
       return "<button type='button' class='nav-tab' data-group='" + g.id + "'>" + esc(g.label) + "</button><div class='nav-chips'>" + chips + "</div>";
     }).join("");
     const want = (location.hash || "").replace("#", "") || (function(){ try { return localStorage.getItem("gsv.group"); } catch (e) { return ""; } })() || d.default_group || "sprint";
@@ -294,7 +294,7 @@ async function getText(card) {
     markStatus(e.message || "offline");
   }
 }
-const rustCards = ["health", "update", "tracker", "sli", "toolchain", "hooks-tests", "hooks-bench", "ratio", "vision", "vision-map", "sprint-map", "sprint-queue", "sprint-progress", "sprint-board", "speed-index", "rust-diagnostics", "omni", "ide", "vision-sync", "doc-preview"];
+const rustCards = ["health", "update", "tracker", "sli", "toolchain", "hooks-tests", "hooks-bench", "ratio", "vision", "vision-map", "sprint-map", "sprint-queue", "sprint-progress", "sprint-board", "speed-index", "rust-diagnostics", "omni", "ide", "vision-sync", "doc-preview", "preview", "terminal", "sprint-focus"];
 async function resync() {
   const results = await Promise.allSettled([refreshMeta(), refreshTrail(), ...rustCards.map(getText)]);
   const failed = results.filter(r => r.status === "rejected").length;
@@ -336,6 +336,8 @@ function connectSse() {
 document.addEventListener("click", (e) => {
   const tab = e.target.closest(".nav-tab[data-group]");
   if (tab) { e.preventDefault(); setGroup(tab.getAttribute("data-group")); return; }
+  const jump = e.target.closest("[data-card-jump]");
+  if (jump) { e.preventDefault(); const gid = jump.getAttribute("data-group"); if (gid) setGroup(gid); const el = $("b-" + jump.getAttribute("data-card-jump")); const card = el && el.closest(".card"); if (card) card.scrollIntoView({ block: "nearest" }); return; }
   const layer = e.target.closest("[data-map-layer]");
   if (layer) { toggleMapLayer(layer.getAttribute("data-map-layer")); return; }
   const act = e.target.closest("[data-action]");
@@ -350,7 +352,7 @@ document.addEventListener("click", (e) => {
     $("btnPower").setAttribute("aria-expanded", "false");
   }
 });
-window.addEventListener("hashchange", () => { const id = location.hash.replace("#", ""); if (id) setGroup(id); });
+window.addEventListener("hashchange", () => { const id = location.hash.replace("#", ""); if (id === "ops" || id === "vision" || id === "sprint" || id === "studio") setGroup(id); });
 loadLayout();resync();loadSprintTheme();loadGalaxyPalette();loadRssTicker();connectSse();
 setInterval(() => refreshMeta().catch(() => setOffline(true)), 30000);
 setInterval(() => { if (autoReload) resync(); }, 60000);

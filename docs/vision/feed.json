@@ -4,7 +4,7 @@
     {
       "category": "closed",
       "id": "PH-S1908",
-      "link": "http://127.0.0.1:8891/#b-sprint-board",
+      "link": "http://127.0.0.1:9999/#b-sprint-board",
       "published": "2026-05-28",
       "status": "closed",
       "summary": "ratio ≥96%; fmt/clippy/test; docs canon; vision-sync rev bump; push",
@@ -13,7 +13,7 @@
     {
       "category": "closed",
       "id": "PH-S1907",
-      "link": "http://127.0.0.1:8891/#b-sprint-board",
+      "link": "http://127.0.0.1:9999/#b-sprint-board",
       "published": "2026-05-28",
       "status": "closed",
       "summary": "poolai-vision-sync` rev bump (band 126); `--check` ok",
@@ -22,7 +22,7 @@
     {
       "category": "closed",
       "id": "PH-S1906",
-      "link": "http://127.0.0.1:8891/#b-sprint-board",
+      "link": "http://127.0.0.1:9999/#b-sprint-board",
       "published": "2026-05-28",
       "status": "closed",
       "summary": "FM §5.12 §5.107; `GSV/docs/vision/README.md`; poolAI HANDOFF/NEXT band 126",
@@ -31,7 +31,7 @@
     {
       "category": "closed",
       "id": "PH-S1905",
-      "link": "http://127.0.0.1:8891/#b-sprint-board",
+      "link": "http://127.0.0.1:9999/#b-sprint-board",
       "published": "2026-05-28",
       "status": "closed",
       "summary": "VISION.md` +band 126 (stand smoke); MEMORY band 126; GSV HANDOFF/NEXT band 126",
@@ -40,7 +40,7 @@
     {
       "category": "closed",
       "id": "PH-S1904",
-      "link": "http://127.0.0.1:8891/#b-sprint-board",
+      "link": "http://127.0.0.1:9999/#b-sprint-board",
       "published": "2026-05-28",
       "status": "closed",
       "summary": "gsv-loc-audit --stretch-96` green ≥96%; full GSV tests green; clippy 0",
@@ -49,7 +49,7 @@
     {
       "category": "closed",
       "id": "PH-S1903",
-      "link": "http://127.0.0.1:8891/#b-sprint-board",
+      "link": "http://127.0.0.1:9999/#b-sprint-board",
       "published": "2026-05-28",
       "status": "closed",
       "summary": "GSV/docs/gsv/GSV_SERVER.md` + `GSV/docs/gsv/GSV_BOXES.md` + README: stand smoke row + usage; `GSV/docs/gsv/GSV_TECH_ROADMAP.md` band 126",
@@ -58,7 +58,7 @@
     {
       "category": "closed",
       "id": "PH-S1902",
-      "link": "http://127.0.0.1:8891/#b-sprint-board",
+      "link": "http://127.0.0.1:9999/#b-sprint-board",
       "published": "2026-05-28",
       "status": "closed",
       "summary": "tests/gsv_stand_smoke_contracts.rs`: report shape (base_url/ok/passed/failed/cases) + exit-code logic + endpoint list",
@@ -67,7 +67,7 @@
     {
       "category": "closed",
       "id": "PH-S1901",
-      "link": "http://127.0.0.1:8891/#b-sprint-board",
+      "link": "http://127.0.0.1:9999/#b-sprint-board",
       "published": "2026-05-28",
       "status": "closed",
       "summary": "per-box checks (ok/error/empty-tolerant): `/api/health`, `/api/tracker`, `/api/sli`, `/api/toolchain`, `/api/ratio`, `/api/ui/card/{name}` (20), `/api/vision*`, `/api/omni/status",
@@ -76,7 +76,7 @@
     {
       "category": "closed",
       "id": "PH-S1900",
-      "link": "http://127.0.0.1:8891/#b-sprint-board",
+      "link": "http://127.0.0.1:9999/#b-sprint-board",
       "published": "2026-05-28",
       "status": "closed",
       "summary": "GSV/src/bin/gsv_http_stand_smoke.rs`: live HTTP smoke (health/tracker/sli/toolchain/ratio/ui-card/vision/omni), JSON-репорт + exit code",
@@ -85,7 +85,7 @@
     {
       "category": "closed",
       "id": "PH-S1899",
-      "link": "http://127.0.0.1:8891/#b-sprint-board",
+      "link": "http://127.0.0.1:9999/#b-sprint-board",
       "published": "2026-05-28",
       "status": "closed",
       "summary": "Define band 126 (GSV stand smoke + ops canon) у FM §5.107 + §5.12 header (master horizon)",
@@ -94,7 +94,7 @@
     {
       "category": "closed",
       "id": "PH-S1898",
-      "link": "http://127.0.0.1:8891/#b-sprint-board",
+      "link": "http://127.0.0.1:9999/#b-sprint-board",
       "published": "2026-05-28",
       "status": "closed",
       "summary": "MEMORY/HANDOFF/NEXT/VISION/roadmap band 125; FM ✅; vision-sync rev bump; push",
@@ -103,14 +103,14 @@
     {
       "category": "closed",
       "id": "PH-S1897",
-      "link": "http://127.0.0.1:8891/#b-sprint-board",
+      "link": "http://127.0.0.1:9999/#b-sprint-board",
       "published": "2026-05-28",
       "status": "closed",
       "summary": "gsv-loc-audit --stretch-96` green ≥96%; full GSV tests green; clippy 0",
       "title": "Ratio hold + tests"
     }
   ],
-  "link": "http://127.0.0.1:8891/",
+  "link": "http://127.0.0.1:9999/",
   "title": "PoolAI Vision Sprint Feed",
   "updated_at": "2026-05-28"
 }

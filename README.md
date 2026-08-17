@@ -85,7 +85,7 @@ export RUSTUP_TOOLCHAIN="stable-x86_64-pc-windows-gnu"
 cd /s/rust/GSV
 unset CARGO_TARGET_DIR
 cargo build --all-targets
-cargo test          # 230 tests (102 unit + contracts + omni + ratio + update + ui + vision + stand smoke)
+cargo test          # 242 tests (105 unit + contracts + omni + ratio + update + ui + vision + stand smoke)
 cargo clippy --all-targets   # 0 warnings/errors
 cargo run --bin gsv-loc-audit -- --stretch-96   # Rust/LOC ratio → data/rust_ratio.json (≥95%, stretch-96 ≥96%)
 cargo run --bin gsv-server -- --port 9999   # live smoke

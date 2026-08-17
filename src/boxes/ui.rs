@@ -1023,6 +1023,54 @@ pub fn render_vision_sync(d: &Value) -> String {
     )
 }
 
+/// Box preview status (file render stays on `GET /api/preview` via the shell).
+pub fn render_preview(d: &Value) -> String {
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let path = s(&d["path"]);
+    if path.is_empty() {
+        return empty_html("preview");
+    }
+    let ext = s(&d["extension"]);
+    let ext_bit = if ext.is_empty() {
+        String::new()
+    } else {
+        format!(" · {}", esc(&ext))
+    };
+    format!(
+        "<div class='dim'>preview <kbd>{}</kbd>{ext_bit}</div>",
+        esc(&path)
+    )
+}
+
+/// SLI terminal status (command run stays on `POST /api/terminal` via the shell).
+pub fn render_terminal(d: &Value) -> String {
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let n = arr(&d["whitelist"]).len();
+    if n == 0 {
+        return empty_html("terminal");
+    }
+    format!("<div class='dim'>whitelist {n} commands · POST /api/terminal</div>")
+}
+
+/// Sprint focus status (SVG stays on `GET /api/vision/sprint-focus.svg`).
+pub fn render_sprint_focus(d: &Value) -> String {
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let active = s(&d["active_sprint"]);
+    if active.is_empty() {
+        return empty_html("sprint focus");
+    }
+    format!(
+        "<div>focus <kbd>{}</kbd> · <span class='dim'>GET /api/vision/sprint-focus.svg</span></div>",
+        esc(&active)
+    )
+}
+
 /// Render a named card's body HTML, or `None` for an unknown card name.
 pub fn render_card(name: &str, d: &Value) -> Option<String> {
     match name {
@@ -1046,6 +1094,9 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
         "vision-map" => Some(render_vision_map(d)),
         "vision-sync" => Some(render_vision_sync(d)),
         "doc-preview" => Some(render_doc_preview(d)),
+        "preview" => Some(render_preview(d)),
+        "terminal" => Some(render_terminal(d)),
+        "sprint-focus" => Some(render_sprint_focus(d)),
         "galaxy-backdrop" => Some(render_galaxy_backdrop(d)),
         "starfield" => Some(render_starfield(d)),
         "rss-ticker" => Some(render_rss_ticker(d)),
@@ -1058,7 +1109,7 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
 }
 
 /// Server-rendered card names (stable contract for `/api/ui/card/:name`).
-pub const CARD_NAMES: [&str; 27] = [
+pub const CARD_NAMES: [&str; 30] = [
     "tracker",
     "sli",
     "toolchain",
@@ -1079,6 +1130,9 @@ pub const CARD_NAMES: [&str; 27] = [
     "vision-map",
     "vision-sync",
     "doc-preview",
+    "preview",
+    "terminal",
+    "sprint-focus",
     "galaxy-backdrop",
     "starfield",
     "rss-ticker",
@@ -1397,10 +1451,13 @@ mod tests {
         assert!(render_card("panel-dock", &d).is_some());
         assert!(render_card("fullscreen", &d).is_some());
         assert!(render_card("nope", &d).is_none());
-        assert_eq!(CARD_NAMES.len(), 27);
+        assert_eq!(CARD_NAMES.len(), 30);
         assert!(render_card("health", &d).is_some());
         assert!(render_card("ide", &d).is_some());
         assert!(render_card("vision", &d).is_some());
+        assert!(render_card("preview", &d).is_some());
+        assert!(render_card("terminal", &d).is_some());
+        assert!(render_card("sprint-focus", &d).is_some());
     }
 
     #[test]
@@ -1462,6 +1519,12 @@ mod tests {
             assert!(
                 seen.contains(name),
                 "functional card {name} missing from UI_GROUPS"
+            );
+        }
+        for id in &ids {
+            assert!(
+                CARD_NAMES.contains(id),
+                "layout card {id} missing from CARD_NAMES"
             );
         }
         let html = render_nav(DEFAULT_GROUP);

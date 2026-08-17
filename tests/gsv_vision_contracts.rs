@@ -1034,3 +1034,36 @@ fn vision_starfield_galaxy_svg_wires_render() {
     assert!(galaxy.contains("url(#g1)"));
     assert!(galaxy.contains("url(#g2)"));
 }
+
+#[test]
+fn vision_feed_source_links_use_canon_port() {
+    let raw = include_str!("../docs/vision/feed.json");
+    assert!(
+        !raw.contains(":8891"),
+        "feed.json still points at legacy port 8891"
+    );
+    assert!(
+        raw.contains(&format!(":{}", gsv::DEFAULT_PORT)),
+        "feed.json must use DEFAULT_PORT"
+    );
+}
+
+#[test]
+fn vision_pointer_page_uses_canon_port() {
+    let raw = include_str!("../docs/vision/index.html");
+    assert!(
+        !raw.contains("127.0.0.1:8891"),
+        "pointer page still links to legacy 8891"
+    );
+    assert!(
+        raw.contains(&format!("127.0.0.1:{}", gsv::DEFAULT_PORT)),
+        "pointer page must link to DEFAULT_PORT"
+    );
+}
+
+#[test]
+fn live_ui_url_uses_canon_host_port() {
+    assert_eq!(gsv::live_ui_url(""), "http://127.0.0.1:9999/");
+    assert_eq!(gsv::live_ui_url("#sprint"), "http://127.0.0.1:9999/#sprint");
+    assert!(!gsv::live_ui_url("#sprint").contains("8891"));
+}

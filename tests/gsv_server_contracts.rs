@@ -606,3 +606,20 @@ async fn post_errors_share_canonical_json_shape() {
     assert_eq!(chat_json["ok"], false, "chat json: {chat_json}");
     assert!(chat_json["error"].is_string(), "chat json: {chat_json}");
 }
+
+#[tokio::test]
+async fn ui_card_preview_terminal_sprint_focus_render() {
+    let (app, _state) = app();
+    for (name, needle) in [
+        ("preview", "preview"),
+        ("terminal", "whitelist"),
+        ("sprint-focus", "focus"),
+    ] {
+        let (status, json) = get(&app, &format!("/api/ui/card/{name}")).await;
+        assert_eq!(status, StatusCode::OK, "{name} status");
+        assert_eq!(json["ok"], true, "{name} ok: {json}");
+        let html = json["html"].as_str().unwrap_or("");
+        assert!(!html.is_empty(), "{name} empty html");
+        assert!(html.contains(needle), "{name} html: {html}");
+    }
+}

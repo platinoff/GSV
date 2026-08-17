@@ -19,7 +19,7 @@
 
 ## Зв’язок з PoolAI docs
 
-- Vision-UI-спадкоємець: **GSV** (`http://127.0.0.1:8891/`) — Rust-сервер з боксами; legacy [`GSV/docs/vision/index.html`](../vision/index.html) деактивований (band 117, 2026-08-07) — вказівник на GSV.
+- Vision-UI-спадкоємець: **GSV** (`http://127.0.0.1:9999/`) — Rust-сервер з боксами; legacy [`GSV/docs/vision/index.html`](../vision/index.html) деактивований (band 117, 2026-08-07) — вказівник на GSV.
 - Черга sprints: [`docs/catalog/FUNCTION_MANAGEMENT.md`](../../docs/catalog/FUNCTION_MANAGEMENT.md) §5.12 (band 102 ✅ · band 108 ✅ §5.89).
 - Концепт: [`docs/concept/poolAI_concept_root.txt`](../../docs/concept/poolAI_concept_root.txt) · [`docs/concept/POOLAI_GALAXY_GRID.md`](../../docs/concept/POOLAI_GALAXY_GRID.md).
 - Воркфлоу: [`docs/development/HANDOFF_NEW_SESSION.md`](../../docs/development/HANDOFF_NEW_SESSION.md) · [`docs/development/NEXT_SESSION_PROMPT.md`](../../docs/development/NEXT_SESSION_PROMPT.md).

@@ -4,7 +4,7 @@
 `GSV/docs/vision/extensions.json`) у Rust-бокс GSV. Bands 109–116 (PH-S1729…S1808, ✅);
 **band 117 (PH-S1809…S1818, ✅)** — legacy vision deactivation: `GSV/docs/vision/index.html` →
 GSV pointer page; `vision.js`/`vision.css` → DEACTIVATED banner (архів, не видаляємо);
-живий UI — `gsv-server` → `http://127.0.0.1:8891/`. **band 118 (PH-S1819…S1828, ✅)** —
+живий UI — `gsv-server` → `http://127.0.0.1:9999/`. **band 118 (PH-S1819…S1828, ✅)** —
 sprint UI migration: sprint theme wire (legacy `--sprint` palette) + Rust-rendered
 sprint focus SVG. **band 119 (PH-S1829…S1838, ✅)** — Galaxy UI full parity: full legacy
 `:root` palette wire (`GET /api/vision/palette`), Rust-rendered starfield/galaxy backdrop
@@ -23,6 +23,9 @@ Vision rev **492**; ratio **96.87%** ≥96% ✅.
 **band 126 (PH-S1899…S1908, ✅)** — GSV stand smoke + ops canon: `gsv-http-stand-smoke` bin
 (48 live checks: core boxes + vision* ok-gate + SVG status + 20 ui cards) +
 `gsv_stand_smoke_contracts` (6) + docs canon; Vision rev **493**; ratio **96.87%** ≥96% ✅.
+**band 129 (PH-S1929…S1938, ✅)** — canon port **9999** (`live_ui_url`, feed + pointer retarget from 8891)
++ dashboard card registry: `preview` / `terminal` / `sprint-focus` in `CARD_NAMES` (30) and `rustCards` (23);
+sidebar chips `data-card-jump`; Vision rev **496**.
 
 ## Що це
 

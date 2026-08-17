@@ -36,6 +36,15 @@ pub const DEFAULT_HOST: &str = "127.0.0.1";
 /// Default listen port.
 pub const DEFAULT_PORT: u16 = 9999;
 
+/// Canon live UI URL for feed items, pointer pages, and sample links.
+pub fn live_ui_url(fragment: &str) -> String {
+    if fragment.is_empty() {
+        format!("http://{DEFAULT_HOST}:{DEFAULT_PORT}/")
+    } else {
+        format!("http://{DEFAULT_HOST}:{DEFAULT_PORT}/{fragment}")
+    }
+}
+
 /// Build-time version of the GSV server binary.
 pub fn gsv_version() -> &'static str {
     env!("CARGO_PKG_VERSION")

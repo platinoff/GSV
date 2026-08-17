@@ -52,7 +52,7 @@ UI-картками `GSV/ui/index.html`. Документ — джерело і�
 **Band 117 (PH-S1809…S1818, ✅):** legacy deactivated — `GSV/docs/vision/index.html` переписаний у
 GSV pointer page; `vision.js`/`vision.css` отримали DEACTIVATED banner. Файли не видаляємо —
 `GSV/docs/vision/` лишається канон-джерелом (manifest/feed/extensions/speed_index/rust_diagnostics/
-vision.svg); живий UI — GSV (`gsv-server` → `http://127.0.0.1:8891/`).
+vision.svg); живий UI — GSV (`gsv-server` → `http://127.0.0.1:9999/`).
 
 **Band 119 (PH-S1829…S1838, ✅):** Galaxy UI full parity — повна legacy-палітра (`/api/vision/palette`),
 starfield + galaxy backdrop (Rust SVG), header chrome (RSS ticker / GPU mode / power menu), panel

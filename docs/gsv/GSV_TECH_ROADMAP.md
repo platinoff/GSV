@@ -13,6 +13,7 @@ band 121 (GSV OmniRouter box parity) **✅** · band 125 (GSV Vision/UI polish �
 band 126 (GSV stand smoke + ops canon) **✅** ·
 band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 128** (kit ops + grouped Galaxy UI) **✅** ·
+**band 129** (canon port 9999 + dashboard card registry) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -327,6 +328,21 @@ rules/skills; продукти (PoolAI, GSV-server, далі — нові Rust-�
 | **PH-S1926** | GitHub remote | `Cargo.toml` repository `platinoff/GSV`; `origin` + push at band close — **✅** |
 | **PH-S1927** | Chrome/a11y | power-menu click-outside; `aria-expanded`; layout contracts; hint names `record-test-speed.sh` / `record-rust-diagnostics.sh` — **✅** |
 | **PH-S1928** | Band close | fmt/clippy/test; loc-audit ≥96%; vision-sync; one commit + push — **✅** |
+
+## Спринти (band 129) — canon port 9999 + dashboard card registry ✅
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S1929** | Scope + queue | roadmap band 129; `extensions.json` `active_sprint` = `PH-S1929` (sync with `manifest.next_sprint`) — **✅** |
+| **PH-S1930** | Live UI URL | `live_ui_url` + `DEFAULT_PORT` 9999; sample feed links; `docs/vision/feed.json` + pointer page — **✅** |
+| **PH-S1931** | CARD_NAMES 30 | `preview` / `terminal` / `sprint-focus` renderers + registry (layout ⊆ CARD_NAMES) — **✅** |
+| **PH-S1932** | card_wire | preview/terminal wires; sprint-focus uses theme `active_sprint` (not summary) — **✅** |
+| **PH-S1933** | UI glue | `data-card` + `rustCards` 23; sidebar `data-card-jump` switches group + scroll — **✅** |
+| **PH-S1934** | Contracts | layout reverse; ui/server/vision port+card contracts; stand smoke CARDS 30 — **✅** |
+| **PH-S1935** | Docs canon | VISION/LEGACY_PARITY/SERVER/README/BOXES live port 9999; `/api/ui/layout` — **✅** |
+| **PH-S1936** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy — **✅** |
+| **PH-S1937** | vision-sync | `gsv-vision-sync` + `--check` — **✅** |
+| **PH-S1938** | Band close | tests green; MEMORY/HANDOFF/NEXT; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

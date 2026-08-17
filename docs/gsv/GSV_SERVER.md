@@ -8,7 +8,7 @@
 - Віддає static UI (спадкоємець деактивованого legacy `GSV/docs/vision/index.html` — band 117) + REST API боксів + події (SSE).
 - Працює як **self-contained server**: доки + метрики + бокs — все в одному Rust бінарнику.
 
-## Endpoints (план)
+## Endpoints
 
 | Метод | Шлях | Опис |
 |-------|------|------|
@@ -31,6 +31,8 @@
 | POST | `/api/omni/v1/chat/completions` | OpenAI-сумісний proxy (dry-run через `X-Omni-Dry-Run: 1`) |
 | POST | `/api/omni/test` | connectivity check провайдера (`GET {base}/models`) |
 | GET | `/api/health` | health-чек |
+| GET | `/api/ui/layout` | grouped IA (ops/vision/sprint/studio) + default group |
+| GET | `/api/ui/card/:name` | Rust-rendered card body HTML (`CARD_NAMES`) |
 | GET | `/events` | SSE: update · offline/online · metrics resync |
 
 ## Stand smoke (`gsv-http-stand-smoke`, band 126)
@@ -44,7 +46,7 @@ cargo run --manifest-path GSV/Cargo.toml --bin gsv-http-stand-smoke
 cargo run --manifest-path GSV/Cargo.toml --bin gsv-http-stand-smoke -- --base-url http://127.0.0.1:9999 --json
 ```
 
-- Перевіряє core boxes (`/api/health`, `/api/tracker`, `/api/sli`, `/api/toolchain`, `/api/update`, `/api/ratio`, `/api/omni/status`), усі `/api/vision*` (ok-гейт), SVG-ассети та **усі 27 зареєстрованих карток** `/api/ui/card/:name` (non-empty `html`).
+- Перевіряє core boxes (`/api/health`, `/api/tracker`, `/api/sli`, `/api/toolchain`, `/api/update`, `/api/ratio`, `/api/omni/status`), усі `/api/vision*` (ok-гейт), SVG-ассети та **усі 30 зареєстрованих карток** `/api/ui/card/:name` (non-empty `html`).
 - Layout: `GET /api/ui/layout` — 4 групи (ops / vision / sprint / studio), default `sprint`.
 - `ok`-гейт лише там, де wire має поле `ok` (vision*/ratio/health/cards); struct-wire endpoints (tracker/sli/toolchain/update/omni) — лише 200 + JSON (empty-tolerant).
 - Вихідний код: `GSV/src/bin/gsv_http_stand_smoke.rs`; контракти: `GSV/tests/gsv_stand_smoke_contracts.rs`.

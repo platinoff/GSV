@@ -481,7 +481,23 @@ async fn card_wire(state: &AppState, name: &str, id: Option<&str>) -> Result<Val
         "rust-diagnostics" => {
             crate::boxes::vision::wire_rust_diagnostics(&state.repo_root, &state.data_dir)
         }
-        "sprint-focus" => crate::boxes::vision::wire_summary(&state.repo_root, &state.data_dir),
+        "sprint-focus" => {
+            let theme = crate::boxes::vision::wire_sprint_theme(&state.repo_root, &state.data_dir);
+            json!({
+                "ok": theme.get("ok").cloned().unwrap_or(json!(true)),
+                "active_sprint": theme.get("active_sprint").cloned().unwrap_or(json!("")),
+                "error": theme.get("error").cloned().unwrap_or(Value::Null),
+            })
+        }
+        "preview" => json!({
+            "ok": true,
+            "path": "src/bin/gsv_server.rs",
+            "extension": "rs",
+        }),
+        "terminal" => json!({
+            "ok": true,
+            "whitelist": crate::boxes::terminal::WHITELIST,
+        }),
         "health" => health(state),
         "update" => json!(crate::boxes::update::wire(state)),
         "ide" => {
