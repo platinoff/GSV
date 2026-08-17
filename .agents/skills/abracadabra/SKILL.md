@@ -1,10 +1,11 @@
 ---
 name: abracadabra
 description: >-
-  Trigger word «абракадабра» starts a VDT drain session. FIRST ask the owner to
-  choose the product (poolai | gsv | …), THEN run project-scan → drain → one
-  commit + push. Host workspace is GSV (`S:\rust\GSV`). Use when the owner
-  literally writes «абракадабра» in a new session (Cursor or OpenCode).
+  Trigger word «абракадабра» starts a VDT drain session. FIRST discover products
+  from the live environment (workspace folders + sibling git repos), ask which
+  one to work with, THEN run project-scan → drain → one commit + push. Host
+  workspace is GSV (`S:\rust\GSV`). Use when the owner literally writes
+  «абракадабра» in a new session (Cursor or OpenCode).
 metadata:
   audience: gsv-vdt-kit
   clients: cursor-opencode
@@ -21,20 +22,64 @@ Do not assume the product is GSV just because the window is GSV.
 
 Kit split: [`docs/gsv/GSV_VDT_KIT.md`](../../../docs/gsv/GSV_VDT_KIT.md).
 
-## Step 0 — Choose the product (ALWAYS first)
+## Step 0 — Discover environment projects (ALWAYS first)
 
-When the owner writes `абракадабра`, **before anything else** ask which **product**
-to drain. Use the host question UI (one click):
+When the owner writes `абракадабра`, **before anything else** discover which
+projects are actually on this machine, then ask which one to work with.
+
+Do **not** hardcode a two-option `gsv | poolai` list. The question UI must show
+the projects the agent can see in the environment.
+
+### 0a. Scan (MSYS2 bash)
+
+```bash
+C:\msys64\usr\bin\bash.exe -lc '/s/rust/GSV/scripts/list-vdt-products.sh'
+```
+
+The script merges, in order:
+
+1. Folders in `gsv.code-workspace` (Cursor / OpenCode multi-root).
+2. Sibling **git** repos next to this kit (typically `S:/rust/*` with `.git`).
+3. This kit itself (`S:/rust/GSV`).
+
+Each row: `id`, `name`, `path`, `kind` (`rust` / `node` / `git` / `folder`),
+`registered` (`yes` if a row exists in [`docs/gsv/PRODUCTS.md`](../../../docs/gsv/PRODUCTS.md)).
+
+Example from this machine (changes when new repos appear):
+
+| id | name | path | kind | registered |
+|----|------|------|------|------------|
+| gsv | GSV | `S:/rust/GSV` | rust | yes |
+| poolai | poolAI | `S:/rust/poolAI` | rust | yes |
+| omniroute | omniroute | `S:/rust/omniroute` | node | no |
+
+If the script fails, fall back: read `gsv.code-workspace` + `ls` the parent of
+GSV for directories that contain `.git`. Still do **not** invent a fixed pair.
+
+### 0b. Ask (one click)
+
+Use the host question UI. One option **per discovered row**. Label format:
+
+`{name} — {path} ({kind} · registered|discovered)`
 
 - **Cursor:** `AskQuestion`
 - **OpenCode:** `question`
 
-| Option | Product tree | Canon docs | Flow |
-|--------|--------------|------------|------|
-| **gsv** | `S:\rust\GSV` (`src/`, `tests/`, `ui/`) | `docs/NEXT_SESSION_PROMPT.md`, `docs/GSV_ROLES.md`, `docs/gsv/GSV_TECH_ROADMAP.md` | S0 disk (GSV target) → scan warnings first → drain next band → Speeds + Rust panel → `gsv-vision-sync` → one commit (+ push if remote exists) |
-| **poolai** | `S:\rust\poolAI` | `S:/rust/poolAI/docs/development/NEXT_SESSION_PROMPT.md`, `FUNCTION_MANAGEMENT.md` §5.12 | S0 disk (PoolAI target) → project scan → drain FM §5.12 band → vision close → `cargo test-ci` → one commit + push |
+Prompt: **«Проєкти з цього середовища. З яким працюємо?»**
 
-New products: add a row to [`docs/gsv/PRODUCTS.md`](../../../docs/gsv/PRODUCTS.md), then add an option here.
+`PRODUCTS.md` is **enrichment** (HANDOFF, test command, ratio) — not the exclusive
+list. A discovered repo that is not registered is still a valid choice.
+
+### 0c. After the owner picks
+
+| Pick | What to do |
+|------|------------|
+| **registered** (`gsv`, `poolai`, …) | Use that row in PRODUCTS.md: HANDOFF, NEXT, test command, ratio. Then the product flow below. |
+| **discovered, not registered** | S0 disk + `git fetch` in **that** tree. Do **not** invent PH-S* / FM drain. Report kind (rust/node), ask whether to add a PRODUCTS.md row, or do a narrow owner-stated task in that repo. |
+
+New **registered** products: add a row to PRODUCTS.md (root, handoff, test, ratio).
+Discovery will pick them up automatically from disk / workspace; no need to
+hardcode options in this skill.
 
 ## gsv flow
 
@@ -68,5 +113,7 @@ Work with **absolute paths** under `S:/rust/poolAI` (this window’s default cwd
 ## See also
 
 - Kit: `docs/gsv/GSV_VDT_KIT.md`
+- Registry: `docs/gsv/PRODUCTS.md` (enrichment; discovery is `scripts/list-vdt-products.sh`)
+- MCP horizon: `docs/gsv/GSV_MCP_OPENBOT.md`
 - GSV: `docs/NEXT_SESSION_PROMPT.md`, `docs/GSV_ROLES.md`, `docs/gsv/GSV_TECH_ROADMAP.md`
 - PoolAI: `S:/rust/poolAI/docs/development/NEXT_SESSION_PROMPT.md`, `S:/rust/poolAI/docs/catalog/FUNCTION_MANAGEMENT.md`

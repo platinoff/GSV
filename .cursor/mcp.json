@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "gsv_mcp_openbot": {
+      "command": "cargo",
+      "args": ["run", "--quiet", "--bin", "gsv-mcp"],
+      "cwd": "S:/rust/GSV"
+    }
+  }
+}

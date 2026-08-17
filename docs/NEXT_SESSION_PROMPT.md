@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-17 (band 134 **PH-S1979…S1988** ✅ · **horizon band 135** · HTTP response hardening · VDT kit Accepted)
+**Оновлено:** 2026-08-17 (**band 135 `gsv_mcp_openbot` ✅**)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -9,13 +9,13 @@
 абракадабра
 ```
 
-**Порядок:** AskQuestion **gsv | poolai** (вікно GSV ≠ автоматично продукт GSV) →
+**Порядок:** `bash scripts/list-vdt-products.sh` → AskQuestion **на ці рядки** (вікно GSV ≠ автоматично продукт GSV) →
 **S0 диск** (`df -h /s` → `cargo clean` за потреби) →
 project scan (**warnings first**) → drain наступного band (**без** mid-push) →
 Speeds · Rust panel → vision-sync → **один** commit → **`git push` + самарі**.
 
-Якщо **gsv:** черга — [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) **після band 134**.
-Kit уже в дереві (`.cursor/rules/`, `.agents/skills/`, `gsv.code-workspace`).
+Якщо **gsv:** черга — [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) **після band 135**
+(project scan; MCP уже в дереві: `gsv-mcp` + `/mcp`).
 Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics.sh`. Disk: `bash scripts/check_target_disk.sh`.
 
 **⚠️ Зупинити `gsv-server` перед `cargo test`/`build`** (блокує `target/debug/gsv-server.exe`);
@@ -162,7 +162,9 @@ Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics
   terminal cargo/git allowlists, `/data/{file}` allowlist, preview canonicalize.
   **band 134** (PH-S1979…S1988) ✅ — HTTP response hardening: CSP / nosniff / DENY / no-store,
   POST body cap 256 KiB.
-  **Наступний band 135**: project scan у наступній сесії `абракадабра`.
+  **band 135** (PH-S1989…S1998) ✅ — `gsv_mcp_openbot`: `gsv-mcp` stdio + `GET`/`POST /mcp`;
+  box tools; auto-register `.mcp.json` / `.cursor/mcp.json` / `opencode.json`.
+  **Наступний band**: project scan у наступній сесії `абракадабра`.
 
 ## Канон GSV
 
@@ -190,6 +192,7 @@ band 131 ✅ (Rust shell — live CSS + layout nav HTML) ·
 band 132 ✅ (Rust header chrome HTML + node-search fragment) ·
 band 133 ✅ (localhost security — bind + CSRF + terminal + data allowlist) ·
 band 134 ✅ (HTTP response hardening — CSP / nosniff / no-store / POST 256 KiB) ·
+band 135 ✅ (`gsv_mcp_openbot` — stdio `gsv-mcp` + `/mcp`) ·
 не комітити kit-only в PoolAI як «замість» GSV drain ·
 staging `GSV/data/*` / `certs/*.pem` /
 `.env` · mid-push · build/test при запущеному `gsv-server` · обхід ratio-смуги Rust-кодом замість compact UI ·

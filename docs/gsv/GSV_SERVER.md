@@ -31,6 +31,8 @@
 | POST | `/api/omni/v1/chat/completions` | OpenAI-сумісний proxy (dry-run через `X-Omni-Dry-Run: 1`) |
 | POST | `/api/omni/test` | connectivity check провайдера (`GET {base}/models`) |
 | GET | `/api/health` | health-чек |
+| GET | `/mcp` | MCP discovery (`gsv_mcp_openbot` name + tool list) |
+| POST | `/mcp` | MCP JSON-RPC (initialize / tools/list / tools/call); stdio twin is `gsv-mcp` |
 | GET | `/api/ui/layout` | grouped IA (ops/vision/sprint/studio) + `chrome` (8) + `html` (sidebar nav) + `header` (GPU/Auto/Power) |
 | GET | `/api/ui/card/:name` | Rust-rendered card body HTML (`CARD_NAMES`) |
 | GET | `/api/ui/load-palette` | live Galaxy `:root` CSS (`GalaxyPalette::as_css_root`) |

@@ -26,7 +26,7 @@ unset CARGO_TARGET_DIR
 
 Trigger skill: `.agents/skills/abracadabra/`. Вікно GSV ≠ автоматично drain GSV.
 
-1. AskQuestion: **gsv** | **poolai** (реєстр розшириться).
+1. `bash scripts/list-vdt-products.sh` → AskQuestion / `question` on **those** environment projects (not a hardcoded `gsv | poolai` pair).
 2. S0 disk for **that** product → `git fetch` → its HANDOFF.
 3. Drain next band (GSV: `docs/gsv/GSV_TECH_ROADMAP.md`; PoolAI: FM §5.12).
 4. If **gsv:** stop `gsv-server` before `cargo test` / `cargo build` (locks `target/debug/gsv-server.exe`).

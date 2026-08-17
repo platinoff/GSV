@@ -4,6 +4,26 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-17 · band 135 ✅)
+
+- **Band 135:** `gsv_mcp_openbot` — `src/mcp.rs` + `gsv-mcp` stdio JSON-RPC (NDJSON) +
+  `GET`/`POST /mcp` on `gsv-server`. Tools wrap health/tracker/ratio/sli/toolchain/vision/omni/ide/terminal.
+  Omni chat defaults to dry-run. Terminal = HTTP SLI allowlist (no extra shell). Secrets redacted.
+  Auto-register: `.mcp.json`, `.cursor/mcp.json`, `opencode.json`. Grok Bot stays a client;
+  public `/mcp` tunnel is owner opt-in.
+- **VDT kit:** `абракадабра` Step 0 still `scripts/list-vdt-products.sh` (environment, not hardcoded pair).
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.01%** (rust 15414 / product 16055) · **289** tests · clippy 0. Vision rev **502**.
+- **Канон продукту:** Rust **95–100%** / wasm **0–5%** (завжди), без Python/Java; bins — лише `src/bin/`.
+
+## Стан (2026-08-17 · kit env-discover + MCP plan · band 134 ✅)
+
+- **`абракадабра` Step 0:** `scripts/list-vdt-products.sh` → AskQuestion на проєкти з environment (workspace + git-сусіди), не hardcoded `gsv | poolai`. `PRODUCTS.md` = enrichment.
+- **README:** OmniRouter-style presentations (`docs/assets/presentations/`) + GitHub Sponsors (`platinoff`) + MIT LICENSE + `.github/FUNDING.yml`.
+- **Horizon band 135:** [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md) — GSV owns MCP `gsv_mcp_openbot`; OpenCode / Cursor / Grok CLI / Grok Bot = clients. **Не реалізовано.**
+- **Ratio / тести:** last measured band 134 — `gsv-loc-audit --stretch-96` → **96.34%** · **261** tests · clippy 0. Vision rev **501**.
+- **Канон продукту:** Rust **95–100%** / wasm **0–5%** (завжди), без Python/Java; bins — лише `src/bin/`.
+- **VDT kit:** GSV = точка входу (`.agents/skills/`, generic `.cursor/rules/`, `gsv.code-workspace`, [`PRODUCTS.md`](gsv/PRODUCTS.md)). `GSV_VDT_KIT.md` Status=Accepted.
+
 ## Стан (2026-08-17 · band 134 ✅)
 
 - **Band 134:** HTTP response hardening — CSP / nosniff / `X-Frame-Options: DENY` / `Cache-Control: no-store` / COOP+CORP on every reply; POST body cap 256 KiB → 413 `{ok:false}`.

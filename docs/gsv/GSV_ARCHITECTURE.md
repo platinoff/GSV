@@ -37,6 +37,7 @@
 | `tracker/` | зберігання параметрів виконаного workflow (JSON store) |
 | `ide/` | читання opencode/cursor чатів; вибір сесії |
 | `update/` | перевірка оновлення бінарника; сигнал «Update»; offline resync |
+| `mcp/` | `gsv_mcp_openbot` JSON-RPC (stdio `gsv-mcp` + `POST /mcp`) |
 
 ### UI (тонкий JS glue)
 
@@ -65,4 +66,4 @@
 
 ## Порядок реалізації (коротко)
 
-Повний порядок зі спринтами — [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md). Логіка: **docs/architecture → server scaffold → SLI console + Tracker → Toolchain → IDE → Update/offline → Preview + SLI terminal → Tests/bench hooks → band close**.
+Повний порядок зі спринтами — [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md). Логіка: **docs/architecture → server scaffold → SLI console + Tracker → Toolchain → IDE → Update/offline → Preview + SLI terminal → Tests/bench hooks → band close**. MCP: [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) (band 135 ✅).

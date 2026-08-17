@@ -8,7 +8,7 @@ alwaysApply: true
 | Role | Who | Responsibility |
 |------|-----|----------------|
 | **Owner** | Human | Vision, BLOCKED/Deferred, final push if they want it |
-| **Orchestrator** | Main agent (Cursor or OpenCode) | `абракадабра`: AskQuestion product → S0 disk → scan → drain → one commit + push + summary |
+| **Orchestrator** | Main agent (Cursor or OpenCode) | `абракадабра`: scan env → AskQuestion product → S0 disk → scan → drain → one commit + push + summary |
 | **Subagents** | Task tool | Narrow tasks; results return to orchestrator |
 
 **Do not delegate:** final `git push`, closing the sprint journal, updating NEXT_SESSION, amend after push.

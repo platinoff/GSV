@@ -19,6 +19,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 132** (Rust header chrome HTML + node-search fragment) **✅** ·
 **band 133** (localhost security: bind + CSRF + terminal + data allowlist) **✅** ·
 **band 134** (HTTP response hardening: CSP / nosniff / no-store + POST body cap) **✅** ·
+**band 135** (gsv_mcp_openbot — MCP for OpenCode / Cursor / Grok Bot) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -429,6 +430,26 @@ Owner 2026-08-17: after bind/CSRF, `gsv-server` still shipped HTML/JSON with no 
 | **PH-S1987** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy — **✅** |
 | **PH-S1988** | Band close | tests green; vision-sync; one commit + push — **✅** |
 
+## Спринти (band 135) — `gsv_mcp_openbot` ✅
+
+Owner 2026-08-17: research (Grok Bot + OpenCode + Cursor MCP) → GSV **owns** one MCP
+server; those products stay **clients**. Canon: [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md).
+
+Do **not** embed Grok Bot’s cloud computer or fork OpenCode into `gsv-server`.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S1989** | Scope + queue | this band; `extensions.json` `active_sprint` = `PH-S1989`; MCP doc stays Planned — **✅** |
+| **PH-S1990** | `gsv-mcp` bin stdio | `src/bin/gsv_mcp.rs`; MCP initialize + tools/list; shares `gsv` lib — **✅** |
+| **PH-S1991** | Tool wrap (read) | `gsv_health` / `gsv_tracker` / `gsv_ratio` / `gsv_sli` / `gsv_toolchain` — **✅** |
+| **PH-S1992** | Tool wrap (vision + omni) | vision manifest/feed/queue; `gsv_omni_chat` via OmniRouter; secrets redacted — **✅** |
+| **PH-S1993** | Terminal + IDE tools | same SLI allowlist as HTTP; `gsv_ide_sessions` read-only — **✅** |
+| **PH-S1994** | Auto-register | `.mcp.json` + `.cursor/mcp.json` + `opencode.json` `mcp.gsv_mcp_openbot` — **✅** |
+| **PH-S1995** | Optional HTTP `/mcp` | Streamable HTTP on loopback only; `--allow-lan` required off-loopback — **✅** |
+| **PH-S1996** | Contracts | MCP initialize/tools tests; no extra shell; loc-audit still ≥96% — **✅** |
+| **PH-S1997** | Docs | SERVER/BOXES/ARCHITECTURE + README MCP row; Grok Bot = client (tunnel = owner opt-in) — **✅** |
+| **PH-S1998** | Band close | fmt/clippy/test; vision-sync; one commit + push — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.
@@ -449,4 +470,5 @@ Owner 2026-08-17: after bind/CSRF, `gsv-server` still shipped HTML/JSON with no 
 - Сервер: [`GSV_SERVER.md`](./GSV_SERVER.md)
 - Архітектура: [`GSV_ARCHITECTURE.md`](./GSV_ARCHITECTURE.md)
 - Міграція: [`GSV_MIGRATION.md`](./GSV_MIGRATION.md)
+- MCP horizon: [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md)
 - FM §5.12 band 102: [`../../docs/catalog/FUNCTION_MANAGEMENT.md`](../../docs/catalog/FUNCTION_MANAGEMENT.md)

@@ -12,9 +12,10 @@ alwaysApply: true
 
 ## Коли власник пише `абракадабра`
 
-1. **Спочатку** спитати який продукт дренити (`AskQuestion` / `question`): **poolai** | **gsv** (реєстр розшириться).
-2. Не підміняти вибір «ми вже в GSV, отже лише GSV» — GSV-вікно ≠ обов’язково GSV-продукт.
-3. Далі — скіл [`.agents/skills/abracadabra/`](../../.agents/skills/abracadabra/SKILL.md).
+1. **Спочатку** `bash scripts/list-vdt-products.sh` — проєкти з **environment** (workspace + git-сусіди під `S:/rust`), не захардкоджені `gsv | poolai`.
+2. `AskQuestion` / `question`: один пункт на кожен рядок скану. `PRODUCTS.md` лише збагачує зареєстровані.
+3. Не підміняти вибір «ми вже в GSV, отже лише GSV» — GSV-вікно ≠ обов’язково GSV-продукт.
+4. Далі — скіл [`.agents/skills/abracadabra/`](../../.agents/skills/abracadabra/SKILL.md).
 
 ## Shared vs product
 

@@ -1,27 +1,32 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-08-17 (band 134 **PH-S1979…S1988** ✅ · HTTP response hardening · VDT kit Accepted · ratio hold · vision rev bump)
+**Оновлено:** 2026-08-17 (band 135 `gsv_mcp_openbot` ✅)
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
-**`абракадабра`** → **AskQuestion: gsv | poolai** → S0 диск/git → project scan (warnings first) →
+**`абракадабра`** → `scripts/list-vdt-products.sh` → **AskQuestion на проєкти з environment**
+(не `gsv | poolai` з голови) → S0 диск/git → project scan (warnings first) →
 drain ≤10 PH-S* → Speeds + Rust panel (`bin/record-test-speed.sh` + `bin/record-rust-diagnostics.sh`) → vision-sync → **один commit** → **`git push` + самарі**.
 
-Якщо вибір **gsv:** horizon = наступний band у [`gsv/GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md)
-після 134. Канон ролей: [`GSV_ROLES.md`](GSV_ROLES.md). Реєстр: [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
-Kit: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md).
+Якщо вибір **gsv:** project scan у [`gsv/GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md)
+(наступний band після 135). MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+Канон ролей: [`GSV_ROLES.md`](GSV_ROLES.md). Реєстр: [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
 
 ## Стан зараз
 
-- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–133 · **134 ✅**.
+- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–134 · **135 ✅**.
+- **Band 135:** `gsv_mcp_openbot` — `gsv-mcp` stdio JSON-RPC + `GET`/`POST /mcp`; tools wrap boxes;
+  auto-register `.mcp.json` / `.cursor/mcp.json` / `opencode.json`; Omni dry-run default;
+  terminal = HTTP allowlist; Grok Bot = client (tunnel = owner opt-in).
 - **Band 134:** HTTP response hardening — CSP / nosniff / DENY / no-store / COOP+CORP; POST 256 KiB cap → 413 `{ok:false}`.
-- **Band 133:** localhost security — `--allow-lan`; CSRF POST gate; terminal cargo/git allowlists; `/data/{file}` allowlist; preview canonicalize.
 - **VDT kit (band 127):** shared `.agents/skills/` + generic `.cursor/rules/` + `gsv.code-workspace` + `PRODUCTS.md`.
-- **Ratio:** `cargo run --bin gsv-loc-audit -- --stretch-96` → **96.34%** (rust 14498 / product 15049, gate ≥95% ✅, stretch-96 ≥96% ✅) → `GSV/data/rust_ratio.json`.
-- **Тести:** `cargo test` → **261** green · **clippy 0** · **fmt clean**.
+  Discover: `scripts/list-vdt-products.sh` (не hardcoded `gsv | poolai`).
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.01%** (rust 15414 / product 16055) · **289** green · clippy 0 · fmt clean.
 - **Сервер:** canon порт **9999** (`DEFAULT_PORT`; 8765 — Hyper-V reserved range).
+- **Vision rev:** **502** (band 135 `gsv-vision-sync`).
+- **Live UI** — `gsv-server` → `http://127.0.0.1:9999/`. MCP stdio — `cargo run --quiet --bin gsv-mcp`.
+- **Band 133:** localhost security — `--allow-lan`; CSRF POST gate; terminal cargo/git allowlists; `/data/{file}` allowlist; preview canonicalize.
 - **FM:** band 127 = PoolAI FM §5.108 (PH-S1909…S1918 ✅). Master horizon poolAI: band 128.
 - **Vision rev:** **501** (band 134 `gsv-vision-sync`).
-  Live UI — `gsv-server` → `http://127.0.0.1:9999/`.
 - **poolAI ratio:** **95.04%** (advisory hold, `--ratio96-docs-canon --advisory --min-ratio 0.95`).
 
 ### Історія боксів (bands 109–126)

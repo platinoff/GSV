@@ -1,132 +1,217 @@
-# GSV — Galaxy StarWalker Vision (окремий проєкт)
+<p align="center">
+  <img src="docs/assets/presentations/gsv-hero.png" alt="GSV — Galaxy StarWalker Vision" width="100%">
+</p>
 
-**Корінь:** `S:\rust\GSV` (sibling PoolAI, не підтека). Самостійний Rust-first git-репозиторій. Працює **95–100% на Rust**, **0–5% WebAssembly** (завжди), UI — тонкий JS/DOM glue у `ui/` (без Python).
+<p align="center">
+  <a href="https://github.com/platinoff/GSV/stargazers"><img src="https://img.shields.io/github/stars/platinoff/GSV?style=social" alt="Stars"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-yellow.svg" alt="MIT"></a>
+  <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/rust-95%E2%80%93100%25-orange?logo=rust" alt="Rust 95–100%"></a>
+  <a href="https://github.com/sponsors/platinoff"><img src="https://img.shields.io/badge/sponsor-GitHub-ea4aaa?logo=github-sponsors" alt="Sponsor"></a>
+  <img src="https://img.shields.io/badge/live_UI-127.0.0.1%3A9999-22d3ee" alt="Live UI port 9999">
+</p>
 
-**Версія:** v0.1.0 · **Стан:** band 134 реалізовано (HTTP response hardening ✅ `PH-S1979…S1988`) · bands 102+108…133 ✅. Відкривати Cursor на **цьому** корені (`gsv.code-workspace`).
+<h1 align="center">GSV — Galaxy StarWalker Vision</h1>
 
-## Суть
+<p align="center">
+  <b>Rust-first vision server</b> for the work you already do: sprints, SLI, toolchain, ratio, and an OmniRouter AI proxy — plus the VDT kit that asks <i>which project on this machine</i> before it drains.
+</p>
 
-Окремий **bin/exe сервер** «Galaxy StarWalker Vision» (`gsv-server`) на Rust, який:
+<p align="center">
+  <a href="#-quick-start">Quick start</a> ·
+  <a href="#-presentations">Presentations</a> ·
+  <a href="#-boxes">Boxes</a> ·
+  <a href="#-omnirouter">OmniRouter</a> ·
+  <a href="#-абракадабра">абракадабра</a> ·
+  <a href="#-support--donate">Donate</a>
+</p>
 
-1. Віддає vision UI (доки ↔ код ↔ спринти) — спадкоємець `GSV/docs/vision/index.html`.
-2. Виконує **бокси GSV** (панелі/можливості):
-   - **Tracker** — технічні параметри виконаного workflow (спринти, команди, часи).
-   - **SLI console** — які команди використовуються + усі SLI-функції, які можна створити з наявних скриптів (+ нові).
-   - **Toolchain** — які тулси використовуються (rustc/cargo/clippy/MSYS2/…).
-   - **IDE** — портовані opencode + cursor чати; вибір, з чим працювати.
-   - **Update** — якщо запущено bin-версію, сервер приймає **повідомлення про апдейт** (перекомпіляція → у UI «Update» замість reload); вебсторінка **не падає при офлайн**; після реконекту всі метрики синхронізуються.
-   - **Box preview** — Rust-кольори відповідно до синтаксису.
-   - **SLI terminal** — щоб AI міг посилати команди.
-   - **Rust tests / benchmarks hook** — запуск без перекомпіляції.
-   - **Ratio** — Rust/LOC ratio аудит (Rust 95–100%), `gsv-loc-audit` → `GSV/data/rust_ratio.json`, live `GET /api/ratio`.
-   - **OmniRouter** — Rust AI-проксі/роутер за каталогом «AI providers» (Aug 2026): рекомендований список GPT 5.2 · GPT 5.2 Codex · Claude Opus 4.5 · Claude Sonnet 4.5 · Gemini 3 Pro · MiniMax M2.1 + китайські (DeepSeek V4, Kimi K3, GLM-4.6, Qwen3 Coder) та free-хости (OpenRouter, Groq, Cerebras, NVIDIA, Hugging Face). OpenAI-сумісний proxy (`/api/omni/v1/chat/completions`), каталог моделей з токен-вікнами зі шіта, конфіг `GSV/data/omni.toml` (redacted у UI).
-3. Дотримується правила: **Rust-only** для runtime/API/ML/tools; bins — лише Rust (`src/bin/`), жодного Python/Java.
+---
 
-## Структура
+## Why GSV
 
-```
-GSV/
-├── README.md            ← цей файл (архітектура / entry)
-├── Cargo.toml           ← gsv package (workspace members=["."]; bins: gsv-server, gsv-loc-audit, gsv-vision-sync, gsv-http-stand-smoke)
-├── .cargo/config.toml   ← [build] target-dir="target"
-├── src/
-│   ├── bin/
-│   │   ├── gsv_server.rs        ← exe/bin «Galaxy StarWalker Vision» (CLI --host/--port/--repo-root/--data-dir)
-│   │   ├── gsv_loc_audit.rs     ← Rust/LOC ratio audit bin (→ GSV/data/rust_ratio.json, --min-ratio/--advisory/--stretch-96)
-│   │   ├── gsv_vision_sync.rs   ← vision manifest/feed/extensions sync bin
-│   │   └── gsv_http_stand_smoke.rs ← live HTTP stand smoke (48 checks, JSON report, exit code; band 126)
-│   ├── lib.rs           ← модулі (app_error, boxes, server, state, tracker, vision)
-│   ├── app_error.rs     ← AppError (Display + From + IntoResponse JSON)
-│   ├── state.rs         ← AppState (tracker, ide_selection, update_flag, events broadcast)
-│   ├── tracker.rs       ← TrackerStore + FM §5.12 sprint snapshot parse
-│   ├── vision.rs        ← RFC3339 timestamps, git_head, vision JSON read
-│   ├── server/mod.rs    ← router (/, /api/*, /events SSE)
-│   └── boxes/
-│       ├── mod.rs
-│       ├── sli.rs       ← SLI каталог з bin/ + scripts/ + src/bin/
-│       ├── toolchain.rs ← інвентар тулсів
-│       ├── ide.rs       ← opencode + cursor сесії
-│       ├── update.rs    ← pending rebuild detection
-│       ├── preview.rs   ← Rust syntax highlight + traversal guard
-│       ├── terminal.rs  ← whitelist + injection guard
-│       ├── hooks.rs     ← tests/bench (read-only target/ + rust_diagnostics)
-│       ├── ratio.rs     ← LOC ratio audit + wire (Rust 95–100% band)
-│       └── omni/        ← OmniRouter: catalog.rs (providers/models зі шіта),
-│                          config.rs (omni.toml + env overrides),
-│                          proxy.rs (OpenAI-сумісний chat completions / models)
-├── ui/index.html        ← single-page UI (SSE, offline/update/resync)
-├── tests/
-│   ├── gsv_server_contracts.rs  ← 34 integration tests
-│   ├── gsv_omni_contracts.rs    ← 8 OmniRouter integration tests
-│   ├── gsv_ratio_contracts.rs   ← 7 ratio box integration tests
-│   ├── gsv_update_flow.rs       ← 8 update/SSE tests
-│   ├── gsv_ui_contracts.rs      ← 12 UI fragment tests
-│   ├── gsv_vision_contracts.rs  ← 55 vision tests
-│   └── gsv_stand_smoke_contracts.rs ← 6 stand smoke contracts (band 126)
-└── data/                ← gsv_tracker.json, omni.toml, rust_ratio.json (durable stores, gitignored)
+GSV is a standalone crate (`S:\rust\GSV`, sibling of PoolAI — not a subfolder). Runtime, API, and boxes are **Rust**. The UI is thin HTML/CSS/JS glue. No Python product files. No Java.
+
+| | |
+|---|---|
+| **Live dashboard** | `gsv-server` → [http://127.0.0.1:9999/](http://127.0.0.1:9999/) (SSE, offline-safe, Update instead of reload) |
+| **Ratio gate** | `gsv-loc-audit --stretch-96` — Rust **95–100%** (stretch ≥96%) |
+| **VDT entry** | Open this folder in Cursor / OpenCode, type `абракадабра` — the agent lists **environment projects**, then asks which one to work with |
+| **MCP** | [`gsv_mcp_openbot`](docs/gsv/GSV_MCP_OPENBOT.md) — one MCP server for OpenCode, Cursor, Grok CLI, and Grok Bot |
+
+```mermaid
+flowchart LR
+  Owner[Owner] --> Ask[абракадабра]
+  Ask --> Scan[list-vdt-products]
+  Scan --> Pick[AskQuestion: env projects]
+  Pick --> Drain[S0 → scan → band]
+  Drain --> GSV[gsv-server :9999]
+  GSV --> UI[Galaxy UI]
+  GSV --> Omni[OmniRouter]
+  GSV --> MCP[gsv_mcp_openbot]
 ```
 
-Канонічна документація проєкту — `GSV/docs/gsv/` (див. нижче).
+---
 
-## Правила (канон з AGENTS.md)
+## 🎬 Presentations
 
-- **Rust-only** runtime/API/ML/RAID/VM/tools. Python заборонено (0× `.py`). Java немає.
-- Бinaries — лише `src/bin/` (`cargo run --bin …`).
-- UI — vanilla HTML+CSS+JS у `ui/`; WASM — лише горизонт (0–5%).
-- Термінал — MSYS2 bash (не PowerShell) для `cargo`/`git`.
-- Rust стиль: `AppError`, `?`, без `unwrap()`/`expect()` у продукті, `Arc<RwLock<T>>`, `tokio`, `tracing`, модулі через `mod.rs`.
+Click a tile. These are the product shots for GitHub — the live UI is still the server on port **9999**.
 
-## Збірка / тести
+<p align="center">
+  <a href="docs/assets/presentations/gsv-galaxy-ui.png">
+    <img src="docs/assets/presentations/gsv-galaxy-ui.png" alt="Galaxy UI presentation" width="48%">
+  </a>
+  <a href="docs/assets/presentations/gsv-boxes.png">
+    <img src="docs/assets/presentations/gsv-boxes.png" alt="GSV boxes presentation" width="48%">
+  </a>
+</p>
 
-```
-# з кореня цього репо (S:/rust/GSV; unset CARGO_TARGET_DIR):
-export PATH="/c/Users/${USER}/.cargo/bin:$HOME/.cargo/bin:/ucrt64/bin:/usr/bin:$PATH"
+| Tile | What you are looking at |
+|------|-------------------------|
+| **Hero** | Vision dashboard + sprint board + 96% ratio ring + OmniRouter |
+| **Galaxy UI** | Sidebar, RSS ticker, node map, sprint + speed chrome |
+| **Boxes** | Tracker · SLI · Toolchain · IDE · OmniRouter · Ratio · Vision Map · Update · Terminal |
+
+Made a walkthrough of GSV? Open an [issue](https://github.com/platinoff/GSV/issues) with the link and we will hang it here.
+
+---
+
+## 🚀 Quick start
+
+MSYS2 bash (not PowerShell):
+
+```bash
+export PATH="/c/Users/${USER:-${USERNAME}}/.cargo/bin:$HOME/.cargo/bin:/ucrt64/bin:/usr/bin:$PATH"
 export RUSTUP_TOOLCHAIN="stable-x86_64-pc-windows-gnu"
 cd /s/rust/GSV
 unset CARGO_TARGET_DIR
+
 cargo build --all-targets
-cargo test          # 261 tests (115 unit + security + contracts + omni + ratio + update + ui + vision + stand smoke)
-cargo clippy --all-targets   # 0 warnings/errors
-cargo run --bin gsv-loc-audit -- --stretch-96   # Rust/LOC ratio → data/rust_ratio.json (≥95%, stretch-96 ≥96%)
-cargo run --bin gsv-server -- --port 9999   # live smoke
-cargo run --bin gsv-http-stand-smoke        # live stand smoke (48 checks) проти запущеного сервера
-```
-
-## Запуск
-
-```
 cargo run --bin gsv-server -- --host 127.0.0.1 --port 9999
 ```
 
-Endpoints: `GET /` (UI), `/api/health`, `/api/tracker`, `/api/sli`, `/api/toolchain`, `/api/ide/sessions`, `POST /api/ide/select`, `/api/update`, `POST /api/update/notify`, `/api/preview?file=…`, `POST /api/terminal`, `/api/hooks/tests`, `/api/hooks/bench`, `/api/ratio`, `/api/omni`, `/api/omni/status`, `/api/omni/config` (GET/POST), `/api/omni/v1/models`, `POST /api/omni/v1/chat/completions`, `POST /api/omni/test`, `/api/ui/card/:name` (20 cards), `/api/vision*` + SVG, `GET /events` (SSE).
+Open [http://127.0.0.1:9999/](http://127.0.0.1:9999/).
 
-## Docs (канон)
+```bash
+cargo fmt -- --check
+cargo clippy --all-targets
+cargo test                          # stop gsv-server first — it locks the exe
+cargo run --bin gsv-loc-audit -- --stretch-96
+cargo run --bin gsv-http-stand-smoke
+```
 
-| Файл | Призначення |
-|------|-------------|
-| [`docs/gsv/README.md`](docs/gsv/README.md) | Індекс docs проєкту GSV |
-| [`docs/gsv/GSV_ARCHITECTURE.md`](docs/gsv/GSV_ARCHITECTURE.md) | Архітектура сервера + боксів (Rust / wasm split) |
-| [`docs/gsv/GSV_SERVER.md`](docs/gsv/GSV_SERVER.md) | exe/bin сервер «Galaxy StarWalker Vision» (endpoints, update, offline) |
-| [`docs/gsv/GSV_BOXES.md`](docs/gsv/GSV_BOXES.md) | Специфікація боксів (Tracker, SLI console, Toolchain, IDE, Update, Preview, SLI terminal, Tests/bench hooks) |
-| [`docs/gsv/GSV_MIGRATION.md`](docs/gsv/GSV_MIGRATION.md) | Історія міграції з PoolAI `GSV/` |
-| [`docs/gsv/GSV_TECH_ROADMAP.md`](docs/gsv/GSV_TECH_ROADMAP.md) | **TechPreroadMap** — логічний порядок → future sprints |
-| [`docs/gsv/GSV_VDT_KIT.md`](docs/gsv/GSV_VDT_KIT.md) | **VDT kit** — точка входу (rules/skills, Accepted band 127) |
-| [`docs/gsv/PRODUCTS.md`](docs/gsv/PRODUCTS.md) | Реєстр продуктів для `абракадабра` |
-| [`docs/GSV_ROLES.md`](docs/GSV_ROLES.md) | Ролі GSV VDT (Власник/Оркестратор/Субагенти), канон сесії, ratio gate |
+**Port 9999** is canon. `8765` sits in a Hyper-V reserved range.
 
-## Статус
+---
 
-| Етап | Статус |
-|------|--------|
-| Архітектура (цей README + `GSV/docs/gsv/`) | **✅** |
-| Реєстрація sprints (FM §5.12 band 102 `PH-S1659…S1668`) | **✅** |
-| gsv-server bin (Cargo/`gsv_server.rs`) | **✅** |
-| Бокси (Tracker, SLI console, Toolchain, IDE, Update, Preview, SLI terminal, Tests/bench) | **✅** |
-| OmniRouter (Rust AI-проксі/роутер, catalog/config/proxy) | **✅** |
-| Roles + ratio canon (`docs/GSV_ROLES.md`, band 108) | **✅** |
-| `gsv-loc-audit` + Ratio box + `GET /api/ratio` (Rust ≥95%) | **✅** |
-| Vision boxes + `/api/vision*` + SVG (band 119–125) | **✅** |
-| Stand smoke (`gsv-http-stand-smoke`, 48 checks) + contracts (band 126) | **✅** |
-| VDT kit (shared skills/rules, `gsv.code-workspace`, PRODUCTS.md) (band 127) | **✅** |
-| Тести (230: 102 unit + contracts + omni + ratio + update + ui + vision + stand smoke) | **✅** |
-| Vision docs sync / migration | **⏳ future** |
+## 📦 Boxes
+
+Live panels served by Rust (`src/boxes/`), not a port of legacy `vision.js`.
+
+| Box | Role |
+|-----|------|
+| **Tracker** | Last workflow: sprints, commands, timings |
+| **SLI console** | Commands actually used + catalog from `bin/` · `scripts/` · `src/bin/` |
+| **Toolchain** | rustc / cargo / clippy / MSYS2 inventory |
+| **IDE** | OpenCode + Cursor sessions; pick which host you are on |
+| **Update** | Bin rebuild → UI shows **Update** instead of reload; page survives offline; metrics resync |
+| **Preview** | Rust syntax colors; path confined to the repo |
+| **SLI terminal** | Agent-sent commands through a cargo/git allowlist |
+| **Hooks** | Tests / bench against `target/` without a rebuild |
+| **Ratio** | LOC audit → `data/rust_ratio.json` · `GET /api/ratio` |
+| **OmniRouter** | OpenAI-compatible proxy across the provider catalog |
+| **Vision** | Manifest, feed, maps, sprint board, speed + rust-diagnostics charts (SVG from Rust) |
+
+Localhost hardening is on: loopback bind, CSRF on mutating POST, CSP / nosniff / DENY / no-store, 256 KiB body cap. LAN bind needs `--allow-lan`.
+
+---
+
+## 🧭 OmniRouter
+
+Rust AI proxy (`src/boxes/omni/`). Catalog (Aug 2026): GPT 5.2 · GPT 5.2 Codex · Claude Opus 4.5 · Claude Sonnet 4.5 · Gemini 3 Pro · MiniMax M2.1, plus DeepSeek / Kimi / GLM / Qwen and free hosts (OpenRouter, Groq, Cerebras, NVIDIA, Hugging Face).
+
+```
+GET  /api/omni
+GET  /api/omni/v1/models
+POST /api/omni/v1/chat/completions
+```
+
+Config: `data/omni.toml` (keys redacted in the UI). Env overrides: `OMNI_<PROVIDER>_API_KEY`.
+
+---
+
+## ✨ абракадабра
+
+GSV is also the **VDT kit** (rules, skills, drain loop). Opening this folder does **not** mean the product is GSV.
+
+1. Owner types `абракадабра`.
+2. Agent runs `scripts/list-vdt-products.sh` — workspace folders **and** sibling git repos under `S:/rust` (today that is GSV, PoolAI, omniroute, …).
+3. AskQuestion / OpenCode `question`: **which of those do we work with?**
+4. S0 disk → warnings-first scan → drain ≤10 PH-S* → one commit + push.
+
+Canon: [`docs/gsv/GSV_VDT_KIT.md`](docs/gsv/GSV_VDT_KIT.md) · registry (enrichment only): [`docs/gsv/PRODUCTS.md`](docs/gsv/PRODUCTS.md).
+
+---
+
+## 🔌 MCP — `gsv_mcp_openbot`
+
+One MCP server GSV owns; OpenCode / Cursor / Grok CLI / Grok Bot are **clients**.
+
+```bash
+cargo run --quiet --bin gsv-mcp
+```
+
+Auto-register: `.mcp.json` · `.cursor/mcp.json` · `opencode.json`. HTTP twin: `GET`/`POST http://127.0.0.1:9999/mcp` (loopback; LAN needs `--allow-lan`). Grok Bot public tunnel is an owner opt-in — not on by default.
+
+Canon: [`docs/gsv/GSV_MCP_OPENBOT.md`](docs/gsv/GSV_MCP_OPENBOT.md).
+
+---
+
+## 🗂 Layout
+
+```
+GSV/
+├── src/bin/gsv_server.rs     live Galaxy UI + API
+├── src/bin/gsv_mcp.rs        gsv_mcp_openbot (stdio MCP)
+├── src/boxes/                Tracker, SLI, OmniRouter, Vision, …
+├── ui/                       thin HTML/CSS/JS glue
+├── docs/gsv/                 architecture, boxes, roadmap, VDT kit
+├── docs/assets/presentations/  README shots
+└── .agents/skills/           abracadabra + generic VDT skills
+```
+
+---
+
+## 📚 Docs
+
+| Doc | What |
+|-----|------|
+| [`docs/gsv/GSV_ARCHITECTURE.md`](docs/gsv/GSV_ARCHITECTURE.md) | Server + boxes, Rust / wasm split |
+| [`docs/gsv/GSV_SERVER.md`](docs/gsv/GSV_SERVER.md) | Endpoints, update, offline |
+| [`docs/gsv/GSV_BOXES.md`](docs/gsv/GSV_BOXES.md) | Box spec |
+| [`docs/gsv/GSV_TECH_ROADMAP.md`](docs/gsv/GSV_TECH_ROADMAP.md) | Sprint order |
+| [`docs/gsv/GSV_VDT_KIT.md`](docs/gsv/GSV_VDT_KIT.md) | Shared kit vs product |
+| [`docs/gsv/GSV_MCP_OPENBOT.md`](docs/gsv/GSV_MCP_OPENBOT.md) | MCP plan |
+| [`docs/GSV_ROLES.md`](docs/GSV_ROLES.md) | Owner / orchestrator / subagents |
+
+---
+
+## ❤️ Support / Donate
+
+GSV is MIT and maintained in the open. If the dashboard or the kit saves you a session, here is how to keep it independent — pick whatever fits. Sponsorship never changes routing or drain priority.
+
+<p align="center">
+  <a href="https://github.com/platinoff/GSV/stargazers"><img src="https://img.shields.io/badge/⭐_Star_the_repo-black?style=for-the-badge" alt="Star"></a>
+  <a href="https://github.com/sponsors/platinoff"><img src="https://img.shields.io/badge/GitHub_Sponsors-ea4aaa?style=for-the-badge&logo=github-sponsors&logoColor=white" alt="GitHub Sponsors"></a>
+</p>
+
+| | |
+|---|---|
+| ⭐ **Star** | Free, and it actually helps people find the repo |
+| 🐙 **[GitHub Sponsors](https://github.com/sponsors/platinoff)** | One-off or monthly · [github.com/sponsors/platinoff](https://github.com/sponsors/platinoff) |
+| 🐛 **Issues** | Bugs and ideas: [github.com/platinoff/GSV/issues](https://github.com/platinoff/GSV/issues) |
+
+---
+
+## License
+
+[MIT](LICENSE) · [github.com/platinoff/GSV](https://github.com/platinoff/GSV)

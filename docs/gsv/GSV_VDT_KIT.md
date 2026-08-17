@@ -23,13 +23,15 @@ PoolAI тримає лише продуктовий шар + вказівник 
    - `.agents/skills/` (Abracadabra + generic marketplace: architecture, TDD, debug, …)
    - `.cursor/rules/` — generic VDT (S0 диск, MSYS2, git, ролі, rust style)
    - дзеркала `.cursor/skills/` і `.opencode/skills/` (Windows: **copy**, не symlink)
-2. **Cursor відкривати на GSV.** Продукти реєструються в kit; `абракадабра` **спочатку** питає
-   який продукт дренити. Робота в дереві того репо (`S:\rust\poolAI`, `S:\rust\GSV`, далі — нові).
+2. **Cursor відкривати на GSV.** `абракадабра` **спочатку** сканує environment
+   (`scripts/list-vdt-products.sh`) і питає з **яким із видимих проєктів** працювати.
+   `PRODUCTS.md` збагачує зареєстровані (HANDOFF / тести / ratio), не є єдиним списком опцій.
+   Робота в дереві того репо (`S:\rust\poolAI`, `S:\rust\GSV`, далі — нові).
 3. **Продуктовий шар лишається в продукті** (не переїжджає в GSV):
    - PoolAI: FM, concept, `test-ci`, Playwright admin, OpenAPI gap, Galaxy, 90–95% ratio
    - GSV-продукт: `gsv-server`, бокси, 95–100% ratio, порт 9999
-4. Новий Rust-проєкт на цій машині: додати рядок у реєстр продуктів + (за потреби)
-   тонкі product rules у **його** репо. Спільний кіт не копіювати вручну в кожен репо.
+4. Новий проєкт на цій машині: покласти git-репо під `S:/rust/<name>` (discover підхопить).
+   Рядок у `PRODUCTS.md` — лише якщо потрібен повний VDT drain. Спільний кіт не копіювати.
 
 ## Split (що куди)
 
@@ -65,8 +67,9 @@ PoolAI тримає лише продуктовий шар + вказівник 
 
 ### C. GSV workspace = точка входу (прийнято)
 
-Один відкритий корінь = один кіт. `абракадабра` роутить на продукт. Multi-root workspace —
-окремий спринт, щоб у сайдбарі були й продукти.
+Один відкритий корінь = один кіт. `абракадабра` сканує environment і питає з яким
+проєктом працювати. Multi-root workspace — у сайдбарі продукти; discover бачить і
+workspace folders, і git-сусідів під `S:/rust`.
 
 ## Consequences
 

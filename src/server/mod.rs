@@ -163,6 +163,7 @@ pub fn router(state: AppState) -> Router {
         .route("/data/{file}", get(api_data_file))
         .route("/events", get(events))
         .route("/assets/vision.svg", get(api_vision_svg))
+        .route("/mcp", get(api_mcp_get).post(api_mcp_post))
         .layer(DefaultBodyLimit::max(crate::security::MAX_BODY_BYTES))
         .layer(middleware::from_fn(security_gate))
         .with_state(state)
@@ -237,6 +238,23 @@ async fn api_health(State(state): State<AppState>) -> Json<Value> {
     Json(health(&state))
 }
 
+async fn api_mcp_get() -> Json<Value> {
+    Json(crate::mcp::http_info())
+}
+
+async fn api_mcp_post(State(state): State<AppState>, body: Bytes) -> Response {
+    if body.is_empty() {
+        return Json(crate::mcp::rpc_error(None, -32700, "empty body")).into_response();
+    }
+    match serde_json::from_slice::<Value>(&body) {
+        Ok(v) => match crate::mcp::handle_value(&state, v).await {
+            Some(out) => Json(out).into_response(),
+            None => StatusCode::NO_CONTENT.into_response(),
+        },
+        Err(e) => Json(crate::mcp::rpc_error(None, -32700, format!("parse: {e}"))).into_response(),
+    }
+}
+
 async fn api_index() -> Json<Value> {
     Json(json!({
         "ok": true,
@@ -245,7 +263,7 @@ async fn api_index() -> Json<Value> {
         "categories": [
             "/api/vision/", "/api/ui/", "/api/ratio/", "/api/toolchain/",
             "/api/ide/", "/api/omni/", "/api/sli", "/api/tracker",
-            "/api/hooks/", "/api/preview", "/api/terminal", "/data/"
+            "/api/hooks/", "/api/preview", "/api/terminal", "/data/", "/mcp"
         ],
         "example": "/api/vision",
         "docs": "/assets/vision.svg"

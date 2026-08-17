@@ -5,7 +5,7 @@ alwaysApply: true
 
 # VDT session (shared kit)
 
-Host workspace is **`S:\rust\GSV`**. Product tree comes from [`docs/gsv/PRODUCTS.md`](../../docs/gsv/PRODUCTS.md) after `абракадабра` AskQuestion.
+Host workspace is **`S:\rust\GSV`**. Step 0 of `абракадабра`: `scripts/list-vdt-products.sh` then AskQuestion on **those** rows. [`docs/gsv/PRODUCTS.md`](../../docs/gsv/PRODUCTS.md) enriches registered picks (HANDOFF / tests / ratio).
 
 ## S0 (disk before git/cargo)
 
