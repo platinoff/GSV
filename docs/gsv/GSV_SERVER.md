@@ -22,7 +22,7 @@
 | GET | `/api/products` | VDT environment projects (`ok`, `products`, `selected`) |
 | POST | `/api/products/select` | `{id}` → process-local selection; unknown id → 404 `{ok:false}` |
 | POST | `/api/products/open` | `{id}` → open folder (`cursor` if on PATH, else `explorer`); id must be discovered |
-| GET | `/api/products/scan` | selected product: git HEAD/status, kind, registered, HANDOFF/NEXT, `cargo_name` |
+| GET | `/api/products/scan` | selected product: git HEAD/status, kind, registered, HANDOFF/NEXT (`AGENTS.md` / `docs/ROADMAP.md` fallback), `cargo_name` |
 | GET | `/api/fingerprints` | drain fingerprints (`ok`, `path`, `count`, `fingerprints`; `?limit=` default 20, cap 100) |
 | GET | `/sw.js` | Rust-rendered Service Worker (shell Cache API; `Service-Worker-Allowed: /`) |
 | GET | `/api/sw` | SW discovery (`ok`, `cache`, `script`, `urls`) |

@@ -8,7 +8,7 @@
 |------|-------------|
 | [`GSV_ROLES.md`](GSV_ROLES.md) | Ролі GSV VDT (Власник/Оркестратор/Субагенти), канон сесії, Rust ratio gate |
 | [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) | **Точка входу:** спільні rules/skills для будь-якого Rust-продукту (Accepted, band 127) |
-| [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md) | Реєстр продуктів (`gsv` · `poolai`) для `абракадабра` / `abrakadabra` |
+| [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md) | Реєстр продуктів (`gsv` · `poolai` · `omniroute`) для `абракадабра` / `abrakadabra` |
 | [`MEMORY.md`](MEMORY.md) | **Memory mark** — стан проєкту (bands 102 · 108 · 109), ключові факти, what/why |
 | [`VISION.md`](VISION.md) | **Vision box** — дзеркало poolAI vision canon (manifest/feed/sync) |
 | [`HANDOFF_NEW_SESSION.md`](HANDOFF_NEW_SESSION.md) | Операційний зріз для наступної сесії (S0, щоденники, тести) |

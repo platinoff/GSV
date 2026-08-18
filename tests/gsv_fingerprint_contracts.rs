@@ -185,22 +185,72 @@ fn bump_and_fingerprint_scripts_exist() {
     assert!(root.join("scripts/gsv-fingerprint.sh").is_file());
 }
 
-#[test]
-fn bump_version_script_increments_package_patch() {
-    let dir = std::env::temp_dir().join(format!("gsv-bump-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).expect("tmpdir");
+fn write_pkg_toml(dir: &Path, version: &str) -> PathBuf {
+    std::fs::create_dir_all(dir).expect("tmpdir");
     let toml = dir.join("Cargo.toml");
     std::fs::write(
         &toml,
-        "[workspace]\nresolver = \"2\"\n\n[package]\nname = \"gsv\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        format!(
+            "[workspace]\nresolver = \"2\"\n\n[package]\nname = \"gsv\"\nversion = \"{version}\"\nedition = \"2021\"\n"
+        ),
     )
     .expect("write toml");
+    toml
+}
+
+#[test]
+fn bump_version_script_sets_minor_to_band() {
+    let dir = std::env::temp_dir().join(format!("gsv-bump-band-{}", std::process::id()));
+    let toml = write_pkg_toml(&dir, "0.1.3");
     let script = kit_root().join("scripts/gsv-bump-version.sh");
-    let st = msys_bash().arg(&script).arg(&toml).status().expect("bash");
+    let st = msys_bash()
+        .arg(&script)
+        .arg("--band")
+        .arg("149")
+        .arg(&toml)
+        .status()
+        .expect("bash");
     assert!(st.success(), "bump script exit");
     let text = std::fs::read_to_string(&toml).expect("read toml");
-    assert!(text.contains("version = \"0.1.1\""), "patch +1: {text}");
+    assert!(
+        text.contains("version = \"0.149.0\""),
+        "minor = band: {text}"
+    );
     assert!(text.contains("[workspace]"), "keep workspace: {text}");
+}
+
+#[test]
+fn bump_version_script_patches_within_same_band() {
+    let dir = std::env::temp_dir().join(format!("gsv-bump-patch-{}", std::process::id()));
+    let toml = write_pkg_toml(&dir, "0.149.0");
+    let script = kit_root().join("scripts/gsv-bump-version.sh");
+    let st = msys_bash()
+        .arg(&script)
+        .arg("--band")
+        .arg("149")
+        .arg(&toml)
+        .status()
+        .expect("bash");
+    assert!(st.success(), "bump script exit");
+    let text = std::fs::read_to_string(&toml).expect("read toml");
+    assert!(
+        text.contains("version = \"0.149.1\""),
+        "same-band patch +1: {text}"
+    );
+}
+
+#[test]
+fn bump_version_script_requires_band() {
+    let dir = std::env::temp_dir().join(format!("gsv-bump-noband-{}", std::process::id()));
+    let toml = write_pkg_toml(&dir, "0.1.3");
+    let script = kit_root().join("scripts/gsv-bump-version.sh");
+    let st = msys_bash()
+        .arg(&script)
+        .arg(&toml)
+        .env_remove("GSV_BAND")
+        .status()
+        .expect("bash");
+    assert!(!st.success(), "bump without --band / GSV_BAND must fail");
 }
 
 #[test]

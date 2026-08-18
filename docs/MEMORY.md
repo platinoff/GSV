@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-18 · band 149 ✅)
+
+- **Band 149:** owner-picked remaining P2 — `docs/gsv/PRODUCTS.md` registers **omniroute** (node, `npm test`, ratio n/a); `scripts/gsv-bump-version.sh --band N` sets crate semver minor = band (`0.{band}.0`, same-band patch +1); `products::scan` treats `AGENTS.md` / `docs/ROADMAP.md` as handoff/next; abracadabra registered-node flow (no PH-S* invent). Do **not** invent band 150.
+- **Canon:** [`gsv/GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md) · always-on P2 leftovers closed.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 still `scripts/list-vdt-products.sh`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.74%** (rust 19003 / product 19643) · **375** tests · clippy 0. Vision rev **513**.
+- **Канон продукту:** Rust **95–100%** / wasm **0–5%** (завжди), без Python/Java; bins — лише `src/bin/`.
+
 ## Стан (2026-08-18 · band 148 ✅)
 
 - **Band 148:** Service Worker shell cache (owner-picked P2 leftover) — `boxes/sw.rs` renders `GET /sw.js` (Cache Storage `gsv-shell-v1`); precache `/` + `/api/ui/load-palette` + `/api/ui/load-theme` + galaxy/vision svg; fetch skips `/events`, `/mcp`, non-GET, cross-origin. `GET /api/sw` discovery; ops card `sw`; CSP `worker-src 'self'`; thin `serviceWorker.register("/sw.js")`. Do **not** invent band 149.

@@ -31,7 +31,7 @@ PoolAI тримає лише продуктовий шар + вказівник 
    - PoolAI: FM, concept, `test-ci`, Playwright admin, OpenAPI gap, Galaxy, 90–95% ratio
    - GSV-продукт: `gsv-server`, бокси, 95–100% ratio, порт 9999
 4. Новий проєкт на цій машині: покласти git-репо під `S:/rust/<name>` (discover підхопить).
-   Рядок у `PRODUCTS.md` — лише якщо потрібен повний VDT drain. Спільний кіт не копіювати.
+   Рядок у `PRODUCTS.md` — лише якщо потрібен зареєстрований drain (Rust: HANDOFF + PH-S*; node: AGENTS + `npm test`, без PH-S*). Спільний кіт не копіювати.
 
 ## Split (що куди)
 

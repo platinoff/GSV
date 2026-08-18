@@ -1,6 +1,6 @@
 # Product registry (GSV VDT kit)
 
-Registered Rust products the host skill [`abracadabra`](../../.agents/skills/abracadabra/SKILL.md) can **drain** (HANDOFF, tests, ratio).
+Registered products the host skill [`abracadabra`](../../.agents/skills/abracadabra/SKILL.md) can **drain** (HANDOFF, tests, ratio). Node rows are enrichment only — no PH-S* invent, no GSV loc-audit.
 
 **Discovery is not this table.** When the owner writes `абракадабра` or `abrakadabra`, the agent runs
 [`scripts/list-vdt-products.sh`](../../scripts/list-vdt-products.sh) and asks about
@@ -13,8 +13,9 @@ This file only **enriches** a pick that is already registered.
 |----|------|---------|------|--------------|-------|
 | **gsv** | `S:/rust/GSV` | [`docs/HANDOFF_NEW_SESSION.md`](../HANDOFF_NEW_SESSION.md) | [`docs/NEXT_SESSION_PROMPT.md`](../NEXT_SESSION_PROMPT.md) | `cargo fmt -- --check` → `cargo clippy --all-targets` → `cargo test` → `cargo run --bin gsv-loc-audit -- --stretch-96` (do **not** kill `target/live/` copy) | Rust **95–100%** (`--stretch-96` ≥96%) |
 | **poolai** | `S:/rust/poolAI` | `S:/rust/poolAI/docs/development/HANDOFF_NEW_SESSION.md` | `S:/rust/poolAI/docs/development/NEXT_SESSION_PROMPT.md` | `K8S_OPENAPI_ENABLED_VERSION=1.28 cargo test-ci` (`CARGO_TARGET_DIR=/s/rust/poolAI/target`) | Rust **90–95%** |
+| **omniroute** | `S:/rust/omniroute` | `S:/rust/omniroute/AGENTS.md` | `S:/rust/omniroute/docs/ROADMAP.md` | `npm test` (focused: `node --import tsx/esm --test tests/unit/<file>.test.ts`) | n/a (node; GSV loc-audit does not apply) |
 
-Discovered but **not** in this table (example: `S:/rust/omniroute`) → S0 + git in that tree; no PH-S* drain until a row is added.
+Discovered but **not** in this table → S0 + git in that tree; no PH-S* drain until a row is added. OmniRoute is registered (band 149, owner-opt-in).
 
 ## Shared vs product
 
@@ -27,7 +28,7 @@ Discovered but **not** in this table (example: `S:/rust/omniroute`) → S0 + git
 ## New product checklist
 
 1. Sibling git repo under `S:/rust/<name>` (discovery will list it automatically).
-2. Row in this table **only if** it should get a full VDT drain (root, handoff, test, ratio).
+2. Row in this table **only if** it should get a registered drain (Rust: HANDOFF + PH-S*; node: AGENTS + `npm test`, no PH-S*).
 3. Optional folder in `gsv.code-workspace` so it also appears as a workspace root.
 4. Do **not** copy this whole kit into the new repo.
 5. Do **not** add a hardcoded option in the abracadabra skill — the scan is the list.

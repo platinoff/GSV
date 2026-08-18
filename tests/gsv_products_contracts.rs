@@ -221,3 +221,41 @@ fn render_products_has_select_and_open_actions() {
 fn card_names_include_products() {
     assert!(CARD_NAMES.contains(&"products"));
 }
+
+#[test]
+fn products_md_registers_omniroute() {
+    let text =
+        std::fs::read_to_string(kit_root().join("docs/gsv/PRODUCTS.md")).expect("PRODUCTS.md");
+    assert!(
+        text.contains("| **omniroute**"),
+        "owner-opt-in omniroute row missing"
+    );
+    assert!(
+        text.contains("npm test"),
+        "omniroute test command should be npm test: {text}"
+    );
+}
+
+#[test]
+fn discover_omniroute_registered_when_sibling_present() {
+    let root = kit_root();
+    let sibling = root.parent().map(|p| p.join("omniroute"));
+    let Some(path) = sibling.filter(|p| p.is_dir()) else {
+        return;
+    };
+    let rows = products::discover(&root);
+    let row = rows
+        .iter()
+        .find(|r| r.id == "omniroute")
+        .unwrap_or_else(|| {
+            panic!(
+                "omniroute sibling at {} not discovered: {rows:?}",
+                path.display()
+            )
+        });
+    assert!(row.registered, "omniroute must be registered: {row:?}");
+    assert_eq!(row.kind, "node", "{row:?}");
+    let scan = products::scan(&root, "omniroute").expect("scan omniroute");
+    assert!(scan.handoff_exists, "AGENTS.md counts as handoff: {scan:?}");
+    assert!(scan.next_exists, "docs/ROADMAP.md counts as next: {scan:?}");
+}

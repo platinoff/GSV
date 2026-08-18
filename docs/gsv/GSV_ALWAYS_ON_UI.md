@@ -1,6 +1,6 @@
 # GSV Always-on Galaxy UI — spec
 
-**Status:** Bands **143–147 ✅** (always-on Galaxy) · **148 ✅** (Service Worker shell cache)  
+**Status:** Bands **143–147 ✅** (always-on Galaxy) · **148 ✅** (Service Worker shell cache) · **149 ✅** (omniroute PRODUCTS.md + semver minor = band)  
 **Date:** 2026-08-17  
 **Owner ask:** Galaxy UI always reachable; page goes **offline** only during binary swap; debug collapse / fullscreen / power menu; typography + chart scale; pick a VDT project and open its folder; auto-parse what the dashboard needs; every commit bumps the crate version; fingerprint who did the work (IDE / bot / model / agent / time). Match the polish of [`README.md`](../../README.md) presentations.
 
@@ -27,7 +27,7 @@ There is an **IDE session** picker, not a **VDT product** picker. `Cargo.toml` i
 3. Collapse, exclusive fullscreen, Esc, and the power menu behave correctly and stay above cards.
 4. One type scale for chrome, cards, and Rust SVG charts.
 5. Ops card: list environment projects (same merge as `scripts/list-vdt-products.sh`), select one, open its folder (Windows Explorer, confined), auto-parse git/kind/HANDOFF/Cargo name.
-6. Each product commit increments `CARGO_PKG_VERSION` (patch). Health / Update / header show it.
+6. Each product commit sets `CARGO_PKG_VERSION` minor to the band (`0.{band}.0`). Health / Update / header show it.
 7. Append-only fingerprint (timestamp, actor, IDE, model, agent, version, git head, summary) on drain close; Galaxy card lists latest.
 
 ## Non-goals
@@ -37,7 +37,7 @@ There is an **IDE session** picker, not a **VDT product** picker. `Cargo.toml` i
 - No Python. No `git add -A`. No staging `data/*`.
 - No public telemetry; fingerprints stay in this repo.
 - No auto `cargo test` when a product is selected (scan is metadata only).
-- OmniRoute registration in `PRODUCTS.md` stays owner-opt-in.
+- OmniRoute registration in `PRODUCTS.md` is owner-opt-in (**done band 149**).
 
 ## Current bugs (reproduce)
 
@@ -89,7 +89,7 @@ There is an **IDE session** picker, not a **VDT product** picker. `Cargo.toml` i
 
 **Version + fingerprint**
 
-- Drain-close bump: patch +1 in `Cargo.toml` (`0.1.0` → `0.1.1` …). Tests compare `env!("CARGO_PKG_VERSION")`, not a hardcoded `"0.1.0"`.
+- Drain-close bump: `bash scripts/gsv-bump-version.sh --band N` sets semver **minor = band** (`0.1.3` → `0.149.0`; same band → patch +1). Tests compare `env!("CARGO_PKG_VERSION")`, not a hardcoded version.
 - `docs/gsv/fingerprints.jsonl` append-only; card `fingerprints` in ops.
 - Commit trailers: `Gsv-Actor`, `Gsv-Ide`, `Gsv-Model` (no secrets).
 
@@ -102,8 +102,8 @@ There is an **IDE session** picker, not a **VDT product** picker. `Cargo.toml` i
 ### P2 — Later
 
 - Service Worker offline cache — **done band 148** (`GET /sw.js` Rust-rendered; precache `/` + live CSS + galaxy/vision svg; skip `/events` `/mcp`).
-- Auto-register omniroute in PRODUCTS.md.
-- Semver minor = band number.
+- Auto-register omniroute in PRODUCTS.md — **done band 149** (owner-opt-in).
+- Semver minor = band number — **done band 149** (`gsv-bump-version.sh --band N`).
 
 ## User stories
 
@@ -143,5 +143,6 @@ There is an **IDE session** picker, not a **VDT product** picker. `Cargo.toml` i
 | **146** | S2099–S2108 | Version bump + fingerprints | ✅ |
 | **147** | S2109–S2118 | README-level UI polish leftovers + docs canon | ✅ |
 | **148** | S2119–S2128 | Service Worker shell cache (`/sw.js` Rust-rendered) | ✅ |
+| **149** | S2129–S2138 | OmniRoute PRODUCTS.md + semver minor = band | ✅ |
 
-Next `абракадабра` on **gsv**: scan first. Remaining P2: omniroute PRODUCTS.md (owner-opt-in), semver minor = band. Do **not** invent band 149.
+Next `абракадабра` on **gsv**: scan first. Always-on P2 leftovers are closed. Do **not** invent band 150.

@@ -76,7 +76,8 @@ list. A discovered repo that is not registered is still a valid choice.
 
 | Pick | What to do |
 |------|------------|
-| **registered** (`gsv`, `poolai`, …) | Use that row in PRODUCTS.md: HANDOFF, NEXT, test command, ratio. Then the product flow below. |
+| **registered rust** (`gsv`, `poolai`, …) | Use that row in PRODUCTS.md: HANDOFF, NEXT, test command, ratio. Then the product flow below. |
+| **registered node** (`omniroute`, …) | Use that row. S0 + git in **that** tree. **No** PH-S* invent. Tests from the row (`npm test`). |
 | **discovered, not registered** | S0 disk + `git fetch` in **that** tree. Do **not** invent PH-S* / FM drain. Report kind (rust/node), ask whether to add a PRODUCTS.md row, or do a narrow owner-stated task in that repo. |
 
 New **registered** products: add a row to PRODUCTS.md (root, handoff, test, ratio).
@@ -102,6 +103,16 @@ Work with **absolute paths** under `S:/rust/poolAI` (this window’s default cwd
 4. Vision close: FM §5.12 ✅ + HANDOFF + NEXT → one `poolai-vision-sync` → rev from manifest → `--check`.
 5. Test: one `cargo fmt --all` → one `cargo test-ci` (`K8S_OPENAPI_ENABLED_VERSION=1.28`, `CARGO_TARGET_DIR=/s/rust/poolAI/target`) → `record-test-ci-speed.sh` + `record-rust-diagnostics.sh`.
 6. Git (end of session): one commit in **PoolAI** → `git push origin main` + summary in chat.
+
+## omniroute flow (node, registered)
+
+Work with **absolute paths** under `S:/rust/omniroute`. Do **not** invent PH-S* / FM drain. Do **not** copy this kit into omniroute.
+
+1. S0 disk: `df -h /s` → `git fetch` in omniroute → read `AGENTS.md` + `CONTRIBUTING.md` + `docs/ROADMAP.md`.
+2. Owner-stated task only (no GSV band). Tests: `npm test` (focused file first per AGENTS.md).
+3. One commit in **omniroute** if there is work → push if remote exists → summary in chat.
+
+Ratio: n/a (node). `gsv-loc-audit` does not apply.
 
 ## Hard rules (all products)
 

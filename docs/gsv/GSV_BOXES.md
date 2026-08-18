@@ -125,7 +125,7 @@ Rust модуль: `omni/` (catalog.rs, config.rs, proxy.rs) → `GSV/data/omni.
 | SLI console | `sli/` | `/api/sli` | `bin/`, `scripts/`, `src/bin/` |
 | Toolchain | `toolchain/` | `/api/toolchain` | toolchain, env |
 | IDE | `ide/` | `/api/ide/…` | opencode/cursor сесії |
-| Products | `products/` (`boxes/products.rs`) | `/api/products` · `/api/products/select` · `/api/products/open` · `/api/products/scan` | workspace ∪ sibling git ∪ kit (mirror `list-vdt-products.sh`); open confined by discovered id |
+| Products | `products/` (`boxes/products.rs`) | `/api/products` · `/api/products/select` · `/api/products/open` · `/api/products/scan` | workspace ∪ sibling git ∪ kit; `registered` from PRODUCTS.md (`omniroute` band 149); scan HANDOFF fallback `AGENTS.md` / `docs/ROADMAP.md` |
 | Fingerprints | `fingerprint/` (`boxes/fingerprint.rs`) | `/api/fingerprints` | append-only `docs/gsv/fingerprints.jsonl` (actor / IDE / model / agent / time); ops card `fingerprints` |
 | Service Worker | `sw/` (`boxes/sw.rs`) | `/sw.js` · `/api/sw` | Rust-rendered SW; Cache Storage `gsv-shell-v1`; precache `/` + live CSS + galaxy/vision svg; skip `/events` `/mcp`; ops card `sw` |
 | Update | `update/` | `/api/update` · `/api/update/apply` · `/events` | live copy + версія |

@@ -711,6 +711,23 @@ Owner-picked P2 leftover from [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md): st
 | **PH-S2127** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy — **✅** |
 | **PH-S2128** | Band close | tests green; vision-sync; one commit + push — **✅** |
 
+## Спринти (band 149) — OmniRoute PRODUCTS.md + semver minor = band ✅
+
+Owner-picked remaining P2 from [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md): register omniroute (node) and set crate semver minor to the VDT band.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2129** | Scope + queue | this band; `active_sprint` = `PH-S2129` — **✅** |
+| **PH-S2130** | PRODUCTS.md | `\| **omniroute**` row (AGENTS.md / ROADMAP.md / `npm test` / ratio n/a) — **✅** |
+| **PH-S2131** | Discover contracts | sibling omniroute `registered` + `kind=node` — **✅** |
+| **PH-S2132** | Scan fallback | `AGENTS.md` counts as handoff; `docs/ROADMAP.md` as next — **✅** |
+| **PH-S2133** | Abracadabra flow | registered node: S0 + git; **no** PH-S* invent — **✅** |
+| **PH-S2134** | `gsv-bump-version.sh` | `--band N` / `GSV_BAND` → `0.N.0`; same band patch +1 — **✅** |
+| **PH-S2135** | Bump contracts | 0.1.3→0.149.0; 0.149.0→0.149.1; missing band fails — **✅** |
+| **PH-S2136** | Docs canon | ALWAYS_ON_UI P2 / HANDOFF / NEXT / MEMORY / BOXES / PRODUCTS — **✅** |
+| **PH-S2137** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy — **✅** |
+| **PH-S2138** | Band close | tests green; vision-sync; `--band 149` + fingerprint; one commit + push — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

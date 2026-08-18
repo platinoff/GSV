@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-18 (**band 148 ✅ · Service Worker shell cache · не вигадувати band 149**)
+**Оновлено:** 2026-08-18 (**band 149 ✅ · omniroute PRODUCTS.md + semver minor = band · не вигадувати band 150**)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -20,12 +20,12 @@ abrakadabra
 project scan (**warnings first**) → drain наступного band (**без** mid-push) →
 Speeds · Rust panel → vision-sync → **один** commit → **`git push` + самарі**.
 
-Якщо **gsv:** always-on Galaxy (**bands 143–147 ✅**) + SW cache (**band 148 ✅**) are closed. **Не** вигадувати band 149.
-Next work = project scan (warnings first) or owner pick (P2: omniroute PRODUCTS.md, semver minor = band).
+Якщо **gsv:** always-on Galaxy (**bands 143–147 ✅**) + SW cache (**band 148 ✅**) + omniroute/semver (**band 149 ✅**) are closed. **Не** вигадувати band 150.
+Next work = project scan (warnings first) or owner pick.
 Spec [`GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md) · plan
 [`superpowers/plans/2026-08-17-always-on-galaxy.md`](superpowers/plans/2026-08-17-always-on-galaxy.md).
 Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics.sh`. Disk: `bash scripts/check_target_disk.sh`.
-Close: `bash scripts/gsv-bump-version.sh` then `bash scripts/gsv-fingerprint.sh` in the same commit.
+Close: `bash scripts/gsv-bump-version.sh --band N` then `bash scripts/gsv-fingerprint.sh` in the same commit.
 
 **⚠️ Canon run is `bash scripts/gsv-live.sh` (`target/live/gsv-server.exe`).** Do not kill that copy before `cargo test`/`build`. Only stop `target/debug/gsv-server.exe` if it is the listener. After apply, the supervisor recopies and rebinds :9999.
 
@@ -197,7 +197,9 @@ Close: `bash scripts/gsv-bump-version.sh` then `bash scripts/gsv-fingerprint.sh`
   density tokens, live-copy architecture note, stand-smoke leftover contracts).
   **band 148** (PH-S2119…S2128) ✅ — Service Worker shell cache (`GET /sw.js` Rust-rendered,
   precache `/` + live CSS, skip `/events` `/mcp`, ops card `sw`).
-  **Наступний drain**: scan / owner pick — **не** вигадувати band 149.
+  **band 149** (PH-S2129…S2138) ✅ — OmniRoute PRODUCTS.md (node, `npm test`) +
+  semver minor = band (`gsv-bump-version.sh --band N` → `0.149.0`).
+  **Наступний drain**: scan / owner pick — **не** вигадувати band 150.
 
 ## Канон GSV
 
@@ -239,7 +241,8 @@ band 145 ✅ (VDT products picker — list / select / open / scan) ·
 band 146 ✅ (version bump + fingerprints — patch + JSONL + trailers) ·
 band 147 ✅ (README polish leftovers — live.sh Quick start + density tokens) ·
 band 148 ✅ (Service Worker shell cache — `/sw.js` + `/api/sw` + ops card) ·
-не вигадувати band 149 ·
+band 149 ✅ (omniroute PRODUCTS.md + semver minor = band) ·
+не вигадувати band 150 ·
 не комітити kit-only в PoolAI як «замість» GSV drain ·
 staging `GSV/data/*` / `certs/*.pem` /
 `.env` · mid-push · `cargo test` while `target/debug/gsv-server.exe` is the listener · обхід ratio-смуги Rust-кодом замість compact UI ·

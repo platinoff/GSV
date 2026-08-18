@@ -219,11 +219,13 @@ pub fn scan(kit_root: &Path, id: &str) -> Result<ProductScan, String> {
     let handoff_exists = path.join("docs/HANDOFF_NEW_SESSION.md").is_file()
         || path
             .join("docs/development/HANDOFF_NEW_SESSION.md")
-            .is_file();
+            .is_file()
+        || path.join("AGENTS.md").is_file();
     let next_exists = path.join("docs/NEXT_SESSION_PROMPT.md").is_file()
         || path
             .join("docs/development/NEXT_SESSION_PROMPT.md")
-            .is_file();
+            .is_file()
+        || path.join("docs/ROADMAP.md").is_file();
     let cargo_name = if row.cargo {
         parse_cargo_name(&path.join("Cargo.toml"))
     } else {
