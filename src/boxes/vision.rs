@@ -1323,13 +1323,18 @@ fn svg_day_label(recorded_at: &str) -> String {
     }
 }
 
+const CHART_FONT: &str = "ui-monospace, Cascadia Code, Consolas, monospace";
+const CHART_H: u32 = 168;
+const CHART_PLOT_H: f64 = 116.0;
+const CHART_BASE_Y: f64 = 144.0;
+
 /// Empty-state SVG (no data artifact yet).
 fn svg_empty(title: &str, hint: &str) -> String {
     format!(
-        r##"<svg xmlns="http://www.w3.org/2000/svg" width="560" height="132" viewBox="0 0 560 132">
-<rect width="560" height="132" rx="8" fill="#121826"/>
-<text x="12" y="22" font-family="monospace" font-size="12" fill="#e8843c">{title}</text>
-<text x="12" y="70" font-family="monospace" font-size="12" fill="#7c8ba3">{hint}</text>
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="560" height="{CHART_H}" viewBox="0 0 560 {CHART_H}">
+<rect width="560" height="{CHART_H}" rx="8" fill="#121826"/>
+<text x="12" y="22" font-family="{CHART_FONT}" font-size="11" fill="#e8843c">{title}</text>
+<text x="12" y="70" font-family="{CHART_FONT}" font-size="11" fill="#7c8ba3">{hint}</text>
 </svg>"##
     )
 }
@@ -1356,8 +1361,8 @@ pub fn speed_index_chart_svg(repo_root: &Path, data_dir: &Path) -> String {
         .map(|x| x.wall_secs)
         .fold(0.0_f64, f64::max)
         .max(1.0);
-    let plot_h = 92.0_f64;
-    let base_y = 118.0_f64;
+    let plot_h = CHART_PLOT_H;
+    let base_y = CHART_BASE_Y;
     let slot = 560.0_f64 / n as f64;
     let mut bars = String::new();
     for (i, rec) in recs.iter().enumerate() {
@@ -1379,12 +1384,12 @@ pub fn speed_index_chart_svg(repo_root: &Path, data_dir: &Path) -> String {
         .map(|b| format!("latest bench {} {} ns", b.bench, b.median_ns))
         .unwrap_or_else(|| "no bench history".to_string());
     format!(
-        r##"<svg xmlns="http://www.w3.org/2000/svg" width="560" height="132" viewBox="0 0 560 132">
-<rect width="560" height="132" rx="8" fill="#121826"/>
-<text x="12" y="20" font-family="monospace" font-size="12" fill="#e8843c">test-ci wall-clock ({n} runs, max {max_wall:.0}s)</text>
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="560" height="{CHART_H}" viewBox="0 0 560 {CHART_H}">
+<rect width="560" height="{CHART_H}" rx="8" fill="#121826"/>
+<text x="12" y="20" font-family="{CHART_FONT}" font-size="11" fill="#e8843c">test-ci wall-clock ({n} runs, max {max_wall:.0}s)</text>
 {bars}
 <line x1="6" y1="{base_y:.0}" x2="554" y2="{base_y:.0}" stroke="#1e2a3d" stroke-width="1"/>
-<text x="12" y="128" font-family="monospace" font-size="10" fill="#7c8ba3">{bench}</text>
+<text x="12" y="162" font-family="{CHART_FONT}" font-size="11" fill="#7c8ba3">{bench}</text>
 </svg>"##
     )
 }
@@ -1409,8 +1414,8 @@ pub fn rust_diagnostics_chart_svg(repo_root: &Path, data_dir: &Path) -> String {
         .max()
         .unwrap_or(0)
         .max(1);
-    let plot_h = 92.0_f64;
-    let base_y = 118.0_f64;
+    let plot_h = CHART_PLOT_H;
+    let base_y = CHART_BASE_Y;
     let slot = 560.0_f64 / n as f64;
     let mut bars = String::new();
     for (i, rec) in recs.iter().enumerate() {
@@ -1440,12 +1445,12 @@ pub fn rust_diagnostics_chart_svg(repo_root: &Path, data_dir: &Path) -> String {
         latest
     };
     format!(
-        r##"<svg xmlns="http://www.w3.org/2000/svg" width="560" height="132" viewBox="0 0 560 132">
-<rect width="560" height="132" rx="8" fill="#121826"/>
-<text x="12" y="20" font-family="monospace" font-size="12" fill="#e8843c">clippy warnings/errors ({n} runs, max {max_total})</text>
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="560" height="{CHART_H}" viewBox="0 0 560 {CHART_H}">
+<rect width="560" height="{CHART_H}" rx="8" fill="#121826"/>
+<text x="12" y="20" font-family="{CHART_FONT}" font-size="11" fill="#e8843c">clippy warnings/errors ({n} runs, max {max_total})</text>
 {bars}
 <line x1="6" y1="{base_y:.0}" x2="554" y2="{base_y:.0}" stroke="#1e2a3d" stroke-width="1"/>
-<text x="12" y="128" font-family="monospace" font-size="10" fill="#7c8ba3">{latest}</text>
+<text x="12" y="162" font-family="{CHART_FONT}" font-size="11" fill="#7c8ba3">{latest}</text>
 </svg>"##
     )
 }
@@ -3223,6 +3228,16 @@ mod tests {
         assert!(svg.contains("fill=\"#3fb96e\""));
         assert!(svg.contains("fill=\"#e05b5b\""));
         assert!(svg.contains("latest bench runtime_benchmarks 4210 ns"));
+        assert!(svg.contains("font-size=\"11\""), "{svg}");
+        assert!(
+            svg.contains("height=\"168\"")
+                || (svg.contains("viewBox=\"0 0") && svg.contains("168")),
+            "{svg}"
+        );
+        assert!(
+            svg.contains("font-family=\"ui-monospace, Cascadia Code, Consolas, monospace\""),
+            "{svg}"
+        );
         let _ = std::fs::remove_dir_all(&tmp);
     }
 
@@ -3242,6 +3257,16 @@ mod tests {
         assert!(svg.contains("clippy warnings/errors (1 runs"));
         assert!(svg.contains("fill=\"#e8843c\""));
         assert!(svg.contains("fill=\"#e05b5b\""));
+        assert!(svg.contains("font-size=\"11\""), "{svg}");
+        assert!(
+            svg.contains("height=\"168\"")
+                || (svg.contains("viewBox=\"0 0") && svg.contains("168")),
+            "{svg}"
+        );
+        assert!(
+            svg.contains("font-family=\"ui-monospace, Cascadia Code, Consolas, monospace\""),
+            "{svg}"
+        );
         let _ = std::fs::remove_dir_all(&tmp);
     }
 

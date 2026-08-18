@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-17 (**band 142 ✅ · наступний drain = band 143 chrome**)
+**Оновлено:** 2026-08-17 (**band 143 ✅ · наступний drain = band 144 live copy**)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -20,13 +20,13 @@ abrakadabra
 project scan (**warnings first**) → drain наступного band (**без** mid-push) →
 Speeds · Rust panel → vision-sync → **один** commit → **`git push` + самарі**.
 
-Якщо **gsv:** drain **band 143** (`PH-S2069…S2078`) — Galaxy chrome + type/chart scale.
+Якщо **gsv:** drain **band 144** (`PH-S2079…S2088`) — live copy + `POST /api/update/apply` + offline-during-swap.
 Spec [`GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md) · plan
 [`superpowers/plans/2026-08-17-always-on-galaxy.md`](superpowers/plans/2026-08-17-always-on-galaxy.md).
-MCP 26 tools + sessions already in tree. **Не** стартувати band 144 (live copy) поки 143 не ✅.
+Band 143 chrome is in tree. **Не** стартувати band 145 (products) поки 144 не ✅.
 Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics.sh`. Disk: `bash scripts/check_target_disk.sh`.
 
-**⚠️ Band 143 still runs from `target/debug/gsv-server.exe`** — stop that process before `cargo test`/`build`
+**⚠️ Until band 144 ships, `gsv-server` still runs from `target/debug/gsv-server.exe`** — stop that process before `cargo test`/`build`
 (os error 5). After tests, restart on 9999. Band 144 replaces this with `scripts/gsv-live.sh` (`target/live/`).
 
 ## Band стан
@@ -186,8 +186,10 @@ Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics
   (`Accept: text/event-stream` on GET/POST `/mcp`).
   **band 142** (PH-S2059…S2068) ✅ — MCP HTTP sessions (`Mcp-Session-Id` on
   initialize; `DELETE /mcp`; unknown id → 404).
-  **Наступний band**: **143** Galaxy chrome + type/chart (`PH-S2069…S2078`).
-  Далі 144 live copy · 145 products · 146 version/fingerprints · 147 polish.
+  **band 143** (PH-S2069…S2078) ✅ — Galaxy chrome + type/chart (power menu stack,
+  exclusive fullscreen, collapse-to-dock, `--fs-*`, SVG 168).
+  **Наступний band**: **144** live copy + apply (`PH-S2079…S2088`).
+  Далі 145 products · 146 version/fingerprints · 147 polish.
 
 ## Канон GSV
 
@@ -223,7 +225,8 @@ band 139 ✅ (MCP logging + completions — setLevel + complete) ·
 band 140 ✅ (MCP resource subscribe + logging notifications) ·
 band 141 ✅ (MCP HTTP SSE / streamable notifications) ·
 band 142 ✅ (MCP HTTP sessions / `Mcp-Session-Id`) ·
-не імплементувати band 144–147 поки 143 не ✅ ·
+band 143 ✅ (Galaxy chrome + type/chart scale) ·
+не імплементувати band 145–147 поки 144 не ✅ ·
 не комітити kit-only в PoolAI як «замість» GSV drain ·
 staging `GSV/data/*` / `certs/*.pem` /
 `.env` · mid-push · build/test при запущеному `gsv-server` · обхід ratio-смуги Rust-кодом замість compact UI ·

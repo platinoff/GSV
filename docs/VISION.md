@@ -103,6 +103,8 @@ queue as stdio; Galaxy card shows sse.
   - `GET /api/vision/speeds.svg` — **band 116**: Rust-rendered SVG chart (test-CI wall-clock
     bars, green = ok / red = fail, ≤24 runs, footer latest bench) з `test_ci_history`;
     empty-state svg (`ok:true`, `present:false`) коли масив порожній.
+    **band 143:** canvas height **168**, title/footer `font-size="11"`,
+    `font-family="ui-monospace, Cascadia Code, Consolas, monospace"`.
   - `GET /api/vision/rust-diagnostics.svg` — **band 116**: Rust-rendered SVG chart
     (warnings orange + errors red grouped bars, ≤24 runs, command footer) з `history`;
     empty-state svg коли масив порожній.

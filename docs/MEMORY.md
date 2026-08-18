@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-17 · band 143 ✅)
+
+- **Band 143:** Galaxy chrome + type/chart — power menu stacks above cards (`z-index:80`, header ≥ 40); exclusive fullscreen + named Esc (`data-action='card-fs'`, `exitFullscreen()`); collapsed cards leave the grid (dock restore); `--fs-ui:13px` / `--fs-card:12px` / `--fs-meta:11px` / `--fs-chart:11px`; speed/rust SVG height 168, font-size 11, ui-monospace.
+- **Canon:** [`gsv/GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md) · plan [`superpowers/plans/2026-08-17-always-on-galaxy.md`](superpowers/plans/2026-08-17-always-on-galaxy.md) · next drain **band 144** live copy (`PH-S2079…S2088`).
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 still `scripts/list-vdt-products.sh`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.22%** (rust 17444 / product 18129) · **324** tests · clippy 0. Vision rev **510**.
+- **Канон продукту:** Rust **95–100%** / wasm **0–5%** (завжди), без Python/Java; bins — лише `src/bin/`.
+
 ## Стан (2026-08-17 · always-on Galaxy spec queued · band 142 ✅)
 
 - **Owner ask → spec/plan, no code this session:** always-on `:9999`; page **offline** only during binary swap; debug collapse/fullscreen/power-menu z-index; type+chart balance; VDT product picker + open folder + auto-parse; patch version per commit; fingerprint (IDE / bot / model / agent / time); UI toward README presentations.

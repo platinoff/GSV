@@ -22,6 +22,7 @@ fn repo_root() -> PathBuf {
 
 fn temp_data_dir(tag: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("gsv-vision-{tag}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
     let _ = std::fs::create_dir_all(&dir);
     dir
 }

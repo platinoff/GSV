@@ -27,7 +27,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 140** (MCP resource subscribe + logging notifications) **✅** ·
 **band 141** (MCP HTTP SSE / streamable notifications) **✅** ·
 **band 142** (MCP HTTP sessions / `Mcp-Session-Id`) **✅** ·
-**band 143** (Galaxy chrome + type/chart scale) queued ·
+**band 143** (Galaxy chrome + type/chart scale) **✅** ·
 **bands 144–147** (always-on live copy · products · version/fingerprints · polish) queued ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
@@ -607,20 +607,20 @@ sessions.
 
 ## Спринти (band 143) — Galaxy chrome + type/chart scale
 
-Owner 2026-08-17: server must stay the live product; first drain is **debug chrome** (power menu under cards, collapse/fullscreen), then type/chart balance. Spec: [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md). Plan: [`docs/superpowers/plans/2026-08-17-always-on-galaxy.md`](../superpowers/plans/2026-08-17-always-on-galaxy.md). Implement **only this band** on the next `абракадабра` gsv drain.
+Owner 2026-08-17: server must stay the live product; first drain is **debug chrome** (power menu under cards, collapse/fullscreen), then type/chart balance. Spec: [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md). Plan: [`docs/superpowers/plans/2026-08-17-always-on-galaxy.md`](../superpowers/plans/2026-08-17-always-on-galaxy.md). **✅** this band. Next `абракадабра` gsv drain = **band 144**.
 
 | Sprint | Фокус | Acceptance (ключ) |
 |--------|-------|-------------------|
-| **PH-S2069** | Scope + queue | this band; spec Accepted; `extensions.json` `active_sprint` = `PH-S2069` |
-| **PH-S2070** | Power menu stack | header z-index ≥ 40; drop `body>header,.workspace{z-index:2}`; menu z-index 80 |
-| **PH-S2071** | Exclusive fullscreen | one `.fullscreen`; `data-action='card-fs'`; `exitFullscreen()`; Esc not `:last-child` |
-| **PH-S2072** | Collapse → dock | `.card.collapsed{display:none}`; restore from dock |
-| **PH-S2073** | Type scale | `--fs-ui/card/meta/chart`; card body max-height 420px |
-| **PH-S2074** | Chart SVG | speed/rust height 168; font-size 11; ui-monospace stack |
-| **PH-S2075** | Contracts | `gsv_ui_contracts` stack/collapse/fs/type markers |
-| **PH-S2076** | Docs canon | ALWAYS_ON_UI / BOXES / HANDOFF / NEXT / MEMORY / roadmap |
-| **PH-S2077** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy |
-| **PH-S2078** | Band close | tests green; vision-sync; one commit + push |
+| **PH-S2069** | Scope + queue | this band; spec Accepted; `extensions.json` `active_sprint` = `PH-S2069` — **✅** |
+| **PH-S2070** | Power menu stack | header z-index ≥ 40; drop `body>header,.workspace{z-index:2}`; menu z-index 80 — **✅** |
+| **PH-S2071** | Exclusive fullscreen | one `.fullscreen`; `data-action='card-fs'`; `exitFullscreen()`; Esc not `:last-child` — **✅** |
+| **PH-S2072** | Collapse → dock | `.card.collapsed{display:none}`; restore from dock — **✅** |
+| **PH-S2073** | Type scale | `--fs-ui/card/meta/chart`; card body max-height 420px — **✅** |
+| **PH-S2074** | Chart SVG | speed/rust height 168; font-size 11; ui-monospace stack — **✅** |
+| **PH-S2075** | Contracts | `gsv_ui_contracts` stack/collapse/fs/type markers — **✅** |
+| **PH-S2076** | Docs canon | ALWAYS_ON_UI / BOXES / HANDOFF / NEXT / MEMORY / roadmap — **✅** |
+| **PH-S2077** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy — **✅** |
+| **PH-S2078** | Band close | tests green; vision-sync; one commit + push — **✅** |
 
 ## Спринти (band 144) — Always-on live binary + offline during apply
 

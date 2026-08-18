@@ -5,13 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Galaxy StarWalker Vision (GSV)</title>
 <style>
-:root{--bg:#0a0e18;--panel:#121a2a;--panel2:#141c2e;--line:rgba(120,160,220,0.18);--fg:#eef2ff;--dim:#8b9cb8;--accent:#7eb8ff;--accent-2:#c4a5ff;--rust:#e8843c;--ok:#3fb96e;--warn:#e0a83c;--err:#e05b5b;--blue:#5b8de0;--L0:#3d6a9e;--L1:#3d6a4a;--L2:#8a7040;--L3:#8a4068;--L4:#6a5088;--L5:#4a6880;--edge-docs:#90c490;--edge-code:#c49ab0;--edge-toml:#7eb8c4;--sprint:#a78bfa;--sprint-next:#c4b5fd;--sprint-pill-bg:rgba(167,139,250,0.2);--sprint-pill-border:rgba(167,139,250,0.4);--sprint-pill-color:#d4c4ff;--sprint-chip-bg:rgba(167,139,250,0.15);--sprint-chip-border:rgba(167,139,250,0.3);--sprint-open-border:rgba(167,139,250,0.35);--sprint-open-bg:rgba(167,139,250,0.08);--sprint-next-border:rgba(126,184,255,0.55);--sprint-next-glow:rgba(126,184,255,0.15);--sprint-closed-op:0.55}
+:root{--bg:#0a0e18;--panel:#121a2a;--panel2:#141c2e;--line:rgba(120,160,220,0.18);--fg:#eef2ff;--dim:#8b9cb8;--accent:#7eb8ff;--accent-2:#c4a5ff;--rust:#e8843c;--ok:#3fb96e;--warn:#e0a83c;--err:#e05b5b;--blue:#5b8de0;--L0:#3d6a9e;--L1:#3d6a4a;--L2:#8a7040;--L3:#8a4068;--L4:#6a5088;--L5:#4a6880;--edge-docs:#90c490;--edge-code:#c49ab0;--edge-toml:#7eb8c4;--sprint:#a78bfa;--sprint-next:#c4b5fd;--sprint-pill-bg:rgba(167,139,250,0.2);--sprint-pill-border:rgba(167,139,250,0.4);--sprint-pill-color:#d4c4ff;--sprint-chip-bg:rgba(167,139,250,0.15);--sprint-chip-border:rgba(167,139,250,0.3);--sprint-open-border:rgba(167,139,250,0.35);--sprint-open-bg:rgba(167,139,250,0.08);--sprint-next-border:rgba(126,184,255,0.55);--sprint-next-glow:rgba(126,184,255,0.15);--sprint-closed-op:0.55;--fs-ui:13px;--fs-card:12px;--fs-meta:11px;--fs-chart:11px}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 "Cascadia Code","Consolas",monospace}
-header{display:flex;align-items:center;gap:12px;padding:10px 18px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;flex-wrap:wrap}
+body{margin:0;background:var(--bg);color:var(--fg);font:var(--fs-ui)/1.5 ui-monospace,"Cascadia Code","Consolas",monospace}
+header{display:flex;align-items:center;gap:12px;padding:10px 18px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:40;overflow:visible;flex-wrap:wrap}
 header h1{font-size:15px;margin:0;color:var(--accent)}
-header .meta{color:var(--dim);font-size:12px}
-.badge{padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600}
+header .meta{color:var(--dim);font-size:var(--fs-meta)}
+.badge{padding:2px 9px;border-radius:10px;font-size:var(--fs-meta);font-weight:600}
 .badge.online{background:#12301f;color:var(--ok)}.badge.offline{background:#331818;color:var(--err)}.badge.update{background:#332b10;color:var(--warn);cursor:pointer}
 button{background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer;font:inherit;font-size:12px}
 button:hover{border-color:var(--accent)}
@@ -33,7 +33,7 @@ body[data-group=ops] .card[data-group=ops],body[data-group=vision] .card[data-gr
 .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .card h2{margin:0;padding:8px 14px;font-size:13px;color:var(--rust);background:var(--panel2);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
 .card h2 .hint{color:var(--dim);font-weight:400;font-size:11px}
-.card .body{padding:10px 14px;max-height:340px;overflow:auto;font-size:12px}
+.card .body{padding:10px 14px;max-height:420px;overflow:auto;font-size:var(--fs-card)}
 .card-status{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:8px;font-size:10px;font-weight:600;color:var(--err);background:rgba(224,91,91,0.12);border:1px solid rgba(224,91,91,0.35)}
 .card-status.ok{display:none}
 table{border-collapse:collapse;width:100%}
@@ -56,18 +56,19 @@ pre.out{background:var(--panel2);border:1px solid var(--line);border-radius:6px;
 .squeue.open .squeue-st{color:var(--sprint)}
 .squeue.next{border-color:var(--sprint-next-border);box-shadow:0 0 0 1px var(--sprint-next-glow)}
 .squeue.closed{opacity:var(--sprint-closed-op)}
+.card.collapsed{display:none!important}
 .card.collapsed .body{display:none!important}
 .card.fullscreen{position:fixed!important;inset:16px!important;z-index:1000!important;max-height:none!important;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,0.8)}
-.card.fullscreen .body{max-height:calc(100vh - 80px)!important;flex:1}
+.card.fullscreen .body{max-height:none!important;flex:1}
 .card h2 .actions{display:flex;gap:4px;align-items:center}
 .card h2 .actions button{background:transparent;border:1px solid var(--line);color:var(--dim);cursor:pointer;padding:1px 6px;font-size:10px;border-radius:4px;font-family:inherit}
 .card h2 .actions button:hover{color:var(--accent);border-color:var(--accent);background:var(--panel)}
-.galaxy-backdrop{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}.galaxy-backdrop img{position:absolute;inset:-8%;width:116%;height:116%;object-fit:cover;opacity:var(--galaxy-bg-opacity,0.15);pointer-events:none}#starfield{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;opacity:calc(0.45*var(--bg-tone,0.8))}body>header,.workspace{position:relative;z-index:2}
+.galaxy-backdrop{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}.galaxy-backdrop img{position:absolute;inset:-8%;width:116%;height:116%;object-fit:cover;opacity:var(--galaxy-bg-opacity,0.15);pointer-events:none}#starfield{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;opacity:calc(0.45*var(--bg-tone,0.8))}.workspace{position:relative;z-index:2}body>header{position:sticky;top:0;z-index:40;overflow:visible}
 .rss-ticker{display:none;align-items:center;gap:10px;padding:4px 14px 3px;border-bottom:1px solid var(--border,var(--line));background:rgba(12,18,30,0.88);min-height:30px;overflow:hidden;position:relative;z-index:3}.rss-ticker-label{flex:0 0 auto;font-size:0.62rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--sprint,#a78bfa);padding:2px 6px;border:1px solid rgba(167,139,250,0.35);border-radius:4px;background:rgba(167,139,250,0.08)}
 .rss-ticker-viewport{flex:1;min-width:0;overflow:hidden;mask-image:linear-gradient(90deg,transparent,#000 28px,#000 calc(100% - 28px),transparent)}.rss-ticker-track{display:inline-flex;gap:26px;margin:0;padding:0;list-style:none;white-space:nowrap;animation:rss-scroll 70s linear infinite}@keyframes rss-scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
 .rss-ticker-item{display:inline-flex;gap:6px;font-size:0.7rem;color:var(--dim,#8b9cb8);cursor:pointer}.rss-ticker-item strong{color:var(--sprint,#a78bfa)}
-.header-actions{display:flex;gap:6px;align-items:center;margin-left:auto}
-.power-menu{position:absolute;top:46px;right:14px;background:var(--panel-solid,#141c2e);border:1px solid var(--border-bright,rgba(138,180,248,0.45));border-radius:8px;padding:8px;display:none;flex-direction:column;gap:6px;z-index:40;box-shadow:0 10px 30px rgba(0,0,0,0.6)}.power-menu.open{display:flex}.power-menu button{white-space:nowrap}
+.header-actions{display:flex;gap:6px;align-items:center;margin-left:auto;position:relative}
+.power-menu{position:absolute;top:46px;right:14px;background:var(--panel-solid,#141c2e);border:1px solid var(--border-bright,rgba(138,180,248,0.45));border-radius:8px;padding:8px;display:none;flex-direction:column;gap:6px;z-index:80;box-shadow:0 10px 30px rgba(0,0,0,0.6)}.power-menu.open{display:flex}.power-menu button{white-space:nowrap}
 .panel-dock{position:sticky;top:0;z-index:3;display:none;flex-wrap:wrap;gap:6px;padding:6px 18px;background:var(--panel,#121a2a);border-bottom:1px solid var(--line);align-items:center}.panel-dock.visible{display:flex}.panel-dock .dock-title{font-size:11px;color:var(--dim,#8b9cb8);text-transform:uppercase;letter-spacing:0.06em;margin-right:4px}.dock-chip{padding:2px 8px;border:1px solid var(--line);border-radius:6px;font-size:11px;cursor:pointer;color:var(--accent,#7eb8ff);background:var(--panel2,#141c2e)}.dock-chip:hover{border-color:var(--accent)}
 body.panel-fs-active .card{display:none!important}body.panel-fs-active .card.fullscreen{display:flex!important}
 </style>
@@ -134,26 +135,68 @@ const esc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").repl
 let offline = false;
 const toast = msg => { const t = $("toast"); t.textContent = msg; t.style.display = "block"; setTimeout(() => { t.style.display = "none"; }, 4000); };
 const setOffline = v => { offline = v; const el = $("status"); el.textContent = v ? "offline" : "online"; el.className = "badge " + (v ? "offline" : "online"); };
+function exitFullscreen() {
+  document.querySelectorAll(".card.fullscreen").forEach((c) => {
+    c.classList.remove("fullscreen");
+    const b = c.querySelector("[data-action='card-fs']");
+    if (b) b.textContent = "□";
+  });
+  document.body.classList.remove("panel-fs-active");
+}
+function collapseCard(card) {
+  exitFullscreen();
+  card.classList.add("collapsed");
+  const b = card.querySelector("[data-action='card-min']");
+  if (b) b.textContent = "+";
+  syncDock();
+}
+function restoreCard(card) {
+  card.classList.remove("collapsed");
+  const b = card.querySelector("[data-action='card-min']");
+  if (b) b.textContent = "_";
+  syncDock();
+}
 document.addEventListener("DOMContentLoaded", () => {
-  document.querySelectorAll(".card").forEach(card => {
+  document.querySelectorAll(".card").forEach((card) => {
     const h2 = card.querySelector("h2");
     if (!h2) return;
     const actions = document.createElement("span");
     actions.className = "actions";
     const minBtn = document.createElement("button");
-    minBtn.textContent = "_"; minBtn.title = "Minimize / Restore"; minBtn.setAttribute("aria-label", "Minimize / Restore card");
-    minBtn.onclick = (e) => { e.stopPropagation(); card.classList.toggle("collapsed"); minBtn.textContent = card.classList.contains("collapsed") ? "+" : "_"; syncDock(); };
+    minBtn.textContent = "_";
+    minBtn.title = "Minimize / Restore";
+    minBtn.setAttribute("aria-label", "Minimize / Restore card");
+    minBtn.setAttribute("data-action", "card-min");
+    minBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (card.classList.contains("collapsed")) restoreCard(card);
+      else collapseCard(card);
+    };
     const maxBtn = document.createElement("button");
-    maxBtn.textContent = "□"; maxBtn.title = "Fullscreen Toggle (Esc)"; maxBtn.setAttribute("aria-label", "Fullscreen toggle card");
-    maxBtn.onclick = (e) => { e.stopPropagation(); const on = card.classList.toggle("fullscreen"); maxBtn.textContent = on ? "×" : "□"; document.body.classList.toggle("panel-fs-active", on); };
-    actions.appendChild(minBtn); actions.appendChild(maxBtn);
+    maxBtn.textContent = "□";
+    maxBtn.title = "Fullscreen Toggle (Esc)";
+    maxBtn.setAttribute("aria-label", "Fullscreen toggle card");
+    maxBtn.setAttribute("data-action", "card-fs");
+    maxBtn.onclick = (e) => {
+      e.stopPropagation();
+      const turningOn = !card.classList.contains("fullscreen");
+      exitFullscreen();
+      if (turningOn) {
+        card.classList.add("fullscreen");
+        maxBtn.textContent = "×";
+        document.body.classList.add("panel-fs-active");
+      }
+    };
+    actions.appendChild(minBtn);
+    actions.appendChild(maxBtn);
     h2.appendChild(actions);
   });
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
-    document.querySelectorAll(".card.fullscreen").forEach(c => { c.classList.remove("fullscreen"); const b = c.querySelector(".actions button:last-child"); if (b) b.textContent = "□"; });
-    document.body.classList.remove("panel-fs-active");
-    const pm = $("powerMenu"); if (pm) pm.classList.remove("open");
+    exitFullscreen();
+    const pm = $("powerMenu");
+    if (pm) pm.classList.remove("open");
+    $("btnPower").setAttribute("aria-expanded", "false");
   });
 });
 async function get(path) { const res = await fetch(path); if (!res.ok) throw new Error(path + " → " + res.status); return res.json(); }
@@ -227,7 +270,7 @@ function togglePowerMenu(){const pm=$("powerMenu");pm.classList.toggle("open");$
 async function powerSoft(){$("powerMenu").classList.remove("open");$("btnPower").setAttribute("aria-expanded","false");$("b-vision-sync-status").textContent="syncing…";try{await get("api/vision/sync");await getText("vision-sync");await resync();toast("vision synced")}catch(e){$("b-vision-sync-status").textContent="error";toast(String(e))}}
 function powerReload(){$("powerMenu").classList.remove("open");$("btnPower").setAttribute("aria-expanded","false");resync();toast("resync ok")}
 function powerOffline(){$("powerMenu").classList.remove("open");$("btnPower").setAttribute("aria-expanded","false");setOffline(true);toast("forced offline")}
-function syncDock(){const dock=$("panelDock");dock.innerHTML="<span class='dock-title'>docked</span>";let n=0;document.querySelectorAll(".card.collapsed").forEach(card=>{const id=card.getAttribute("data-card")||card.getAttribute("data-id")||card.querySelector("h2").childNodes[0].textContent.trim();const chip=document.createElement("span");chip.className="dock-chip";chip.textContent=id;chip.title="restore "+id;chip.onclick=()=>{card.classList.remove("collapsed");const b=card.querySelector(".actions button");if(b)b.textContent="_";syncDock()};dock.appendChild(chip);n++});dock.classList.toggle("visible",n>0)}
+function syncDock(){const dock=$("panelDock");dock.innerHTML="<span class='dock-title'>docked</span>";let n=0;document.querySelectorAll(".card.collapsed").forEach(card=>{const id=card.getAttribute("data-card")||card.getAttribute("data-id")||card.querySelector("h2").childNodes[0].textContent.trim();const chip=document.createElement("span");chip.className="dock-chip";chip.textContent=id;chip.title="restore "+id;chip.onclick=()=>{restoreCard(card)};dock.appendChild(chip);n++});dock.classList.toggle("visible",n>0)}
 async function loadRssTicker(){try{const d=await get("api/ui/card/rss-ticker");const html=d.html||"";if(!d.ok||html.indexOf("rss-ticker-item")<0){$("rssTicker").style.display="none";return}$("rssTicker").style.display="flex";$("rssTickerTrack").innerHTML=html}catch(e){$("rssTicker").style.display="none"}}
 async function testOmniProvider() {
   try {

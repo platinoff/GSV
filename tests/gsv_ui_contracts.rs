@@ -379,3 +379,66 @@ async fn ui_index_cards_are_offline_stable() {
         "node search uses rust chrome card"
     );
 }
+
+/// Band 143: power menu must stack above workspace cards (P1).
+#[tokio::test]
+async fn ui_index_power_menu_stacks_above_workspace() {
+    let (app, _state) = app();
+    let html = get_index_html(&app).await;
+    assert!(
+        html.contains("z-index:80") || html.contains("z-index: 80"),
+        "power menu must stack above cards: {html}"
+    );
+    assert!(
+        html.contains(".power-menu") && html.contains("z-index"),
+        "power-menu rule missing"
+    );
+    // Regression: later rule must not pin body>header to the same z-index as .workspace.
+    assert!(
+        !html.contains("body>header,.workspace{position:relative;z-index:2}"),
+        "header must not share z-index 2 with workspace"
+    );
+}
+
+/// Band 143: exclusive fullscreen + named Esc target (P3/P4).
+#[tokio::test]
+async fn ui_index_card_actions_use_data_action() {
+    let (app, _state) = app();
+    let html = get_index_html(&app).await;
+    assert!(
+        html.contains("data-action=\"card-fs\"")
+            || html.contains("data-action='card-fs'")
+            || html.contains("setAttribute(\"data-action\", \"card-fs\")"),
+        "card-fs data-action missing"
+    );
+    assert!(
+        html.contains("data-action=\"card-min\"")
+            || html.contains("data-action='card-min'")
+            || html.contains("setAttribute(\"data-action\", \"card-min\")"),
+        "card-min data-action missing"
+    );
+    assert!(html.contains("function exitFullscreen"));
+}
+
+/// Band 143: collapsed cards leave the grid (P2).
+#[tokio::test]
+async fn ui_index_collapsed_card_leaves_grid() {
+    let (app, _state) = app();
+    let html = get_index_html(&app).await;
+    assert!(
+        html.contains(".card.collapsed{display:none")
+            || html.contains(".card.collapsed { display: none"),
+        "collapsed cards must leave the grid"
+    );
+}
+
+/// Band 143: shared type scale CSS variables (P0 typography).
+#[tokio::test]
+async fn ui_index_defines_type_scale() {
+    let (app, _state) = app();
+    let html = get_index_html(&app).await;
+    assert!(html.contains("--fs-ui:13px"));
+    assert!(html.contains("--fs-card:12px"));
+    assert!(html.contains("--fs-meta:11px"));
+    assert!(html.contains("--fs-chart:11px"));
+}

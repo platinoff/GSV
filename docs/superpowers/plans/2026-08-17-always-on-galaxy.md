@@ -47,9 +47,9 @@
 
 ---
 
-# Band 143 — Chrome bugs + type/chart scale (PH-S2069…S2078)
+# Band 143 — Chrome bugs + type/chart scale (PH-S2069…S2078) ✅
 
-Next `абракадабра` session implements **only this band**.
+Shipped 2026-08-17. Next `абракадабра` on gsv is **band 144**.
 
 ### Task 1: Power menu above cards
 

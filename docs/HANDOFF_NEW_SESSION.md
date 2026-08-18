@@ -1,23 +1,24 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-08-17 (band 142 ✅ · **band 143 queued** — always-on Galaxy spec)
+**Оновлено:** 2026-08-17 (band 143 ✅ · **band 144 queued** — always-on live copy)
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
 **`абракадабра` / `abrakadabra`** → `scripts/list-vdt-products.sh` → **AskQuestion на проєкти з environment**
 (не `gsv | poolai` з голови) → S0 диск/git → project scan (warnings first) →
-drain **band 143** (`PH-S2069…S2078`, chrome + type/chart) → Speeds + Rust panel → vision-sync → **один commit** → **`git push` + самарі**.
+drain **band 144** (`PH-S2079…S2088`, live copy + apply) → Speeds + Rust panel → vision-sync → **один commit** → **`git push` + самарі**.
 
-Якщо вибір **gsv:** drain [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) **band 143** only
+Якщо вибір **gsv:** drain [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) **band 144** only
 (spec [`gsv/GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md), plan
 [`superpowers/plans/2026-08-17-always-on-galaxy.md`](superpowers/plans/2026-08-17-always-on-galaxy.md)).
-Не починати 144 (live copy) в тій же сесії, якщо 143 не закритий.
+Не починати 145 (products) в тій же сесії, якщо 144 не закритий.
 MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
 Канон ролей: [`GSV_ROLES.md`](GSV_ROLES.md). Реєстр: [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
 
 ## Стан зараз
 
-- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–141 · **142 ✅**.
-- **Horizon 143–147 (queued, not implemented):** always-on live copy; UI offline only during binary swap; power-menu/collapse/fullscreen debug; type+chart scale; VDT product picker + open folder + auto-parse; patch version per commit; fingerprint JSONL (IDE / bot / model / agent / time).
+- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–142 · **143 ✅**.
+- **Horizon 144–147 (queued):** always-on live copy; UI offline only during binary swap; VDT product picker + open folder + auto-parse; patch version per commit; fingerprint JSONL (IDE / bot / model / agent / time).
+- **Band 143:** Galaxy chrome + type/chart — power menu `z-index:80` above workspace (header ≥ 40; no shared `z-index:2`); exclusive fullscreen (`data-action='card-fs'`, `exitFullscreen()`, Esc); collapsed cards leave the grid (`display:none` + dock restore); `--fs-ui/card/meta/chart` scale; speed/rust SVG height 168, font-size 11, ui-monospace. Live copy still band 144 — debug exe still locks `cargo test`.
 - **Band 142:** MCP HTTP sessions — `POST /mcp` `initialize` issues process-local `Mcp-Session-Id` (cap 32); unknown id → 404 `{ok:false}`; `DELETE /mcp` ends it; JSON discovery stays sessionless (`sessions`/`session_count`); Galaxy card lists sessions. Same `gsv://` confine; no LAN widen; stdio does not issue HTTP sessions.
 - **Band 141:** MCP HTTP SSE — `GET`/`POST /mcp` with `Accept: text/event-stream` flush `notifications/message` and `notifications/resources/updated` as finite SSE (`event: message`); JSON discovery stays default (`sse`/`streamable`); Galaxy card lists sse. Same `gsv://` confine; no LAN widen.
 - **Band 140:** MCP resource subscribe + logging notifications — `resources/subscribe`+`unsubscribe` (allowlisted `gsv://`; `..` / `file:` → `-32602`); stdio flushes `notifications/message` (filtered by `logging/setLevel`) and `notifications/resources/updated` after `gsv_vision_sync` for subscribed vision URIs. `GET /mcp` `subscribe`/`subscription_count`; Galaxy card lists count.
@@ -33,9 +34,9 @@ MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
 - **Band 134:** HTTP response hardening — CSP / nosniff / DENY / no-store / COOP+CORP; POST 256 KiB cap → 413 `{ok:false}`.
 - **VDT kit (band 127):** shared `.agents/skills/` + generic `.cursor/rules/` + `gsv.code-workspace` + `PRODUCTS.md`.
   Discover: `scripts/list-vdt-products.sh` (не hardcoded `gsv | poolai`).
-- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.43%** (rust 17360 / product 18002) · **320** green · clippy 0 · fmt clean.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.22%** (rust 17444 / product 18129) · **324** green · clippy 0 · fmt clean.
 - **Сервер:** canon порт **9999** (`DEFAULT_PORT`; 8765 — Hyper-V reserved range).
-- **Vision rev:** **509** (band 142 `gsv-vision-sync`).
+- **Vision rev:** **510** (band 143 `gsv-vision-sync`).
 - **Live UI** — `gsv-server` → `http://127.0.0.1:9999/`. MCP stdio — `cargo run --quiet --bin gsv-mcp`.
 - **Band 133:** localhost security — `--allow-lan`; CSRF POST gate; terminal cargo/git allowlists; `/data/{file}` allowlist; preview canonicalize.
 - **FM:** band 127 = PoolAI FM §5.108 (PH-S1909…S1918 ✅). Master horizon poolAI: band 128.
