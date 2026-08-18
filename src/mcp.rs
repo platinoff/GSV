@@ -423,7 +423,7 @@ const PROMPTS: &[PromptSpec] = &[
     PromptSpec {
         name: "gsv_drain",
         description: "Start a VDT drain: next PH-S* band after the last closed sprint.",
-        text: "Start a GSV VDT drain. Read gsv://docs/next, gsv://docs/rust-dev, and gsv://docs/post-always-on. Call gsv_xtask (task=products) or gsv_products, then gsv_products_select with the owner pick, then gsv_products_scan (id optional after select), gsv_disk, gsv_watchdog, gsv_usage, and gsv_xtask task=sync (read-only vision drift). gsv_vision_sync remirrors snapshots and notifies subscribed gsv:// resources. For model routing call gsv_omni_route (task=rust|web, prefer_free) so cooldown timers skip exhausted free hosts. Cursor attaches over HTTP url http://127.0.0.1:9999/mcp (live gsv-server). Check GET /mcp version against the crate; a stale live copy is why tools go missing. Stdio MCP is target/live/gsv-mcp.exe for OpenCode/Grok (cargo xtask live copies it; do not cargo run --bin gsv-mcp). Product tests/benches/scripts are cargo xtask / tests/*.rs / benches/*.rs — do not add .sh/.ps1/JSON harnesses. Propose the next ≤10 PH-S* after the last closed band. Do not push mid-drain. Invoke cargo via MSYS2 bash.",
+        text: "Start a GSV VDT drain. Sandbox is this GSV repo (S:/rust/GSV): preview, terminal, vision, and xtask stay inside it. Registered VDT products (poolai, omniroute, …) are reached only via gsv_products / gsv_products_select / gsv_products_scan (unknown id is a tool error; no gsv_products_open). Do not install gsv_mcp_openbot as Cursor User MCP — that leaks into PoolAI windows. Keep it in GSV/.cursor/mcp.json (folder scope GSV). Read gsv://docs/next, gsv://docs/rust-dev, and gsv://docs/post-always-on. Call gsv_xtask (task=products) or gsv_products, then gsv_products_select with the owner pick, then gsv_products_scan (id optional after select), gsv_disk, gsv_watchdog, gsv_usage, and gsv_xtask task=sync (read-only vision drift). gsv_vision_sync remirrors snapshots and notifies subscribed gsv:// resources. For model routing call gsv_omni_route (task=rust|web, prefer_free) so cooldown timers skip exhausted free hosts. Cursor attaches over HTTP url http://127.0.0.1:9999/mcp (live gsv-server). Check GET /mcp version against the crate; a stale live copy is why tools go missing. Stdio MCP is target/live/gsv-mcp.exe for OpenCode/Grok (cargo xtask live copies it; do not cargo run --bin gsv-mcp). Product tests/benches/scripts are cargo xtask / tests/*.rs / benches/*.rs — do not add .sh/.ps1/JSON harnesses. Propose the next ≤10 PH-S* after the last closed band. Do not push mid-drain. Invoke cargo via MSYS2 bash.",
     },
 ];
 
@@ -575,6 +575,7 @@ pub fn http_info(state: &AppState) -> Value {
         "protocol": PROTOCOL_VERSION,
         "transport": "streamable-http",
         "version": &*state.version,
+        "sandbox": crate::boxes::products::display_path(&state.repo_root),
         "stdio": "gsv-mcp",
         "stdio_live": stdio_live_rel(),
         "http": "/mcp",
@@ -722,7 +723,7 @@ fn initialize_result(state: &AppState) -> Value {
             "name": SERVER_ID,
             "version": *state.version,
         },
-        "instructions": "GSV box tools plus allowlisted gsv:// resources and prompts. Cursor uses HTTP url http://127.0.0.1:9999/mcp on the live gsv-server. Stdio is target/live/gsv-mcp.exe (copied by cargo xtask live) for OpenCode/Grok. GET /mcp reports version — if it lags the crate, recopy the live server. resources/subscribe is process-local; gsv_vision_sync notifies every subscribed gsv:// URI. gsv_xtask task=sync is --check drift only. completion/complete covers resource URIs and prompt names. logging/setLevel filters notifications/message. HTTP GET with a session + Accept: text/event-stream holds SSE (no session stays a finite flush). HTTP initialize issues Mcp-Session-Id (DELETE /mcp ends it; unknown id → 404). POST /mcp skips browser CSRF (bots). Terminal uses the HTTP SLI allowlist. Omni chat defaults to dry-run."
+        "instructions": "GSV box tools plus allowlisted gsv:// resources and prompts. Sandbox is this GSV repo (preview/terminal/vision). VDT products are gsv_products_* allowlist only (no open/apply/tunnel tools). Cursor folder MCP is GSV/.cursor/mcp.json — not User scope (User leaks into PoolAI). Cursor uses HTTP url http://127.0.0.1:9999/mcp on the live gsv-server. Stdio is target/live/gsv-mcp.exe (copied by cargo xtask live) for OpenCode/Grok. GET /mcp reports version and sandbox — if version lags the crate, recopy the live server. resources/subscribe is process-local; gsv_vision_sync notifies every subscribed gsv:// URI. gsv_xtask task=sync is --check drift only. completion/complete covers resource URIs and prompt names. logging/setLevel filters notifications/message. HTTP GET with a session + Accept: text/event-stream holds SSE (no session stays a finite flush). HTTP initialize issues Mcp-Session-Id (DELETE /mcp ends it; unknown id → 404). POST /mcp skips browser CSRF (bots). Terminal uses the HTTP SLI allowlist. Omni chat defaults to dry-run."
     })
 }
 
@@ -1569,6 +1570,15 @@ mod tests {
         assert_eq!(info["http_url"], "http://127.0.0.1:9999/mcp");
         assert_eq!(info["version"], *state().version);
         assert_eq!(info["http_csrf"], false);
+        let sandbox = info["sandbox"].as_str().unwrap_or("");
+        assert!(
+            sandbox.replace('\\', "/").ends_with("/GSV"),
+            "sandbox={sandbox}"
+        );
+        assert!(!sandbox.to_ascii_lowercase().ends_with("/poolai"));
+        for forbidden in ["gsv_products_open", "gsv_tunnel", "gsv_update_apply"] {
+            assert!(!TOOL_NAMES.contains(&forbidden), "{forbidden}");
+        }
         assert!(stdio_live_rel().contains("gsv-mcp"));
         assert_eq!(info["sse"], true);
         assert_eq!(info["streamable"], true);
@@ -2117,6 +2127,8 @@ mod tests {
         assert!(text.contains("gsv_vision_sync"), "{text}");
         assert!(text.contains("target/live/gsv-mcp"), "{text}");
         assert!(text.contains("http://127.0.0.1:9999/mcp"), "{text}");
+        assert!(text.contains("S:/rust/GSV"), "{text}");
+        assert!(text.contains("User MCP"), "{text}");
         assert!(text.contains("gsv_disk"), "{text}");
         assert!(text.contains("gsv_usage"), "{text}");
         assert!(text.contains("gsv_omni_route"), "{text}");

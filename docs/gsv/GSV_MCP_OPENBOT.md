@@ -1,6 +1,6 @@
 # gsv_mcp_openbot — GSV as an MCP server
 
-**Status:** Implemented (band **159**, Cursor HTTP MCP + session SSE hold · band **158**, live stdio + sync check · band **157**, OmniRouter catalog + quota timers · band **156**, streaming usage · band **155**, session token usage · band **154**, watchdog ops card · band **153**, rust-first xtask · band **152**, `PH-S2159…S2168` ✅ · band **151**, `PH-S2149…S2158` ✅ · band 142 `PH-S2059…S2068` ✅ · band 141 `PH-S2049…S2058` ✅ · band 140 `PH-S2039…S2048` ✅ · band 139 `PH-S2029…S2038` ✅ · band 138 `PH-S2019…S2028` ✅ · band 137 `PH-S2009…S2018` ✅ · band 136 `PH-S1999…S2008` ✅ · band 135 `PH-S1989…S1998` ✅) · **Date:** 2026-08-18
+**Status:** Implemented (band **160**, GSV sandbox MCP · no User leak · band **159**, Cursor HTTP MCP + session SSE hold · band **158**, live stdio + sync check · band **157**, OmniRouter catalog + quota timers · band **156**, streaming usage · band **155**, session token usage · band **154**, watchdog ops card · band **153**, rust-first xtask · band **152**, `PH-S2159…S2168` ✅ · band **151**, `PH-S2149…S2158` ✅ · band 142 `PH-S2059…S2068` ✅ · band 141 `PH-S2049…S2058` ✅ · band 140 `PH-S2039…S2048` ✅ · band 139 `PH-S2029…S2038` ✅ · band 138 `PH-S2019…S2028` ✅ · band 137 `PH-S2009…S2018` ✅ · band 136 `PH-S1999…S2008` ✅ · band 135 `PH-S1989…S1998` ✅) · **Date:** 2026-08-18
 **Deciders:** owner
 
 GSV exposes one MCP server named **`gsv_mcp_openbot`**. OpenCode, Cursor, Grok CLI, and Grok Bot consume the **same** tools. Those products stay **clients** — they are not embedded inside `gsv-server`.
@@ -65,16 +65,17 @@ When band 135 lands, `gsv_mcp_openbot` should appear **without** the owner pasti
 | File | Client |
 |------|--------|
 | `.mcp.json` (repo root) | Grok CLI + anything that reads project MCP (stdio live copy) |
-| `.cursor/mcp.json` | Cursor + Grok Bot — **HTTP** `http://127.0.0.1:9999/mcp` (live `gsv-server`) |
+| `.cursor/mcp.json` | Cursor folder **GSV** — HTTP `http://127.0.0.1:9999/mcp`. **Do not** copy into `%USERPROFILE%/.cursor/mcp.json` (User scope leaks into PoolAI windows). |
 | `opencode.json` → `mcp.gsv_mcp_openbot` | OpenCode local stdio |
 | `.grok/config.toml` | Grok CLI project overlay (`[mcp_servers.gsv_mcp_openbot]`) stdio |
 
-Cursor (band **159**):
+Cursor (band **160**: folder GSV only, never User MCP):
 
 ```json
 {
   "mcpServers": {
     "gsv_mcp_openbot": {
+      "type": "http",
       "url": "http://127.0.0.1:9999/mcp"
     }
   }
@@ -184,6 +185,9 @@ No secrets in tool output (`omni.toml` keys stay redacted). POST body cap and CS
 ## Security
 
 - Default bind remains `127.0.0.1`. `/mcp` must not widen LAN without `--allow-lan`.
+- Sandbox is the GSV crate (`S:/rust/GSV`): preview + `gsv://` confine; terminal = HTTP SLI allowlist (no `git push` / extra shell).
+- VDT products (`poolai`, `omniroute`, …) only via `gsv_products_*` discovered ids. No MCP `products/open`, `update/apply`, or tunnel.
+- Cursor MCP is **folder GSV** (`.cursor/mcp.json`). User-scope `%USERPROFILE%/.cursor/mcp.json` leaks the bot into PoolAI windows — do not install it there.
 - Terminal tool = existing cargo/git allowlists (band 133).
 - POST `/mcp` skips the browser Origin / `Sec-Fetch-Site` CSRF gate (bots are not the Galaxy UI). Body cap still applies. Other POSTs stay gated.
 - Grok Bot cloud: `cargo xtask tunnel` is the **owner-opt-in** public hop (`cloudflared tunnel --url http://127.0.0.1:9999`). Not on by default. `/mcp` on that URL is world-reachable until you Ctrl+C. Do not add an MCP tool that starts the tunnel.
@@ -195,7 +199,9 @@ No secrets in tool output (`omni.toml` keys stay redacted). POST body cap and CS
 - Auto-generating a second Galaxy UI for OpenCode.
 - Python MCP adapters.
 
-## Horizon (band 159+)
+## Horizon (band 160+)
+
+Band **160** scoped Cursor MCP to folder **GSV** (`S:/rust/GSV` sandbox; VDT products via allowlist). Do not install User MCP. Still **not** on MCP: `products/open`, `update/apply`, starting the tunnel.
 
 Band **159** attached Cursor to the live Galaxy HTTP MCP (`url` in `.cursor/mcp.json`), advertised `version`/`http_url` on `GET /mcp`, and held session GET SSE so Streamable HTTP stays up. Recopy `target/live/gsv-server.exe` after a drain or HTTP tools lag the crate. Still **not** on MCP: `products/open`, `update/apply`, starting the tunnel.
 
@@ -203,6 +209,6 @@ Spec: [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md). Plan: [`docs/superpowe
 
 ## See also
 
-- Roadmap sprints: [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) band 135–142 ✅ · **151 ✅** · **152 ✅** · **153 ✅** · **154 ✅** · **155 ✅** · **156 ✅** · **157 ✅** · **158 ✅** · **159 ✅**
+- Roadmap sprints: [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) band 135–142 ✅ · **151 ✅** · **152 ✅** · **153 ✅** · **154 ✅** · **155 ✅** · **156 ✅** · **157 ✅** · **158 ✅** · **159 ✅** · **160 ✅**
 - Server: [`GSV_SERVER.md`](./GSV_SERVER.md)
 - Boxes: [`GSV_BOXES.md`](./GSV_BOXES.md)

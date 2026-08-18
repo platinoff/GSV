@@ -44,6 +44,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 157** (OmniRouter catalog + quota timers) **✅** ·
 **band 158** (live MCP stdio + sync check) **✅** ·
 **band 159** (Cursor HTTP MCP + session SSE hold) **✅** ·
+**band 160** (GSV sandbox MCP · no User leak into PoolAI) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -910,6 +911,23 @@ Owner ask (`абракадабра` gsv / mvp with mcp): bot still not in the Cu
 | **PH-S2236** | Docs | MCP_OPENBOT / SERVER / HANDOFF / NEXT / MEMORY — **✅** |
 | **PH-S2237** | Live lockstep | recopy `gsv-server` + `gsv-mcp` after tests (do not kill live before `cargo test`) — **✅** |
 | **PH-S2238** | Band close | tests **473** green; `--stretch-96` **99.23%**; `--band 159` + fingerprint; one commit + push — **✅** |
+
+## Спринти (band 160) — GSV sandbox MCP, no User leak ✅
+
+Owner: User MCP overlay made `gsv_mcp_openbot` appear in PoolAI windows. GSV sandbox is `S:/rust/GSV`; VDT products stay on `gsv_products_*` allowlist; mutating open/apply/tunnel stay off MCP.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2239** | Scope | this band; drop `%USERPROFILE%/.cursor/mcp.json` overlay — **✅** |
+| **PH-S2240** | Discovery | `GET /mcp` `sandbox` = GSV crate path — **✅** |
+| **PH-S2241** | Instructions | `gsv_drain` names GSV sandbox + no User MCP — **✅** |
+| **PH-S2242** | Confine | preview `../poolAI/…` is tool error; no `gsv_products_open` / tunnel / apply tools — **✅** |
+| **PH-S2243** | Cursor | project `.cursor/mcp.json` `type=http` loopback only (folder GSV) — **✅** |
+| **PH-S2244** | Galaxy card | sandbox kbd — **✅** |
+| **PH-S2245** | (reserve) | — **✅** |
+| **PH-S2246** | Contracts | mcp/ui sandbox + omit-mutating — **✅** |
+| **PH-S2247** | Docs | MCP_OPENBOT / HANDOFF / NEXT / MEMORY — **✅** |
+| **PH-S2248** | Band close | tests **475** green; `--stretch-96` **99.23%**; `--band 160` + fingerprint; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

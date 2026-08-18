@@ -71,4 +71,4 @@
 
 ## Порядок реалізації (коротко)
 
-Повний порядок зі спринтами — [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md). Логіка: **docs/architecture → server scaffold → SLI console + Tracker → Toolchain → IDE → Update/offline → Preview + SLI terminal → Tests/bench hooks → band close**. MCP: [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) (band 135–158 ✅: live stdio `gsv-mcp` + `/mcp` CSRF skip + `gsv_xtask` `sync` `--check` + notify all subscribed `gsv://` + Galaxy card + **36** tools + **10** resources). Next gsv drain: scan / owner pick.
+Повний порядок зі спринтами — [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md). Логіка: **docs/architecture → server scaffold → SLI console + Tracker → Toolchain → IDE → Update/offline → Preview + SLI terminal → Tests/bench hooks → band close**. MCP: [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) (band 135–**160** ✅: GSV sandbox `S:/rust/GSV` + folder MCP only + live stdio `gsv-mcp` + `/mcp` CSRF skip + `gsv_xtask` `sync` `--check` + notify all subscribed `gsv://` + Galaxy card + **36** tools + **10** resources). Next gsv drain: scan / owner pick.

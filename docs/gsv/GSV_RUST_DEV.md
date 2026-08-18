@@ -51,7 +51,7 @@ The agent **shell** is still MSYS2 bash (`C:\msys64\usr\bin\bash.exe -lc '…'`)
 | Kind | Why |
 |------|-----|
 | `.mcp.json` / `opencode.json` | Host MCP stdio (live `gsv-mcp`). |
-| `.cursor/mcp.json` | Cursor HTTP MCP (`url` → live `:9999/mcp`). |
+| `.cursor/mcp.json` | Cursor HTTP MCP (`url` → live `:9999/mcp`). Folder **GSV** only — never User (`%USERPROFILE%/.cursor/mcp.json`). |
 | `docs/vision/*.json` | Snapshots written **by** `gsv-vision-sync` / speed-index bins. |
 | `docs/gsv/fingerprints.jsonl` | Append-only data. Writer is Rust. |
 | Marketplace `find-polluter.sh` under skills | Upstream skill copy, not a GSV product script. |

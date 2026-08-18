@@ -939,6 +939,10 @@ pub fn render_mcp(d: &Value) -> String {
             })
         ));
     }
+    let sandbox = s(&d["sandbox"]);
+    if !sandbox.is_empty() {
+        out.push_str(&format!("<div>sandbox <kbd>{}</kbd></div>", esc(&sandbox)));
+    }
     if tools.is_empty() {
         out.push_str(&empty_html("mcp tools"));
         return out;
@@ -2083,6 +2087,7 @@ mod tests {
             "http": "/mcp",
             "http_url": "http://127.0.0.1:9999/mcp",
             "version": "0.159.0",
+            "sandbox": "S:/rust/GSV",
             "tool_count": 2,
             "tools": ["gsv_health", "gsv_update"],
             "resource_count": 1,
@@ -2121,6 +2126,7 @@ mod tests {
             mcp.contains("url <kbd>http://127.0.0.1:9999/mcp</kbd>"),
             "{mcp}"
         );
+        assert!(mcp.contains("sandbox <kbd>S:/rust/GSV</kbd>"), "{mcp}");
         assert!(render_mcp(&serde_json::json!({ "ok": false, "error": "down" })).contains("down"));
         assert!(render_mcp(&serde_json::json!({})).contains("mcp — no data"));
     }

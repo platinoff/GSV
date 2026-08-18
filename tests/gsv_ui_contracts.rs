@@ -163,6 +163,7 @@ async fn ui_card_mcp_renders_openbot_tools() {
         html.contains("url <kbd>http://127.0.0.1:9999/mcp</kbd>"),
         "http_url: {html}"
     );
+    assert!(html.contains("sandbox <kbd>"), "sandbox: {html}");
     assert!(
         html.contains(&format!("ver <kbd>{}</kbd>", env!("CARGO_PKG_VERSION"))),
         "version: {html}"

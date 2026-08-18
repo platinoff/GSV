@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-18 · band 160 ✅)
+
+- **Band 160:** Cursor User MCP overlay removed (it showed `gsv_mcp_openbot` in PoolAI). Folder scope is **GSV** (`.cursor/mcp.json`). `GET /mcp` `sandbox` is `S:/rust/GSV`. Preview/terminal stay in that crate; VDT products only via `gsv_products_*` (no open/apply/tunnel tools).
+- **Canon:** [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+- **Next drain:** scan / owner pick.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.23%** (rust 24637 / product 24827) · **475** tests · clippy 0.
+
 ## Стан (2026-08-18 · band 159 ✅)
 
 - **Band 159:** Cursor attaches over HTTP `url: http://127.0.0.1:9999/mcp` (live `gsv-server`). `GET /mcp` reports `version` + `http_url`. GET SSE **with** `Mcp-Session-Id` holds the Streamable HTTP stream; sessionless GET stays a finite flush. Stdio remains `.mcp.json` / OpenCode / Grok. Recopy live `gsv-server` after drains or HTTP tools lag the crate. **36** tools · **10** resources.

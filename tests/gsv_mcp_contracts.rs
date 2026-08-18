@@ -90,6 +90,11 @@ async fn get_mcp_discovers_openbot() {
     assert_eq!(json["http"], "/mcp");
     assert_eq!(json["http_url"], gsv::mcp_http_url());
     assert_eq!(json["version"], env!("CARGO_PKG_VERSION"));
+    let sandbox = json["sandbox"].as_str().unwrap_or("").replace('\\', "/");
+    assert!(
+        sandbox.ends_with("/GSV"),
+        "sandbox must be the GSV crate, got {sandbox}"
+    );
     let resources = json["resources"].as_array().expect("resources");
     assert_eq!(resources.len(), mcp::resource_uris().len());
     assert_eq!(json["resource_count"], resources.len() as u64);
@@ -285,6 +290,49 @@ fn cursor_mcp_uses_live_http_url() {
     assert!(
         !text.contains("target/live/gsv-mcp"),
         "Cursor uses HTTP url, not stdio spawn: {text}"
+    );
+    assert!(
+        text.contains("\"type\": \"http\"") || text.contains("\"type\":\"http\""),
+        "Cursor HTTP transport must be type http: {text}"
+    );
+}
+
+#[test]
+fn mcp_tools_omit_mutating_and_tunnel() {
+    let names = mcp::tool_names();
+    for forbidden in ["gsv_products_open", "gsv_tunnel", "gsv_update_apply"] {
+        assert!(
+            !names.contains(&forbidden),
+            "{forbidden} must not be an MCP tool"
+        );
+    }
+    assert!(names.contains(&"gsv_products"));
+    assert!(names.contains(&"gsv_products_scan"));
+    assert!(names.contains(&"gsv_products_select"));
+}
+
+#[tokio::test]
+async fn preview_rejects_sibling_product_path() {
+    let app = app();
+    let (status, json) = mcp_post(
+        &app,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 91,
+            "method": "tools/call",
+            "params": {
+                "name": "gsv_preview",
+                "arguments": { "file": "../poolAI/Cargo.toml" }
+            }
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["result"]["isError"], true);
+    let text = json["result"]["content"][0]["text"].as_str().unwrap_or("");
+    assert!(
+        text.contains("traversal") || text.contains("outside"),
+        "{text}"
     );
 }
 
@@ -1037,6 +1085,7 @@ async fn drain_prompt_names_always_on_tools() {
     assert!(text.contains("gsv_usage"), "{text}");
     assert!(text.contains("gsv://docs/next"), "{text}");
     assert!(text.contains("http://127.0.0.1:9999/mcp"), "{text}");
+    assert!(text.contains("S:/rust/GSV"), "{text}");
     assert!(text.contains("mid-drain"), "{text}");
 }
 

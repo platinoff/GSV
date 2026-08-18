@@ -146,4 +146,4 @@ There is an **IDE session** picker, not a **VDT product** picker. `Cargo.toml` i
 | **149** | S2129–S2138 | OmniRoute PRODUCTS.md + semver minor = band | ✅ |
 | **150** | S2139–S2148 | Live watchdog (`gsv-watchdog` probes `/api/health`, respawns live copy) | ✅ |
 
-Always-on horizon **closed**. MCP catch-up **band 151–152 ✅**. Rust-first xtask **band 153 ✅**. Watchdog ops card + fingerprint model **band 154 ✅**. Session token usage **band 155 ✅**. Streaming usage + VDT git + owner tunnel **band 156 ✅**. Omni catalog **band 157 ✅**. Live MCP stdio + sync check **band 158 ✅**. Cursor HTTP MCP + session SSE hold **band 159 ✅**. Next `абракадабра` on **gsv**: scan first, then owner pick.
+Always-on horizon **closed**. MCP catch-up **band 151–152 ✅**. Rust-first xtask **band 153 ✅**. Watchdog ops card + fingerprint model **band 154 ✅**. Session token usage **band 155 ✅**. Streaming usage + VDT git + owner tunnel **band 156 ✅**. Omni catalog **band 157 ✅**. Live MCP stdio + sync check **band 158 ✅**. Cursor HTTP MCP + session SSE hold **band 159 ✅**. GSV sandbox MCP / no User leak **band 160 ✅**. Next `абракадабра` on **gsv**: scan first, then owner pick.

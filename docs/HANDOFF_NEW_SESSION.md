@@ -1,6 +1,6 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-08-18 (band 159 ✅ · Cursor HTTP MCP + session SSE hold)
+**Оновлено:** 2026-08-18 (band 160 ✅ · GSV sandbox MCP, no User leak)
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
 **`абракадабра` / `abrakadabra`** → `cargo xtask products` → **AskQuestion на проєкти з environment**
@@ -13,15 +13,17 @@ Speeds + Rust panel → vision-sync → **один commit** → **`git push` + �
 MCP catch-up **151 ✅**; MCP products select **152 ✅**; rust-first xtask **153 ✅**;
 watchdog card **154 ✅**; session token usage **155 ✅**; streaming + VDT git + tunnel **156 ✅**;
 OmniRouter catalog + quota timers **157 ✅**; live MCP stdio + sync check **158 ✅**;
-Cursor HTTP MCP + session SSE hold **159 ✅**). MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+Cursor HTTP MCP + session SSE hold **159 ✅**;
+GSV sandbox MCP / no User leak **160 ✅**). MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
 Omni catalog: [`gsv/GSV_OMNI_CATALOG.md`](gsv/GSV_OMNI_CATALOG.md).
 Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 Канон ролей: [`GSV_ROLES.md`](GSV_ROLES.md). Реєстр: [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
 
 ## Стан зараз
 
-- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–158 · **159 ✅**.
-- **Next drain (gsv):** scan / owner pick. Band **159** Cursor HTTP MCP (`url` `http://127.0.0.1:9999/mcp`), `GET /mcp` `version`+`http_url`, session GET SSE hold. Live Galaxy must match crate version or HTTP tools lag.
+- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–159 · **160 ✅**.
+- **Next drain (gsv):** scan / owner pick. Band **160** MCP sandbox is `S:/rust/GSV`; VDT products via `gsv_products_*` allowlist; Cursor folder **GSV** only (never User — that leaked into PoolAI).
+- **Band 160:** `GET /mcp` `sandbox`; no `gsv_products_open` / tunnel / apply on MCP; preview cannot `../poolAI`.
 - **Band 159:** `.cursor/mcp.json` talks to live `gsv-server` (not a second stdio `gsv-mcp`). Stdio stays `.mcp.json` / OpenCode / Grok. Recopy `target/live/gsv-server.exe` after drains.
 - **Band 158:** `copy_debug_to_live` also copies `gsv-mcp`; `.mcp.json` / OpenCode / Grok spawn the live exe; `gsv_xtask` MCP tasks **catalog|products|disk|sync**.
 - **Band 157:** `catalog.rs` + `quota.rs`; `GET /api/omni/route`; MCP `gsv_omni_route` (**36** tools) + `gsv://docs/omni-catalog` (**10** resources); recommended Grok 4.6 / GPT-5.2 Codex / Claude Sonnet 4.6 / Gemini 3 Pro / Kimi K2.7 Code / GPT-5.3 Codex.
@@ -54,9 +56,9 @@ Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 - **Band 134:** HTTP response hardening — CSP / nosniff / DENY / no-store / COOP+CORP; POST 256 KiB cap → 413 `{ok:false}`.
 - **VDT kit (band 127):** shared `.agents/skills/` + generic `.cursor/rules/` + `gsv.code-workspace` + `PRODUCTS.md`.
   Discover: `cargo xtask products` (не hardcoded `gsv | poolai`).
-- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.23%** (rust 24571 / product 24761) · **473** green · clippy 0 · fmt clean.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.23%** (rust 24637 / product 24827) · **475** green · clippy 0 · fmt clean.
 - **Сервер:** canon порт **9999** (`DEFAULT_PORT`; 8765 — Hyper-V reserved range).
-- **Vision rev:** **516** (band 159 `cargo xtask sync`; next `PH-S2239`).
+- **Vision rev:** **516** (band 160 `cargo xtask sync`; next `PH-S2249`).
 - **Live UI** — `gsv-server` → `http://127.0.0.1:9999/`. MCP stdio — `target/live/gsv-mcp.exe` (`cargo xtask live`).
 - **Band 133:** localhost security — `--allow-lan`; CSRF POST gate; terminal cargo/git allowlists; `/data/{file}` allowlist; preview canonicalize.
 - **FM:** band 127 = PoolAI FM §5.108 (PH-S1909…S1918 ✅). Master horizon poolAI: band 128.
