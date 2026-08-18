@@ -23,7 +23,7 @@ export RUSTUP_TOOLCHAIN="${RUSTUP_TOOLCHAIN:-stable-x86_64-pc-windows-gnu}"
 
 1. Project scan — **warnings first** (clippy / diagnostics).
 2. ≤10 open PH-S*; no mid-drain push.
-3. Product tests (see PRODUCTS.md) — **stop `gsv-server` before GSV `cargo test`/`build`**.
+3. Product tests (see PRODUCTS.md) — do **not** kill `target/live/` before GSV `cargo test`/`build` (only stop debug exe if it is the listener).
 4. Vision close for that product, then **one** commit in **that** repo → push if remote exists → summary in chat.
 
 ## Hard rules

@@ -58,12 +58,12 @@ Rust модуль: `ide/` (read-only).
 **Роль:** якщо оновлюємо/дебажимо vision Rust-кодбазу і запущена bin-версія — сервер приймає **повідомлення про апдейт**; вебсторінка не падає при офлайн.
 
 Поведінка:
-1. Перекомпіляція → новий бінарник.
-2. UI: **«Update»** замість reload.
-3. Сторінка не падає — просто «offline».
-4. Після реконекту — **всі метрики синхронізуються** (resync).
+1. Перекомпіляція → новий бінарник (`target/debug/`).
+2. Canon listener — **live copy** `scripts/gsv-live.sh` → `target/live/gsv-server.exe`.
+3. UI: **«Update»** → `POST /api/update/apply` (SSE `offline`, process exit).
+4. Сторінка не падає — «offline» лише під час swap; SSE `onopen` → resync.
 
-Деталі: [`GSV_SERVER.md`](./GSV_SERVER.md) (endpoints `/api/update`, `/events`, offline-кешування).
+Деталі: [`GSV_SERVER.md`](./GSV_SERVER.md) (endpoints `/api/update`, `/api/update/apply`, `/events`, live copy).
 
 ## 6. Box preview (Rust-кольори відповідно до синтаксису)
 
@@ -125,7 +125,7 @@ Rust модуль: `omni/` (catalog.rs, config.rs, proxy.rs) → `GSV/data/omni.
 | SLI console | `sli/` | `/api/sli` | `bin/`, `scripts/`, `src/bin/` |
 | Toolchain | `toolchain/` | `/api/toolchain` | toolchain, env |
 | IDE | `ide/` | `/api/ide/…` | opencode/cursor сесії |
-| Update | `update/` | `/api/update` · `/events` | бінарник/версія |
+| Update | `update/` | `/api/update` · `/api/update/apply` · `/events` | live copy + версія |
 | Box preview | `preview/` | `/api/preview` | файли |
 | SLI terminal | `terminal/` | `/api/terminal` | SLI-каталог |
 | Tests/bench hooks | `hooks/` | `/api/hooks/…` | `target/` артефакти |

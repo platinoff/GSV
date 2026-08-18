@@ -22,7 +22,7 @@
 
 1. **S0 — диск/git першим**: `df -h /s` → `cargo clean` якщо <5G (12G дешево) → `git fetch` у **репо продукту** → HANDOFF того продукту ([`PRODUCTS.md`](gsv/PRODUCTS.md)).
 2. **Project scan — warnings першими**: clippy / diagnostics, потім roadmap продукту (`GSV_TECH_ROADMAP` або PoolAI FM §5.12).
-3. **Drain**: до 10 PH-S*. **Rust-first** тести. GSV: stop `gsv-server` перед `cargo test`. **без Python**.
+3. **Drain**: до 10 PH-S*. **Rust-first** тести. GSV: не вбивати `target/live/` перед `cargo test`. **без Python**.
 4. **Speeds + Rust panel**: GSV vision `gsv_speed_index.json` / `gsv_rust_diagnostics.json` (empty-tolerant); PoolAI — `record-test-ci-speed.sh` + `record-rust-diagnostics.sh`.
 5. **Vision-sync**: GSV `gsv-vision-sync --check`; PoolAI `poolai-vision-sync --check`.
 6. **Один commit + `git push` + самарі** в кінці сесії **в репо продукту**. **Не** mid-push. GSV GitHub remote: `origin` → `https://github.com/platinoff/GSV`.
@@ -56,8 +56,7 @@ Tests/bench hooks · **Ratio** · **OmniRouter** (Rust AI-проксі/роут�
   export RUSTUP_TOOLCHAIN="stable-x86_64-pc-windows-gnu"
   cd GSV && cargo build --all-targets && cargo test && cargo clippy --all-targets
   ```
-- Запущений `gsv-server` **блокує `target/debug/gsv-server.exe`** → `cargo test`/`build` падає
-  з `Access is denied (os error 5)` → спочатку зупинити сервер (PID), потім build/test.
+- Canon listener — `bash scripts/gsv-live.sh` (`target/live/gsv-server.exe`). `cargo test`/`build` may overwrite `target/debug/` without os error 5. Do **not** kill the live copy. Only stop `target/debug/gsv-server.exe` if *that* file is the listener.
 - Роутинг: `--repo-root S:/rust/GSV --data-dir S:/rust/GSV/data --port 9999` (default);
   опційно `--repo-root S:/rust/poolAI` щоб сканувати FM / `bin/` PoolAI.
   `data/*` gitignored (секрети/API-ключі безпечні).

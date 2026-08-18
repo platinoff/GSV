@@ -85,7 +85,7 @@ body.panel-fs-active .card{display:none!important}body.panel-fs-active .card.ful
   <span class="meta" id="meta" role="status" aria-live="polite">…</span>
   <span class="meta" id="metaTrail" role="status" aria-live="polite">…</span>
   <span id="status" class="badge online" role="status" aria-live="polite">online</span>
-  <span id="updateBadge" class="badge update" style="display:none" onclick="doUpdate()" role="status" aria-live="polite" title="GSV binary rebuilt — restart server to apply">Update</span>
+  <span id="updateBadge" class="badge update" style="display:none" onclick="doUpdate()" role="status" aria-live="polite" title="GSV binary rebuilt — apply live copy swap">Update</span>
   <div class="header-actions" id="headerActions" aria-label="Vision controls">
     <button id="btnGpu" class="badge gpu" title="GPU mode — Eco low GPU, FX full glow, Ms medium. Click → cycle" aria-label="GPU mode — cycle Eco, FX, Ms" type="button" data-action="gpu-cycle">FX</button>
     <button id="btnAuto" class="badge" title="Auto-reload when vision files change" aria-label="Toggle auto-reload" type="button" data-action="auto-toggle">Auto</button>
@@ -344,9 +344,12 @@ async function notifyUpdate() {
   try { const d = await (await fetch("api/update/notify", { method: "POST" })).json(); toast("update_available=" + d.update_available); await resync(); }
   catch (e) { toast(String(e)); }
 }
-function doUpdate() {
-  toast("GSV binary rebuilt on disk — restart gsv-server to apply (Update)");
+async function doUpdate() {
   setOffline(true);
+  toast("applying update…");
+  try {
+    await fetch("api/update/apply", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+  } catch (_) { /* server is exiting — expected */ }
 }
 function connectSse() {
   const es = new EventSource("events");

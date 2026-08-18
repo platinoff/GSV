@@ -7,10 +7,13 @@
 //! Detection (self-contained): if the newest `GSV/src/**` source file is newer than
 //! the running binary (i.e. a rebuild is pending on disk), or an explicit
 //! `POST /api/update/notify` arrived, `update_available` is `true`.
+//! `POST /api/update/apply` emits SSE `offline` and (outside tests) exits so
+//! `scripts/gsv-live.sh` can recopy `target/debug/` → `target/live/` and restart.
 
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 
 use crate::state::AppState;
 use crate::vision;
@@ -24,6 +27,8 @@ pub struct UpdateWire {
     pub started_at: String,
     pub binary_mtime: u64,
     pub newest_src_mtime: u64,
+    /// `true` when this process is `target/live/gsv-server.exe` (band 144 supervisor).
+    pub live_copy: bool,
 }
 
 /// Query params for `GET /api/update`.
@@ -75,6 +80,51 @@ pub fn binary_mtime() -> u64 {
         .unwrap_or(0)
 }
 
+/// Whether `exe` lives under `target/live/` (Windows or POSIX separators).
+pub fn path_is_live_copy(exe: &Path) -> bool {
+    exe.to_string_lossy().replace('\\', "/").contains("/live/")
+}
+
+/// Running process is the supervisor live copy, not `target/debug/`.
+pub fn is_live_copy() -> bool {
+    std::env::current_exe()
+        .ok()
+        .map(|p| path_is_live_copy(&p))
+        .unwrap_or(false)
+}
+
+/// Exit after apply unless `GSV_UPDATE_APPLY_EXIT=0`.
+///
+/// Cargo test binaries live under `target/debug/deps/` — default **no-exit** so
+/// oneshot tests cannot kill the harness. Production (`target/debug/` or
+/// `target/live/` `gsv-server.exe`) exits unless the env is `0`.
+pub fn apply_should_exit() -> bool {
+    match std::env::var("GSV_UPDATE_APPLY_EXIT").ok().as_deref() {
+        Some("0") => false,
+        Some("1") => true,
+        _ => !is_cargo_test_harness(),
+    }
+}
+
+/// `cargo test` harness exe (unit or integration) is built under `deps/`.
+pub fn is_cargo_test_harness() -> bool {
+    std::env::current_exe()
+        .ok()
+        .map(|p| path_is_cargo_test_harness(&p))
+        .unwrap_or(false)
+}
+
+/// Whether `exe` is a rustc test harness artifact.
+pub fn path_is_cargo_test_harness(exe: &Path) -> bool {
+    exe.to_string_lossy().replace('\\', "/").contains("/deps/")
+}
+
+/// Emit SSE `offline` and return the apply wire. Caller may `process::exit` after flush.
+pub fn apply_update(state: &AppState) -> Value {
+    state.emit("event: offline\ndata: true".to_string());
+    json!({ "ok": true, "applying": true })
+}
+
 /// Build the update wire for the current state.
 pub fn wire(state: &AppState) -> UpdateWire {
     let newest = newest_src_mtime(Path::new(env!("CARGO_MANIFEST_DIR")));
@@ -87,6 +137,7 @@ pub fn wire(state: &AppState) -> UpdateWire {
         started_at: crate::vision::system_to_rfc3339(state.started_at),
         binary_mtime: bin,
         newest_src_mtime: newest,
+        live_copy: is_live_copy(),
     }
 }
 
@@ -105,5 +156,37 @@ mod tests {
         let older = 1u64;
         let newer = 2u64;
         assert!(newer > older);
+    }
+
+    #[test]
+    fn path_is_live_copy_detects_live_dir() {
+        assert!(path_is_live_copy(Path::new(
+            r"S:\rust\GSV\target\live\gsv-server.exe"
+        )));
+        assert!(path_is_live_copy(Path::new(
+            "/s/rust/GSV/target/live/gsv-server.exe"
+        )));
+        assert!(!path_is_live_copy(Path::new(
+            r"S:\rust\GSV\target\debug\gsv-server.exe"
+        )));
+    }
+
+    #[test]
+    fn apply_should_exit_is_false_under_cfg_test() {
+        assert!(!apply_should_exit());
+        assert!(is_cargo_test_harness());
+    }
+
+    #[test]
+    fn path_is_cargo_test_harness_detects_deps() {
+        assert!(path_is_cargo_test_harness(Path::new(
+            r"S:\rust\GSV\target\debug\deps\gsv_update_flow-abc.exe"
+        )));
+        assert!(!path_is_cargo_test_harness(Path::new(
+            r"S:\rust\GSV\target\live\gsv-server.exe"
+        )));
+        assert!(!path_is_cargo_test_harness(Path::new(
+            r"S:\rust\GSV\target\debug\gsv-server.exe"
+        )));
     }
 }

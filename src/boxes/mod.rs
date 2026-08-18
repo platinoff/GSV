@@ -6,7 +6,7 @@
 //! | SLI console | `sli` | `/api/sli` | `bin/`, `scripts/`, `src/bin/` |
 //! | Toolchain | `toolchain` | `/api/toolchain` | toolchain, env |
 //! | IDE | `ide` | `/api/ide/…` | opencode/cursor sessions |
-//! | Update | `update` | `/api/update` · `/events` | binary/version |
+//! | Update | `update` | `/api/update` · `/api/update/apply` · `/events` | live copy + version |
 //! | Box preview | `preview` | `/api/preview` | files |
 //! | SLI terminal | `terminal` | `/api/terminal` | SLI catalog |
 //! | Tests/bench hooks | `hooks` | `/api/hooks/…` | `target/` artifacts |

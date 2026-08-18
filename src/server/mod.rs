@@ -75,6 +75,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/ide/select", post(api_ide_select))
         .route("/api/update", get(api_update))
         .route("/api/update/notify", post(api_update_notify))
+        .route("/api/update/apply", post(api_update_apply))
         .route("/api/preview", get(api_preview))
         .route("/api/terminal", post(api_terminal))
         .route("/api/hooks/tests", get(api_hooks_tests))
@@ -455,6 +456,17 @@ async fn api_update_notify(State(state): State<AppState>) -> Json<Value> {
         .store(true, std::sync::atomic::Ordering::SeqCst);
     state.emit("event: update_available\ndata: true".to_string());
     Json(json!({ "ok": true, "update_available": true }))
+}
+
+async fn api_update_apply(State(state): State<AppState>) -> Json<Value> {
+    let body = crate::boxes::update::apply_update(&state);
+    if crate::boxes::update::apply_should_exit() {
+        tokio::spawn(async {
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            std::process::exit(0);
+        });
+    }
+    Json(body)
 }
 
 async fn api_preview(

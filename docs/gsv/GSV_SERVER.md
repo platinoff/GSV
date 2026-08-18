@@ -4,7 +4,7 @@
 
 ## Призначення
 
-- **Bin/exe** «Galaxy StarWalker Vision» — `cargo run --bin gsv-server` (або зібраний `.exe` на Windows).
+- **Bin/exe** «Galaxy StarWalker Vision» — canon always-on: `bash scripts/gsv-live.sh` (`target/live/gsv-server.exe`). `cargo run --bin gsv-server` still works but **locks** `target/debug/` on Windows.
 - Віддає static UI (спадкоємець деактивованого legacy `GSV/docs/vision/index.html` — band 117) + REST API боксів + події (SSE).
 - Працює як **self-contained server**: доки + метрики + бокs — все в одному Rust бінарнику.
 
@@ -19,7 +19,9 @@
 | GET | `/api/toolchain` | інвентар тулів |
 | GET | `/api/ide/sessions` | список сесій (opencode/cursor) |
 | POST | `/api/ide/select` | вибір сесії, з чим працювати |
-| GET | `/api/update` | статус оновлення (Update box) |
+| GET | `/api/update` | статус оновлення (Update box; `live_copy` if running from `target/live/`) |
+| POST | `/api/update/notify` | виставити `update_available` + SSE |
+| POST | `/api/update/apply` | SSE `offline` + `{ok,applying}`; process exit unless `GSV_UPDATE_APPLY_EXIT=0` |
 | GET | `/api/preview` | превʼю з Rust-синтаксис-кольорами |
 | POST | `/api/terminal` | SLI terminal — виконати команду (AI) |
 | GET | `/api/hooks/tests` | результати тестів (read-only, без build) |
@@ -94,13 +96,36 @@ cargo run --manifest-path GSV/Cargo.toml --bin gsv-http-stand-smoke -- --base-ur
 3. Вебсторінка **не падає** при офлайн — переходить у стан «offline».
 4. Після відновлення зв’язку **всі метрики синхронізуються** (resync).
 
+**Always-on (band 144):** run a live copy (`target/live/gsv-server.exe` via `scripts/gsv-live.sh`) so `cargo test`/`build` does not lock the listening process. `POST /api/update/apply` emits SSE `offline` and exits (gated by `GSV_UPDATE_APPLY_EXIT`); the supervisor recopies debug → live and rebinds `:9999`; the page stays **offline** until SSE `onopen` then resyncs. Do **not** kill the live copy before `cargo test`. Spec: [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md).
+
 Реалізація (Rust):
 - Сервер тримає `update_flag` (AtomicBool) + версію бінарника.
 - Під час заміни бінарника (hot-swap файлу/процесу) сервер надсилає SSE подію `update_available`.
-- UI показує кнопку/бейдж **Update** замість auto-reload.
-- Клієнтський JS тримає стан offline в `navigator.onLine` / heartbeat SSE; при реконекті робить `GET /api/...` full-resync та оновлює метрики (Tracker/SLI/toolchain/speed/rust diagnostics).
+- UI показує кнопку/бейдж **Update** замість auto-reload; `doUpdate()` POSTs `/api/update/apply`.
+- Клієнтський JS тримає стан offline; при SSE `onopen` робить full-resync (Tracker/SLI/toolchain/speed/rust diagnostics).
 
-**Horizon (bands 144+):** run a live copy (`target/live/gsv-server.exe` via `scripts/gsv-live.sh`) so `cargo test`/`build` does not lock the listening process. `POST /api/update/apply` emits SSE `offline` and exits; the supervisor recopies debug → live and rebinds `:9999`; the page stays **offline** until SSE `onopen` then resyncs. Spec: [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md).
+**Horizon (bands 145–147):** VDT product picker; version bump + fingerprints; README polish. Spec: [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md).
+
+## Live copy + apply (band 144)
+
+Windows locks a running exe. The canon listener is a **copy**:
+
+```bash
+cargo build --bin gsv-server
+bash scripts/gsv-live.sh          # copies target/debug → target/live, loop restart
+```
+
+| Step | What happens |
+|------|----------------|
+| 1 | Supervisor copies `target/debug/gsv-server.exe` → `target/live/gsv-server.exe` and execs `--host 127.0.0.1 --port 9999` |
+| 2 | `cargo test` / `cargo build` may overwrite `target/debug/` — no os error 5 on the listener |
+| 3 | UI **Update** → `POST /api/update/apply` → SSE `event: offline` + `{ok:true, applying:true}` |
+| 4 | Process exits unless `GSV_UPDATE_APPLY_EXIT=0` (tests / harness under `target/debug/deps/` skip exit) |
+| 5 | Supervisor recopies debug → live, rebinds `:9999`; page SSE `onopen` → `resync()` → online |
+
+Do **not** kill `target/live/gsv-server.exe` before `cargo test`. Only stop `target/debug/gsv-server.exe` if *that* file is still the listener.
+
+`target/live/` is gitignored. Spec: [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md).
 
 ## Offline-стійкість
 

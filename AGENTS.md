@@ -29,7 +29,7 @@ Trigger skill: `.agents/skills/abracadabra/`. Either spelling starts the same dr
 1. `bash scripts/list-vdt-products.sh` → AskQuestion / `question` on **those** environment projects (not a hardcoded `gsv | poolai` pair).
 2. S0 disk for **that** product → `git fetch` → its HANDOFF.
 3. Drain next band (GSV: `docs/gsv/GSV_TECH_ROADMAP.md`; PoolAI: FM §5.12).
-4. If **gsv:** stop `gsv-server` before `cargo test` / `cargo build` (locks `target/debug/gsv-server.exe`).
+4. If **gsv:** do **not** kill `target/live/gsv-server.exe` before `cargo test` / `cargo build`. Only stop `target/debug/gsv-server.exe` if that file is the listener.
 5. `cargo fmt --all` → product tests (`cargo test` here; `cargo test-ci` in PoolAI).
 6. One commit **in the product repo**. GitHub remote: `origin` → `https://github.com/platinoff/GSV` (create if missing, then `git push`).
 

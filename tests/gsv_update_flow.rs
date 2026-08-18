@@ -43,6 +43,7 @@ fn update_wire_has_expected_fields() {
     assert_eq!(w.version, "0.1.0");
     assert!(w.binary_mtime > 0);
     assert!(w.newest_src_mtime > 0);
+    assert!(!w.live_copy, "test process is not target/live");
 }
 
 #[test]
@@ -122,4 +123,63 @@ async fn update_notify_then_clear_flow() {
     assert!(state.update_available());
     state.clear_update();
     assert!(!state.update_available());
+}
+
+/// Band 144: apply emits SSE offline and returns `{ok, applying}` without exiting in tests.
+#[tokio::test]
+async fn post_update_apply_emits_offline_and_ok() {
+    let (app, state) = state();
+    let mut rx = state.events.subscribe();
+    let res = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/update/apply")
+                .header("content-type", "application/json")
+                .body(Body::from("{}"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .expect("body");
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap_or_default();
+    assert_eq!(json["ok"], true);
+    assert_eq!(json["applying"], true);
+    let payload = tokio::time::timeout(Duration::from_secs(2), rx.recv())
+        .await
+        .expect("sse")
+        .expect("msg");
+    assert!(
+        payload.contains("offline") || payload.contains("update_apply"),
+        "sse payload: {payload}"
+    );
+}
+
+#[test]
+fn gsv_live_script_copies_debug_to_live() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let script = std::fs::read_to_string(root.join("scripts/gsv-live.sh")).expect("gsv-live.sh");
+    assert!(script.contains("target/live"), "{script}");
+    assert!(script.contains("gsv-server"), "{script}");
+}
+
+#[test]
+fn gitignore_lists_target_live() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let gi = std::fs::read_to_string(root.join(".gitignore")).expect(".gitignore");
+    assert!(
+        gi.contains("target/live"),
+        "target/live/ must be gitignored explicitly"
+    );
+}
+
+#[test]
+fn apply_should_exit_defaults_off_in_tests() {
+    assert!(
+        !gsv::boxes::update::apply_should_exit(),
+        "tests must not process::exit on apply"
+    );
 }

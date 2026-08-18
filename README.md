@@ -94,7 +94,7 @@ Open [http://127.0.0.1:9999/](http://127.0.0.1:9999/).
 ```bash
 cargo fmt -- --check
 cargo clippy --all-targets
-cargo test                          # stop gsv-server first — it locks the exe
+cargo test                          # keep target/live/ running; do not lock debug exe as listener
 cargo run --bin gsv-loc-audit -- --stretch-96
 cargo run --bin gsv-http-stand-smoke
 ```

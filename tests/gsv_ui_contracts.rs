@@ -442,3 +442,16 @@ async fn ui_index_defines_type_scale() {
     assert!(html.contains("--fs-meta:11px"));
     assert!(html.contains("--fs-chart:11px"));
 }
+
+/// Band 144: Update badge POSTs apply and stays offline until SSE reconnects.
+#[tokio::test]
+async fn ui_index_do_update_posts_apply() {
+    let (app, _state) = app();
+    let html = get_index_html(&app).await;
+    assert!(
+        html.contains("api/update/apply"),
+        "doUpdate must POST apply"
+    );
+    assert!(html.contains("function doUpdate"));
+    assert!(html.contains("setOffline(true)"));
+}

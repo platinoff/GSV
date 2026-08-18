@@ -184,6 +184,15 @@ async fn update_notify_flags_available() {
 }
 
 #[tokio::test]
+async fn update_apply_returns_ok_applying() {
+    let (app, _state) = app();
+    let (status, json) = post(&app, "/api/update/apply", serde_json::json!({})).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["ok"], true);
+    assert_eq!(json["applying"], true);
+}
+
+#[tokio::test]
 async fn preview_renders_highlighted_html() {
     let (app, _state) = app();
     let (status, json) = get(&app, "/api/preview?file=Cargo.toml").await;

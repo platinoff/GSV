@@ -1,6 +1,6 @@
 # GSV Always-on Galaxy UI — spec
 
-**Status:** Band 143 ✅ (chrome + type/chart); 144–147 queued  
+**Status:** Band 143 ✅ (chrome + type/chart); **band 144 ✅** (live copy + apply); 145–147 queued  
 **Date:** 2026-08-17  
 **Owner ask:** Galaxy UI always reachable; page goes **offline** only during binary swap; debug collapse / fullscreen / power menu; typography + chart scale; pick a VDT project and open its folder; auto-parse what the dashboard needs; every commit bumps the crate version; fingerprint who did the work (IDE / bot / model / agent / time). Match the polish of [`README.md`](../../README.md) presentations.
 
@@ -47,8 +47,8 @@ There is an **IDE session** picker, not a **VDT product** picker. `Cargo.toml` i
 | P2 | `.card.collapsed .body{display:none}` | Card chrome still in the grid; dock chips exist but the hole remains — **fixed band 143** |
 | P3 | fullscreen click | Second card can also get `.fullscreen`; both shown under `panel-fs-active` — **fixed band 143** |
 | P4 | Esc | `.actions button:last-child` is brittle — **fixed band 143** |
-| P5 | `doUpdate()` | Offline forever until manual restart; no apply/restart API |
-| P6 | `cargo test` | Locks running `target/debug/gsv-server.exe` (Windows) |
+| P5 | `doUpdate()` | Offline forever until manual restart; no apply/restart API — **fixed band 144** |
+| P6 | `cargo test` | Locks running `target/debug/gsv-server.exe` (Windows) — **fixed band 144** (`gsv-live.sh`) |
 
 ## Requirements
 
@@ -138,9 +138,9 @@ There is an **IDE session** picker, not a **VDT product** picker. `Cargo.toml` i
 | Band | PH-S* | Focus |
 |------|-------|--------|
 | **143** | S2069–S2078 | Chrome bugs + type/chart scale (debug first) ✅ |
-| **144** | S2079–S2088 | Live copy + apply + offline-during-swap |
+| **144** | S2079–S2088 | Live copy + apply + offline-during-swap ✅ |
 | **145** | S2089–S2098 | Products list / select / open / scan |
 | **146** | S2099–S2108 | Version bump + fingerprints |
 | **147** | S2109–S2118 | README-level UI polish leftovers + docs canon |
 
-Next `абракадабра` on **gsv** drains **band 144** only (≤10 open PH-S*).
+Next `абракадабра` on **gsv** drains **band 145** only (≤10 open PH-S*).

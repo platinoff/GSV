@@ -963,6 +963,14 @@ pub fn render_update(d: &Value) -> String {
                 "newest_src_mtime".into(),
                 u(&d["newest_src_mtime"]).to_string(),
             ],
+            vec![
+                "live_copy".into(),
+                format!(
+                    "<span class='{}'>{}</span>",
+                    if b(&d["live_copy"]) { "ok" } else { "dim" },
+                    b(&d["live_copy"])
+                ),
+            ],
         ],
     )
 }

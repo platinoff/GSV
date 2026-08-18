@@ -28,7 +28,8 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 141** (MCP HTTP SSE / streamable notifications) **✅** ·
 **band 142** (MCP HTTP sessions / `Mcp-Session-Id`) **✅** ·
 **band 143** (Galaxy chrome + type/chart scale) **✅** ·
-**bands 144–147** (always-on live copy · products · version/fingerprints · polish) queued ·
+**band 144** (always-on live copy + apply) **✅** ·
+**bands 145–147** (products · version/fingerprints · polish) queued ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -622,22 +623,22 @@ Owner 2026-08-17: server must stay the live product; first drain is **debug chro
 | **PH-S2077** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy — **✅** |
 | **PH-S2078** | Band close | tests green; vision-sync; one commit + push — **✅** |
 
-## Спринти (band 144) — Always-on live binary + offline during apply
+## Спринти (band 144) — Always-on live binary + offline during apply ✅
 
 Windows locks the running exe. Canon process is a **copy** (`target/live/gsv-server.exe`) so `cargo test`/`build` may overwrite `target/debug/`. UI goes **offline** on apply, SSE `onopen` resyncs.
 
 | Sprint | Фокус | Acceptance (ключ) |
 |--------|-------|-------------------|
-| **PH-S2079** | Scope + queue | this band; `active_sprint` = `PH-S2079` |
-| **PH-S2080** | `scripts/gsv-live.sh` | copy debug → live; loop restart; gitignore `target/live/` |
-| **PH-S2081** | Apply API | `POST /api/update/apply` → SSE offline; exit gated by `GSV_UPDATE_APPLY_EXIT` |
-| **PH-S2082** | UI apply | `doUpdate()` POST apply; stay offline until SSE `onopen` |
-| **PH-S2083** | Drain docs | AGENTS/HANDOFF/NEXT: do **not** kill live copy before cargo test |
-| **PH-S2084** | Contracts | update-flow apply + server POST 200 `{ok,applying}` |
-| **PH-S2085** | GSV_SERVER | live-copy + apply scenario |
-| **PH-S2086** | Docs canon | HANDOFF / NEXT / MEMORY / roadmap |
-| **PH-S2087** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy |
-| **PH-S2088** | Band close | tests green; vision-sync; one commit + push |
+| **PH-S2079** | Scope + queue | this band; `active_sprint` = `PH-S2079` — **✅** |
+| **PH-S2080** | `scripts/gsv-live.sh` | copy debug → live; loop restart; gitignore `target/live/` — **✅** |
+| **PH-S2081** | Apply API | `POST /api/update/apply` → SSE offline; exit gated by `GSV_UPDATE_APPLY_EXIT` — **✅** |
+| **PH-S2082** | UI apply | `doUpdate()` POST apply; stay offline until SSE `onopen` — **✅** |
+| **PH-S2083** | Drain docs | AGENTS/HANDOFF/NEXT: do **not** kill live copy before cargo test — **✅** |
+| **PH-S2084** | Contracts | update-flow apply + server POST 200 `{ok,applying}` — **✅** |
+| **PH-S2085** | GSV_SERVER | live-copy + apply scenario — **✅** |
+| **PH-S2086** | Docs canon | HANDOFF / NEXT / MEMORY / roadmap — **✅** |
+| **PH-S2087** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy — **✅** |
+| **PH-S2088** | Band close | tests green; vision-sync; one commit + push — **✅** |
 
 ## Спринти (band 145) — VDT products picker + open folder + scan
 

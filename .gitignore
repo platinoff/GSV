@@ -1,5 +1,7 @@
 # Build
 /target
+# Live supervisor copy (band 144) — cargo may overwrite target/debug/
+/target/live/
 **/*.exe
 *.pdb
 

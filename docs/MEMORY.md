@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-17 · band 144 ✅)
+
+- **Band 144:** always-on live copy — `scripts/gsv-live.sh` copies debug → `target/live/gsv-server.exe` and loops on `:9999`. `POST /api/update/apply` emits SSE `offline` + `{ok,applying}`; process exit gated (`GSV_UPDATE_APPLY_EXIT`; cargo-test `deps/` skips exit). `doUpdate()` stays offline until SSE `onopen`. Drain docs: do **not** kill the live copy before `cargo test`.
+- **Canon:** [`gsv/GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md) · plan [`superpowers/plans/2026-08-17-always-on-galaxy.md`](superpowers/plans/2026-08-17-always-on-galaxy.md) · next drain **band 145** products (`PH-S2089…S2098`).
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 still `scripts/list-vdt-products.sh`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.24%** (rust 17613 / product 18301) · **333** tests · clippy 0. Vision rev **511**.
+- **Канон продукту:** Rust **95–100%** / wasm **0–5%** (завжди), без Python/Java; bins — лише `src/bin/`.
+
 ## Стан (2026-08-17 · band 143 ✅)
 
 - **Band 143:** Galaxy chrome + type/chart — power menu stacks above cards (`z-index:80`, header ≥ 40); exclusive fullscreen + named Esc (`data-action='card-fs'`, `exitFullscreen()`); collapsed cards leave the grid (dock restore); `--fs-ui:13px` / `--fs-card:12px` / `--fs-meta:11px` / `--fs-chart:11px`; speed/rust SVG height 168, font-size 11, ui-monospace.
@@ -555,8 +563,7 @@
 1. **GSV — окремий Rust-проєкт** у `S:\rust\poolAI\GSV` (own workspace, own `target/`).
 2. **Ratio аудит іде по git-tracked файлах** репо poolAI під префіксом `GSV/` (не `GSV/target/`, не `data/`).
    git-топ має MSYS-стиль `/s/rust/poolAI` — нормалізуємо в `S:/rust/poolAI` (`normalize_git_root`).
-3. **Запущений `gsv-server` блокує `target/debug/gsv-server.exe`** → `cargo test`/`build` падає
-   з `Access is denied (os error 5)` → спочатку зупинити сервер.
+3. **Canon listener is `target/live/gsv-server.exe`** (`bash scripts/gsv-live.sh`). `cargo test`/`build` may overwrite `target/debug/`. Do **not** kill the live copy. Only stop `target/debug/gsv-server.exe` if *that* file is the listener (os error 5).
 4. **Data dir:** `GSV/data/*` gitignored (омні-конфіг, rust_ratio.json, трекер). Запуск:
    `--repo-root S:/rust/poolAI --data-dir S:/rust/poolAI/GSV/data --port 8891`.
 5. **Збірка:** terminal MSYS2 bash; PATH префікс `C:\Users\plati\.cargo\bin`.
