@@ -1,6 +1,6 @@
 # GSV after always-on — MCP catch-up (conception)
 
-**Status:** Queued (this session = spec/plan only · **no code**)  
+**Status:** Landed (band **151** ✅ · next drain = **152** select)  
 **Date:** 2026-08-18  
 **Owner ask:** update needed docs/plans; put what the next `абракадабра` / `abrakadabra` on **gsv** must drain.  
 **Scan (same day):** clippy 0 · roadmap 102–150 all ✅ · no `TODO` in `src/` · always-on P2 leftovers closed.
@@ -13,13 +13,13 @@
 
 Always-on Galaxy is the live product: `:9999` stays up across `cargo test` (live copy + watchdog), the page goes offline only during binary swap, and ops cards exist for **products**, **fingerprints**, **sw**, and **watchdog** (health row).
 
-`gsv_mcp_openbot` does **not** wrap those boxes. It is still the band-137 surface: **26 tools**, **6 `gsv://` resources**, **3 prompts**. An agent that starts from `абракадабра` or from Cursor/OpenCode MCP can read vision/tracker/ratio but **cannot** list environment products, scan a HANDOFF, see whether the watchdog is alive, or read drain fingerprints. The Galaxy UI and the MCP server tell two different stories.
+`gsv_mcp_openbot` wraps those boxes as of band **151**: **31 tools**, **8 `gsv://` resources**, **3 prompts**. An agent that starts from `абракадабра` or from Cursor/OpenCode MCP can list environment products, scan a HANDOFF, see whether the watchdog is alive, and read drain fingerprints.
 
 Cost of leaving it: the next drain session invents work, or the agent repeats a warnings-first scan with no queued band. This spec is the queued band.
 
 ## Goals
 
-1. Next `абракадабра` on **gsv** drains **band 151** from this spec (after S0 + warnings-first scan), not a blank “owner pick”.
+1. Next `абракадабра` on **gsv** drains **band 152** (MCP `products_select`) after S0 + warnings-first scan.
 2. MCP tools wrap the always-on HTTP wires that already exist (`products::wire` / `scan`, `watchdog::wire`, `sw::wire`, `fingerprint::wire`).
 3. Discovery (`GET /mcp`, Galaxy MCP card, `tools/list`) reports the new `tool_count` from `TOOL_NAMES` (no hardcoded 26).
 4. `gsv_drain` prompt text tells the agent to call the new tools before proposing PH-S*.
@@ -37,7 +37,7 @@ Cost of leaving it: the next drain session invents work, or the agent repeats a 
 
 ## User stories
 
-- As owner, I type `abrakadabra`, pick **GSV**, and the agent drains **band 151** from this spec after clippy is clean.
+- As owner, I type `abrakadabra`, pick **GSV**, and the agent drains **band 152** from this spec after clippy is clean.
 - As an OpenCode/Cursor agent, I call `gsv_products` and `gsv_products_scan` with `id=gsv` and see the same rows as `GET /api/products` / `scan`.
 - As an agent, I call `gsv_watchdog` and know whether `target/live/watchdog.json` is fresh before I assume `:9999` is supervised.
 - As an agent, I call `gsv_fingerprints` and `gsv_sw` instead of guessing from README.
@@ -105,7 +105,8 @@ Cost of leaving it: the next drain session invents work, or the agent repeats a 
 | Band | PH-S* | Focus | When |
 |------|-------|--------|------|
 | **this session** | — | Spec + plan + HANDOFF/NEXT/MEMORY · **no product code** | 2026-08-18 |
-| **151** | S2149–S2158 | MCP catch-up: 5 tools + 2 resources + `gsv_drain` text + contracts | **next `абракадабра` on gsv** |
+| **151** | S2149–S2158 | MCP catch-up: 5 tools + 2 resources + `gsv_drain` text + contracts | **✅ 2026-08-18** |
+| **152** | S2159–S2168 | MCP `products_select` + scan-without-id | **next `абракадабра` on gsv** |
 | **152** | S2159–S2168 | MCP `products_select` + scan-without-id | after 151 |
 | **153** | S2169–S2178 | Watchdog ops card + fingerprint model (owner pick) | later |
 

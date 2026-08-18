@@ -146,4 +146,4 @@ There is an **IDE session** picker, not a **VDT product** picker. `Cargo.toml` i
 | **149** | S2129–S2138 | OmniRoute PRODUCTS.md + semver minor = band | ✅ |
 | **150** | S2139–S2148 | Live watchdog (`gsv-watchdog` probes `/api/health`, respawns live copy) | ✅ |
 
-Always-on horizon **closed**. Next `абракадабра` on **gsv**: scan first, then drain **band 151** (MCP catch-up) from [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md). Watchdog stays the always-on outer loop.
+Always-on horizon **closed**. MCP catch-up **band 151 ✅**. Next `абракадабра` on **gsv**: scan first, then drain **band 152** (MCP `products_select`) from [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md). Watchdog stays the always-on outer loop.

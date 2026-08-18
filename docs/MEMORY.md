@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-18 · band 151 ✅)
+
+- **Band 151:** MCP catch-up — `gsv_products` / `gsv_products_scan` (`id` required; unknown → tool error) / `gsv_watchdog` / `gsv_sw` / `gsv_fingerprints`; resources `gsv://docs/fingerprints` + `gsv://docs/post-always-on`; `gsv_drain` prompt names the new tools. **31** tools · **8** resources.
+- **Canon:** [`gsv/GSV_POST_ALWAYS_ON.md`](gsv/GSV_POST_ALWAYS_ON.md) · [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+- **Next drain:** band **152** (`PH-S2159…S2168`) — MCP `products_select` + scan-without-id. Then 153 watchdog card (owner pick).
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 still `scripts/list-vdt-products.sh`.
+- **Ratio / тести:** measured at band close — `gsv-loc-audit --stretch-96` → **96.59%** (rust 19767 / product 20465) · **393** tests · clippy 0. Vision rev **513**.
+
 ## Стан (2026-08-18 · post-always-on spec queued · band 150 ✅)
 
 - **Owner ask → spec/plan, no band-151 code this session:** MCP catch-up. Always-on HTTP boxes (products / fingerprints / sw / watchdog) are not on `gsv_mcp_openbot` (still 26 tools / 6 resources). Scan 2026-08-18: clippy 0, roadmap 102–150 ✅.

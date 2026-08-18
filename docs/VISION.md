@@ -41,7 +41,8 @@ reply; POST body cap 256 KiB → 413 `{ok:false}`.
 **band 136 (PH-S1999…S2008, ✅)** — MCP Galaxy UI (`GET /api/ui/card/mcp`, `CARD_NAMES` 32) +
 remaining read-only MCP tools (19) + `.grok/config.toml`.
 **band 137 (PH-S2009…S2018, ✅)** — MCP vision completeness: sprint-map / doc-preview /
-node-search / summary / sync / extensions / preview (26 tools; preview same confine as HTTP).
+node-search / summary / sync / extensions / preview (26 tools then; preview same confine as HTTP).
+**band 151 (PH-S2149…S2158, ✅)** — MCP catch-up: products / products_scan / watchdog / sw / fingerprints + `gsv://docs/{fingerprints,post-always-on}` (**31** tools, **8** resources).
 **band 138 (PH-S2019…S2028, ✅)** — MCP resources + prompts: 6 `gsv://` URIs + 3 prompts
 (`gsv_status` / `gsv_vision_brief` / `gsv_drain`); Galaxy card lists both.
 **band 139 (PH-S2029…S2038, ✅)** — MCP logging + completions: `logging/setLevel` (RFC 5424)

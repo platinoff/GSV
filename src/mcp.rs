@@ -226,6 +226,30 @@ pub fn tools_list() -> Vec<Value> {
                 "required": ["file"]
             }),
         ),
+        tool("gsv_products", "VDT environment products (workspace ∪ sibling git ∪ kit).", object_schema()),
+        tool(
+            "gsv_products_scan",
+            "Scan one discovered product (git HEAD, HANDOFF/NEXT, kind). id required.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "Product id from gsv_products (e.g. gsv)." }
+                },
+                "required": ["id"]
+            }),
+        ),
+        tool("gsv_watchdog", "Live watchdog heartbeat (target/live/watchdog.json).", object_schema()),
+        tool("gsv_sw", "Service Worker shell cache discovery (cache name + precache urls).", object_schema()),
+        tool(
+            "gsv_fingerprints",
+            "Drain fingerprints JSONL (actor / IDE / model / time).",
+            json!({
+                "type": "object",
+                "properties": {
+                    "limit": { "type": "integer", "description": "Latest N rows (default 20, cap 100)." }
+                }
+            }),
+        ),
     ]
 }
 
@@ -236,6 +260,8 @@ const RESOURCE_URIS: &[&str] = &[
     "gsv://docs/mcp-openbot",
     "gsv://docs/handoff",
     "gsv://docs/next",
+    "gsv://docs/fingerprints",
+    "gsv://docs/post-always-on",
 ];
 
 const PROMPT_NAMES: &[&str] = &["gsv_status", "gsv_vision_brief", "gsv_drain"];
@@ -291,6 +317,20 @@ const RESOURCES: &[ResourceSpec] = &[
         mime: "text/markdown",
         rel: "docs/NEXT_SESSION_PROMPT.md",
     },
+    ResourceSpec {
+        uri: "gsv://docs/fingerprints",
+        name: "Drain fingerprints",
+        description: "Append-only drain fingerprint JSONL.",
+        mime: "application/jsonl",
+        rel: "docs/gsv/fingerprints.jsonl",
+    },
+    ResourceSpec {
+        uri: "gsv://docs/post-always-on",
+        name: "Post always-on spec",
+        description: "MCP catch-up conception for band 151+.",
+        mime: "text/markdown",
+        rel: "docs/gsv/GSV_POST_ALWAYS_ON.md",
+    },
 ];
 
 struct PromptSpec {
@@ -313,7 +353,7 @@ const PROMPTS: &[PromptSpec] = &[
     PromptSpec {
         name: "gsv_drain",
         description: "Start a VDT drain: next PH-S* band after the last closed sprint.",
-        text: "Start a GSV VDT drain. Read gsv://docs/next if needed, then gsv_vision_queue. Propose the next ≤10 PH-S* after the last closed band. Do not push mid-drain. Shell is MSYS2 bash.",
+        text: "Start a GSV VDT drain. Read gsv://docs/next and gsv://docs/post-always-on. Call gsv_products, gsv_products_scan with id=gsv (or the owner pick), and gsv_watchdog. Propose the next ≤10 PH-S* after the last closed band. Do not push mid-drain. Shell is MSYS2 bash.",
     },
 ];
 
@@ -354,6 +394,11 @@ const TOOL_NAMES: &[&str] = &[
     "gsv_vision_sync",
     "gsv_vision_extensions",
     "gsv_preview",
+    "gsv_products",
+    "gsv_products_scan",
+    "gsv_watchdog",
+    "gsv_sw",
+    "gsv_fingerprints",
 ];
 
 /// Stable tool name list (tests / GET /mcp).
@@ -888,6 +933,36 @@ async fn call_tool(state: &AppState, params: &Value) -> Value {
             &state.data_dir,
         )),
         "gsv_preview" => tool_preview(state, &args),
+        "gsv_products" => {
+            let sel = state.product_selected.lock().ok().and_then(|g| g.clone());
+            tool_ok(crate::boxes::products::wire(
+                &state.repo_root,
+                sel.as_deref(),
+            ))
+        }
+        "gsv_products_scan" => {
+            let id = arg_str(&args, "id");
+            if id.is_empty() {
+                tool_err("id required")
+            } else {
+                match crate::boxes::products::scan(&state.repo_root, &id) {
+                    Ok(s) => {
+                        tool_ok(serde_json::to_value(&s).unwrap_or_else(|_| json!({"ok":false})))
+                    }
+                    Err(e) => tool_err(e),
+                }
+            }
+        }
+        "gsv_watchdog" => tool_ok(crate::boxes::watchdog::wire(&state.repo_root)),
+        "gsv_sw" => tool_ok(crate::boxes::sw::wire()),
+        "gsv_fingerprints" => {
+            let limit = crate::boxes::fingerprint::clamp_limit(
+                args.get("limit")
+                    .and_then(|v| v.as_u64())
+                    .map(|n| n as usize),
+            );
+            tool_ok(crate::boxes::fingerprint::wire(&state.repo_root, limit))
+        }
         "" => tool_err("missing tool name"),
         other => tool_err(format!("unknown tool: {other}")),
     }
@@ -1080,10 +1155,15 @@ mod tests {
             "gsv_vision_sync",
             "gsv_vision_extensions",
             "gsv_preview",
+            "gsv_products",
+            "gsv_products_scan",
+            "gsv_watchdog",
+            "gsv_sw",
+            "gsv_fingerprints",
         ] {
             assert!(names.contains(&n), "missing {n}");
         }
-        assert_eq!(names.len(), 26);
+        assert_eq!(names.len(), 31);
     }
 
     #[tokio::test]
@@ -1476,6 +1556,9 @@ mod tests {
         let listed = out["result"]["resources"].as_array().expect("resources");
         assert_eq!(RESOURCES.len(), RESOURCE_URIS.len());
         assert_eq!(PROMPTS.len(), PROMPT_NAMES.len());
+        assert_eq!(RESOURCE_URIS.len(), 8);
+        assert!(RESOURCE_URIS.contains(&"gsv://docs/fingerprints"));
+        assert!(RESOURCE_URIS.contains(&"gsv://docs/post-always-on"));
         assert_eq!(listed.len(), RESOURCE_URIS.len());
         for (item, expected) in listed.iter().zip(RESOURCE_URIS.iter()) {
             assert_eq!(item["uri"], *expected);
@@ -1772,5 +1855,36 @@ mod tests {
         let resp: Value = serde_json::from_str(lines.last().unwrap()).expect("resp");
         assert!(resp["result"].is_object(), "{resp}");
         assert_eq!(resp["id"], 1);
+    }
+
+    #[tokio::test]
+    async fn drain_prompt_names_always_on_tools() {
+        let s = state();
+        let got = rpc(&s, 90, "prompts/get", json!({ "name": "gsv_drain" })).await;
+        let text = got["result"]["messages"][0]["content"]["text"]
+            .as_str()
+            .unwrap_or("");
+        assert!(text.contains("gsv_products"), "{text}");
+        assert!(text.contains("gsv_products_scan"), "{text}");
+        assert!(text.contains("gsv_watchdog"), "{text}");
+        assert!(text.contains("gsv://docs/next"), "{text}");
+        assert!(text.contains("mid-drain"), "{text}");
+    }
+
+    #[tokio::test]
+    async fn resources_read_post_always_on() {
+        let s = state();
+        let out = rpc(
+            &s,
+            91,
+            "resources/read",
+            json!({ "uri": "gsv://docs/post-always-on" }),
+        )
+        .await;
+        let text = out["result"]["contents"][0]["text"].as_str().unwrap_or("");
+        assert!(out.get("error").is_none(), "{out}");
+        assert!(text.contains("band 151"), "{text}");
+        let trav = rpc(&s, 92, "resources/read", json!({ "uri": "gsv://docs/../" })).await;
+        assert_eq!(trav["error"]["code"], -32602);
     }
 }
