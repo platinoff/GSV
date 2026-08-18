@@ -40,6 +40,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 153** (rust-first cargo xtask) **✅** ·
 **band 154** (watchdog ops card + fingerprint model) **✅** ·
 **band 155** (session token usage — MCP + OmniRoute + sync) **✅** ·
+**band 156** (streaming usage + VDT git + owner tunnel) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -838,6 +839,23 @@ Owner ask: automatic per-session token spend, aligned with `gsv_mcp_openbot`, Om
 | **PH-S2196** | Stand-smoke / DATA | `/api/usage` + `gsv_usage.json` allowlist — **✅** |
 | **PH-S2197** | Docs | BOXES / SERVER / MCP_OPENBOT / HANDOFF / NEXT / MEMORY — **✅** |
 | **PH-S2198** | Band close | tests **445** green; `--stretch-96` **99.14%**; `--band 155` + fingerprint; one commit + push — **✅** |
+
+## Спринти (band 156) — streaming usage + VDT git + owner tunnel
+
+Owner pick: record `stream:true` tokens; fullscreen chart imgs; Grok Bot `cargo xtask tunnel`; universal `cargo xtask git` replacing `comitmsg/*.sh` (messages `.md`, logs `.log`).
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2199** | Scope + queue | this band — **✅** |
+| **PH-S2200** | Streaming usage | SSE tap + `stream_options.include_usage`; record on stream end — **✅** |
+| **PH-S2201** | Chart fullscreen | `.card.fullscreen img{max-height:none` — **✅** |
+| **PH-S2202** | Tunnel | `cargo xtask tunnel` → cloudflared loopback; MCP never starts it — **✅** |
+| **PH-S2203** | `cargo xtask git` | status/log/fetch/commit `--file comitmsg/*.md`/push; no add -A — **✅** |
+| **PH-S2204** | comitmsg | `.sh`/`.txt` retired; `.md` + `.log`; gitignore except README — **✅** |
+| **PH-S2205** | Contracts | usage SSE + ui fullscreen + gitkit + xtask catalog — **✅** |
+| **PH-S2206** | Docs / kit | RUST_DEV / MCP_OPENBOT / git-workflow / abracadabra never-stage — **✅** |
+| **PH-S2207** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy — **✅** |
+| **PH-S2208** | Band close | tests **457** green; `--stretch-96` **99.17%**; `--band 156` + fingerprint; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

@@ -97,7 +97,7 @@ There is an **IDE session** picker, not a **VDT product** picker. `Cargo.toml` i
 
 - Open folder: prefer `cursor <path>` if on PATH, else `explorer.exe`.
 - Header meta shows `v{version}` (already) plus last fingerprint actor/ide (short).
-- Chart cards: `max-height` none when fullscreen.
+- Chart cards: `max-height` none when fullscreen — **done band 156** (`.card.fullscreen img`).
 
 ### P2 — Later
 
@@ -146,4 +146,4 @@ There is an **IDE session** picker, not a **VDT product** picker. `Cargo.toml` i
 | **149** | S2129–S2138 | OmniRoute PRODUCTS.md + semver minor = band | ✅ |
 | **150** | S2139–S2148 | Live watchdog (`gsv-watchdog` probes `/api/health`, respawns live copy) | ✅ |
 
-Always-on horizon **closed**. MCP catch-up **band 151–152 ✅**. Rust-first xtask **band 153 ✅**. Watchdog ops card + fingerprint model **band 154 ✅**. Session token usage **band 155 ✅**. Next `абракадабра` on **gsv**: scan first, then owner pick. Grok Bot tunnel stays opt-in.
+Always-on horizon **closed**. MCP catch-up **band 151–152 ✅**. Rust-first xtask **band 153 ✅**. Watchdog ops card + fingerprint model **band 154 ✅**. Session token usage **band 155 ✅**. Streaming usage + VDT git + owner tunnel **band 156 ✅**. Next `абракадабра` on **gsv**: scan first, then owner pick.

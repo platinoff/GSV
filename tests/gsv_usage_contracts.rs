@@ -336,3 +336,20 @@ async fn mcp_usage_tool_ok() {
 fn data_files_allow_usage_snapshot() {
     assert!(gsv::security::DATA_FILES.contains(&"gsv_usage.json"));
 }
+
+#[test]
+fn parse_sse_usage_from_openai_stream() {
+    let body = "data: {\"choices\":[{\"delta\":{\"content\":\"a\"}}]}\n\
+data: {\"usage\":{\"prompt_tokens\":4,\"completion_tokens\":5}}\n\
+data: [DONE]\n";
+    let c = usage::parse_sse_usage(body).expect("sse usage");
+    assert_eq!(c.prompt_tokens, 4);
+    assert_eq!(c.completion_tokens, 5);
+}
+
+#[test]
+fn stream_body_requests_include_usage() {
+    let mut body = json!({ "stream": true, "messages": [] });
+    usage::ensure_stream_include_usage(&mut body);
+    assert_eq!(body["stream_options"]["include_usage"], true);
+}

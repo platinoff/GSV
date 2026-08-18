@@ -19,7 +19,9 @@ JSON remains **data or host protocol** (vision snapshots, MCP client configs, `C
 | Vision close | `cargo xtask sync` then `cargo xtask sync --check` |
 | Band close | `cargo xtask bump --band N` then `cargo xtask fingerprint` |
 | Skill mirrors | `cargo xtask mirrors` |
-| Push after commit | `cargo xtask push` |
+| Push after commit | `cargo xtask git push` (alias `cargo xtask push`) |
+| Commit (message file) | `cargo xtask git commit --file comitmsg/<name>.md` |
+| Grok Bot tunnel | `cargo xtask tunnel` (cloudflared; owner opt-in; `/mcp` becomes public) |
 | Tests | `cargo test` (`tests/*.rs`) |
 | Benches | `cargo bench --bench gsv_dev` (`benches/*.rs`) |
 
@@ -52,7 +54,7 @@ The agent **shell** is still MSYS2 bash (`C:\msys64\usr\bin\bash.exe -lc '…'`)
 | `docs/vision/*.json` | Snapshots written **by** `gsv-vision-sync` / speed-index bins. |
 | `docs/gsv/fingerprints.jsonl` | Append-only data. Writer is Rust. |
 | Marketplace `find-polluter.sh` under skills | Upstream skill copy, not a GSV product script. |
-| `comitmsg/*.sh` | Local commit helpers; never staged. |
+| `comitmsg/*.md` / `*.log` | Local commit messages and logs; never staged except `comitmsg/README.md`. Use `cargo xtask git`. |
 
 ## MCP
 

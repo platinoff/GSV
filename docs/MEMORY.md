@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-18 · band 156 ✅)
+
+- **Band 156:** streaming OmniRouter token usage (`SseUsageTap` + `stream_options.include_usage`); fullscreen chart imgs unclipped; `cargo xtask git` (status/log/fetch/commit `--file comitmsg/*.md`/push) replaces `comitmsg/*.sh`; `cargo xtask tunnel` (cloudflared, owner opt-in, not MCP).
+- **Canon:** [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md) · [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+- **Next drain:** scan / owner pick.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`. Commit messages: `comitmsg/*.md` (never staged except README).
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.17%** (rust 22798 / product 22988) · **457** tests · clippy 0.
+
 ## Стан (2026-08-18 · band 155 ✅)
 
 - **Band 155:** session token usage — `boxes/usage.rs` aggregates OmniRouter completions + MCP bot (`gsv_omni_chat` / `Mcp-Session-Id`) + fail-open OmniRoute `/api/usage/history`; persist `data/gsv_usage.json`; `GET /api/usage` + Galaxy studio card `usage` (`CARD_NAMES` **37**); MCP tool `gsv_usage` (**35** tools); vision-sync snapshot. Dry-run / zero usage not counted. Streaming not recorded (P1).

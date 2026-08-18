@@ -439,6 +439,17 @@ async fn ui_index_collapsed_card_leaves_grid() {
     );
 }
 
+/// Band 156: chart imgs (outside .body) have no max-height in fullscreen.
+#[tokio::test]
+async fn ui_index_fullscreen_chart_img_unclipped() {
+    let (app, _state) = app();
+    let html = get_index_html(&app).await;
+    assert!(
+        html.contains(".card.fullscreen img{max-height:none"),
+        "fullscreen chart img must drop max-height"
+    );
+}
+
 /// Band 143: shared type scale CSS variables (P0 typography).
 #[tokio::test]
 async fn ui_index_defines_type_scale() {

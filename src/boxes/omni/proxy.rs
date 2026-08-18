@@ -5,15 +5,20 @@
 //! body field → the catalog owner of the requested model → `routing.default_provider`
 //! → `routing.fallback_order` → highest-priority enabled provider with a base URL.
 //! The body (minus our `provider` extension field) is forwarded to the upstream
-//! OpenAI-compatible endpoint. `stream: true` requests are piped through as SSE.
+//! OpenAI-compatible endpoint. `stream: true` requests are piped through as SSE
+//! and token usage is recorded from the final `data:` chunk when present.
 //!
 //! Debugging: set header `X-Omni-Dry-Run: 1` to resolve the route without sending
 //! anything upstream (no network).
+
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use axum::body::Body;
 use axum::http::header;
 use axum::http::HeaderMap;
 use axum::response::Response;
+use futures_util::Stream;
 use serde_json::{json, Value};
 
 use crate::app_error::AppError;
@@ -127,6 +132,7 @@ pub async fn chat_completions(
     if let Value::Object(map) = &mut forwarded {
         map.remove("provider");
     }
+    usage::ensure_stream_include_usage(&mut forwarded);
     let mut req = omni.client.post(&upstream_url).json(&forwarded);
     if let Some(key) = cfg.effective_api_key(&provider_id) {
         req = req.header(header::AUTHORIZATION, format!("Bearer {key}"));
@@ -138,7 +144,7 @@ pub async fn chat_completions(
 
     let streaming = body.get("stream").and_then(Value::as_bool).unwrap_or(false);
     if streaming {
-        stream_response(upstream).await
+        stream_response(upstream, state, headers, &model, &provider_id).await
     } else {
         json_response(upstream, state, headers, &model, &provider_id).await
     }
@@ -246,17 +252,81 @@ async fn json_response(
         .map_err(|e| AppError::new(format!("response build: {e}")))
 }
 
-/// SSE passthrough for `stream: true`.
-async fn stream_response(upstream: reqwest::Response) -> Result<Response, AppError> {
+/// SSE passthrough for `stream: true`, tapping usage from final chunks.
+async fn stream_response(
+    upstream: reqwest::Response,
+    state: &AppState,
+    headers: &HeaderMap,
+    model: &str,
+    provider_id: &str,
+) -> Result<Response, AppError> {
     let mut builder = Response::builder().status(upstream.status());
     if let Some(ct) = upstream.headers().get(header::CONTENT_TYPE) {
         builder = builder.header(header::CONTENT_TYPE, ct);
     }
     builder = builder.header(header::CACHE_CONTROL, "no-cache");
-    let stream = upstream.bytes_stream();
+    let tap = UsageTapStream {
+        inner: upstream.bytes_stream(),
+        tap: usage::SseUsageTap::new(),
+        state: state.clone(),
+        session: usage::session_from_headers(headers),
+        source: usage::source_from_headers(headers),
+        provider: provider_id.to_string(),
+        model: model.to_string(),
+        ended: false,
+    };
     builder
-        .body(Body::from_stream(stream))
+        .body(Body::from_stream(tap))
         .map_err(|e| AppError::new(format!("stream response build: {e}")))
+}
+
+struct UsageTapStream<S> {
+    inner: S,
+    tap: usage::SseUsageTap,
+    state: AppState,
+    session: String,
+    source: String,
+    provider: String,
+    model: String,
+    ended: bool,
+}
+
+impl<S> Stream for UsageTapStream<S>
+where
+    S: Stream<Item = Result<axum::body::Bytes, reqwest::Error>> + Unpin,
+{
+    type Item = Result<axum::body::Bytes, std::io::Error>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = self.get_mut();
+        match Pin::new(&mut this.inner).poll_next(cx) {
+            Poll::Ready(Some(Ok(chunk))) => {
+                this.tap.push(&chunk);
+                Poll::Ready(Some(Ok(chunk)))
+            }
+            Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(std::io::Error::other(e)))),
+            Poll::Ready(None) => {
+                if !this.ended {
+                    this.ended = true;
+                    if let Some(counts) = this.tap.last() {
+                        let state = this.state.clone();
+                        let ev = usage::event_now(
+                            &this.session,
+                            &this.source,
+                            &this.provider,
+                            &this.model,
+                            counts,
+                        );
+                        tokio::spawn(async move {
+                            usage::record_into(&state, ev).await;
+                        });
+                    }
+                }
+                Poll::Ready(None)
+            }
+            Poll::Pending => Poll::Pending,
+        }
+    }
 }
 
 /// Build an already-OK JSON axum response (used by `v1_models`).

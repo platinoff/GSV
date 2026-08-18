@@ -165,7 +165,7 @@ No secrets in tool output (`omni.toml` keys stay redacted). POST body cap and CS
 
 - Default bind remains `127.0.0.1`. `/mcp` must not widen LAN without `--allow-lan`.
 - Terminal tool = existing cargo/git allowlists (band 133).
-- Grok Bot cloud: do **not** port-forward `/mcp` to the public internet in v1. Document a tunnel only as an explicit owner step.
+- Grok Bot cloud: `cargo xtask tunnel` is the **owner-opt-in** public hop (`cloudflared tunnel --url http://127.0.0.1:9999`). Not on by default. `/mcp` on that URL is world-reachable until you Ctrl+C. Do not add an MCP tool that starts the tunnel.
 - MCP auth tokens never land in `data/` git.
 
 ## Non-goals (band 135)
@@ -174,9 +174,9 @@ No secrets in tool output (`omni.toml` keys stay redacted). POST body cap and CS
 - Auto-generating a second Galaxy UI for OpenCode.
 - Python MCP adapters.
 
-## Horizon (band 156+)
+## Horizon (band 157+)
 
-Band **155** added `gsv_usage` (**35** tools, **9** `gsv://` resources). Still **not** on MCP: `products/open`, `update/apply`, Grok Bot tunnel.
+Band **156** recorded streaming OmniRouter usage, unclipped fullscreen charts, `cargo xtask git` / `cargo xtask tunnel`, and retired `comitmsg/*.sh`. Still **not** on MCP: `products/open`, `update/apply`, starting the tunnel.
 
 Spec: [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md). Plan: [`docs/superpowers/plans/2026-08-18-mcp-always-on-catchup.md`](../superpowers/plans/2026-08-18-mcp-always-on-catchup.md).
 

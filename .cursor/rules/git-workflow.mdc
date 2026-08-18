@@ -11,7 +11,7 @@ All git in **MSYS2 bash** (`C:\msys64\usr\bin\bash.exe`). Prefer an external UCR
 ## Order
 
 1. `git status --short` in the **product** repo.
-2. Stage **only sprint files** — never `git add -A`.
+2. Stage **only sprint files** — never `git add -A`. Prefer `cargo xtask git commit --file comitmsg/<name>.md` after staging.
 3. Conventional Commits: `<type>(<scope>): <subject>`.
 4. If the commit has product code (`src/`, `tests/`, `crates/`, `Cargo.toml`) — body **Summary:** what changed + which `cargo` commands actually ran.
 5. Push only at session end (`абракадабра` / `abrakadabra` step 6). GSV GitHub remote is optional until the owner adds one.
@@ -20,7 +20,7 @@ All git in **MSYS2 bash** (`C:\msys64\usr\bin\bash.exe`). Prefer an external UCR
 
 ## Never stage
 
-`.env*` · `*.pem` / `*.key` · `certs/*.pem` · `data/*` except `.gitkeep` · `comitmsg/*.txt`
+`.env*` · `*.pem` / `*.key` · `certs/*.pem` · `data/*` except `.gitkeep` · `comitmsg/*` except `comitmsg/README.md`
 
 ## Do not
 

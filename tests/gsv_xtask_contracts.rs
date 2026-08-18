@@ -78,6 +78,7 @@ fn product_dirs_have_no_shell_or_ps_harnesses() {
         }
     }
     assert!(root.join("src/bin/gsv_xtask.rs").is_file());
+    assert!(root.join("src/boxes/gitkit.rs").is_file());
     assert!(root.join("benches/gsv_dev.rs").is_file());
     assert!(root.join("docs/gsv/GSV_RUST_DEV.md").is_file());
 }
@@ -94,4 +95,26 @@ fn cargo_alias_xtask() {
 #[test]
 fn mcp_readonly_tasks_are_catalog_products_disk() {
     assert_eq!(xtask::MCP_TASKS, &["catalog", "products", "disk"]);
+}
+
+#[test]
+fn catalog_lists_git_and_tunnel() {
+    let v = xtask::catalog_wire();
+    let names: Vec<&str> = v["tasks"]
+        .as_array()
+        .expect("tasks")
+        .iter()
+        .filter_map(|t| t["name"].as_str())
+        .collect();
+    assert!(names.contains(&"git"), "{names:?}");
+    assert!(names.contains(&"tunnel"), "{names:?}");
+}
+
+#[test]
+fn gitkit_commit_file_is_md_only() {
+    use gsv::boxes::gitkit;
+    assert!(gitkit::forbidden_stage("comitmsg/.band156.md"));
+    assert!(!gitkit::forbidden_stage("comitmsg/README.md"));
+    let argv = gitkit::tunnel_argv("127.0.0.1", 9999);
+    assert_eq!(argv[3], "http://127.0.0.1:9999");
 }

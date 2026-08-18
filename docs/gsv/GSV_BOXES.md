@@ -110,7 +110,7 @@ Rust модуль: `ide/` (read-only).
 - `GET /api/omni/config` — конфіг **redacted** (лише `key_set`, без ключів).
 - `POST /api/omni/config` — тюнінг (base_url / api_key / enabled / priority / routing).
 - `GET /api/omni/v1/models` — OpenAI-сумісний список моделей.
-- `POST /api/omni/v1/chat/completions` — OpenAI-сумісний proxy (SSE passthrough для `stream:true`; dry-run через `X-Omni-Dry-Run: 1`).
+- `POST /api/omni/v1/chat/completions` — OpenAI-сумісний proxy (SSE passthrough для `stream:true`; band **156** records token usage from the final SSE chunk; dry-run через `X-Omni-Dry-Run: 1`).
 - `POST /api/omni/test {provider}` — connectivity check (`GET {base}/models`).
 
 **Роутинг** (`proxy.rs::select_provider`): `X-Omni-Provider` header / `provider` у тілі → власник моделі з каталогу → `routing.default_provider` → `routing.fallback_order` → найвищий пріоритет серед enabled провайдерів з base_url. `base_url` може вказувати на OmniRoute (`http://127.0.0.1:20128/v1`) — тоді Rust-роутер проксірує запити через OmniRoute.
@@ -129,13 +129,13 @@ Rust модуль: `omni/` (catalog.rs, config.rs, proxy.rs) → `GSV/data/omni.
 | Fingerprints | `fingerprint/` (`boxes/fingerprint.rs`) | `/api/fingerprints` | append-only `docs/gsv/fingerprints.jsonl` (actor / IDE / model / agent / time); ops card `fingerprints`; **band 154:** `model` from `GSV_MODEL` else Cursor session (`CURSOR_MODEL` / `GSV_SESSION_FILE`), default `unknown` |
 | Service Worker | `sw/` (`boxes/sw.rs`) | `/sw.js` · `/api/sw` | Rust-rendered SW; Cache Storage `gsv-shell-v1`; precache `/` + live CSS + galaxy/vision svg; skip `/events` `/mcp`; ops card `sw` |
 | Watchdog | `watchdog/` (`boxes/watchdog.rs`) | `/api/watchdog` · bin `gsv-watchdog` | probe `/api/health`; after 2 misses copy debug→live and spawn detached; heartbeat `target/live/watchdog.json`; health row `watchdog_alive`; **band 154:** ops card `watchdog` |
-| Usage | `usage/` (`boxes/usage.rs`) | `/api/usage` | per-session token counts from OmniRouter completions + MCP bot (`gsv_omni_chat` / `Mcp-Session-Id`) + fail-open OmniRoute `/api/usage/history`; persist `data/gsv_usage.json`; vision-sync snapshot; Galaxy studio card `usage` (**band 155**) |
+| Usage | `usage/` (`boxes/usage.rs`) | `/api/usage` | per-session token counts from OmniRouter completions (**band 156:** includes `stream:true` SSE) + MCP bot (`gsv_omni_chat` / `Mcp-Session-Id`) + fail-open OmniRoute `/api/usage/history`; persist `data/gsv_usage.json`; vision-sync snapshot; Galaxy studio card `usage` (**band 155**) |
 | Update | `update/` | `/api/update` · `/api/update/apply` · `/events` | live copy + версія |
 | Box preview | `preview/` | `/api/preview` | файли |
 | SLI terminal | `terminal/` | `/api/terminal` | SLI-каталог |
 | Tests/bench hooks | `hooks/` | `/api/hooks/…` | `target/` артефакти |
 | OmniRouter | `omni/` | `/api/omni/…` | шіт «AI providers», `omni.toml`, proxy |
 | Vision | `vision/` (`boxes/vision.rs`) | `/api/vision*` · `/assets/vision.svg` | `GSV/docs/vision/{manifest,feed,extensions}.json` → `GSV/data/gsv_*.json` |
-| UI fragments | `ui/` (`boxes/ui.rs`) | `/api/ui/layout` · `/api/ui/card/:name` · `/api/ui/load-palette` · `/api/ui/load-theme` | dashboard `CARD_NAMES` 37 + chrome 8 + layout `html`/`header` + live `:root` CSS; **band 155:** studio card `usage`; **band 154:** ops card `watchdog`; **band 148:** ops card `sw`; **band 146:** ops card `fingerprints`; **band 145:** ops card `products` (list/select/open/scan); **band 143:** power menu `z-index:80` above workspace, exclusive fullscreen (`data-action='card-fs'`), collapsed cards `display:none` (dock restore), `--fs-*` type scale, speed/rust SVG height 168 |
+| UI fragments | `ui/` (`boxes/ui.rs`) | `/api/ui/layout` · `/api/ui/card/:name` · `/api/ui/load-palette` · `/api/ui/load-theme` | dashboard `CARD_NAMES` 37 + chrome 8 + layout `html`/`header` + live `:root` CSS; **band 156:** `.card.fullscreen img{max-height:none`; **band 155:** studio card `usage`; **band 154:** ops card `watchdog`; **band 148:** ops card `sw`; **band 146:** ops card `fingerprints`; **band 145:** ops card `products` (list/select/open/scan); **band 143:** power menu `z-index:80` above workspace, exclusive fullscreen (`data-action='card-fs'`), collapsed cards `display:none` (dock restore), `--fs-*` type scale, speed/rust SVG height 168 |
 | Stand smoke | `src/bin/gsv_http_stand_smoke.rs` | live HTTP перевірка | всі boxes + `/api/vision*` + SVG + `/api/ui/card/:name` |
 | **gsv_mcp_openbot** | `mcp.rs` + `gsv-mcp` bin | stdio + `GET`/`POST`/`DELETE /mcp` + Galaxy card `/api/ui/card/mcp` | 34 box tools + 9 `gsv://` resources (band 137–142 ✅ · **151 ✅** · **152 ✅** products_select · **153 ✅** xtask/disk + rust-dev) — [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md) · [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) |

@@ -13,7 +13,6 @@ use serde::Serialize;
 use serde_json::{json, Value};
 
 use crate::boxes::{products, vision, watchdog};
-use crate::vision as vis;
 
 /// Read-only MCP / HTTP tasks. Mutating work stays on `cargo xtask`.
 pub const MCP_TASKS: &[&str] = &["catalog", "products", "disk"];
@@ -35,7 +34,18 @@ pub const TASKS: &[(&str, &str)] = &[
         "watchdog-install",
         "Persist watchdog (schtasks ONLOGON / HKCU Run)",
     ),
-    ("push", "git push origin main (no add/commit)"),
+    (
+        "push",
+        "git push origin main (no add/commit; alias: cargo xtask git push)",
+    ),
+    (
+        "git",
+        "VDT git: status / log / fetch / commit --file comitmsg/*.md / push",
+    ),
+    (
+        "tunnel",
+        "Owner-opt-in cloudflared tunnel to loopback :9999 (/mcp public)",
+    ),
     (
         "mirrors",
         "Copy .agents/skills → .cursor/skills + .opencode/skills",
@@ -266,20 +276,17 @@ pub fn sync_skill_mirrors(kit_root: &Path) -> Result<Vec<String>, String> {
 
 /// `git status -sb` then `git push origin main`.
 pub fn git_push_only(repo_root: &Path) -> Result<String, String> {
-    let status = git_capture(repo_root, &["status", "-sb"])?;
-    let push = Command::new("git")
-        .args(["push", "origin", "main"])
-        .current_dir(repo_root)
-        .output()
-        .map_err(|e| format!("git push: {e}"))?;
-    let mut out = format!("=== git status ===\n{status}\n=== git push origin main ===\n");
-    out.push_str(&String::from_utf8_lossy(&push.stdout));
-    out.push_str(&String::from_utf8_lossy(&push.stderr));
-    if !push.status.success() {
-        return Err(out);
-    }
-    out.push_str("=== done ===\n");
-    Ok(out)
+    crate::boxes::gitkit::run(repo_root, &["push".into()])
+}
+
+/// Allowlisted VDT git (`cargo xtask git …`).
+pub fn git_cli(repo_root: &Path, args: &[String]) -> Result<String, String> {
+    crate::boxes::gitkit::run(repo_root, args)
+}
+
+/// Owner-opt-in Grok Bot tunnel (cloudflared). Never MCP.
+pub fn tunnel_cli(host: &str, port: u16) -> Result<String, String> {
+    crate::boxes::gitkit::run_tunnel(host, port)
 }
 
 /// Time `cargo test` and record via `gsv-speed-index` (built bin, no nested `cargo run`).
@@ -405,15 +412,6 @@ pub fn debug_bin(repo_root: &Path, name: &str) -> PathBuf {
         name.to_string()
     };
     repo_root.join("target/debug").join(file)
-}
-
-fn git_capture(cwd: &Path, args: &[&str]) -> Result<String, String> {
-    let o = vis::command("git")
-        .current_dir(cwd)
-        .args(args)
-        .output()
-        .map_err(|e| format!("git: {e}"))?;
-    Ok(String::from_utf8_lossy(&o.stdout).trim().to_string())
 }
 
 fn native_path(p: &Path) -> String {
@@ -545,14 +543,21 @@ mod tests {
         assert!(names.contains(&"products"));
         assert!(names.contains(&"disk"));
         assert!(names.contains(&"live"));
+        assert!(names.contains(&"git"));
+        assert!(names.contains(&"tunnel"));
         assert!(MCP_TASKS.contains(&"catalog"));
     }
 
     #[test]
     fn mcp_rejects_mutating_task() {
         let dir = std::env::temp_dir();
-        let err = mcp_run(&dir, "push").unwrap_err();
-        assert!(err.contains("mutating") || err.contains("push"), "{err}");
+        for name in ["push", "git", "tunnel"] {
+            let err = mcp_run(&dir, name).unwrap_err();
+            assert!(
+                err.contains("mutating") || err.contains(name),
+                "{name}: {err}"
+            );
+        }
     }
 
     #[test]

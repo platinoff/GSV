@@ -19,6 +19,8 @@ git commit -m "type(scope): subject" \
 git push origin main
 ```
 
-Push-only after a commit: `cargo xtask push`
+Push-only after a commit: `cargo xtask git push` (or `cargo xtask push`)
 
-Never stage: `.env*` · `*.pem`/`*.key` · `data/*` (except `.gitkeep`) · `comitmsg/*.txt` · `.opencode/node_modules`
+Never stage: `.env*` · `*.pem`/`*.key` · `data/*` (except `.gitkeep`) · `comitmsg/*` except `comitmsg/README.md` · `.opencode/node_modules`
+
+Commit with a message file: `cargo xtask git commit --file comitmsg/<name>.md` (never `git add -A`).

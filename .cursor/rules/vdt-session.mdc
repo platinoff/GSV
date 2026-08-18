@@ -30,4 +30,4 @@ export RUSTUP_TOOLCHAIN="${RUSTUP_TOOLCHAIN:-stable-x86_64-pc-windows-gnu}"
 
 - Shell: `C:\msys64\usr\bin\bash.exe -lc '…'` — not PowerShell.
 - No `git add -A`. No parallel `cargo` (file lock). Separate `target/` per product.
-- Never stage: `.env*`, `*.pem`/`*.key`, `certs/*.pem`, `data/audit/*` (except `.gitkeep`), `comitmsg/*.txt`.
+- Never stage: `.env*`, `*.pem`/`*.key`, `certs/*.pem`, `data/audit/*` (except `.gitkeep`), `comitmsg/*` except `comitmsg/README.md`.

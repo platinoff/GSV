@@ -114,7 +114,7 @@ cargo run --manifest-path GSV/Cargo.toml --bin gsv-http-stand-smoke -- --base-ur
 - UI показує кнопку/бейдж **Update** замість auto-reload; `doUpdate()` POSTs `/api/update/apply`.
 - Клієнтський JS тримає стан offline; при SSE `onopen` робить full-resync (Tracker/SLI/toolchain/speed/rust diagnostics).
 
-**Horizon:** band **155 ✅** session token usage (`GET /api/usage`, MCP `gsv_usage`, **35** tools, `CARD_NAMES` 37). Band **154 ✅** watchdog ops card + fingerprint model. Band **153 ✅** rust-first `cargo xtask`. Next drain = scan / owner pick. Spec: [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md) · [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md).
+**Horizon:** band **156 ✅** streaming usage + `cargo xtask git` / `tunnel`. Band **155 ✅** session token usage (`GET /api/usage`, MCP `gsv_usage`, **35** tools, `CARD_NAMES` 37). Band **154 ✅** watchdog ops card + fingerprint model. Band **153 ✅** rust-first `cargo xtask`. Next drain = scan / owner pick. Spec: [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md) · [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md).
 
 ## Live copy + apply (band 144)
 

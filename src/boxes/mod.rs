@@ -22,6 +22,7 @@
 //! | Xtask | `xtask` | `/api/xtask` · `/api/disk` | `cargo xtask` product automation (no `.sh`) |
 
 pub mod fingerprint;
+pub mod gitkit;
 pub mod hooks;
 pub mod ide;
 pub mod omni;

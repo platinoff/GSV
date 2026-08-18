@@ -1,9 +1,9 @@
 # GSV after always-on — MCP catch-up (conception)
 
-**Status:** Landed (band **155** ✅ · session token usage · band **154** ✅ watchdog ops card + fingerprint model)  
+**Status:** Landed (band **156** ✅ streaming usage + VDT git + owner tunnel · band **155** ✅ session token usage · band **154** ✅ watchdog ops card + fingerprint model)  
 **Date:** 2026-08-18  
 **Owner ask:** update needed docs/plans; put what the next `абракадабра` / `abrakadabra` on **gsv** must drain.  
-**Scan (same day):** clippy 0 · roadmap 102–155 all ✅ · no `TODO` in `src/` · always-on P2 leftovers closed except Grok Bot tunnel (owner opt-in). Streaming token record remains P1.
+**Scan (same day):** clippy 0 · roadmap 102–156 all ✅ · no `TODO` in `src/` · always-on P2 leftovers closed. Streaming token record **done band 156**. Grok Bot tunnel is `cargo xtask tunnel` (owner opt-in).
 
 **Plan:** [`docs/superpowers/plans/2026-08-18-mcp-always-on-catchup.md`](../superpowers/plans/2026-08-18-mcp-always-on-catchup.md)  
 **Roadmap:** band **152** (then 153) in [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md)  
@@ -112,5 +112,5 @@ Cost of leaving it: the next drain session invents work, or the agent repeats a 
 - MSYS2 bash; Rust 95–100% / wasm 0–5%; thin `ui/index.html` glue.
 - CSRF + loopback POSTs (band 133); CSP / no-store (band 134). MCP stdio is not CSRF; HTTP `/mcp` stays loopback unless `--allow-lan`.
 - Do not kill `target/live/` before `cargo test`.
-- Never stage `data/*`, `.env*`, `*.pem`, `comitmsg/*.txt`.
+- Never stage `data/*`, `.env*`, `*.pem`, `comitmsg/*` except `comitmsg/README.md`.
 - One commit per drain; push last. Drain close: `gsv-bump-version.sh --band 151` then `gsv-fingerprint.sh`.

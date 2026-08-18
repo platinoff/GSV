@@ -120,7 +120,7 @@ Ratio: n/a (node). `gsv-loc-audit` does not apply.
 - **No** `git add -A`; stage only sprint files.
 - **No** push mid-drain / mid-scan; push + summary always last step.
 - **No** parallel `cargo` (file lock). Separate `target/` per product.
-- **Never** stage: `.env*`, `*.pem`/`*.key`, `certs/*.pem`, `data/audit/*` (except `.gitkeep`), `comitmsg/*.txt`.
+- **Never** stage: `.env*`, `*.pem`/`*.key`, `certs/*.pem`, `data/audit/*` (except `.gitkeep`), `comitmsg/*` except `comitmsg/README.md`.
 - Warnings >0 or errors >0 fixable → 1–3 PH-S* at the top of the band.
 - Shell is **MSYS2 bash**, not PowerShell: `C:\msys64\usr\bin\bash.exe -lc '…'`.
 

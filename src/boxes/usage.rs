@@ -195,6 +195,71 @@ pub fn parse_usage(value: &Value) -> Option<TokenCounts> {
     }
 }
 
+/// When `stream: true`, ask OpenAI-compatible hosts to emit a final usage chunk.
+pub fn ensure_stream_include_usage(body: &mut Value) {
+    let streaming = body.get("stream").and_then(Value::as_bool).unwrap_or(false);
+    if !streaming {
+        return;
+    }
+    let Value::Object(map) = body else {
+        return;
+    };
+    let opts = map.entry("stream_options").or_insert_with(|| json!({}));
+    if let Value::Object(o) = opts {
+        o.entry("include_usage").or_insert(json!(true));
+    }
+}
+
+/// Incremental SSE tap: last non-zero `usage` on complete `data:` lines.
+#[derive(Debug, Default, Clone)]
+pub struct SseUsageTap {
+    buf: String,
+    last: Option<TokenCounts>,
+}
+
+impl SseUsageTap {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn push(&mut self, chunk: &[u8]) {
+        let Ok(s) = std::str::from_utf8(chunk) else {
+            return;
+        };
+        self.buf.push_str(s);
+        while let Some(i) = self.buf.find('\n') {
+            let line: String = self.buf.drain(..=i).collect();
+            if let Some(c) = parse_sse_line(&line) {
+                self.last = Some(c);
+            }
+        }
+    }
+
+    pub fn last(&self) -> Option<TokenCounts> {
+        self.last
+    }
+}
+
+fn parse_sse_line(line: &str) -> Option<TokenCounts> {
+    let payload = line.trim().strip_prefix("data:")?.trim();
+    if payload.is_empty() || payload == "[DONE]" {
+        return None;
+    }
+    let v: Value = serde_json::from_str(payload).ok()?;
+    parse_usage(&v)
+}
+
+/// Parse usage from a complete SSE body (tests / leftover buffer).
+pub fn parse_sse_usage(text: &str) -> Option<TokenCounts> {
+    let mut last = None;
+    for line in text.lines() {
+        if let Some(c) = parse_sse_line(line) {
+            last = Some(c);
+        }
+    }
+    last
+}
+
 fn gemini_top(value: &Value) -> Option<TokenCounts> {
     let prompt = u64_field(value, &["promptTokenCount"]);
     let completion = u64_field(value, &["candidatesTokenCount"]);
@@ -479,5 +544,27 @@ mod tests {
             reasoning_tokens: 4,
         };
         assert_eq!(c.total(), 10);
+    }
+
+    #[test]
+    fn sse_tap_reads_usage_split_across_chunks() {
+        let mut tap = SseUsageTap::new();
+        tap.push(b"data: {\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n");
+        assert!(tap.last().is_none());
+        tap.push(b"data: {\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":3}}\n");
+        tap.push(b"data: [DONE]\n");
+        let c = tap.last().expect("usage");
+        assert_eq!(c.prompt_tokens, 7);
+        assert_eq!(c.completion_tokens, 3);
+    }
+
+    #[test]
+    fn ensure_stream_include_usage_only_when_streaming() {
+        let mut live = json!({ "stream": true, "model": "x" });
+        ensure_stream_include_usage(&mut live);
+        assert_eq!(live["stream_options"]["include_usage"], true);
+        let mut off = json!({ "model": "x" });
+        ensure_stream_include_usage(&mut off);
+        assert!(off.get("stream_options").is_none());
     }
 }

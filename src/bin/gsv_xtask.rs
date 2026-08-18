@@ -107,6 +107,51 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         },
+        "git" => match xtask::git_cli(&root, &args) {
+            Ok(m) => {
+                print!("{m}");
+                if !m.ends_with('\n') {
+                    println!();
+                }
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprint!("{e}");
+                ExitCode::FAILURE
+            }
+        },
+        "tunnel" => {
+            let mut host = env::var("GSV_HOST").unwrap_or_else(|_| DEFAULT_HOST.into());
+            let mut port = env::var("GSV_PORT")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(DEFAULT_PORT);
+            let mut i = 0;
+            while i < args.len() {
+                if args[i] == "--port" {
+                    i += 1;
+                    if let Some(v) = args.get(i).and_then(|s| s.parse().ok()) {
+                        port = v;
+                    }
+                } else if args[i] == "--host" {
+                    i += 1;
+                    if let Some(v) = args.get(i) {
+                        host = v.clone();
+                    }
+                }
+                i += 1;
+            }
+            match xtask::tunnel_cli(&host, port) {
+                Ok(m) => {
+                    println!("{m}");
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("gsv-tunnel: {e}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
         "mirrors" => match xtask::sync_skill_mirrors(&root) {
             Ok(names) => {
                 for n in names {
