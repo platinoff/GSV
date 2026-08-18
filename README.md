@@ -69,7 +69,7 @@ Click a tile. These are the product shots for GitHub — the live UI is still th
 |------|-------------------------|
 | **Hero** | Vision dashboard + sprint board + 96% ratio ring + OmniRouter |
 | **Galaxy UI** | Sidebar, RSS ticker, node map, sprint + speed chrome |
-| **Boxes** | Tracker · SLI · Toolchain · IDE · OmniRouter · Ratio · Vision Map · Update · Terminal |
+| **Boxes** | Tracker · SLI · Toolchain · IDE · Products · OmniRouter · Ratio · Vision Map · Update · Terminal |
 
 Made a walkthrough of GSV? Open an [issue](https://github.com/platinoff/GSV/issues) with the link and we will hang it here.
 
@@ -190,7 +190,7 @@ GSV/
 | [`docs/gsv/GSV_ARCHITECTURE.md`](docs/gsv/GSV_ARCHITECTURE.md) | Server + boxes, Rust / wasm split |
 | [`docs/gsv/GSV_SERVER.md`](docs/gsv/GSV_SERVER.md) | Endpoints, update, offline |
 | [`docs/gsv/GSV_BOXES.md`](docs/gsv/GSV_BOXES.md) | Box spec |
-| [`docs/gsv/GSV_TECH_ROADMAP.md`](docs/gsv/GSV_TECH_ROADMAP.md) | Sprint order (next: band 143 chrome) |
+| [`docs/gsv/GSV_TECH_ROADMAP.md`](docs/gsv/GSV_TECH_ROADMAP.md) | Sprint order (next: band 146 version/fingerprints) |
 | [`docs/gsv/GSV_ALWAYS_ON_UI.md`](docs/gsv/GSV_ALWAYS_ON_UI.md) | Always-on server, chrome, products, fingerprints |
 | [`docs/gsv/GSV_VDT_KIT.md`](docs/gsv/GSV_VDT_KIT.md) | Shared kit vs product |
 | [`docs/gsv/GSV_MCP_OPENBOT.md`](docs/gsv/GSV_MCP_OPENBOT.md) | MCP plan |

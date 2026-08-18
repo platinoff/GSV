@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-17 (**band 144 ✅ · наступний drain = band 145 products**)
+**Оновлено:** 2026-08-17 (**band 145 ✅ · наступний drain = band 146 version/fingerprints**)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -20,10 +20,10 @@ abrakadabra
 project scan (**warnings first**) → drain наступного band (**без** mid-push) →
 Speeds · Rust panel → vision-sync → **один** commit → **`git push` + самарі**.
 
-Якщо **gsv:** drain **band 145** (`PH-S2089…S2098`) — VDT products picker + open folder + scan.
+Якщо **gsv:** drain **band 146** (`PH-S2099…S2108`) — version bump + fingerprints.
 Spec [`GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md) · plan
 [`superpowers/plans/2026-08-17-always-on-galaxy.md`](superpowers/plans/2026-08-17-always-on-galaxy.md).
-Band 144 live copy is in tree (`scripts/gsv-live.sh`). **Не** стартувати band 146 (version/fingerprints) поки 145 не ✅.
+Band 145 products picker is in tree (`/api/products`, ops card). **Не** стартувати band 147 (README polish) поки 146 не ✅.
 Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics.sh`. Disk: `bash scripts/check_target_disk.sh`.
 
 **⚠️ Canon run is `bash scripts/gsv-live.sh` (`target/live/gsv-server.exe`).** Do not kill that copy before `cargo test`/`build`. Only stop `target/debug/gsv-server.exe` if it is the listener. After apply, the supervisor recopies and rebinds :9999.
@@ -189,8 +189,9 @@ Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics
   exclusive fullscreen, collapse-to-dock, `--fs-*`, SVG 168).
   **band 144** (PH-S2079…S2088) ✅ — live copy + apply (`scripts/gsv-live.sh`,
   `POST /api/update/apply`, UI offline until SSE `onopen`).
-  **Наступний band**: **145** products picker (`PH-S2089…S2098`).
-  Далі 146 version/fingerprints · 147 polish.
+  **band 145** (PH-S2089…S2098) ✅ — VDT products picker (discover / select / open / scan).
+  **Наступний band**: **146** version/fingerprints (`PH-S2099…S2108`).
+  Далі 147 polish.
 
 ## Канон GSV
 
@@ -228,7 +229,8 @@ band 141 ✅ (MCP HTTP SSE / streamable notifications) ·
 band 142 ✅ (MCP HTTP sessions / `Mcp-Session-Id`) ·
 band 143 ✅ (Galaxy chrome + type/chart scale) ·
 band 144 ✅ (always-on live copy + update apply) ·
-не імплементувати band 146–147 поки 145 не ✅ ·
+band 145 ✅ (VDT products picker — list / select / open / scan) ·
+не імплементувати band 147 поки 146 не ✅ ·
 не комітити kit-only в PoolAI як «замість» GSV drain ·
 staging `GSV/data/*` / `certs/*.pem` /
 `.env` · mid-push · `cargo test` while `target/debug/gsv-server.exe` is the listener · обхід ratio-смуги Rust-кодом замість compact UI ·

@@ -36,6 +36,8 @@ pub struct AppState {
     pub omni: Arc<OmniRouter>,
     /// Currently selected IDE session (in-memory selection).
     pub ide_selection: Arc<RwLock<Option<crate::boxes::ide::IdeSelection>>>,
+    /// Currently selected VDT product id (in-memory; from `/api/products/select`).
+    pub product_selected: Arc<Mutex<Option<String>>>,
     /// `true` once an update notification has been received.
     pub update_flag: Arc<AtomicBool>,
     /// MCP `logging/setLevel` index into [`crate::mcp::LOG_LEVELS`] (default `info`).
@@ -75,6 +77,7 @@ impl AppState {
             tracker: Arc::new(RwLock::new(tracker)),
             omni: Arc::new(omni),
             ide_selection: Arc::new(RwLock::new(None)),
+            product_selected: Arc::new(Mutex::new(None)),
             update_flag: Arc::new(AtomicBool::new(false)),
             mcp_log_level: Arc::new(AtomicU8::new(1)), // info — see mcp::LOG_LEVELS
             mcp_subscriptions: Arc::new(std::sync::RwLock::new(BTreeSet::new())),

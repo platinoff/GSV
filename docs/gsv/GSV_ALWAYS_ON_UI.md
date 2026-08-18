@@ -1,6 +1,6 @@
 # GSV Always-on Galaxy UI — spec
 
-**Status:** Band 143 ✅ (chrome + type/chart); **band 144 ✅** (live copy + apply); 145–147 queued  
+**Status:** Band 143 ✅ (chrome + type/chart); **band 144 ✅** (live copy + apply); **band 145 ✅** (products picker); 146–147 queued  
 **Date:** 2026-08-17  
 **Owner ask:** Galaxy UI always reachable; page goes **offline** only during binary swap; debug collapse / fullscreen / power menu; typography + chart scale; pick a VDT project and open its folder; auto-parse what the dashboard needs; every commit bumps the crate version; fingerprint who did the work (IDE / bot / model / agent / time). Match the polish of [`README.md`](../../README.md) presentations.
 
@@ -139,8 +139,8 @@ There is an **IDE session** picker, not a **VDT product** picker. `Cargo.toml` i
 |------|-------|--------|
 | **143** | S2069–S2078 | Chrome bugs + type/chart scale (debug first) ✅ |
 | **144** | S2079–S2088 | Live copy + apply + offline-during-swap ✅ |
-| **145** | S2089–S2098 | Products list / select / open / scan |
-| **146** | S2099–S2108 | Version bump + fingerprints |
-| **147** | S2109–S2118 | README-level UI polish leftovers + docs canon |
+| **145** | S2089–S2098 | Products list / select / open / scan | ✅ |
+| **146** | S2099–S2108 | Version bump + fingerprints | |
+| **147** | S2109–S2118 | README-level UI polish leftovers + docs canon | |
 
-Next `абракадабра` on **gsv** drains **band 145** only (≤10 open PH-S*).
+Next `абракадабра` on **gsv** drains **band 146** only (≤10 open PH-S*).

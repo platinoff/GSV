@@ -19,6 +19,10 @@
 | GET | `/api/toolchain` | інвентар тулів |
 | GET | `/api/ide/sessions` | список сесій (opencode/cursor) |
 | POST | `/api/ide/select` | вибір сесії, з чим працювати |
+| GET | `/api/products` | VDT environment projects (`ok`, `products`, `selected`) |
+| POST | `/api/products/select` | `{id}` → process-local selection; unknown id → 404 `{ok:false}` |
+| POST | `/api/products/open` | `{id}` → open folder (`cursor` if on PATH, else `explorer`); id must be discovered |
+| GET | `/api/products/scan` | selected product: git HEAD/status, kind, registered, HANDOFF/NEXT, `cargo_name` |
 | GET | `/api/update` | статус оновлення (Update box; `live_copy` if running from `target/live/`) |
 | POST | `/api/update/notify` | виставити `update_available` + SSE |
 | POST | `/api/update/apply` | SSE `offline` + `{ok,applying}`; process exit unless `GSV_UPDATE_APPLY_EXIT=0` |
@@ -37,7 +41,7 @@
 | POST | `/mcp` | MCP JSON-RPC (initialize / tools/* / resources/* including subscribe/unsubscribe / prompts/* / logging/setLevel / completion/complete); `initialize` issues `Mcp-Session-Id`; unknown id → 404; `Accept: text/event-stream` → SSE notifications then result; stdio twin is `gsv-mcp` |
 | DELETE | `/mcp` | End HTTP MCP session (`Mcp-Session-Id` required; missing → 400; unknown → 404) |
 | GET | `/api/ui/layout` | grouped IA (ops/vision/sprint/studio) + `chrome` (8) + `html` (sidebar nav) + `header` (GPU/Auto/Power) |
-| GET | `/api/ui/card/:name` | Rust-rendered card body HTML (`CARD_NAMES`) |
+| GET | `/api/ui/card/:name` | Rust-rendered card body HTML (`CARD_NAMES` 33, incl. `products`) |
 | GET | `/api/ui/load-palette` | live Galaxy `:root` CSS (`GalaxyPalette::as_css_root`) |
 | GET | `/api/ui/load-theme` | live sprint `:root` CSS (`SprintThemeReport::as_css_root`) |
 | GET | `/data/{file}` | allowlisted JSON snapshot under `data/` (no `omni.toml`) |

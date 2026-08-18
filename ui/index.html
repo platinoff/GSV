@@ -101,6 +101,7 @@ body.panel-fs-active .card{display:none!important}body.panel-fs-active .card.ful
 <nav id="shellNav" class="shell-nav" aria-label="GSV groups"></nav>
 <main id="grid">
   <section class="card" data-card="health" data-group="ops"><h2>Health <span class="hint">/api/health</span></h2><div class="body" id="b-health">…</div></section>
+  <section class="card" data-card="products" data-group="ops"><h2>Products <span class="hint">/api/products</span></h2><div class="body" id="b-products">…</div></section>
   <section class="card" data-card="mcp" data-group="ops"><h2>MCP <span class="hint">GET /mcp · gsv-mcp</span></h2><div class="body" id="b-mcp">…</div></section>
   <section class="card" data-card="tracker" data-group="ops"><h2>Tracker <span class="hint">/api/tracker</span></h2><div class="body" id="b-tracker">…</div></section>
   <section class="card" data-card="sli" data-group="ops"><h2>SLI console <span class="hint">/api/sli</span></h2><div class="body" id="b-sli">…</div></section>
@@ -316,7 +317,7 @@ async function getText(card) {
     markStatus(e.message || "offline");
   }
 }
-const rustCards = ["health", "mcp", "update", "tracker", "sli", "toolchain", "hooks-tests", "hooks-bench", "ratio", "vision", "vision-map", "sprint-map", "sprint-queue", "sprint-progress", "sprint-board", "speed-index", "rust-diagnostics", "omni", "ide", "vision-sync", "doc-preview", "preview", "terminal", "sprint-focus"];
+const rustCards = ["health", "products", "mcp", "update", "tracker", "sli", "toolchain", "hooks-tests", "hooks-bench", "ratio", "vision", "vision-map", "sprint-map", "sprint-queue", "sprint-progress", "sprint-board", "speed-index", "rust-diagnostics", "omni", "ide", "vision-sync", "doc-preview", "preview", "terminal", "sprint-focus"];
 async function resync() {
   const results = await Promise.allSettled([refreshMeta(), refreshTrail(), loadRssTicker(), ...rustCards.map(getText)]);
   const failed = results.filter(r => r.status === "rejected").length;
@@ -338,6 +339,14 @@ async function runTerminal() {
 }
 async function selectIde(tool, session) {
   try { await fetch("api/ide/select", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tool, session }) }); await getText("ide"); }
+  catch (e) { toast(String(e)); }
+}
+async function selectProduct(id) {
+  try { await fetch("api/products/select", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) }); await getText("products"); }
+  catch (e) { toast(String(e)); }
+}
+async function openProduct(id) {
+  try { const d = await (await fetch("api/products/open", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) })).json(); toast("opened via " + (d.how || "?")); }
   catch (e) { toast(String(e)); }
 }
 async function notifyUpdate() {
@@ -377,6 +386,8 @@ document.addEventListener("click", (e) => {
     if (a === "power-soft") { powerSoft(); return; }
     if (a === "power-reload") { powerReload(); return; }
     if (a === "power-offline") { powerOffline(); return; }
+    if (a === "product-select") { selectProduct(act.getAttribute("data-product-id")); return; }
+    if (a === "product-open") { openProduct(act.getAttribute("data-product-id")); return; }
   }
   const ide = e.target.closest("[data-ide-tool]");
   if (ide) { selectIde(ide.getAttribute("data-ide-tool"), ide.getAttribute("data-ide-session")); return; }

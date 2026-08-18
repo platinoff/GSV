@@ -14,11 +14,13 @@
 //! | Ratio | `ratio` | `/api/ratio` | `GSV/data/rust_ratio.json` (Rust 95–100%) |
 //! | Vision | `vision` | `/api/vision*` | `docs/vision/` manifest + feed mirror |
 //! | UI fragments | `ui` | `/api/ui/card/:name` | server-rendered card HTML |
+//! | Products | `products` | `/api/products` | workspace ∪ sibling git ∪ kit |
 
 pub mod hooks;
 pub mod ide;
 pub mod omni;
 pub mod preview;
+pub mod products;
 pub mod ratio;
 pub mod sli;
 pub mod terminal;
@@ -30,6 +32,7 @@ pub mod vision;
 pub use ide::{IdeSelection, IdeSession, IdeWire};
 pub use omni::{OmniConfig, OmniRouter, OmniWire, ProviderConfig, ProviderWire, RoutingConfig};
 pub use preview::PreviewWire;
+pub use products::{ProductRow, ProductScan};
 pub use ratio::{AuditConfig, CategoryLoc, ProductCategory, RustRatioReport};
 pub use sli::{SliCatalog, SliEntry, SliWire};
 pub use terminal::{TerminalRequest, TerminalResponse};

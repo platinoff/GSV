@@ -73,6 +73,10 @@ pub fn router(state: AppState) -> Router {
         .route("/api/toolchain", get(api_toolchain))
         .route("/api/ide/sessions", get(api_ide_sessions))
         .route("/api/ide/select", post(api_ide_select))
+        .route("/api/products", get(api_products))
+        .route("/api/products/select", post(api_products_select))
+        .route("/api/products/open", post(api_products_open))
+        .route("/api/products/scan", get(api_products_scan))
         .route("/api/update", get(api_update))
         .route("/api/update/notify", post(api_update_notify))
         .route("/api/update/apply", post(api_update_apply))
@@ -345,7 +349,7 @@ async fn api_index() -> Json<Value> {
         "port": 9999,
         "categories": [
             "/api/vision/", "/api/ui/", "/api/ratio/", "/api/toolchain/",
-            "/api/ide/", "/api/omni/", "/api/sli", "/api/tracker",
+            "/api/ide/", "/api/omni/", "/api/sli", "/api/tracker", "/api/products",
             "/api/hooks/", "/api/preview", "/api/terminal", "/data/", "/mcp"
         ],
         "example": "/api/vision",
@@ -441,6 +445,57 @@ async fn api_ide_select(
         serde_json::to_string(&selection).unwrap_or_default()
     ));
     Json(json!({ "ok": true, "selection": selection }))
+}
+
+#[derive(serde::Deserialize)]
+struct ProductIdBody {
+    id: String,
+}
+
+fn product_selected_id(state: &AppState) -> Option<String> {
+    state.product_selected.lock().ok().and_then(|g| g.clone())
+}
+
+async fn api_products(State(state): State<AppState>) -> Json<Value> {
+    let selected = product_selected_id(&state);
+    Json(crate::boxes::products::wire(
+        &state.repo_root,
+        selected.as_deref(),
+    ))
+}
+
+async fn api_products_select(
+    State(state): State<AppState>,
+    Json(body): Json<ProductIdBody>,
+) -> Response {
+    let rows = crate::boxes::products::discover(&state.repo_root);
+    if crate::boxes::products::lookup(&rows, &body.id).is_none() {
+        return err_json(StatusCode::NOT_FOUND, "unknown product");
+    }
+    if let Ok(mut g) = state.product_selected.lock() {
+        *g = Some(body.id.clone());
+    }
+    Json(json!({ "ok": true, "selected": body.id })).into_response()
+}
+
+async fn api_products_open(
+    State(state): State<AppState>,
+    Json(body): Json<ProductIdBody>,
+) -> Response {
+    match crate::boxes::products::open_folder(&state.repo_root, &body.id) {
+        Ok(how) => Json(json!({ "ok": true, "opened": true, "how": how })).into_response(),
+        Err(_) => err_json(StatusCode::NOT_FOUND, "unknown product"),
+    }
+}
+
+async fn api_products_scan(State(state): State<AppState>) -> Response {
+    let Some(id) = product_selected_id(&state) else {
+        return err_json(StatusCode::BAD_REQUEST, "no product selected");
+    };
+    match crate::boxes::products::scan(&state.repo_root, &id) {
+        Ok(s) => Json(json!(s)).into_response(),
+        Err(_) => err_json(StatusCode::NOT_FOUND, "unknown product"),
+    }
 }
 
 async fn api_update(
@@ -667,6 +722,10 @@ async fn card_wire(state: &AppState, name: &str, q: &CardQuery) -> Result<Value,
             "whitelist": crate::boxes::terminal::WHITELIST,
         }),
         "health" => health(state),
+        "products" => {
+            let selected = product_selected_id(state);
+            crate::boxes::products::card_wire(&state.repo_root, selected.as_deref())
+        }
         "mcp" => crate::mcp::http_info(state),
         "update" => json!(crate::boxes::update::wire(state)),
         "ide" => {

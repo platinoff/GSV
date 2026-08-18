@@ -110,6 +110,7 @@ pub const UI_GROUPS: [UiGroup; 4] = [
         label: "Ops",
         cards: &[
             "health",
+            "products",
             "mcp",
             "update",
             "tracker",
@@ -935,6 +936,66 @@ pub fn render_health(d: &Value) -> String {
     )
 }
 
+/// VDT products card (`/api/products`) — list / select / open.
+pub fn render_products(d: &Value) -> String {
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let products = arr(&d["products"]);
+    if products.is_empty() {
+        return empty_html("products");
+    }
+    let selected = s(&d["selected"]);
+    let mut out = format!(
+        "<div class='dim'>selected <kbd>{}</kbd> · {} products</div>",
+        esc(if selected.is_empty() {
+            "—"
+        } else {
+            &selected
+        }),
+        products.len()
+    );
+    let rows: Vec<Vec<String>> = products
+        .iter()
+        .map(|p| {
+            let id = s(&p["id"]);
+            vec![
+                format!("<kbd>{}</kbd>", esc(&id)),
+                esc(&s(&p["name"])),
+                esc(&s(&p["kind"])),
+                if b(&p["registered"]) {
+                    "<span class='ok'>yes</span>".into()
+                } else {
+                    "<span class='dim'>no</span>".into()
+                },
+                format!(
+                    "<button type='button' data-action='product-select' data-product-id='{}'>select</button>",
+                    esc(&id)
+                ),
+                format!(
+                    "<button type='button' data-action='product-open' data-product-id='{}'>open</button>",
+                    esc(&id)
+                ),
+            ]
+        })
+        .collect();
+    out.push_str(&tab(&["id", "name", "kind", "reg", "", ""], rows));
+    let scan = &d["scan"];
+    if scan.is_object() {
+        out.push_str(&format!(
+            "<div class='dim'>scan git <kbd>{}</kbd> · cargo <kbd>{}</kbd> · handoff {}</div>",
+            esc(&s(&scan["git_head"])),
+            esc(&s(&scan["cargo_name"])),
+            if b(&scan["handoff_exists"]) {
+                "yes"
+            } else {
+                "no"
+            }
+        ));
+    }
+    out
+}
+
 /// Update card (`/api/update`).
 pub fn render_update(d: &Value) -> String {
     if let Some(msg) = not_ok(d) {
@@ -1290,6 +1351,7 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
         "rust-diagnostics" => Some(render_rust_diagnostics(d)),
         "omni" => Some(render_omni(d)),
         "health" => Some(render_health(d)),
+        "products" => Some(render_products(d)),
         "mcp" => Some(render_mcp(d)),
         "update" => Some(render_update(d)),
         "ide" => Some(render_ide(d)),
@@ -1313,7 +1375,7 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
 }
 
 /// Server-rendered card names (stable contract for `/api/ui/card/:name`).
-pub const CARD_NAMES: [&str; 32] = [
+pub const CARD_NAMES: [&str; 33] = [
     "tracker",
     "sli",
     "toolchain",
@@ -1328,6 +1390,7 @@ pub const CARD_NAMES: [&str; 32] = [
     "rust-diagnostics",
     "omni",
     "health",
+    "products",
     "mcp",
     "update",
     "ide",
@@ -1720,8 +1783,9 @@ mod tests {
         assert!(render_card("fullscreen", &d).is_some());
         assert!(render_card("node-search", &d).is_some());
         assert!(render_card("mcp", &d).is_some());
+        assert!(render_card("products", &d).is_some());
         assert!(render_card("nope", &d).is_none());
-        assert_eq!(CARD_NAMES.len(), 32);
+        assert_eq!(CARD_NAMES.len(), 33);
         assert!(render_card("health", &d).is_some());
         assert!(render_card("ide", &d).is_some());
         assert!(render_card("vision", &d).is_some());

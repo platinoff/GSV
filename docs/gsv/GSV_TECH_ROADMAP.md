@@ -29,7 +29,8 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 142** (MCP HTTP sessions / `Mcp-Session-Id`) **✅** ·
 **band 143** (Galaxy chrome + type/chart scale) **✅** ·
 **band 144** (always-on live copy + apply) **✅** ·
-**bands 145–147** (products · version/fingerprints · polish) queued ·
+**band 145** (VDT products picker + open folder + scan) **✅** ·
+**bands 146–147** (version/fingerprints · polish) queued ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -640,22 +641,22 @@ Windows locks the running exe. Canon process is a **copy** (`target/live/gsv-ser
 | **PH-S2087** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy — **✅** |
 | **PH-S2088** | Band close | tests green; vision-sync; one commit + push — **✅** |
 
-## Спринти (band 145) — VDT products picker + open folder + scan
+## Спринти (band 145) — VDT products picker + open folder + scan ✅
 
 Same discovery merge as `scripts/list-vdt-products.sh`, in Rust. Open path confined to discovered roots.
 
 | Sprint | Фокус | Acceptance (ключ) |
 |--------|-------|-------------------|
-| **PH-S2089** | Scope + queue | this band; `active_sprint` = `PH-S2089` |
-| **PH-S2090** | `boxes/products.rs` | `discover(kit_root)` includes gsv rust registered |
-| **PH-S2091** | HTTP list/select | `GET /api/products`; `POST /api/products/select`; unknown id → 404 |
-| **PH-S2092** | Open folder | `POST /api/products/open`; explorer/cursor; id allowlist |
-| **PH-S2093** | Auto-parse scan | `GET /api/products/scan` git/kind/HANDOFF/cargo_name (no cargo test) |
-| **PH-S2094** | Galaxy card | `render_products`; `CARD_NAMES` + ops group |
-| **PH-S2095** | Contracts | `gsv_products_contracts` + ui/server |
-| **PH-S2096** | Docs canon | BOXES / SERVER / HANDOFF / NEXT / MEMORY |
-| **PH-S2097** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy |
-| **PH-S2098** | Band close | tests green; vision-sync; one commit + push |
+| **PH-S2089** | Scope + queue | this band; `active_sprint` = `PH-S2089` — **✅** |
+| **PH-S2090** | `boxes/products.rs` | `discover(kit_root)` includes gsv rust registered — **✅** |
+| **PH-S2091** | HTTP list/select | `GET /api/products`; `POST /api/products/select`; unknown id → 404 — **✅** |
+| **PH-S2092** | Open folder | `POST /api/products/open`; explorer/cursor; id allowlist — **✅** |
+| **PH-S2093** | Auto-parse scan | `GET /api/products/scan` git/kind/HANDOFF/cargo_name (no cargo test) — **✅** |
+| **PH-S2094** | Galaxy card | `render_products`; `CARD_NAMES` + ops group — **✅** |
+| **PH-S2095** | Contracts | `gsv_products_contracts` + ui/server — **✅** |
+| **PH-S2096** | Docs canon | BOXES / SERVER / HANDOFF / NEXT / MEMORY — **✅** |
+| **PH-S2097** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy — **✅** |
+| **PH-S2098** | Band close | tests green; vision-sync; one commit + push — **✅** |
 
 ## Спринти (band 146) — Version bump + fingerprints
 

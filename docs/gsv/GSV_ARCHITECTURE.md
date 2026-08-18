@@ -36,6 +36,7 @@
 | `toolchain/` | інвентар тулів (rustc/cargo/clippy/MSYS2/…) |
 | `tracker/` | зберігання параметрів виконаного workflow (JSON store) |
 | `ide/` | читання opencode/cursor чатів; вибір сесії |
+| `products/` | VDT environment picker (discover / select / confined open / scan) |
 | `update/` | перевірка оновлення бінарника; сигнал «Update»; offline resync |
 | `mcp/` | `gsv_mcp_openbot` JSON-RPC (stdio `gsv-mcp` + `POST /mcp`) |
 

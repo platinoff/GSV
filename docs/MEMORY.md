@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-17 · band 145 ✅)
+
+- **Band 145:** VDT products picker — `boxes/products.rs` `discover` mirrors `scripts/list-vdt-products.sh` (workspace ∪ sibling git ∪ kit, no shell-out). `GET /api/products`, `POST /api/products/select`, `POST /api/products/open` (cursor if on PATH else explorer; cargo-test harness skips spawn), `GET /api/products/scan` (git HEAD/status, HANDOFF/NEXT, `cargo_name`). Galaxy ops card `products`. Unknown id → 404 `{ok:false}`.
+- **Canon:** [`gsv/GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md) · plan [`superpowers/plans/2026-08-17-always-on-galaxy.md`](superpowers/plans/2026-08-17-always-on-galaxy.md) · next drain **band 146** version/fingerprints (`PH-S2099…S2108`).
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 still `scripts/list-vdt-products.sh`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.01%** (rust 17737 / product 18474) · **346** tests · clippy 0. Vision rev **511**.
+- **Канон продукту:** Rust **95–100%** / wasm **0–5%** (завжди), без Python/Java; bins — лише `src/bin/`.
+
 ## Стан (2026-08-17 · band 144 ✅)
 
 - **Band 144:** always-on live copy — `scripts/gsv-live.sh` copies debug → `target/live/gsv-server.exe` and loops on `:9999`. `POST /api/update/apply` emits SSE `offline` + `{ok,applying}`; process exit gated (`GSV_UPDATE_APPLY_EXIT`; cargo-test `deps/` skips exit). `doUpdate()` stays offline until SSE `onopen`. Drain docs: do **not** kill the live copy before `cargo test`.
