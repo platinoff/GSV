@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-18 (**band 157 ✅ · next gsv drain = scan / owner pick**)
+**Оновлено:** 2026-08-18 (**band 158 ✅ · next gsv drain = scan / owner pick**)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -20,7 +20,7 @@ abrakadabra
 project scan (**warnings first**) → drain наступного band (**без** mid-push) →
 Speeds · Rust panel → vision-sync → **один** commit → **`git push` + самарі**.
 
-Якщо **gsv:** always-on Galaxy (**bands 143–147 ✅**) + SW cache (**band 148 ✅**) + omniroute/semver (**band 149 ✅**) + live watchdog (**band 150 ✅**) + MCP catch-up (**band 151 ✅**) + MCP products select (**band 152 ✅**) + rust-first xtask (**band 153 ✅**) + watchdog ops card (**band 154 ✅**) + session token usage (**band 155 ✅**) + streaming usage / VDT git / owner tunnel (**band 156 ✅**) + OmniRouter catalog / quota timers (**band 157 ✅**) are closed.
+Якщо **gsv:** always-on Galaxy (**bands 143–147 ✅**) + SW cache (**band 148 ✅**) + omniroute/semver (**band 149 ✅**) + live watchdog (**band 150 ✅**) + MCP catch-up (**band 151 ✅**) + MCP products select (**band 152 ✅**) + rust-first xtask (**band 153 ✅**) + watchdog ops card (**band 154 ✅**) + session token usage (**band 155 ✅**) + streaming usage / VDT git / owner tunnel (**band 156 ✅**) + OmniRouter catalog / quota timers (**band 157 ✅**) + live MCP stdio / sync check (**band 158 ✅**) are closed.
 **Next drain = scan / owner pick**.
 Canon [`GSV_OMNI_CATALOG.md`](gsv/GSV_OMNI_CATALOG.md) · [`GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md) · [`GSV_POST_ALWAYS_ON.md`](gsv/GSV_POST_ALWAYS_ON.md).
 `cargo xtask git commit --file comitmsg/<name>.md` then `cargo xtask git push`. Grok Bot tunnel: `cargo xtask tunnel` (not on by default).
@@ -209,6 +209,8 @@ Close: `cargo xtask bump --band N` then `cargo xtask fingerprint` in the same co
   **band 154** (PH-S2179…S2188) ✅ — watchdog ops card (`CARD_NAMES` 36) + fingerprint `model` (env then Cursor session).
   **band 155** (PH-S2189…S2198) ✅ — session token usage (OmniRouter + MCP bot + OmniRoute + vision-sync; `CARD_NAMES` 37, **35** tools).
   **band 156** (PH-S2199…S2208) ✅ — streaming OmniRouter usage + fullscreen chart imgs + `cargo xtask git` / `tunnel`.
+  **band 157** (PH-S2209…S2218) ✅ — OmniRouter shared catalog + quota timers.
+  **band 158** (PH-S2219…S2228) ✅ — live MCP stdio + POST `/mcp` CSRF skip + `gsv_xtask` `sync` `--check`.
   **Наступний drain:** scan / owner pick.
 
 ## Канон GSV
@@ -259,6 +261,8 @@ band 153 ✅ (rust-first cargo xtask) ·
 band 154 ✅ (watchdog ops card + fingerprint model) ·
 band 155 ✅ (session token usage — MCP + OmniRoute + sync) ·
 band 156 ✅ (streaming usage + VDT git + owner tunnel) ·
+band 157 ✅ (OmniRouter catalog + quota timers) ·
+band 158 ✅ (live MCP stdio + sync check) ·
 не комітити kit-only в PoolAI як «замість» GSV drain ·
 staging `GSV/data/*` / `certs/*.pem` /
 `.env` · mid-push · `cargo test` while `target/debug/gsv-server.exe` is the listener · обхід ratio-смуги Rust-кодом замість compact UI ·

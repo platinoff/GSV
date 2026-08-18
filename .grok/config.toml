@@ -1,10 +1,10 @@
 # Project overlay for Grok CLI (`grok inspect`).
 # Only [mcp_servers] / [plugins] / [permission] belong here.
-# Stdio `gsv-mcp` — same server as `.mcp.json` / `.cursor/mcp.json` / OpenCode.
-# Cold start is faster after `cargo build --bin gsv-mcp`.
+# Stdio is the live copy (`cargo xtask live` copies gsv-mcp next to gsv-server).
+# Do not `cargo run --bin gsv-mcp` — that fights the cargo lock and is slow.
 
 [mcp_servers.gsv_mcp_openbot]
-command = "cargo"
-args = ["run", "--quiet", "--bin", "gsv-mcp"]
+command = "S:/rust/GSV/target/live/gsv-mcp.exe"
+args = ["--repo-root", "S:/rust/GSV"]
 enabled = true
-startup_timeout_sec = 90
+startup_timeout_sec = 15

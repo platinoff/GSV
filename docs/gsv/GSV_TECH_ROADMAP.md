@@ -42,6 +42,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 155** (session token usage — MCP + OmniRoute + sync) **✅** ·
 **band 156** (streaming usage + VDT git + owner tunnel) **✅** ·
 **band 157** (OmniRouter catalog + quota timers) **✅** ·
+**band 158** (live MCP stdio + sync check) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -874,6 +875,23 @@ Owner pick (`абракадабра` gsv / omnirouter): research Cursor / OpenCo
 | **PH-S2216** | (reserve) | — **✅** |
 | **PH-S2217** | Ratio hold | `--stretch-96` **99.21%**; fmt/clippy — **✅** |
 | **PH-S2218** | Band close | tests **466** green; `--band 157` + fingerprint; one commit + push — **✅** |
+
+## Спринти (band 158) — live MCP stdio + sync check ✅
+
+Owner ask (`абракадабра` gsv): perfect working bot with MCP and synchronizations. Scan: client JSON still `cargo run --bin gsv-mcp` (cargo lock + slow); POST `/mcp` CSRF blocked Cursor/Grok origins; `gsv_xtask` had no drift check; `gsv_vision_sync` only notified `gsv://vision/*`.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2219** | Scope + queue | this band; `active_sprint` = `PH-S2219` — **✅** |
+| **PH-S2220** | Live `gsv-mcp` | `copy_debug_to_live` copies `gsv-mcp` best-effort next to `gsv-server` — **✅** |
+| **PH-S2221** | Client configs | `.mcp.json` / `.cursor/mcp.json` / `opencode.json` / `.grok/config.toml` spawn `target/live/gsv-mcp.exe` — **✅** |
+| **PH-S2222** | HTTP CSRF | POST `/mcp` skips Origin / `Sec-Fetch-Site` (bots); body cap stays; other POSTs gated — **✅** |
+| **PH-S2223** | `gsv_xtask` sync | MCP `task=sync` is `--check` only; remirror stays `gsv_vision_sync` — **✅** |
+| **PH-S2224** | Resource notify | `gsv_vision_sync` notifies **every** subscribed `gsv://` URI — **✅** |
+| **PH-S2225** | Discovery + card | `stdio_live` + `http_csrf` on `GET /mcp`; Galaxy card lists live path — **✅** |
+| **PH-S2226** | Contracts | mcp/xtask/watchdog/security/ui client-config tests — **✅** |
+| **PH-S2227** | Docs | MCP_OPENBOT / RUST_DEV / SERVER / BOXES / HANDOFF / NEXT / MEMORY — **✅** |
+| **PH-S2228** | Band close | tests green; `--stretch-96` ≥96%; `--band 158` + fingerprint; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

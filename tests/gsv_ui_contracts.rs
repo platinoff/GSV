@@ -154,6 +154,10 @@ async fn ui_card_mcp_renders_openbot_tools() {
     let html = json["html"].as_str().expect("html");
     assert!(html.contains("gsv_mcp_openbot"), "name: {html}");
     assert!(html.contains("stdio <kbd>gsv-mcp</kbd>"), "stdio: {html}");
+    assert!(
+        html.contains("live <kbd>target/live/gsv-mcp"),
+        "stdio live: {html}"
+    );
     assert!(html.contains("http <kbd>/mcp</kbd>"), "http: {html}");
     assert!(html.contains("<kbd>gsv_health</kbd>"), "tool: {html}");
     assert!(html.contains("<th>tool</th>"), "table: {html}");

@@ -25,7 +25,7 @@
 
 ### gsv-server (bin)
 
-`src/bin/gsv_server.rs`. Canon run is `cargo xtask live` (`gsv-live`): copies `target/debug/gsv-server.exe` → `target/live/gsv-server.exe` and execs the copy on `127.0.0.1:9999`. `cargo test` / `cargo build` may overwrite `target/debug/` without killing the listener. `POST /api/update/apply` exits so the supervisor recopies. `cargo run --bin gsv-server` still works but locks `target/debug/` on Windows. Spec: [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md).
+`src/bin/gsv_server.rs`. Canon run is `cargo xtask live` (`gsv-live`): copies `target/debug/gsv-server.exe` → `target/live/gsv-server.exe` (and `gsv-mcp.exe` when built) and execs the server copy on `127.0.0.1:9999`. `cargo test` / `cargo build` may overwrite `target/debug/` without killing the listener. `POST /api/update/apply` exits so the supervisor recopies. `cargo run --bin gsv-server` still works but locks `target/debug/` on Windows. Spec: [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md).
 
 | Модуль | Роль |
 |--------|------|
@@ -41,7 +41,7 @@
 | `watchdog/` | live watchdog heartbeat (`GET /api/watchdog`) + bin `gsv-watchdog` + Galaxy ops card `watchdog` (band **154 ✅**) |
 | `usage/` | session token usage (`GET /api/usage`) — OmniRouter + MCP bot + OmniRoute; Galaxy studio card `usage` (band **155 ✅**) |
 | `update/` | перевірка оновлення бінарника; сигнал «Update»; offline resync |
-| `mcp/` | `gsv_mcp_openbot` JSON-RPC (stdio `gsv-mcp` + `POST /mcp`); **32** tools + **8** `gsv://` (band **152 ✅** `products_select` + scan-without-id; **151 ✅** wraps products / scan / watchdog / sw / fingerprints) |
+| `mcp/` | `gsv_mcp_openbot` JSON-RPC (stdio `target/live/gsv-mcp.exe` + `POST /mcp`); **36** tools + **10** `gsv://` (band **158 ✅** live copy + sync `--check`; **157 ✅** omni route) |
 
 ### UI (тонкий JS glue)
 
@@ -71,4 +71,4 @@
 
 ## Порядок реалізації (коротко)
 
-Повний порядок зі спринтами — [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md). Логіка: **docs/architecture → server scaffold → SLI console + Tracker → Toolchain → IDE → Update/offline → Preview + SLI terminal → Tests/bench hooks → band close**. MCP: [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) (band 135–152 ✅: stdio + `/mcp` + Galaxy card + **32** tools + **8** resources + 3 prompts + logging + completions + resource subscribe + logging/resource notifications + HTTP SSE + HTTP `Mcp-Session-Id` + always-on box wraps + `products_select`). **Band 154 ✅:** watchdog ops card + fingerprint model — [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md). **Band 156 ✅:** streaming usage + `cargo xtask git` / `tunnel`. Next gsv drain: scan / owner pick.
+Повний порядок зі спринтами — [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md). Логіка: **docs/architecture → server scaffold → SLI console + Tracker → Toolchain → IDE → Update/offline → Preview + SLI terminal → Tests/bench hooks → band close**. MCP: [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) (band 135–158 ✅: live stdio `gsv-mcp` + `/mcp` CSRF skip + `gsv_xtask` `sync` `--check` + notify all subscribed `gsv://` + Galaxy card + **36** tools + **10** resources). Next gsv drain: scan / owner pick.

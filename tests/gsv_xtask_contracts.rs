@@ -93,8 +93,19 @@ fn cargo_alias_xtask() {
 }
 
 #[test]
-fn mcp_readonly_tasks_are_catalog_products_disk() {
-    assert_eq!(xtask::MCP_TASKS, &["catalog", "products", "disk"]);
+fn mcp_readonly_tasks_include_sync_check() {
+    assert_eq!(xtask::MCP_TASKS, &["catalog", "products", "disk", "sync"]);
+    let ok = xtask::mcp_run(&kit_root(), "sync");
+    match ok {
+        Ok(v) => {
+            assert_eq!(v["ok"], true);
+            assert_eq!(v["check"], true);
+        }
+        Err(e) => {
+            assert!(e.contains("drift") || e.contains("issue"), "{e}");
+        }
+    }
+    assert!(xtask::mcp_run(&kit_root(), "bump").is_err());
 }
 
 #[test]

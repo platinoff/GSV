@@ -76,6 +76,15 @@ async fn get_mcp_discovers_openbot() {
     assert_eq!(tools.len(), mcp::tool_names().len());
     assert_eq!(json["tool_count"], tools.len() as u64);
     assert_eq!(json["stdio"], "gsv-mcp");
+    assert!(
+        json["stdio_live"]
+            .as_str()
+            .unwrap_or("")
+            .contains("gsv-mcp"),
+        "stdio_live={}",
+        json["stdio_live"]
+    );
+    assert_eq!(json["http_csrf"], false);
     assert_eq!(json["http"], "/mcp");
     let resources = json["resources"].as_array().expect("resources");
     assert_eq!(resources.len(), mcp::resource_uris().len());
@@ -236,7 +245,25 @@ fn grok_project_overlay_registers_openbot() {
         .expect(".grok/config.toml");
     assert!(toml.contains("[mcp_servers.gsv_mcp_openbot]"));
     assert!(toml.contains("gsv-mcp"));
+    assert!(toml.contains("target/live/gsv-mcp"));
+    assert!(!toml.contains("command = \"cargo\""));
     assert!(toml.contains("startup_timeout_sec"));
+}
+
+#[test]
+fn client_configs_spawn_live_stdio() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    for rel in [".mcp.json", ".cursor/mcp.json", "opencode.json"] {
+        let text = std::fs::read_to_string(root.join(rel)).unwrap_or_default();
+        assert!(
+            text.contains("target/live/gsv-mcp"),
+            "{rel} must spawn the live copy: {text}"
+        );
+        assert!(
+            !text.contains("\"cargo\""),
+            "{rel} must not cargo-run MCP: {text}"
+        );
+    }
 }
 
 #[tokio::test]

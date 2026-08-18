@@ -128,6 +128,19 @@ fn copy_debug_to_live_makes_live_exe() {
 }
 
 #[test]
+fn copy_debug_to_live_copies_mcp_when_present() {
+    let dir = std::env::temp_dir().join(format!("gsv-wd-mcp-{}", std::process::id()));
+    let debug_dir = dir.join("target/debug");
+    std::fs::create_dir_all(&debug_dir).expect("debug dir");
+    std::fs::write(debug_dir.join("gsv-server.exe"), b"server").expect("server");
+    std::fs::write(debug_dir.join("gsv-mcp.exe"), b"mcp").expect("mcp");
+    let live = watchdog::copy_debug_to_live(&dir).expect("copy");
+    assert_eq!(std::fs::read(&live).expect("read server"), b"server");
+    let mcp_live = dir.join("target/live").join(watchdog::mcp_exe_name());
+    assert_eq!(std::fs::read(&mcp_live).expect("read mcp"), b"mcp");
+}
+
+#[test]
 fn spawn_live_skipped_in_cargo_test_harness() {
     let out = watchdog::spawn_live(&kit_root(), "127.0.0.1", 9999).expect("spawn");
     assert_eq!(out, watchdog::SpawnOutcome::HarnessSkipped);

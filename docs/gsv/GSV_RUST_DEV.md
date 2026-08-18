@@ -13,7 +13,7 @@ JSON remains **data or host protocol** (vision snapshots, MCP client configs, `C
 |------|---------|
 | Abracadabra Step 0 | `cargo xtask products` |
 | S0 disk | `cargo xtask disk` (`--enforce`) |
-| Always-on UI | `cargo build --bin gsv-server --bin gsv-live --bin gsv-watchdog` then `cargo xtask live` |
+| Always-on UI | `cargo build --bin gsv-server --bin gsv-mcp --bin gsv-live --bin gsv-watchdog` then `cargo xtask live` (copies server + mcp) |
 | Outer watchdog | `cargo xtask watchdog` / `cargo xtask watchdog-install` |
 | Speeds / Clippy panels | `cargo xtask record-speed` / `cargo xtask record-rust` |
 | Vision close | `cargo xtask sync` then `cargo xtask sync --check` |
@@ -58,7 +58,7 @@ The agent **shell** is still MSYS2 bash (`C:\msys64\usr\bin\bash.exe -lc '…'`)
 
 ## MCP
 
-- `gsv_xtask` `{task}` — `catalog` (default) · `products` · `disk`. Mutating names (`push`, `bump`, `live`, …) return a tool error: run `cargo xtask`.
+- `gsv_xtask` `{task}` — `catalog` (default) · `products` · `disk` · `sync` (`--check` drift only). Mutating names (`push`, `bump`, `live`, remirror, …) return a tool error: run `cargo xtask` or `gsv_vision_sync`.
 - `gsv_disk` `{enforce?}` — S0 guard.
 - Resource `gsv://docs/rust-dev` — this file.
 - Drain prompt names `gsv_xtask`, `gsv_disk`, and this URI.

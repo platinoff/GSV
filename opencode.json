@@ -6,7 +6,7 @@
   "mcp": {
     "gsv_mcp_openbot": {
       "type": "local",
-      "command": ["cargo", "run", "--quiet", "--bin", "gsv-mcp"],
+      "command": ["S:/rust/GSV/target/live/gsv-mcp.exe", "--repo-root", "S:/rust/GSV"],
       "cwd": "S:/rust/GSV"
     }
   }

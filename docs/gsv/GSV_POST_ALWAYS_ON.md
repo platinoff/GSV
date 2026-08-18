@@ -1,6 +1,6 @@
 # GSV after always-on — MCP catch-up (conception)
 
-**Status:** Landed (band **156** ✅ streaming usage + VDT git + owner tunnel · band **155** ✅ session token usage · band **154** ✅ watchdog ops card + fingerprint model)  
+**Status:** Landed (band **158** ✅ live MCP stdio + sync check · band **156** ✅ streaming usage + VDT git + owner tunnel · band **155** ✅ session token usage · band **154** ✅ watchdog ops card + fingerprint model)  
 **Date:** 2026-08-18  
 **Owner ask:** update needed docs/plans; put what the next `абракадабра` / `abrakadabra` on **gsv** must drain.  
 **Scan (same day):** clippy 0 · roadmap 102–156 all ✅ · no `TODO` in `src/` · always-on P2 leftovers closed. Streaming token record **done band 156**. Grok Bot tunnel is `cargo xtask tunnel` (owner opt-in).

@@ -121,6 +121,23 @@ async fn post_cross_site_fetch_is_forbidden() {
 }
 
 #[tokio::test]
+async fn mcp_post_skips_browser_csrf() {
+    let app = app();
+    let body = serde_json::json!({ "jsonrpc": "2.0", "id": 1, "method": "ping" });
+    let (status, json) = post_with(
+        &app,
+        "/mcp",
+        body,
+        Some("https://example.com"),
+        Some("cross-site"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(json.get("error").is_none(), "{json}");
+    assert!(json["result"].is_object(), "{json}");
+}
+
+#[tokio::test]
 async fn data_file_unknown_and_dotdot_are_rejected() {
     let app = app();
     let (status, json) = get(&app, "/data/does-not-exist.json").await;

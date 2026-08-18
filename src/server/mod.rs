@@ -225,6 +225,11 @@ fn secured(mut res: Response) -> Response {
 }
 
 /// CSRF POST gate, POST body cap, then CSP / nosniff / no-store on every reply.
+///
+/// `/mcp` skips the Origin / Sec-Fetch-Site gate: Cursor / OpenCode / Grok Bot
+/// JSON-RPC clients are not the Galaxy UI (they send `vscode-file:` /
+/// `cursor:` origins or `cross-site`). Body cap still applies. Bind stays
+/// loopback unless `--allow-lan`.
 async fn security_gate(req: Request, next: Next) -> Response {
     if req.method() == Method::POST {
         let content_length = req
@@ -235,16 +240,19 @@ async fn security_gate(req: Request, next: Next) -> Response {
         if let Err(msg) = crate::security::gate_content_length(content_length) {
             return secured(err_json(StatusCode::PAYLOAD_TOO_LARGE, msg));
         }
-        let site = req
-            .headers()
-            .get("sec-fetch-site")
-            .and_then(|v| v.to_str().ok());
-        let origin = req
-            .headers()
-            .get(header::ORIGIN)
-            .and_then(|v| v.to_str().ok());
-        if let Err(msg) = crate::security::gate_post(site, origin) {
-            return secured(err_json(StatusCode::FORBIDDEN, msg));
+        let mcp_rpc = req.uri().path() == "/mcp";
+        if !mcp_rpc {
+            let site = req
+                .headers()
+                .get("sec-fetch-site")
+                .and_then(|v| v.to_str().ok());
+            let origin = req
+                .headers()
+                .get(header::ORIGIN)
+                .and_then(|v| v.to_str().ok());
+            if let Err(msg) = crate::security::gate_post(site, origin) {
+                return secured(err_json(StatusCode::FORBIDDEN, msg));
+            }
         }
     }
     let res = next.run(req).await;

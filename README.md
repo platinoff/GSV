@@ -85,13 +85,13 @@ export RUSTUP_TOOLCHAIN="stable-x86_64-pc-windows-gnu"
 cd /s/rust/GSV
 unset CARGO_TARGET_DIR
 
-cargo build --bin gsv-server --bin gsv-live --bin gsv-watchdog
-cargo xtask live                 # copies target/debug → target/live, loop restart
+cargo build --bin gsv-server --bin gsv-mcp --bin gsv-live --bin gsv-watchdog
+cargo xtask live                 # copies target/debug → target/live (server + gsv-mcp), loop restart
 # other terminal:
 cargo xtask watchdog             # keep :9999 up if the live process dies
 ```
 
-Open [http://127.0.0.1:9999/](http://127.0.0.1:9999/). The supervisor copies `target/debug/gsv-server.exe` → `target/live/` so `cargo test` / `cargo build` do not lock the listener. `gsv-watchdog` probes `/api/health` and respawns the live copy if Cursor (or anything else) kills the supervisor. `cargo run --bin gsv-server` still works but **locks** `target/debug/` on Windows.
+Open [http://127.0.0.1:9999/](http://127.0.0.1:9999/). The supervisor copies `target/debug/gsv-server.exe` → `target/live/` (and `gsv-mcp.exe` when built) so `cargo test` / `cargo build` do not lock the listener. `gsv-watchdog` probes `/api/health` and respawns the live copy if Cursor (or anything else) kills the supervisor. `cargo run --bin gsv-server` still works but **locks** `target/debug/` on Windows.
 
 ```bash
 cargo fmt -- --check
@@ -162,10 +162,11 @@ Canon: [`docs/gsv/GSV_VDT_KIT.md`](docs/gsv/GSV_VDT_KIT.md) · registry (enrichm
 One MCP server GSV owns; OpenCode / Cursor / Grok CLI / Grok Bot are **clients**.
 
 ```bash
-cargo run --quiet --bin gsv-mcp
+# after cargo xtask live (copies gsv-mcp next to the server):
+S:/rust/GSV/target/live/gsv-mcp.exe --repo-root S:/rust/GSV
 ```
 
-Auto-register: `.mcp.json` · `.cursor/mcp.json` · `opencode.json` · `.grok/config.toml`. HTTP twin: `GET`/`POST`/`DELETE http://127.0.0.1:9999/mcp` (loopback; LAN needs `--allow-lan`; `Accept: text/event-stream` flushes notifications as SSE; `initialize` issues `Mcp-Session-Id`). Galaxy card: `/api/ui/card/mcp`. **36 tools** + **10 `gsv://` resources** + **3 prompts** + **logging** + **completions** + **subscribe** + **SSE** + **HTTP sessions**. Band **157**: OmniRouter shared catalog + quota timers (`gsv_omni_route`) — [`GSV_OMNI_CATALOG.md`](docs/gsv/GSV_OMNI_CATALOG.md). Band **156**: streaming token usage + `cargo xtask git` / `cargo xtask tunnel` (owner opt-in) — [`GSV_MCP_OPENBOT.md`](docs/gsv/GSV_MCP_OPENBOT.md).
+Auto-register: `.mcp.json` · `.cursor/mcp.json` · `opencode.json` · `.grok/config.toml` spawn **that live binary** (not `cargo run`). HTTP twin: `GET`/`POST`/`DELETE http://127.0.0.1:9999/mcp` (loopback; LAN needs `--allow-lan`; POST `/mcp` skips browser CSRF so Cursor/Grok Bot can call it; `Accept: text/event-stream` flushes notifications as SSE; `initialize` issues `Mcp-Session-Id`). Galaxy card: `/api/ui/card/mcp`. **36 tools** + **10 `gsv://` resources** + **3 prompts** + **logging** + **completions** + **subscribe** + **SSE** + **HTTP sessions**. Band **158**: live stdio + `gsv_xtask` `sync` `--check` + notify all subscribed `gsv://` after `gsv_vision_sync`. Band **157**: OmniRouter shared catalog + quota timers (`gsv_omni_route`) — [`GSV_OMNI_CATALOG.md`](docs/gsv/GSV_OMNI_CATALOG.md).
 
 Canon: [`docs/gsv/GSV_MCP_OPENBOT.md`](docs/gsv/GSV_MCP_OPENBOT.md).
 

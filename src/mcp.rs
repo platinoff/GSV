@@ -278,13 +278,13 @@ pub fn tools_list() -> Vec<Value> {
         ),
         tool(
             "gsv_xtask",
-            "Read-only cargo xtask catalog (task=catalog|products|disk). Mutating tasks stay on cargo xtask.",
+            "Read-only cargo xtask catalog (task=catalog|products|disk|sync). sync is --check drift only; remirror is gsv_vision_sync. Mutating tasks stay on cargo xtask.",
             json!({
                 "type": "object",
                 "properties": {
                     "task": {
                         "type": "string",
-                        "description": "catalog (default), products, or disk."
+                        "description": "catalog (default), products, disk, or sync (`--check` drift only)."
                     }
                 }
             }),
@@ -423,7 +423,7 @@ const PROMPTS: &[PromptSpec] = &[
     PromptSpec {
         name: "gsv_drain",
         description: "Start a VDT drain: next PH-S* band after the last closed sprint.",
-        text: "Start a GSV VDT drain. Read gsv://docs/next, gsv://docs/rust-dev, and gsv://docs/post-always-on. Call gsv_xtask (task=products) or gsv_products, then gsv_products_select with the owner pick, then gsv_products_scan (id optional after select), gsv_disk, gsv_watchdog, and gsv_usage. For model routing call gsv_omni_route (task=rust|web, prefer_free) so cooldown timers skip exhausted free hosts. Product tests/benches/scripts are cargo xtask / tests/*.rs / benches/*.rs — do not add .sh/.ps1/JSON harnesses. Propose the next ≤10 PH-S* after the last closed band. Do not push mid-drain. Invoke cargo via MSYS2 bash.",
+        text: "Start a GSV VDT drain. Read gsv://docs/next, gsv://docs/rust-dev, and gsv://docs/post-always-on. Call gsv_xtask (task=products) or gsv_products, then gsv_products_select with the owner pick, then gsv_products_scan (id optional after select), gsv_disk, gsv_watchdog, gsv_usage, and gsv_xtask task=sync (read-only vision drift). gsv_vision_sync remirrors snapshots and notifies subscribed gsv:// resources. For model routing call gsv_omni_route (task=rust|web, prefer_free) so cooldown timers skip exhausted free hosts. Stdio MCP is target/live/gsv-mcp.exe (cargo xtask live copies it; do not cargo run --bin gsv-mcp). Product tests/benches/scripts are cargo xtask / tests/*.rs / benches/*.rs — do not add .sh/.ps1/JSON harnesses. Propose the next ≤10 PH-S* after the last closed band. Do not push mid-drain. Invoke cargo via MSYS2 bash.",
     },
 ];
 
@@ -548,6 +548,15 @@ pub fn rpc_error(id: Option<Value>, code: i32, message: impl Into<String>) -> Va
     })
 }
 
+/// Relative stdio path clients should spawn (live copy, no cargo lock).
+pub fn stdio_live_rel() -> &'static str {
+    if cfg!(windows) {
+        "target/live/gsv-mcp.exe"
+    } else {
+        "target/live/gsv-mcp"
+    }
+}
+
 /// Discovery payload for `GET /mcp` (not a JSON-RPC session).
 pub fn http_info(state: &AppState) -> Value {
     let tools = tool_names();
@@ -561,7 +570,9 @@ pub fn http_info(state: &AppState) -> Value {
         "protocol": PROTOCOL_VERSION,
         "transport": "streamable-http",
         "stdio": "gsv-mcp",
+        "stdio_live": stdio_live_rel(),
         "http": "/mcp",
+        "http_csrf": false,
         "sse": true,
         "streamable": true,
         "sessions": true,
@@ -704,7 +715,7 @@ fn initialize_result(state: &AppState) -> Value {
             "name": SERVER_ID,
             "version": *state.version,
         },
-        "instructions": "GSV box tools plus allowlisted gsv:// resources and prompts. resources/subscribe is process-local. completion/complete covers resource URIs and prompt names. logging/setLevel filters notifications/message. HTTP Accept: text/event-stream flushes notifications as SSE (stdio uses NDJSON). HTTP initialize issues Mcp-Session-Id (DELETE /mcp ends it; unknown id → 404). Terminal uses the HTTP SLI allowlist. Omni chat defaults to dry-run."
+        "instructions": "GSV box tools plus allowlisted gsv:// resources and prompts. Stdio is target/live/gsv-mcp.exe (copied by cargo xtask live). resources/subscribe is process-local; gsv_vision_sync notifies every subscribed gsv:// URI. gsv_xtask task=sync is --check drift only. completion/complete covers resource URIs and prompt names. logging/setLevel filters notifications/message. HTTP Accept: text/event-stream flushes notifications as SSE (stdio uses NDJSON). HTTP initialize issues Mcp-Session-Id (DELETE /mcp ends it; unknown id → 404). POST /mcp skips browser CSRF (bots). Terminal uses the HTTP SLI allowlist. Omni chat defaults to dry-run."
     })
 }
 
@@ -772,16 +783,12 @@ fn notify_resource_updated(state: &AppState, uri: &str) {
     );
 }
 
-fn notify_subscribed_vision(state: &AppState) {
+fn notify_subscribed_resources(state: &AppState) {
     let subs = match state.mcp_subscriptions.read() {
         Ok(g) => g.clone(),
         Err(_) => return,
     };
-    for uri in RESOURCE_URIS
-        .iter()
-        .copied()
-        .filter(|u| u.starts_with("gsv://vision/"))
-    {
+    for uri in RESOURCE_URIS.iter().copied() {
         if subs.contains(uri) {
             notify_resource_updated(state, uri);
         }
@@ -1011,7 +1018,7 @@ async fn call_tool(state: &AppState, params: &Value, session: Option<&str>) -> V
                 &state.repo_root,
                 &state.data_dir,
             ));
-            notify_subscribed_vision(state);
+            notify_subscribed_resources(state);
             out
         }
         "gsv_vision_extensions" => tool_ok(crate::boxes::vision::wire_extensions(
@@ -1549,7 +1556,10 @@ mod tests {
         assert_eq!(listed.len(), TOOL_NAMES.len());
         assert_eq!(info["tool_count"], TOOL_NAMES.len() as u64);
         assert_eq!(info["stdio"], "gsv-mcp");
+        assert_eq!(info["stdio_live"], stdio_live_rel());
         assert_eq!(info["http"], "/mcp");
+        assert_eq!(info["http_csrf"], false);
+        assert!(stdio_live_rel().contains("gsv-mcp"));
         assert_eq!(info["sse"], true);
         assert_eq!(info["streamable"], true);
         assert_eq!(info["sessions"], true);
@@ -1993,11 +2003,53 @@ mod tests {
             "{notes:?}"
         );
         assert!(
-            notes.iter().all(|n| {
-                n["params"]["uri"] != "gsv://docs/handoff"
-                    && n["params"]["uri"] != "gsv://vision/feed"
+            notes
+                .iter()
+                .all(|n| n["params"]["uri"] != "gsv://vision/feed"),
+            "unsubscribed vision URIs stay quiet: {notes:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn vision_sync_notifies_subscribed_docs() {
+        let s = state();
+        let _ = rpc(
+            &s,
+            86,
+            "resources/subscribe",
+            json!({ "uri": "gsv://docs/handoff" }),
+        )
+        .await;
+        let _ = s.drain_mcp_notifications();
+        let (is_err, text) = tool_text(&s, 87, "gsv_vision_sync", json!({})).await;
+        assert!(!is_err, "{text}");
+        let notes = s.drain_mcp_notifications();
+        assert!(
+            notes.iter().any(|n| {
+                n["method"] == "notifications/resources/updated"
+                    && n["params"]["uri"] == "gsv://docs/handoff"
             }),
-            "only subscribed vision URIs: {notes:?}"
+            "{notes:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn xtask_sync_is_check_only() {
+        let s = state();
+        let (is_err, text) = tool_text(&s, 88, "gsv_xtask", json!({ "task": "sync" })).await;
+        if is_err {
+            assert!(
+                text.contains("drift") || text.contains("issue"),
+                "sync --check tool error should name drift: {text}"
+            );
+        } else {
+            assert!(text.contains("check") || text.contains("drift"), "{text}");
+        }
+        let (is_err, text) = tool_text(&s, 89, "gsv_xtask", json!({ "task": "bump" })).await;
+        assert!(is_err, "{text}");
+        assert!(
+            text.contains("mutating") || text.contains("catalog/products/disk/sync"),
+            "{text}"
         );
     }
 
@@ -2051,6 +2103,9 @@ mod tests {
         assert!(text.contains("gsv_products_select"), "{text}");
         assert!(text.contains("gsv_watchdog"), "{text}");
         assert!(text.contains("gsv_xtask"), "{text}");
+        assert!(text.contains("task=sync"), "{text}");
+        assert!(text.contains("gsv_vision_sync"), "{text}");
+        assert!(text.contains("target/live/gsv-mcp"), "{text}");
         assert!(text.contains("gsv_disk"), "{text}");
         assert!(text.contains("gsv_usage"), "{text}");
         assert!(text.contains("gsv_omni_route"), "{text}");

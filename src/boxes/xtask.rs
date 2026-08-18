@@ -15,7 +15,8 @@ use serde_json::{json, Value};
 use crate::boxes::{products, vision, watchdog};
 
 /// Read-only MCP / HTTP tasks. Mutating work stays on `cargo xtask`.
-pub const MCP_TASKS: &[&str] = &["catalog", "products", "disk"];
+/// `sync` here is `--check` only (drift gate); remirror is `gsv_vision_sync`.
+pub const MCP_TASKS: &[&str] = &["catalog", "products", "disk", "sync"];
 
 /// CLI tasks (`cargo xtask <name>`).
 pub const TASKS: &[(&str, &str)] = &[
@@ -161,8 +162,12 @@ pub fn mcp_run(repo_root: &Path, task: &str) -> Result<Value, String> {
         "" | "catalog" => Ok(catalog_wire()),
         "products" => Ok(products::wire(repo_root, None)),
         "disk" => Ok(disk_wire(repo_root, false)),
+        "sync" => match vision_sync(repo_root, true) {
+            Ok(message) => Ok(json!({"ok": true, "check": true, "message": message})),
+            Err(e) => Err(e),
+        },
         other => Err(format!(
-            "unknown or mutating xtask '{other}' — use `cargo xtask {other}` (MCP is catalog/products/disk only)"
+            "unknown or mutating xtask '{other}' — use `cargo xtask {other}` (MCP is catalog/products/disk/sync --check only)"
         )),
     }
 }

@@ -912,11 +912,17 @@ pub fn render_mcp(d: &Value) -> String {
     }
     out.push_str("</div>");
     let stdio = s(&d["stdio"]);
+    let stdio_live = s(&d["stdio_live"]);
     let http = s(&d["http"]);
-    if !stdio.is_empty() || !http.is_empty() {
+    if !stdio.is_empty() || !http.is_empty() || !stdio_live.is_empty() {
         out.push_str(&format!(
-            "<div>stdio <kbd>{}</kbd> · http <kbd>{}</kbd></div>",
+            "<div>stdio <kbd>{}</kbd> · live <kbd>{}</kbd> · http <kbd>{}</kbd></div>",
             esc(if stdio.is_empty() { "—" } else { &stdio }),
+            esc(if stdio_live.is_empty() {
+                "—"
+            } else {
+                &stdio_live
+            }),
             esc(if http.is_empty() { "—" } else { &http })
         ));
     }
@@ -2060,6 +2066,7 @@ mod tests {
             "name": "gsv_mcp_openbot",
             "protocol": "2025-03-26",
             "stdio": "gsv-mcp",
+            "stdio_live": "target/live/gsv-mcp.exe",
             "http": "/mcp",
             "tool_count": 2,
             "tools": ["gsv_health", "gsv_update"],
@@ -2090,6 +2097,10 @@ mod tests {
         assert!(mcp.contains("<kbd>gsv://vision/manifest</kbd>"), "{mcp}");
         assert!(mcp.contains("<kbd>gsv_status</kbd>"), "{mcp}");
         assert!(mcp.contains("stdio <kbd>gsv-mcp</kbd>"), "{mcp}");
+        assert!(
+            mcp.contains("live <kbd>target/live/gsv-mcp.exe</kbd>"),
+            "{mcp}"
+        );
         assert!(render_mcp(&serde_json::json!({ "ok": false, "error": "down" })).contains("down"));
         assert!(render_mcp(&serde_json::json!({})).contains("mcp — no data"));
     }

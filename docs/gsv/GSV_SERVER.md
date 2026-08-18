@@ -44,8 +44,8 @@
 | GET | `/api/omni/test` | connectivity check провайдера (`GET {base}/models`) |
 | GET | `/api/usage` | per-session token totals (OmniRouter + MCP + OmniRoute pull; `data/gsv_usage.json`) |
 | GET | `/api/health` | health-чек |
-| GET | `/mcp` | MCP discovery (`gsv_mcp_openbot` name + 36 tools + 10 resources + 3 prompts + `stdio`/`http`/`tool_count`/`resource_count`/`prompt_count`/`logging`/`completions`/`log_level`/`subscribe`/`subscription_count`/`sse`/`streamable`/`sessions`/`session_count`); `Accept: text/event-stream` flushes pending notifications as SSE; unknown `Mcp-Session-Id` → 404 |
-| POST | `/mcp` | MCP JSON-RPC (initialize / tools/* / resources/* including subscribe/unsubscribe / prompts/* / logging/setLevel / completion/complete); `initialize` issues `Mcp-Session-Id`; unknown id → 404; `Accept: text/event-stream` → SSE notifications then result; stdio twin is `gsv-mcp` |
+| GET | `/mcp` | MCP discovery (`gsv_mcp_openbot` name + 36 tools + 10 resources + 3 prompts + `stdio`/`stdio_live`/`http`/`http_csrf`/`tool_count`/`resource_count`/`prompt_count`/`logging`/`completions`/`log_level`/`subscribe`/`subscription_count`/`sse`/`streamable`/`sessions`/`session_count`); `Accept: text/event-stream` flushes pending notifications as SSE; unknown `Mcp-Session-Id` → 404 |
+| POST | `/mcp` | MCP JSON-RPC (initialize / tools/* / resources/* including subscribe/unsubscribe / prompts/* / logging/setLevel / completion/complete); skips browser CSRF (bots); `initialize` issues `Mcp-Session-Id`; unknown id → 404; `Accept: text/event-stream` → SSE notifications then result; stdio twin is `target/live/gsv-mcp.exe` |
 | DELETE | `/mcp` | End HTTP MCP session (`Mcp-Session-Id` required; missing → 400; unknown → 404) |
 | GET | `/api/ui/layout` | grouped IA (ops/vision/sprint/studio) + `chrome` (8) + `html` (sidebar nav) + `header` (GPU/Auto/Power) |
 | GET | `/api/ui/card/:name` | Rust-rendered card body HTML (`CARD_NAMES` 37, incl. `usage` + `watchdog` + `sw` + `products` + `fingerprints`) |
@@ -57,7 +57,7 @@
 ## Local bind + mutate (band 133)
 
 - Default `--host` is `127.0.0.1`. Off-loopback bind requires `--allow-lan`.
-- POST with `Sec-Fetch-Site: cross-site` or a non-loopback `Origin` → 403 `{ok:false,error}`.
+- POST with `Sec-Fetch-Site: cross-site` or a non-loopback `Origin` → 403 `{ok:false,error}` (except `POST /mcp`, which skips browser CSRF so Cursor/Grok Bot can call JSON-RPC).
 - `GET /data/{file}` is a basename allowlist (`gsv_*.json` / `rust_ratio.json`); `omni.toml` is not served.
 - SLI terminal: no `bash`/`node`/`npm`/`cat`; `cargo`/`git` subcommand allowlists.
 

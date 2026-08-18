@@ -68,6 +68,15 @@ pub fn server_exe_name() -> &'static str {
     }
 }
 
+/// Platform live/debug MCP stdio file name (`gsv_mcp_openbot`).
+pub fn mcp_exe_name() -> &'static str {
+    if cfg!(windows) {
+        "gsv-mcp.exe"
+    } else {
+        "gsv-mcp"
+    }
+}
+
 pub fn heartbeat_path(repo_root: &Path) -> PathBuf {
     repo_root.join("target/live/watchdog.json")
 }
@@ -137,17 +146,23 @@ pub fn read_heartbeat(path: &Path) -> Option<Heartbeat> {
     serde_json::from_str(&text).ok()
 }
 
-/// Copy `target/debug/gsv-server[.exe]` → `target/live/`.
-pub fn copy_debug_to_live(repo_root: &Path) -> Result<PathBuf, String> {
-    let name = server_exe_name();
-    let debug = repo_root.join("target/debug").join(name);
+/// Copy one `target/debug/{exe}` → `target/live/`.
+pub fn copy_debug_bin_to_live(repo_root: &Path, exe_name: &str) -> Result<PathBuf, String> {
+    let debug = repo_root.join("target/debug").join(exe_name);
     if !debug.is_file() {
         return Err(format!("missing {}", debug.display()));
     }
     let live_dir = repo_root.join("target/live");
     fs::create_dir_all(&live_dir).map_err(|e| e.to_string())?;
-    let live = live_dir.join(name);
+    let live = live_dir.join(exe_name);
     fs::copy(&debug, &live).map_err(|e| e.to_string())?;
+    Ok(live)
+}
+
+/// Copy `gsv-server` (required) and `gsv-mcp` (best-effort if built) debug → live.
+pub fn copy_debug_to_live(repo_root: &Path) -> Result<PathBuf, String> {
+    let live = copy_debug_bin_to_live(repo_root, server_exe_name())?;
+    let _ = copy_debug_bin_to_live(repo_root, mcp_exe_name());
     Ok(live)
 }
 

@@ -1,6 +1,6 @@
 # gsv_mcp_openbot — GSV as an MCP server
 
-**Status:** Implemented (band **157**, OmniRouter catalog + quota timers · band **156**, streaming usage · band **155**, session token usage · band **154**, watchdog ops card · band **153**, rust-first xtask · band **152**, `PH-S2159…S2168` ✅ · band **151**, `PH-S2149…S2158` ✅ · band 142 `PH-S2059…S2068` ✅ · band 141 `PH-S2049…S2058` ✅ · band 140 `PH-S2039…S2048` ✅ · band 139 `PH-S2029…S2038` ✅ · band 138 `PH-S2019…S2028` ✅ · band 137 `PH-S2009…S2018` ✅ · band 136 `PH-S1999…S2008` ✅ · band 135 `PH-S1989…S1998` ✅) · **Date:** 2026-08-18
+**Status:** Implemented (band **158**, live stdio + sync check · band **157**, OmniRouter catalog + quota timers · band **156**, streaming usage · band **155**, session token usage · band **154**, watchdog ops card · band **153**, rust-first xtask · band **152**, `PH-S2159…S2168` ✅ · band **151**, `PH-S2149…S2158` ✅ · band 142 `PH-S2059…S2068` ✅ · band 141 `PH-S2049…S2058` ✅ · band 140 `PH-S2039…S2048` ✅ · band 139 `PH-S2029…S2038` ✅ · band 138 `PH-S2019…S2028` ✅ · band 137 `PH-S2009…S2018` ✅ · band 136 `PH-S1999…S2008` ✅ · band 135 `PH-S1989…S1998` ✅) · **Date:** 2026-08-18
 **Deciders:** owner
 
 GSV exposes one MCP server named **`gsv_mcp_openbot`**. OpenCode, Cursor, Grok CLI, and Grok Bot consume the **same** tools. Those products stay **clients** — they are not embedded inside `gsv-server`.
@@ -9,8 +9,8 @@ GSV exposes one MCP server named **`gsv_mcp_openbot`**. OpenCode, Cursor, Grok C
 
 | Piece | Where |
 |-------|--------|
-| Stdio JSON-RPC (NDJSON) | `src/bin/gsv_mcp.rs` + `src/mcp.rs` · `cargo run --quiet --bin gsv-mcp` |
-| HTTP | `GET /mcp` (discovery JSON unless `Accept: text/event-stream`) · `POST /mcp` JSON-RPC; SSE flushes notifications when Accept lists `text/event-stream`; `initialize` issues `Mcp-Session-Id`; `DELETE /mcp` ends the session; loopback unless `--allow-lan` |
+| Stdio JSON-RPC (NDJSON) | `src/bin/gsv_mcp.rs` + `src/mcp.rs` · **`target/live/gsv-mcp.exe`** (`cargo xtask live` copies it; do **not** `cargo run --bin gsv-mcp`) |
+| HTTP | `GET /mcp` (discovery JSON unless `Accept: text/event-stream`) · `POST /mcp` JSON-RPC; **skips browser CSRF** so Cursor/Grok Bot origins work; SSE flushes notifications when Accept lists `text/event-stream`; `initialize` issues `Mcp-Session-Id`; `DELETE /mcp` ends the session; loopback unless `--allow-lan` |
 | Auto-register | `.mcp.json` · `.cursor/mcp.json` · `opencode.json` `mcp.gsv_mcp_openbot` · `.grok/config.toml` |
 | Galaxy card | `GET /api/ui/card/mcp` (`render_mcp`, ops group, `CARD_NAMES` 32) |
 | Tools (36) | health / tracker / ratio / sli / toolchain / vision (summary) / vision_{manifest,feed,queue,map,board,progress,speeds,rust,sprint_map,doc_preview,node_search,sync,extensions} / omni_chat (dry-run default) / **omni_route** / ide_sessions / terminal (HTTP allowlist) / hooks_{tests,bench} / update / preview (repo-relative, same confine as HTTP) / products / products_scan / products_select / watchdog / sw / fingerprints / xtask / disk / usage |
@@ -19,8 +19,10 @@ GSV exposes one MCP server named **`gsv_mcp_openbot`**. OpenCode, Cursor, Grok C
 | Prompts (3) | `gsv_status` · `gsv_vision_brief` · `gsv_drain` |
 | Logging | `logging/setLevel` (RFC 5424 levels; process-local on `AppState`; invalid → `-32602`) + `notifications/message` (stdio NDJSON + HTTP SSE, filtered by level) |
 | Completions | `completion/complete` for `ref/resource` (`gsv://` URIs) and `ref/prompt` (prompt names); `..` / `file:` rejected |
-| Resource updated | `gsv_vision_sync` → `notifications/resources/updated` for subscribed `gsv://vision/*` URIs |
-| Streamable HTTP | `Accept: text/event-stream` on GET/POST `/mcp` → finite SSE (`event: message`); discovery JSON adds `sse` / `streamable` |
+| Resource updated | `gsv_vision_sync` → `notifications/resources/updated` for **every subscribed** `gsv://` URI (vision + docs) |
+| Streamable HTTP | `Accept: text/event-stream` on GET/POST `/mcp` → finite SSE (`event: message`); discovery JSON adds `sse` / `streamable` / `stdio_live` / `http_csrf: false` |
+| Live stdio | `cargo xtask live` copies `gsv-mcp` next to `gsv-server`; client JSON points at `target/live/gsv-mcp.exe` |
+| Sync check | MCP `gsv_xtask` `{task:sync}` is `--check` only (drift); remirror stays `gsv_vision_sync` |
 | HTTP sessions | `initialize` on POST `/mcp` issues `Mcp-Session-Id` (process-local, cap 32); unknown id → 404 `{ok:false}`; `DELETE /mcp` ends it; GET JSON discovery stays sessionless |
 | Faster cold start | `target/debug/gsv-mcp.exe` after `cargo build --bin gsv-mcp` |
 
@@ -67,23 +69,23 @@ When band 135 lands, `gsv_mcp_openbot` should appear **without** the owner pasti
 | `opencode.json` → `mcp.gsv_mcp_openbot` | OpenCode local stdio |
 | `.grok/config.toml` | Grok CLI project overlay (`[mcp_servers.gsv_mcp_openbot]`) |
 
-Local command (sketch):
+Local command (live copy — `cargo xtask live` must have run once):
 
 ```json
 {
   "mcpServers": {
     "gsv_mcp_openbot": {
-      "command": "cargo",
-      "args": ["run", "--quiet", "--bin", "gsv-mcp"],
+      "command": "S:/rust/GSV/target/live/gsv-mcp.exe",
+      "args": ["--repo-root", "S:/rust/GSV"],
       "cwd": "S:/rust/GSV"
     }
   }
 }
 ```
 
-OpenCode equivalent: `"type": "local", "command": ["cargo", "run", "--quiet", "--bin", "gsv-mcp"]`.
+OpenCode equivalent: `"type": "local", "command": ["S:/rust/GSV/target/live/gsv-mcp.exe", "--repo-root", "S:/rust/GSV"]`.
 
-Prefer a built `target/debug/gsv-mcp.exe` in docs once the bin exists (faster cold start than `cargo run`).
+Do **not** `cargo run --bin gsv-mcp` from the client: it is slow, takes the cargo file lock, and is a second `AppState` that dies on every drain `cargo test`.
 
 ## Tools (wrap boxes — do not invent a second product)
 
@@ -101,6 +103,7 @@ Prefer a built `target/debug/gsv-mcp.exe` in docs once the bin exists (faster co
 | `gsv_omni_chat` | OmniRouter `POST /api/omni/v1/chat/completions` (empty model auto-picks; live completions increment `/api/usage`) |
 | `gsv_omni_route` | OmniRouter `GET /api/omni/route` — skip cooling free hosts until `reset_secs` |
 | `gsv_usage` | Session token totals (`GET /api/usage`) — OmniRouter + MCP session + OmniRoute pull |
+| `gsv_xtask` | Read-only `catalog` / `products` / `disk` / `sync` (`--check` drift). Remirror is `gsv_vision_sync`. |
 | `gsv_ide_sessions` | IDE box (OpenCode + Cursor sessions, read) |
 | `gsv_terminal` | SLI terminal **same allowlist** as HTTP (no extra shell) |
 
@@ -151,7 +154,7 @@ Unknown / `file://` / `..` → `-32602`. Subscriptions are process-local on `App
 `GET /mcp` reports `subscribe`, `subscription_count`, and `subscriptions`.
 
 After `gsv_vision_sync`, the server queues `notifications/resources/updated` for each
-subscribed `gsv://vision/*` URI. Subscribe/unsubscribe also queue
+subscribed `gsv://` URI (vision snapshots **and** docs such as handoff/next). Subscribe/unsubscribe also queue
 `notifications/message` at `info` (skipped when `logging/setLevel` is above that).
 
 Stdio (`gsv-mcp`) writes pending notifications as extra NDJSON lines **before** the
@@ -170,6 +173,7 @@ No secrets in tool output (`omni.toml` keys stay redacted). POST body cap and CS
 
 - Default bind remains `127.0.0.1`. `/mcp` must not widen LAN without `--allow-lan`.
 - Terminal tool = existing cargo/git allowlists (band 133).
+- POST `/mcp` skips the browser Origin / `Sec-Fetch-Site` CSRF gate (bots are not the Galaxy UI). Body cap still applies. Other POSTs stay gated.
 - Grok Bot cloud: `cargo xtask tunnel` is the **owner-opt-in** public hop (`cloudflared tunnel --url http://127.0.0.1:9999`). Not on by default. `/mcp` on that URL is world-reachable until you Ctrl+C. Do not add an MCP tool that starts the tunnel.
 - MCP auth tokens never land in `data/` git.
 
@@ -179,9 +183,9 @@ No secrets in tool output (`omni.toml` keys stay redacted). POST body cap and CS
 - Auto-generating a second Galaxy UI for OpenCode.
 - Python MCP adapters.
 
-## Horizon (band 157+)
+## Horizon (band 158+)
 
-Band **156** recorded streaming OmniRouter usage, unclipped fullscreen charts, `cargo xtask git` / `cargo xtask tunnel`, and retired `comitmsg/*.sh`. Still **not** on MCP: `products/open`, `update/apply`, starting the tunnel.
+Band **158** made the bot start: live `gsv-mcp` copy, client JSON without `cargo run`, POST `/mcp` CSRF skip, `gsv_xtask` `sync` `--check`, and `gsv_vision_sync` notifying every subscribed `gsv://` URI. Still **not** on MCP: `products/open`, `update/apply`, starting the tunnel.
 
 Spec: [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md). Plan: [`docs/superpowers/plans/2026-08-18-mcp-always-on-catchup.md`](../superpowers/plans/2026-08-18-mcp-always-on-catchup.md).
 

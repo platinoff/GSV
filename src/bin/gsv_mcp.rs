@@ -4,8 +4,8 @@
 //! stays a clean MCP stream.
 //!
 //! ```text
-//! cargo run --quiet --bin gsv-mcp
-//! cargo run --quiet --bin gsv-mcp -- --repo-root S:/rust/GSV
+//! target/live/gsv-mcp.exe --repo-root S:/rust/GSV
+//! cargo build --bin gsv-mcp && cargo xtask live   # copies debug → live
 //! ```
 
 use std::path::PathBuf;
