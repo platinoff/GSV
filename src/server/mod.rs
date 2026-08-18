@@ -248,8 +248,14 @@ async fn api_mcp_post(State(state): State<AppState>, body: Bytes) -> Response {
     }
     match serde_json::from_slice::<Value>(&body) {
         Ok(v) => match crate::mcp::handle_value(&state, v).await {
-            Some(out) => Json(out).into_response(),
-            None => StatusCode::NO_CONTENT.into_response(),
+            Some(out) => {
+                let _ = state.drain_mcp_notifications();
+                Json(out).into_response()
+            }
+            None => {
+                let _ = state.drain_mcp_notifications();
+                StatusCode::NO_CONTENT.into_response()
+            }
         },
         Err(e) => Json(crate::mcp::rpc_error(None, -32700, format!("parse: {e}"))).into_response(),
     }

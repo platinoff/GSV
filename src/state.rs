@@ -7,11 +7,13 @@
 //! - update flag (`Arc<AtomicBool>`) + build metadata
 //! - SSE event broadcast sender (`/events`)
 
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 
+use serde_json::Value;
 use tokio::sync::{broadcast, RwLock};
 
 use crate::boxes::omni::OmniRouter;
@@ -38,6 +40,10 @@ pub struct AppState {
     pub update_flag: Arc<AtomicBool>,
     /// MCP `logging/setLevel` index into [`crate::mcp::LOG_LEVELS`] (default `info`).
     pub mcp_log_level: Arc<AtomicU8>,
+    /// MCP `resources/subscribe` URIs (process-local allowlist).
+    pub mcp_subscriptions: Arc<std::sync::RwLock<BTreeSet<String>>>,
+    /// Pending MCP notifications (`notifications/message`, `notifications/resources/updated`).
+    pub mcp_notifications: Arc<Mutex<Vec<Value>>>,
     /// SSE event broadcast channel (string payloads, JSON).
     pub events: broadcast::Sender<String>,
 }
@@ -67,8 +73,38 @@ impl AppState {
             ide_selection: Arc::new(RwLock::new(None)),
             update_flag: Arc::new(AtomicBool::new(false)),
             mcp_log_level: Arc::new(AtomicU8::new(1)), // info — see mcp::LOG_LEVELS
+            mcp_subscriptions: Arc::new(std::sync::RwLock::new(BTreeSet::new())),
+            mcp_notifications: Arc::new(Mutex::new(Vec::new())),
             events,
         }
+    }
+
+    /// Queue a JSON-RPC notification for the next stdio flush.
+    pub fn push_mcp_notification(&self, value: Value) {
+        if let Ok(mut q) = self.mcp_notifications.lock() {
+            q.push(value);
+            const CAP: usize = 64;
+            if q.len() > CAP {
+                let drop_n = q.len() - CAP;
+                q.drain(0..drop_n);
+            }
+        }
+    }
+
+    /// Take queued MCP notifications (stdio writes them; HTTP discards).
+    pub fn drain_mcp_notifications(&self) -> Vec<Value> {
+        self.mcp_notifications
+            .lock()
+            .map(|mut q| q.drain(..).collect())
+            .unwrap_or_default()
+    }
+
+    /// Sorted snapshot of `resources/subscribe` URIs.
+    pub fn mcp_subscription_list(&self) -> Vec<String> {
+        self.mcp_subscriptions
+            .read()
+            .map(|s| s.iter().cloned().collect())
+            .unwrap_or_default()
     }
 
     /// Reset the update flag (used after a UI "Update" handshake).

@@ -5,6 +5,8 @@
 //! preview; they do not add a second shell. Secrets in tool output are redacted.
 //! Band 138: allowlisted `gsv://` `resources/*` and named `prompts/*`.
 //! Band 139: `logging/setLevel` + `completion/complete` (resource URIs + prompt names).
+//! Band 140: `resources/subscribe`+`unsubscribe` + `notifications/message` (log
+//! filter) + `notifications/resources/updated` after `gsv_vision_sync`.
 
 use std::sync::atomic::Ordering;
 
@@ -316,14 +318,31 @@ pub fn tool_names() -> &'static [&'static str] {
 }
 
 /// Parse one NDJSON line (stdio). Empty lines are ignored.
+///
+/// Pending MCP notifications are flushed **before** the JSON-RPC response so a
+/// Cursor/OpenCode stdio client sees `notifications/message` and
+/// `notifications/resources/updated` on the same turn.
 pub async fn handle_line(state: &AppState, line: &str) -> Option<String> {
     let line = line.trim().trim_end_matches('\r');
     if line.is_empty() {
         return None;
     }
-    match serde_json::from_str::<Value>(line) {
-        Ok(v) => handle_value(state, v).await.map(|out| out.to_string()),
-        Err(e) => Some(rpc_error(None, -32700, format!("parse: {e}")).to_string()),
+    let response = match serde_json::from_str::<Value>(line) {
+        Ok(v) => handle_value(state, v).await,
+        Err(e) => Some(rpc_error(None, -32700, format!("parse: {e}"))),
+    };
+    let mut lines: Vec<String> = state
+        .drain_mcp_notifications()
+        .into_iter()
+        .map(|v| v.to_string())
+        .collect();
+    if let Some(r) = response {
+        lines.push(r.to_string());
+    }
+    if lines.is_empty() {
+        None
+    } else {
+        Some(lines.join("\n"))
     }
 }
 
@@ -361,6 +380,8 @@ pub fn http_info(state: &AppState) -> Value {
     let tools = tool_names();
     let resources = resource_uris();
     let prompts = prompt_names();
+    let subscriptions = state.mcp_subscription_list();
+    let subscription_count = subscriptions.len();
     json!({
         "ok": true,
         "name": SERVER_ID,
@@ -376,7 +397,10 @@ pub fn http_info(state: &AppState) -> Value {
         "prompt_count": prompts.len(),
         "logging": true,
         "completions": true,
+        "subscribe": true,
         "log_level": log_level_name(state.mcp_log_level.load(Ordering::Relaxed)),
+        "subscriptions": subscriptions,
+        "subscription_count": subscription_count,
     })
 }
 
@@ -434,6 +458,14 @@ async fn handle_one(state: &AppState, value: Value) -> Option<Value> {
             Ok(result) => Some(rpc_result(id, result)),
             Err(msg) => Some(rpc_error(id, -32602, msg)),
         },
+        "resources/subscribe" => match resources_subscribe(state, &params) {
+            Ok(result) => Some(rpc_result(id, result)),
+            Err(msg) => Some(rpc_error(id, -32602, msg)),
+        },
+        "resources/unsubscribe" => match resources_unsubscribe(state, &params) {
+            Ok(result) => Some(rpc_result(id, result)),
+            Err(msg) => Some(rpc_error(id, -32602, msg)),
+        },
         "prompts/list" => Some(rpc_result(id, json!({ "prompts": prompts_list() }))),
         "prompts/get" => match prompts_get(&params) {
             Ok(result) => Some(rpc_result(id, result)),
@@ -458,7 +490,7 @@ fn initialize_result(state: &AppState) -> Value {
         "protocolVersion": PROTOCOL_VERSION,
         "capabilities": {
             "tools": { "listChanged": false },
-            "resources": { "subscribe": false, "listChanged": false },
+            "resources": { "subscribe": true, "listChanged": false },
             "prompts": { "listChanged": false },
             "logging": {},
             "completions": {}
@@ -467,7 +499,7 @@ fn initialize_result(state: &AppState) -> Value {
             "name": SERVER_ID,
             "version": *state.version,
         },
-        "instructions": "GSV box tools plus allowlisted gsv:// resources and prompts. completion/complete covers resource URIs and prompt names. logging/setLevel is process-local. Terminal uses the HTTP SLI allowlist. Omni chat defaults to dry-run."
+        "instructions": "GSV box tools plus allowlisted gsv:// resources and prompts. resources/subscribe is process-local. completion/complete covers resource URIs and prompt names. logging/setLevel filters notifications/message. Terminal uses the HTTP SLI allowlist. Omni chat defaults to dry-run."
     })
 }
 
@@ -487,6 +519,88 @@ fn resources_list() -> Vec<Value> {
 
 fn uri_rejected(uri: &str) -> bool {
     uri.is_empty() || uri.contains("..") || uri.contains('\\') || !uri.starts_with("gsv://")
+}
+
+fn allowlisted_uri(uri: &str) -> Result<&'static str, String> {
+    if uri.is_empty() {
+        return Err("uri required".into());
+    }
+    if uri_rejected(uri) {
+        return Err("unknown resource".into());
+    }
+    RESOURCE_URIS
+        .iter()
+        .copied()
+        .find(|u| *u == uri)
+        .ok_or_else(|| "unknown resource".to_string())
+}
+
+fn mcp_log(state: &AppState, level: &str, data: Value) {
+    let Some(idx) = parse_log_level(level) else {
+        return;
+    };
+    let min = state.mcp_log_level.load(Ordering::Relaxed);
+    if idx < min {
+        return;
+    }
+    state.push_mcp_notification(json!({
+        "jsonrpc": "2.0",
+        "method": "notifications/message",
+        "params": {
+            "level": level,
+            "logger": SERVER_ID,
+            "data": data
+        }
+    }));
+}
+
+fn notify_resource_updated(state: &AppState, uri: &str) {
+    state.push_mcp_notification(json!({
+        "jsonrpc": "2.0",
+        "method": "notifications/resources/updated",
+        "params": { "uri": uri }
+    }));
+    mcp_log(
+        state,
+        "debug",
+        json!({ "event": "resource_updated", "uri": uri }),
+    );
+}
+
+fn notify_subscribed_vision(state: &AppState) {
+    let subs = match state.mcp_subscriptions.read() {
+        Ok(g) => g.clone(),
+        Err(_) => return,
+    };
+    for uri in RESOURCE_URIS
+        .iter()
+        .copied()
+        .filter(|u| u.starts_with("gsv://vision/"))
+    {
+        if subs.contains(uri) {
+            notify_resource_updated(state, uri);
+        }
+    }
+}
+
+fn resources_subscribe(state: &AppState, params: &Value) -> Result<Value, String> {
+    let uri = params.get("uri").and_then(Value::as_str).unwrap_or("");
+    let uri = allowlisted_uri(uri)?;
+    if let Ok(mut subs) = state.mcp_subscriptions.write() {
+        subs.insert(uri.to_string());
+    }
+    mcp_log(state, "info", json!({ "event": "subscribe", "uri": uri }));
+    Ok(json!({}))
+}
+
+fn resources_unsubscribe(state: &AppState, params: &Value) -> Result<Value, String> {
+    let uri = params.get("uri").and_then(Value::as_str).unwrap_or("");
+    let uri = allowlisted_uri(uri)?;
+    if let Ok(mut subs) = state.mcp_subscriptions.write() {
+        subs.remove(uri);
+    }
+    mcp_log(state, "info", json!({ "event": "unsubscribe", "uri": uri }));
+    Ok(json!({}))
 }
 
 fn resources_read(state: &AppState, params: &Value) -> Result<Value, String> {
@@ -685,10 +799,14 @@ async fn call_tool(state: &AppState, params: &Value) -> Value {
                 layer,
             ))
         }
-        "gsv_vision_sync" => tool_ok(crate::boxes::vision::wire_sync(
-            &state.repo_root,
-            &state.data_dir,
-        )),
+        "gsv_vision_sync" => {
+            let out = tool_ok(crate::boxes::vision::wire_sync(
+                &state.repo_root,
+                &state.data_dir,
+            ));
+            notify_subscribed_vision(state);
+            out
+        }
         "gsv_vision_extensions" => tool_ok(crate::boxes::vision::wire_extensions(
             &state.repo_root,
             &state.data_dir,
@@ -1202,6 +1320,7 @@ mod tests {
         assert!(caps["prompts"].is_object());
         assert!(caps["logging"].is_object());
         assert!(caps["completions"].is_object());
+        assert_eq!(caps["resources"]["subscribe"], true);
         assert_eq!(caps["resources"]["listChanged"], false);
         assert_eq!(caps["prompts"]["listChanged"], false);
     }
@@ -1297,6 +1416,8 @@ mod tests {
         );
         assert_eq!(info["logging"], true);
         assert_eq!(info["completions"], true);
+        assert_eq!(info["subscribe"], true);
+        assert_eq!(info["subscription_count"], 0);
         assert_eq!(info["log_level"], "info");
     }
 
@@ -1386,5 +1507,126 @@ mod tests {
         )
         .await;
         assert_eq!(unknown["error"]["code"], -32602);
+    }
+
+    #[tokio::test]
+    async fn resources_subscribe_unsubscribe_and_reject() {
+        let s = state();
+        let ok = rpc(
+            &s,
+            80,
+            "resources/subscribe",
+            json!({ "uri": "gsv://vision/manifest" }),
+        )
+        .await;
+        assert!(ok.get("error").is_none(), "{ok}");
+        assert!(ok["result"].is_object());
+        let notes = s.drain_mcp_notifications();
+        assert!(
+            notes.iter().any(|n| {
+                n["method"] == "notifications/message"
+                    && n["params"]["data"]["event"] == "subscribe"
+            }),
+            "{notes:?}"
+        );
+        assert_eq!(http_info(&s)["subscription_count"], 1);
+        assert_eq!(http_info(&s)["subscriptions"][0], "gsv://vision/manifest");
+
+        let bad = rpc(
+            &s,
+            81,
+            "resources/subscribe",
+            json!({ "uri": "file:///etc/passwd" }),
+        )
+        .await;
+        assert_eq!(bad["error"]["code"], -32602);
+
+        let trav = rpc(
+            &s,
+            82,
+            "resources/subscribe",
+            json!({ "uri": "gsv://vision/../../../.env" }),
+        )
+        .await;
+        assert_eq!(trav["error"]["code"], -32602);
+
+        let off = rpc(
+            &s,
+            83,
+            "resources/unsubscribe",
+            json!({ "uri": "gsv://vision/manifest" }),
+        )
+        .await;
+        assert!(off.get("error").is_none(), "{off}");
+        let _ = s.drain_mcp_notifications();
+        assert_eq!(http_info(&s)["subscription_count"], 0);
+    }
+
+    #[tokio::test]
+    async fn vision_sync_notifies_subscribed_resources() {
+        let s = state();
+        let _ = rpc(
+            &s,
+            84,
+            "resources/subscribe",
+            json!({ "uri": "gsv://vision/manifest" }),
+        )
+        .await;
+        let _ = s.drain_mcp_notifications();
+        let (is_err, text) = tool_text(&s, 85, "gsv_vision_sync", json!({})).await;
+        assert!(!is_err, "{text}");
+        let notes = s.drain_mcp_notifications();
+        assert!(
+            notes.iter().any(|n| {
+                n["method"] == "notifications/resources/updated"
+                    && n["params"]["uri"] == "gsv://vision/manifest"
+            }),
+            "{notes:?}"
+        );
+        assert!(
+            notes.iter().all(|n| {
+                n["params"]["uri"] != "gsv://docs/handoff"
+                    && n["params"]["uri"] != "gsv://vision/feed"
+            }),
+            "only subscribed vision URIs: {notes:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn log_level_filters_subscribe_message() {
+        let s = state();
+        let _ = rpc(&s, 86, "logging/setLevel", json!({ "level": "error" })).await;
+        let _ = s.drain_mcp_notifications();
+        let _ = rpc(
+            &s,
+            87,
+            "resources/subscribe",
+            json!({ "uri": "gsv://vision/feed" }),
+        )
+        .await;
+        let notes = s.drain_mcp_notifications();
+        assert!(
+            notes.iter().all(|n| n["method"] != "notifications/message"),
+            "info subscribe log filtered at error: {notes:?}"
+        );
+        assert_eq!(http_info(&s)["subscription_count"], 1);
+    }
+
+    #[tokio::test]
+    async fn handle_line_flushes_notifications_before_response() {
+        let s = state();
+        let raw = handle_line(
+            &s,
+            r#"{"jsonrpc":"2.0","id":1,"method":"resources/subscribe","params":{"uri":"gsv://docs/next"}}"#,
+        )
+        .await
+        .expect("lines");
+        let lines: Vec<&str> = raw.lines().collect();
+        assert!(lines.len() >= 2, "{raw}");
+        let note: Value = serde_json::from_str(lines[0]).expect("note");
+        assert_eq!(note["method"], "notifications/message");
+        let resp: Value = serde_json::from_str(lines.last().unwrap()).expect("resp");
+        assert!(resp["result"].is_object(), "{resp}");
+        assert_eq!(resp["id"], 1);
     }
 }

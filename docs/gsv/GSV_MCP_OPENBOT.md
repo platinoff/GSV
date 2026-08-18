@@ -1,23 +1,25 @@
 # gsv_mcp_openbot — GSV as an MCP server
 
-**Status:** Implemented (band **139**, `PH-S2029…S2038` ✅ · band 138 `PH-S2019…S2028` ✅ · band 137 `PH-S2009…S2018` ✅ · band 136 `PH-S1999…S2008` ✅ · band 135 `PH-S1989…S1998` ✅) · **Date:** 2026-08-17
+**Status:** Implemented (band **140**, `PH-S2039…S2048` ✅ · band 139 `PH-S2029…S2038` ✅ · band 138 `PH-S2019…S2028` ✅ · band 137 `PH-S2009…S2018` ✅ · band 136 `PH-S1999…S2008` ✅ · band 135 `PH-S1989…S1998` ✅) · **Date:** 2026-08-17
 **Deciders:** owner
 
 GSV exposes one MCP server named **`gsv_mcp_openbot`**. OpenCode, Cursor, Grok CLI, and Grok Bot consume the **same** tools. Those products stay **clients** — they are not embedded inside `gsv-server`.
 
-## Landed (band 135–139)
+## Landed (band 135–140)
 
 | Piece | Where |
 |-------|--------|
 | Stdio JSON-RPC (NDJSON) | `src/bin/gsv_mcp.rs` + `src/mcp.rs` · `cargo run --quiet --bin gsv-mcp` |
-| HTTP | `GET /mcp` (discovery: `stdio` / `http` / `tool_count` / `resource_count` / `prompt_count` / `logging` / `completions` / `log_level`) · `POST /mcp` (JSON-RPC); loopback unless `--allow-lan` |
+| HTTP | `GET /mcp` (discovery: `stdio` / `http` / `tool_count` / `resource_count` / `prompt_count` / `logging` / `completions` / `log_level` / `subscribe` / `subscription_count`) · `POST /mcp` (JSON-RPC); loopback unless `--allow-lan` |
 | Auto-register | `.mcp.json` · `.cursor/mcp.json` · `opencode.json` `mcp.gsv_mcp_openbot` · `.grok/config.toml` |
 | Galaxy card | `GET /api/ui/card/mcp` (`render_mcp`, ops group, `CARD_NAMES` 32) |
 | Tools (26) | health / tracker / ratio / sli / toolchain / vision (summary) / vision_{manifest,feed,queue,map,board,progress,speeds,rust,sprint_map,doc_preview,node_search,sync,extensions} / omni_chat (dry-run default) / ide_sessions / terminal (HTTP allowlist) / hooks_{tests,bench} / update / preview (repo-relative, same confine as HTTP) |
 | Resources (6) | `gsv://vision/{manifest,feed,extensions}` · `gsv://docs/{mcp-openbot,handoff,next}` — allowlist + `preview::resolve`; unknown / `file://` / `..` → JSON-RPC `-32602` |
+| Subscribe | `resources/subscribe` + `resources/unsubscribe` (same allowlist); `initialize` `resources.subscribe: true` |
 | Prompts (3) | `gsv_status` · `gsv_vision_brief` · `gsv_drain` |
-| Logging | `logging/setLevel` (RFC 5424 levels; process-local on `AppState`; invalid → `-32602`) |
+| Logging | `logging/setLevel` (RFC 5424 levels; process-local on `AppState`; invalid → `-32602`) + `notifications/message` (stdio, filtered by level) |
 | Completions | `completion/complete` for `ref/resource` (`gsv://` URIs) and `ref/prompt` (prompt names); `..` / `file:` rejected |
+| Resource updated | `gsv_vision_sync` → `notifications/resources/updated` for subscribed `gsv://vision/*` URIs |
 | Faster cold start | `target/debug/gsv-mcp.exe` after `cargo build --bin gsv-mcp` |
 
 Grok Bot tunnel of `/mcp` to the public internet remains an **owner opt-in**. Do not port-forward in v1.
@@ -134,6 +136,19 @@ Default is `info` (process-local on `AppState`). Unknown level → JSON-RPC `-32
 
 Traversal (`..`), `file:`, and `\\` prefixes → `-32602` (same confine as `resources/read`). Unknown `ref.type` → `-32602`. At most 100 values; `hasMore` is always false for this allowlist.
 
+### Subscribe (`resources/subscribe` · `resources/unsubscribe`)
+
+Same allowlist as `resources/read`. `initialize` advertises `resources.subscribe: true`.
+Unknown / `file://` / `..` → `-32602`. Subscriptions are process-local on `AppState`.
+`GET /mcp` reports `subscribe`, `subscription_count`, and `subscriptions`.
+
+After `gsv_vision_sync`, the server queues `notifications/resources/updated` for each
+subscribed `gsv://vision/*` URI. Subscribe/unsubscribe also queue
+`notifications/message` at `info` (skipped when `logging/setLevel` is above that).
+
+Stdio (`gsv-mcp`) writes pending notifications as extra NDJSON lines **before** the
+JSON-RPC response. HTTP `POST /mcp` drains the queue (JSON body stays the RPC result).
+
 No secrets in tool output (`omni.toml` keys stay redacted). POST body cap and CSRF do not apply to stdio; HTTP `/mcp` stays loopback unless `--allow-lan`.
 
 ## Security
@@ -151,6 +166,6 @@ No secrets in tool output (`omni.toml` keys stay redacted). POST body cap and CS
 
 ## See also
 
-- Roadmap sprints: [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) band 135–139
+- Roadmap sprints: [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) band 135–140
 - Server: [`GSV_SERVER.md`](./GSV_SERVER.md)
 - Boxes: [`GSV_BOXES.md`](./GSV_BOXES.md)

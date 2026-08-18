@@ -24,6 +24,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 137** (MCP vision completeness) **✅** ·
 **band 138** (MCP resources + prompts) **✅** ·
 **band 139** (MCP logging + completions) **✅** ·
+**band 140** (MCP resource subscribe + logging notifications) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -531,6 +532,29 @@ and surfaces the process log level on `GET /mcp` + the Galaxy card.
 | **PH-S2036** | Docs canon | MCP_OPENBOT / SERVER / BOXES / ARCHITECTURE / HANDOFF / NEXT / MEMORY / roadmap — **✅** |
 | **PH-S2037** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy — **✅** |
 | **PH-S2038** | Band close | tests green; vision-sync; one commit + push — **✅** |
+
+## Спринти (band 140) — MCP resource subscribe + logging notifications ✅
+
+Owner 2026-08-17: after band 139, `logging/setLevel` stored a process-local
+level but the server never emitted `notifications/message`, and
+`resources.subscribe` stayed `false`. Band 140 advertises subscribe, allowlists
+`resources/subscribe`+`unsubscribe` (same `gsv://` confine as read), flushes
+`notifications/message` on stdio (filtered by log level), and emits
+`notifications/resources/updated` for subscribed `gsv://vision/*` URIs after
+`gsv_vision_sync`.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2039** | Scope + queue | this band; `extensions.json` `active_sprint` = `PH-S2039` — **✅** |
+| **PH-S2040** | Capabilities | `initialize` advertises `resources.subscribe: true` — **✅** |
+| **PH-S2041** | subscribe/unsubscribe | allowlisted `gsv://` only; `file:` / `..` / unknown → `-32602` — **✅** |
+| **PH-S2042** | resource updated | `gsv_vision_sync` → `notifications/resources/updated` for subscribed vision URIs — **✅** |
+| **PH-S2043** | logging notifications | `notifications/message` filtered by `mcp_log_level` (idx < min skipped) — **✅** |
+| **PH-S2044** | Discovery + card | `GET /mcp` `subscribe` / `subscription_count` / `subscriptions`; Galaxy card lists count — **✅** |
+| **PH-S2045** | Contracts | mcp unit + `gsv_mcp_contracts` + ui/server card subscribe — **✅** |
+| **PH-S2046** | Docs canon | MCP_OPENBOT / SERVER / BOXES / ARCHITECTURE / HANDOFF / NEXT / MEMORY / roadmap — **✅** |
+| **PH-S2047** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy — **✅** |
+| **PH-S2048** | Band close | tests green; vision-sync; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

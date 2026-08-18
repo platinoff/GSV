@@ -4,6 +4,13 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-17 · band 140 ✅)
+
+- **Band 140:** MCP resource subscribe + logging notifications — `resources/subscribe`+`unsubscribe` (allowlisted `gsv://`; `..` / `file:` → `-32602`); stdio flushes `notifications/message` (filtered by log level) and `notifications/resources/updated` after `gsv_vision_sync` for subscribed vision URIs. `GET /mcp` adds `subscribe` / `subscription_count`.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 still `scripts/list-vdt-products.sh` (environment, not hardcoded pair).
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.32%** (rust 16807 / product 17449) · **310** tests · clippy 0. Vision rev **507**.
+- **Канон продукту:** Rust **95–100%** / wasm **0–5%** (завжди), без Python/Java; bins — лише `src/bin/`.
+
 ## Стан (2026-08-17 · band 139 ✅)
 
 - **Band 139:** MCP logging + completions — `logging/setLevel` (RFC 5424, process-local on `AppState`) + `completion/complete` (`ref/resource` allowlisted `gsv://` + `ref/prompt` names; `..` / `file:` → `-32602`). `GET /mcp` adds `logging` / `completions` / `log_level`.

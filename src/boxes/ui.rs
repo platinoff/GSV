@@ -847,6 +847,12 @@ pub fn render_mcp(d: &Value) -> String {
     if d["completions"].as_bool().unwrap_or(false) {
         out.push_str(" · completions");
     }
+    if d["subscribe"].as_bool().unwrap_or(false) {
+        out.push_str(&format!(
+            " · subscribe <kbd>{}</kbd>",
+            u(&d["subscription_count"])
+        ));
+    }
     out.push_str("</div>");
     let stdio = s(&d["stdio"]);
     let http = s(&d["http"]);
@@ -1719,6 +1725,8 @@ mod tests {
             "prompts": ["gsv_status"],
             "logging": true,
             "completions": true,
+            "subscribe": true,
+            "subscription_count": 2,
             "log_level": "info"
         }));
         assert!(mcp.contains("gsv_mcp_openbot"), "{mcp}");
@@ -1727,6 +1735,7 @@ mod tests {
         assert!(mcp.contains("prompts 1"), "{mcp}");
         assert!(mcp.contains("logging <kbd>info</kbd>"), "{mcp}");
         assert!(mcp.contains("completions"), "{mcp}");
+        assert!(mcp.contains("subscribe <kbd>2</kbd>"), "{mcp}");
         assert!(mcp.contains("<kbd>gsv_health</kbd>"), "{mcp}");
         assert!(mcp.contains("<kbd>gsv://vision/manifest</kbd>"), "{mcp}");
         assert!(mcp.contains("<kbd>gsv_status</kbd>"), "{mcp}");

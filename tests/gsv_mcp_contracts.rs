@@ -5,6 +5,7 @@
 //! Band 137: vision completeness (26 tools) + preview confine.
 //! Band 138: resources/list+read (gsv:// allowlist) + prompts/list+get.
 //! Band 139: logging/setLevel + completion/complete (resource URIs + prompt names).
+//! Band 140: resources/subscribe+unsubscribe + logging notifications + resource updated.
 
 use std::path::PathBuf;
 
@@ -79,6 +80,8 @@ async fn get_mcp_discovers_openbot() {
     assert_eq!(json["prompt_count"], prompts.len() as u64);
     assert_eq!(json["logging"], true);
     assert_eq!(json["completions"], true);
+    assert_eq!(json["subscribe"], true);
+    assert_eq!(json["subscription_count"], 0);
     assert_eq!(json["log_level"], "info");
 }
 
@@ -106,6 +109,10 @@ async fn post_initialize_and_tools_list() {
     assert!(init["result"]["capabilities"]["prompts"].is_object());
     assert!(init["result"]["capabilities"]["logging"].is_object());
     assert!(init["result"]["capabilities"]["completions"].is_object());
+    assert_eq!(
+        init["result"]["capabilities"]["resources"]["subscribe"],
+        true
+    );
 
     let (status, listed) = mcp_post(
         &app,
@@ -431,6 +438,56 @@ async fn logging_and_completion_over_http() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(rejected["error"]["code"], -32602);
+}
+
+#[tokio::test]
+async fn post_subscribe_updates_discovery_count() {
+    let app = app();
+    let (status, sub) = mcp_post(
+        &app,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 19,
+            "method": "resources/subscribe",
+            "params": { "uri": "gsv://vision/extensions" }
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(sub.get("error").is_none(), "{sub}");
+
+    let (status, rejected) = mcp_post(
+        &app,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 20,
+            "method": "resources/subscribe",
+            "params": { "uri": "file:///etc/passwd" }
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(rejected["error"]["code"], -32602);
+
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::GET)
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .expect("body");
+    let json: Value = serde_json::from_slice(&bytes).expect("json");
+    assert_eq!(json["subscribe"], true);
+    assert_eq!(json["subscription_count"], 1);
+    assert_eq!(json["subscriptions"][0], "gsv://vision/extensions");
 }
 
 #[tokio::test]
