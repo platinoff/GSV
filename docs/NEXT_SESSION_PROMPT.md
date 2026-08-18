@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-17 (**band 145 ✅ · наступний drain = band 146 version/fingerprints**)
+**Оновлено:** 2026-08-18 (**band 146 ✅ · наступний drain = band 147 README polish**)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -20,11 +20,12 @@ abrakadabra
 project scan (**warnings first**) → drain наступного band (**без** mid-push) →
 Speeds · Rust panel → vision-sync → **один** commit → **`git push` + самарі**.
 
-Якщо **gsv:** drain **band 146** (`PH-S2099…S2108`) — version bump + fingerprints.
+Якщо **gsv:** drain **band 147** (`PH-S2109…S2118`) — README-level Galaxy polish leftovers.
 Spec [`GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md) · plan
 [`superpowers/plans/2026-08-17-always-on-galaxy.md`](superpowers/plans/2026-08-17-always-on-galaxy.md).
-Band 145 products picker is in tree (`/api/products`, ops card). **Не** стартувати band 147 (README polish) поки 146 не ✅.
+Band 146 version/fingerprints is in tree (`gsv-bump-version.sh`, `/api/fingerprints`, ops card). **Не** стартувати work past 147 поки 147 не ✅.
 Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics.sh`. Disk: `bash scripts/check_target_disk.sh`.
+Close: `bash scripts/gsv-bump-version.sh` then `bash scripts/gsv-fingerprint.sh` in the same commit.
 
 **⚠️ Canon run is `bash scripts/gsv-live.sh` (`target/live/gsv-server.exe`).** Do not kill that copy before `cargo test`/`build`. Only stop `target/debug/gsv-server.exe` if it is the listener. After apply, the supervisor recopies and rebinds :9999.
 
@@ -190,8 +191,9 @@ Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics
   **band 144** (PH-S2079…S2088) ✅ — live copy + apply (`scripts/gsv-live.sh`,
   `POST /api/update/apply`, UI offline until SSE `onopen`).
   **band 145** (PH-S2089…S2098) ✅ — VDT products picker (discover / select / open / scan).
-  **Наступний band**: **146** version/fingerprints (`PH-S2099…S2108`).
-  Далі 147 polish.
+  **band 146** (PH-S2099…S2108) ✅ — version bump + fingerprints (`gsv-bump-version.sh`,
+  `docs/gsv/fingerprints.jsonl`, `GET /api/fingerprints`, ops card).
+  **Наступний band**: **147** README polish leftovers (`PH-S2109…S2118`).
 
 ## Канон GSV
 
@@ -230,7 +232,8 @@ band 142 ✅ (MCP HTTP sessions / `Mcp-Session-Id`) ·
 band 143 ✅ (Galaxy chrome + type/chart scale) ·
 band 144 ✅ (always-on live copy + update apply) ·
 band 145 ✅ (VDT products picker — list / select / open / scan) ·
-не імплементувати band 147 поки 146 не ✅ ·
+band 146 ✅ (version bump + fingerprints — patch + JSONL + trailers) ·
+не імплементувати work past band 147 поки 147 не ✅ ·
 не комітити kit-only в PoolAI як «замість» GSV drain ·
 staging `GSV/data/*` / `certs/*.pem` /
 `.env` · mid-push · `cargo test` while `target/debug/gsv-server.exe` is the listener · обхід ratio-смуги Rust-кодом замість compact UI ·

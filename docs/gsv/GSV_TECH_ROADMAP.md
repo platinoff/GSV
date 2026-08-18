@@ -30,7 +30,8 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 143** (Galaxy chrome + type/chart scale) **✅** ·
 **band 144** (always-on live copy + apply) **✅** ·
 **band 145** (VDT products picker + open folder + scan) **✅** ·
-**bands 146–147** (version/fingerprints · polish) queued ·
+**band 146** (version bump + fingerprints) **✅** ·
+**band 147** (README-level polish leftovers) queued ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -664,16 +665,16 @@ Each drain commit increments `CARGO_PKG_VERSION` patch. Fingerprint JSONL: actor
 
 | Sprint | Фокус | Acceptance (ключ) |
 |--------|-------|-------------------|
-| **PH-S2099** | Scope + queue | this band; `active_sprint` = `PH-S2099` |
-| **PH-S2100** | Version tests | `assert_eq!(wire.version, env!("CARGO_PKG_VERSION"))` (no hardcoded `0.1.0`) |
-| **PH-S2101** | `gsv-bump-version.sh` | patch +1 in `Cargo.toml` `[package]` |
-| **PH-S2102** | Fingerprint module | `docs/gsv/fingerprints.jsonl`; `append` / `latest` |
-| **PH-S2103** | HTTP + card | `GET /api/fingerprints`; `render_fingerprints`; ops group |
-| **PH-S2104** | Drain scripts | `gsv-fingerprint.sh` + commit trailers `Gsv-Actor/Ide/Model` |
-| **PH-S2105** | Contracts | `gsv_fingerprint_contracts` + ui/server |
-| **PH-S2106** | Docs canon | HANDOFF close step = bump + fingerprint; MEMORY |
-| **PH-S2107** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy |
-| **PH-S2108** | Band close | bump in the same commit; tests green; vision-sync; push |
+| **PH-S2099** | Scope + queue | this band; `active_sprint` = `PH-S2099` — **✅** |
+| **PH-S2100** | Version tests | `assert_eq!(wire.version, env!("CARGO_PKG_VERSION"))` (no hardcoded `0.1.0`) — **✅** |
+| **PH-S2101** | `gsv-bump-version.sh` | patch +1 in `Cargo.toml` `[package]` — **✅** |
+| **PH-S2102** | Fingerprint module | `docs/gsv/fingerprints.jsonl`; `append` / `latest` — **✅** |
+| **PH-S2103** | HTTP + card | `GET /api/fingerprints`; `render_fingerprints`; ops group — **✅** |
+| **PH-S2104** | Drain scripts | `gsv-fingerprint.sh` + commit trailers `Gsv-Actor/Ide/Model` — **✅** |
+| **PH-S2105** | Contracts | `gsv_fingerprint_contracts` + ui/server — **✅** |
+| **PH-S2106** | Docs canon | HANDOFF close step = bump + fingerprint; MEMORY — **✅** |
+| **PH-S2107** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy — **✅** |
+| **PH-S2108** | Band close | bump in the same commit; tests green; vision-sync; push — **✅** |
 
 ## Спринти (band 147) — README-level Galaxy polish leftovers
 

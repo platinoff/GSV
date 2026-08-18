@@ -111,6 +111,7 @@ pub const UI_GROUPS: [UiGroup; 4] = [
         cards: &[
             "health",
             "products",
+            "fingerprints",
             "mcp",
             "update",
             "tracker",
@@ -996,6 +997,39 @@ pub fn render_products(d: &Value) -> String {
     out
 }
 
+/// Drain fingerprints card (`/api/fingerprints`).
+pub fn render_fingerprints(d: &Value) -> String {
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let fps = arr(&d["fingerprints"]);
+    if fps.is_empty() {
+        return empty_html("fingerprints");
+    }
+    let mut out = format!(
+        "<div class='dim'>{} fingerprints · <kbd>docs/gsv/fingerprints.jsonl</kbd></div>",
+        fps.len()
+    );
+    let rows: Vec<Vec<String>> = fps
+        .iter()
+        .map(|f| {
+            vec![
+                esc(&s(&f["ts"])),
+                esc(&s(&f["ide"])),
+                esc(&s(&f["model"])),
+                esc(&s(&f["agent"])),
+                esc(&s(&f["version"])),
+                esc(&s(&f["summary"])),
+            ]
+        })
+        .collect();
+    out.push_str(&tab(
+        &["ts", "ide", "model", "agent", "ver", "summary"],
+        rows,
+    ));
+    out
+}
+
 /// Update card (`/api/update`).
 pub fn render_update(d: &Value) -> String {
     if let Some(msg) = not_ok(d) {
@@ -1352,6 +1386,7 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
         "omni" => Some(render_omni(d)),
         "health" => Some(render_health(d)),
         "products" => Some(render_products(d)),
+        "fingerprints" => Some(render_fingerprints(d)),
         "mcp" => Some(render_mcp(d)),
         "update" => Some(render_update(d)),
         "ide" => Some(render_ide(d)),
@@ -1375,7 +1410,7 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
 }
 
 /// Server-rendered card names (stable contract for `/api/ui/card/:name`).
-pub const CARD_NAMES: [&str; 33] = [
+pub const CARD_NAMES: [&str; 34] = [
     "tracker",
     "sli",
     "toolchain",
@@ -1391,6 +1426,7 @@ pub const CARD_NAMES: [&str; 33] = [
     "omni",
     "health",
     "products",
+    "fingerprints",
     "mcp",
     "update",
     "ide",
@@ -1784,8 +1820,9 @@ mod tests {
         assert!(render_card("node-search", &d).is_some());
         assert!(render_card("mcp", &d).is_some());
         assert!(render_card("products", &d).is_some());
+        assert!(render_card("fingerprints", &d).is_some());
         assert!(render_card("nope", &d).is_none());
-        assert_eq!(CARD_NAMES.len(), 33);
+        assert_eq!(CARD_NAMES.len(), 34);
         assert!(render_card("health", &d).is_some());
         assert!(render_card("ide", &d).is_some());
         assert!(render_card("vision", &d).is_some());

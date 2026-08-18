@@ -37,12 +37,20 @@ fn err_json(status: StatusCode, msg: impl Into<String>) -> Response {
 
 /// `/api/health` payload.
 fn health(state: &AppState) -> Value {
+    let fp = crate::boxes::fingerprint::latest(
+        &crate::boxes::fingerprint::jsonl_path(&state.repo_root),
+        1,
+    );
+    let latest = fp.first();
     json!({
         "name": crate::GSV_SERVER_NAME,
         "version": *state.version,
         "ok": true,
         "uptime_secs": state.started_at.elapsed().map(|d| d.as_secs()).unwrap_or(0),
         "update_available": state.update_available(),
+        "fingerprint_actor": latest.map(|f| f.actor.as_str()),
+        "fingerprint_ide": latest.map(|f| f.ide.as_str()),
+        "fingerprint_model": latest.map(|f| f.model.as_str()),
     })
 }
 
@@ -77,6 +85,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/products/select", post(api_products_select))
         .route("/api/products/open", post(api_products_open))
         .route("/api/products/scan", get(api_products_scan))
+        .route("/api/fingerprints", get(api_fingerprints))
         .route("/api/update", get(api_update))
         .route("/api/update/notify", post(api_update_notify))
         .route("/api/update/apply", post(api_update_apply))
@@ -350,6 +359,7 @@ async fn api_index() -> Json<Value> {
         "categories": [
             "/api/vision/", "/api/ui/", "/api/ratio/", "/api/toolchain/",
             "/api/ide/", "/api/omni/", "/api/sli", "/api/tracker", "/api/products",
+            "/api/fingerprints",
             "/api/hooks/", "/api/preview", "/api/terminal", "/data/", "/mcp"
         ],
         "example": "/api/vision",
@@ -496,6 +506,21 @@ async fn api_products_scan(State(state): State<AppState>) -> Response {
         Ok(s) => Json(json!(s)).into_response(),
         Err(_) => err_json(StatusCode::NOT_FOUND, "unknown product"),
     }
+}
+
+#[derive(serde::Deserialize)]
+struct FingerprintQuery {
+    limit: Option<usize>,
+}
+
+async fn api_fingerprints(
+    State(state): State<AppState>,
+    Query(q): Query<FingerprintQuery>,
+) -> Json<Value> {
+    Json(crate::boxes::fingerprint::wire(
+        &state.repo_root,
+        crate::boxes::fingerprint::clamp_limit(q.limit),
+    ))
 }
 
 async fn api_update(
@@ -726,6 +751,7 @@ async fn card_wire(state: &AppState, name: &str, q: &CardQuery) -> Result<Value,
             let selected = product_selected_id(state);
             crate::boxes::products::card_wire(&state.repo_root, selected.as_deref())
         }
+        "fingerprints" => crate::boxes::fingerprint::wire(&state.repo_root, 20),
         "mcp" => crate::mcp::http_info(state),
         "update" => json!(crate::boxes::update::wire(state)),
         "ide" => {

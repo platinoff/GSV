@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-18 · band 146 ✅)
+
+- **Band 146:** version bump + fingerprints — tests compare `env!("CARGO_PKG_VERSION")` (no hardcoded `0.1.0`); `scripts/gsv-bump-version.sh` increments `[package]` patch; `boxes/fingerprint.rs` `append`/`latest` on `docs/gsv/fingerprints.jsonl`; `GET /api/fingerprints?limit=`; Galaxy ops card `fingerprints`; `scripts/gsv-fingerprint.sh` prints `Gsv-Actor` / `Gsv-Ide` / `Gsv-Model` trailers. Header meta shows latest ide/model/actor. Drain close runs bump + fingerprint in the same commit.
+- **Canon:** [`gsv/GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md) · plan [`superpowers/plans/2026-08-17-always-on-galaxy.md`](superpowers/plans/2026-08-17-always-on-galaxy.md) · next drain **band 147** README polish (`PH-S2109…S2118`).
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 still `scripts/list-vdt-products.sh`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.10%** (rust 18303 / product 19045) · **358** tests · clippy 0. Vision rev **512**.
+- **Канон продукту:** Rust **95–100%** / wasm **0–5%** (завжди), без Python/Java; bins — лише `src/bin/`.
+
 ## Стан (2026-08-17 · band 145 ✅)
 
 - **Band 145:** VDT products picker — `boxes/products.rs` `discover` mirrors `scripts/list-vdt-products.sh` (workspace ∪ sibling git ∪ kit, no shell-out). `GET /api/products`, `POST /api/products/select`, `POST /api/products/open` (cursor if on PATH else explorer; cargo-test harness skips spawn), `GET /api/products/scan` (git HEAD/status, HANDOFF/NEXT, `cargo_name`). Galaxy ops card `products`. Unknown id → 404 `{ok:false}`.

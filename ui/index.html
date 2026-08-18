@@ -102,6 +102,7 @@ body.panel-fs-active .card{display:none!important}body.panel-fs-active .card.ful
 <main id="grid">
   <section class="card" data-card="health" data-group="ops"><h2>Health <span class="hint">/api/health</span></h2><div class="body" id="b-health">…</div></section>
   <section class="card" data-card="products" data-group="ops"><h2>Products <span class="hint">/api/products</span></h2><div class="body" id="b-products">…</div></section>
+  <section class="card" data-card="fingerprints" data-group="ops"><h2>Fingerprints <span class="hint">/api/fingerprints</span></h2><div class="body" id="b-fingerprints">…</div></section>
   <section class="card" data-card="mcp" data-group="ops"><h2>MCP <span class="hint">GET /mcp · gsv-mcp</span></h2><div class="body" id="b-mcp">…</div></section>
   <section class="card" data-card="tracker" data-group="ops"><h2>Tracker <span class="hint">/api/tracker</span></h2><div class="body" id="b-tracker">…</div></section>
   <section class="card" data-card="sli" data-group="ops"><h2>SLI console <span class="hint">/api/sli</span></h2><div class="body" id="b-sli">…</div></section>
@@ -204,7 +205,11 @@ async function get(path) { const res = await fetch(path); if (!res.ok) throw new
 async function refreshMeta() {
   try {
     const d = await get("api/health");
-    $("meta").textContent = d.name + " · v" + d.version + " · uptime " + d.uptime_secs + "s";
+    let extra = "";
+    if (d.fingerprint_ide || d.fingerprint_model) {
+      extra = " · " + [d.fingerprint_ide, d.fingerprint_model, d.fingerprint_actor].filter(Boolean).join(" · ");
+    }
+    $("meta").textContent = d.name + " · v" + d.version + extra + " · uptime " + d.uptime_secs + "s";
     $("updateBadge").style.display = d.update_available ? "inline-block" : "none";
   } catch (e) { setOffline(true); }
 }
@@ -317,7 +322,7 @@ async function getText(card) {
     markStatus(e.message || "offline");
   }
 }
-const rustCards = ["health", "products", "mcp", "update", "tracker", "sli", "toolchain", "hooks-tests", "hooks-bench", "ratio", "vision", "vision-map", "sprint-map", "sprint-queue", "sprint-progress", "sprint-board", "speed-index", "rust-diagnostics", "omni", "ide", "vision-sync", "doc-preview", "preview", "terminal", "sprint-focus"];
+const rustCards = ["health", "products", "fingerprints", "mcp", "update", "tracker", "sli", "toolchain", "hooks-tests", "hooks-bench", "ratio", "vision", "vision-map", "sprint-map", "sprint-queue", "sprint-progress", "sprint-board", "speed-index", "rust-diagnostics", "omni", "ide", "vision-sync", "doc-preview", "preview", "terminal", "sprint-focus"];
 async function resync() {
   const results = await Promise.allSettled([refreshMeta(), refreshTrail(), loadRssTicker(), ...rustCards.map(getText)]);
   const failed = results.filter(r => r.status === "rejected").length;

@@ -15,7 +15,9 @@
 //! | Vision | `vision` | `/api/vision*` | `docs/vision/` manifest + feed mirror |
 //! | UI fragments | `ui` | `/api/ui/card/:name` | server-rendered card HTML |
 //! | Products | `products` | `/api/products` | workspace ∪ sibling git ∪ kit |
+//! | Fingerprints | `fingerprint` | `/api/fingerprints` | `docs/gsv/fingerprints.jsonl` |
 
+pub mod fingerprint;
 pub mod hooks;
 pub mod ide;
 pub mod omni;
@@ -29,6 +31,7 @@ pub mod ui;
 pub mod update;
 pub mod vision;
 
+pub use fingerprint::Fingerprint;
 pub use ide::{IdeSelection, IdeSession, IdeWire};
 pub use omni::{OmniConfig, OmniRouter, OmniWire, ProviderConfig, ProviderWire, RoutingConfig};
 pub use preview::PreviewWire;

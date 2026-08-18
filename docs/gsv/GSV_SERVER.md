@@ -23,6 +23,7 @@
 | POST | `/api/products/select` | `{id}` → process-local selection; unknown id → 404 `{ok:false}` |
 | POST | `/api/products/open` | `{id}` → open folder (`cursor` if on PATH, else `explorer`); id must be discovered |
 | GET | `/api/products/scan` | selected product: git HEAD/status, kind, registered, HANDOFF/NEXT, `cargo_name` |
+| GET | `/api/fingerprints` | drain fingerprints (`ok`, `path`, `count`, `fingerprints`; `?limit=` default 20, cap 100) |
 | GET | `/api/update` | статус оновлення (Update box; `live_copy` if running from `target/live/`) |
 | POST | `/api/update/notify` | виставити `update_available` + SSE |
 | POST | `/api/update/apply` | SSE `offline` + `{ok,applying}`; process exit unless `GSV_UPDATE_APPLY_EXIT=0` |
@@ -41,7 +42,7 @@
 | POST | `/mcp` | MCP JSON-RPC (initialize / tools/* / resources/* including subscribe/unsubscribe / prompts/* / logging/setLevel / completion/complete); `initialize` issues `Mcp-Session-Id`; unknown id → 404; `Accept: text/event-stream` → SSE notifications then result; stdio twin is `gsv-mcp` |
 | DELETE | `/mcp` | End HTTP MCP session (`Mcp-Session-Id` required; missing → 400; unknown → 404) |
 | GET | `/api/ui/layout` | grouped IA (ops/vision/sprint/studio) + `chrome` (8) + `html` (sidebar nav) + `header` (GPU/Auto/Power) |
-| GET | `/api/ui/card/:name` | Rust-rendered card body HTML (`CARD_NAMES` 33, incl. `products`) |
+| GET | `/api/ui/card/:name` | Rust-rendered card body HTML (`CARD_NAMES` 34, incl. `products` + `fingerprints`) |
 | GET | `/api/ui/load-palette` | live Galaxy `:root` CSS (`GalaxyPalette::as_css_root`) |
 | GET | `/api/ui/load-theme` | live sprint `:root` CSS (`SprintThemeReport::as_css_root`) |
 | GET | `/data/{file}` | allowlisted JSON snapshot under `data/` (no `omni.toml`) |
@@ -108,7 +109,7 @@ cargo run --manifest-path GSV/Cargo.toml --bin gsv-http-stand-smoke -- --base-ur
 - UI показує кнопку/бейдж **Update** замість auto-reload; `doUpdate()` POSTs `/api/update/apply`.
 - Клієнтський JS тримає стан offline; при SSE `onopen` робить full-resync (Tracker/SLI/toolchain/speed/rust diagnostics).
 
-**Horizon (bands 145–147):** VDT product picker; version bump + fingerprints; README polish. Spec: [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md).
+**Horizon (band 147):** README-level Galaxy polish leftovers. Spec: [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md).
 
 ## Live copy + apply (band 144)
 

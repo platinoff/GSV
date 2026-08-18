@@ -40,7 +40,7 @@ fn update_flag_state_machine() {
 fn update_wire_has_expected_fields() {
     let (_, state) = state();
     let w = wire(&state);
-    assert_eq!(w.version, "0.1.0");
+    assert_eq!(w.version, env!("CARGO_PKG_VERSION"));
     assert!(w.binary_mtime > 0);
     assert!(w.newest_src_mtime > 0);
     assert!(!w.live_copy, "test process is not target/live");
