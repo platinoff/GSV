@@ -1,9 +1,7 @@
 {
   "mcpServers": {
     "gsv_mcp_openbot": {
-      "command": "S:/rust/GSV/target/live/gsv-mcp.exe",
-      "args": ["--repo-root", "S:/rust/GSV"],
-      "cwd": "S:/rust/GSV"
+      "url": "http://127.0.0.1:9999/mcp"
     }
   }
 }

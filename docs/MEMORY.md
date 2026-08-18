@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-18 · band 159 ✅)
+
+- **Band 159:** Cursor attaches over HTTP `url: http://127.0.0.1:9999/mcp` (live `gsv-server`). `GET /mcp` reports `version` + `http_url`. GET SSE **with** `Mcp-Session-Id` holds the Streamable HTTP stream; sessionless GET stays a finite flush. Stdio remains `.mcp.json` / OpenCode / Grok. Recopy live `gsv-server` after drains or HTTP tools lag the crate. **36** tools · **10** resources.
+- **Canon:** [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md) · [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
+- **Next drain:** scan / owner pick.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.23%** (rust 24571 / product 24761) · **473** tests · clippy 0.
+
 ## Стан (2026-08-18 · band 158 ✅)
 
 - **Band 158:** working MCP bot — `cargo xtask live` copies `gsv-mcp` next to `gsv-server`; client JSON (`.mcp.json` / `.cursor/mcp.json` / `opencode.json` / `.grok/config.toml`) spawn `target/live/gsv-mcp.exe` (no `cargo run`); POST `/mcp` skips browser CSRF; `gsv_xtask` `sync` is `--check` drift; `gsv_vision_sync` notifies every subscribed `gsv://` URI. **36** tools · **10** resources.

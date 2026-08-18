@@ -48,6 +48,11 @@ pub fn live_ui_url(fragment: &str) -> String {
     }
 }
 
+/// Canon Streamable HTTP MCP URL (Cursor `.cursor/mcp.json` `url`).
+pub fn mcp_http_url() -> String {
+    format!("http://{DEFAULT_HOST}:{DEFAULT_PORT}/mcp")
+}
+
 /// Build-time version of the GSV server binary.
 pub fn gsv_version() -> &'static str {
     env!("CARGO_PKG_VERSION")

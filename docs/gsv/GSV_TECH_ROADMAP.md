@@ -43,6 +43,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 156** (streaming usage + VDT git + owner tunnel) **✅** ·
 **band 157** (OmniRouter catalog + quota timers) **✅** ·
 **band 158** (live MCP stdio + sync check) **✅** ·
+**band 159** (Cursor HTTP MCP + session SSE hold) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -892,6 +893,23 @@ Owner ask (`абракадабра` gsv): perfect working bot with MCP and synch
 | **PH-S2226** | Contracts | mcp/xtask/watchdog/security/ui client-config tests — **✅** |
 | **PH-S2227** | Docs | MCP_OPENBOT / RUST_DEV / SERVER / BOXES / HANDOFF / NEXT / MEMORY — **✅** |
 | **PH-S2228** | Band close | tests green; `--stretch-96` ≥96%; `--band 158` + fingerprint; one commit + push — **✅** |
+
+## Спринти (band 159) — Cursor HTTP MCP + session SSE hold ✅
+
+Owner ask (`абракадабра` gsv / mvp with mcp): bot still not in the Cursor agent toolkit. Scan: live `gsv-server` was **0.152** (32 tools) while crate **0.158** (36 tools); `.cursor/mcp.json` spawned stdio `gsv-mcp` (second AppState, Cursor catalog empty); GET `/mcp` with `Accept: text/event-stream` was a finite flush even with a session (Cursor Streamable HTTP drops).
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2229** | Scope + queue | this band; `active_sprint` = `PH-S2229` — **✅** |
+| **PH-S2230** | Cursor HTTP | `.cursor/mcp.json` `url` = `http://127.0.0.1:9999/mcp`; stdio stays `.mcp.json` / OpenCode / Grok — **✅** |
+| **PH-S2231** | Discovery | `GET /mcp` `version` + `http_url`; Galaxy card lists both — **✅** |
+| **PH-S2232** | Session SSE | GET SSE **with** `Mcp-Session-Id` holds the stream; sessionless GET stays finite flush — **✅** |
+| **PH-S2233** | Instructions | `initialize` + `gsv_drain` name the HTTP URL and stale-live check — **✅** |
+| **PH-S2234** | (reserve) | — **✅** |
+| **PH-S2235** | Contracts | mcp/ui client-config + hold-stream tests — **✅** |
+| **PH-S2236** | Docs | MCP_OPENBOT / SERVER / HANDOFF / NEXT / MEMORY — **✅** |
+| **PH-S2237** | Live lockstep | recopy `gsv-server` + `gsv-mcp` after tests (do not kill live before `cargo test`) — **✅** |
+| **PH-S2238** | Band close | tests **473** green; `--stretch-96` **99.23%**; `--band 159` + fingerprint; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

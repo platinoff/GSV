@@ -159,6 +159,14 @@ async fn ui_card_mcp_renders_openbot_tools() {
         "stdio live: {html}"
     );
     assert!(html.contains("http <kbd>/mcp</kbd>"), "http: {html}");
+    assert!(
+        html.contains("url <kbd>http://127.0.0.1:9999/mcp</kbd>"),
+        "http_url: {html}"
+    );
+    assert!(
+        html.contains(&format!("ver <kbd>{}</kbd>", env!("CARGO_PKG_VERSION"))),
+        "version: {html}"
+    );
     assert!(html.contains("<kbd>gsv_health</kbd>"), "tool: {html}");
     assert!(html.contains("<th>tool</th>"), "table: {html}");
     assert!(html.contains("resources "), "counts: {html}");

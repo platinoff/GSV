@@ -423,7 +423,7 @@ const PROMPTS: &[PromptSpec] = &[
     PromptSpec {
         name: "gsv_drain",
         description: "Start a VDT drain: next PH-S* band after the last closed sprint.",
-        text: "Start a GSV VDT drain. Read gsv://docs/next, gsv://docs/rust-dev, and gsv://docs/post-always-on. Call gsv_xtask (task=products) or gsv_products, then gsv_products_select with the owner pick, then gsv_products_scan (id optional after select), gsv_disk, gsv_watchdog, gsv_usage, and gsv_xtask task=sync (read-only vision drift). gsv_vision_sync remirrors snapshots and notifies subscribed gsv:// resources. For model routing call gsv_omni_route (task=rust|web, prefer_free) so cooldown timers skip exhausted free hosts. Stdio MCP is target/live/gsv-mcp.exe (cargo xtask live copies it; do not cargo run --bin gsv-mcp). Product tests/benches/scripts are cargo xtask / tests/*.rs / benches/*.rs — do not add .sh/.ps1/JSON harnesses. Propose the next ≤10 PH-S* after the last closed band. Do not push mid-drain. Invoke cargo via MSYS2 bash.",
+        text: "Start a GSV VDT drain. Read gsv://docs/next, gsv://docs/rust-dev, and gsv://docs/post-always-on. Call gsv_xtask (task=products) or gsv_products, then gsv_products_select with the owner pick, then gsv_products_scan (id optional after select), gsv_disk, gsv_watchdog, gsv_usage, and gsv_xtask task=sync (read-only vision drift). gsv_vision_sync remirrors snapshots and notifies subscribed gsv:// resources. For model routing call gsv_omni_route (task=rust|web, prefer_free) so cooldown timers skip exhausted free hosts. Cursor attaches over HTTP url http://127.0.0.1:9999/mcp (live gsv-server). Check GET /mcp version against the crate; a stale live copy is why tools go missing. Stdio MCP is target/live/gsv-mcp.exe for OpenCode/Grok (cargo xtask live copies it; do not cargo run --bin gsv-mcp). Product tests/benches/scripts are cargo xtask / tests/*.rs / benches/*.rs — do not add .sh/.ps1/JSON harnesses. Propose the next ≤10 PH-S* after the last closed band. Do not push mid-drain. Invoke cargo via MSYS2 bash.",
     },
 ];
 
@@ -557,6 +557,11 @@ pub fn stdio_live_rel() -> &'static str {
     }
 }
 
+/// Loopback Streamable HTTP URL (Cursor `url`; same process as Galaxy).
+pub fn http_url() -> String {
+    crate::mcp_http_url()
+}
+
 /// Discovery payload for `GET /mcp` (not a JSON-RPC session).
 pub fn http_info(state: &AppState) -> Value {
     let tools = tool_names();
@@ -569,9 +574,11 @@ pub fn http_info(state: &AppState) -> Value {
         "name": SERVER_ID,
         "protocol": PROTOCOL_VERSION,
         "transport": "streamable-http",
+        "version": &*state.version,
         "stdio": "gsv-mcp",
         "stdio_live": stdio_live_rel(),
         "http": "/mcp",
+        "http_url": http_url(),
         "http_csrf": false,
         "sse": true,
         "streamable": true,
@@ -715,7 +722,7 @@ fn initialize_result(state: &AppState) -> Value {
             "name": SERVER_ID,
             "version": *state.version,
         },
-        "instructions": "GSV box tools plus allowlisted gsv:// resources and prompts. Stdio is target/live/gsv-mcp.exe (copied by cargo xtask live). resources/subscribe is process-local; gsv_vision_sync notifies every subscribed gsv:// URI. gsv_xtask task=sync is --check drift only. completion/complete covers resource URIs and prompt names. logging/setLevel filters notifications/message. HTTP Accept: text/event-stream flushes notifications as SSE (stdio uses NDJSON). HTTP initialize issues Mcp-Session-Id (DELETE /mcp ends it; unknown id → 404). POST /mcp skips browser CSRF (bots). Terminal uses the HTTP SLI allowlist. Omni chat defaults to dry-run."
+        "instructions": "GSV box tools plus allowlisted gsv:// resources and prompts. Cursor uses HTTP url http://127.0.0.1:9999/mcp on the live gsv-server. Stdio is target/live/gsv-mcp.exe (copied by cargo xtask live) for OpenCode/Grok. GET /mcp reports version — if it lags the crate, recopy the live server. resources/subscribe is process-local; gsv_vision_sync notifies every subscribed gsv:// URI. gsv_xtask task=sync is --check drift only. completion/complete covers resource URIs and prompt names. logging/setLevel filters notifications/message. HTTP GET with a session + Accept: text/event-stream holds SSE (no session stays a finite flush). HTTP initialize issues Mcp-Session-Id (DELETE /mcp ends it; unknown id → 404). POST /mcp skips browser CSRF (bots). Terminal uses the HTTP SLI allowlist. Omni chat defaults to dry-run."
     })
 }
 
@@ -1558,6 +1565,9 @@ mod tests {
         assert_eq!(info["stdio"], "gsv-mcp");
         assert_eq!(info["stdio_live"], stdio_live_rel());
         assert_eq!(info["http"], "/mcp");
+        assert_eq!(info["http_url"], http_url());
+        assert_eq!(info["http_url"], "http://127.0.0.1:9999/mcp");
+        assert_eq!(info["version"], *state().version);
         assert_eq!(info["http_csrf"], false);
         assert!(stdio_live_rel().contains("gsv-mcp"));
         assert_eq!(info["sse"], true);
@@ -2106,6 +2116,7 @@ mod tests {
         assert!(text.contains("task=sync"), "{text}");
         assert!(text.contains("gsv_vision_sync"), "{text}");
         assert!(text.contains("target/live/gsv-mcp"), "{text}");
+        assert!(text.contains("http://127.0.0.1:9999/mcp"), "{text}");
         assert!(text.contains("gsv_disk"), "{text}");
         assert!(text.contains("gsv_usage"), "{text}");
         assert!(text.contains("gsv_omni_route"), "{text}");

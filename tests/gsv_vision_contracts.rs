@@ -1067,4 +1067,5 @@ fn live_ui_url_uses_canon_host_port() {
     assert_eq!(gsv::live_ui_url(""), "http://127.0.0.1:9999/");
     assert_eq!(gsv::live_ui_url("#sprint"), "http://127.0.0.1:9999/#sprint");
     assert!(!gsv::live_ui_url("#sprint").contains("8891"));
+    assert_eq!(gsv::mcp_http_url(), "http://127.0.0.1:9999/mcp");
 }

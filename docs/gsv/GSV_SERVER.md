@@ -44,7 +44,7 @@
 | GET | `/api/omni/test` | connectivity check провайдера (`GET {base}/models`) |
 | GET | `/api/usage` | per-session token totals (OmniRouter + MCP + OmniRoute pull; `data/gsv_usage.json`) |
 | GET | `/api/health` | health-чек |
-| GET | `/mcp` | MCP discovery (`gsv_mcp_openbot` name + 36 tools + 10 resources + 3 prompts + `stdio`/`stdio_live`/`http`/`http_csrf`/`tool_count`/`resource_count`/`prompt_count`/`logging`/`completions`/`log_level`/`subscribe`/`subscription_count`/`sse`/`streamable`/`sessions`/`session_count`); `Accept: text/event-stream` flushes pending notifications as SSE; unknown `Mcp-Session-Id` → 404 |
+| GET | `/mcp` | MCP discovery (`gsv_mcp_openbot` name + 36 tools + 10 resources + 3 prompts + `stdio`/`stdio_live`/`http`/`http_url`/`version`/`http_csrf`/`tool_count`/`resource_count`/`prompt_count`/`logging`/`completions`/`log_level`/`subscribe`/`subscription_count`/`sse`/`streamable`/`sessions`/`session_count`); sessionless `Accept: text/event-stream` flushes pending notifications as finite SSE; **GET with `Mcp-Session-Id` holds** the stream; unknown `Mcp-Session-Id` → 404 |
 | POST | `/mcp` | MCP JSON-RPC (initialize / tools/* / resources/* including subscribe/unsubscribe / prompts/* / logging/setLevel / completion/complete); skips browser CSRF (bots); `initialize` issues `Mcp-Session-Id`; unknown id → 404; `Accept: text/event-stream` → SSE notifications then result; stdio twin is `target/live/gsv-mcp.exe` |
 | DELETE | `/mcp` | End HTTP MCP session (`Mcp-Session-Id` required; missing → 400; unknown → 404) |
 | GET | `/api/ui/layout` | grouped IA (ops/vision/sprint/studio) + `chrome` (8) + `html` (sidebar nav) + `header` (GPU/Auto/Power) |

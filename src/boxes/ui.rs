@@ -914,6 +914,8 @@ pub fn render_mcp(d: &Value) -> String {
     let stdio = s(&d["stdio"]);
     let stdio_live = s(&d["stdio_live"]);
     let http = s(&d["http"]);
+    let http_url = s(&d["http_url"]);
+    let version = s(&d["version"]);
     if !stdio.is_empty() || !http.is_empty() || !stdio_live.is_empty() {
         out.push_str(&format!(
             "<div>stdio <kbd>{}</kbd> · live <kbd>{}</kbd> · http <kbd>{}</kbd></div>",
@@ -924,6 +926,17 @@ pub fn render_mcp(d: &Value) -> String {
                 &stdio_live
             }),
             esc(if http.is_empty() { "—" } else { &http })
+        ));
+    }
+    if !version.is_empty() || !http_url.is_empty() {
+        out.push_str(&format!(
+            "<div>ver <kbd>{}</kbd> · url <kbd>{}</kbd></div>",
+            esc(if version.is_empty() { "—" } else { &version }),
+            esc(if http_url.is_empty() {
+                "—"
+            } else {
+                &http_url
+            })
         ));
     }
     if tools.is_empty() {
@@ -2068,6 +2081,8 @@ mod tests {
             "stdio": "gsv-mcp",
             "stdio_live": "target/live/gsv-mcp.exe",
             "http": "/mcp",
+            "http_url": "http://127.0.0.1:9999/mcp",
+            "version": "0.159.0",
             "tool_count": 2,
             "tools": ["gsv_health", "gsv_update"],
             "resource_count": 1,
@@ -2099,6 +2114,11 @@ mod tests {
         assert!(mcp.contains("stdio <kbd>gsv-mcp</kbd>"), "{mcp}");
         assert!(
             mcp.contains("live <kbd>target/live/gsv-mcp.exe</kbd>"),
+            "{mcp}"
+        );
+        assert!(mcp.contains("ver <kbd>0.159.0</kbd>"), "{mcp}");
+        assert!(
+            mcp.contains("url <kbd>http://127.0.0.1:9999/mcp</kbd>"),
             "{mcp}"
         );
         assert!(render_mcp(&serde_json::json!({ "ok": false, "error": "down" })).contains("down"));

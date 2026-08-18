@@ -11,7 +11,7 @@ use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use futures_util::StreamExt;
+use futures_util::stream::{self, StreamExt};
 use serde_json::{json, Value};
 use tokio_stream::wrappers::BroadcastStream;
 
@@ -367,15 +367,53 @@ fn mcp_unknown_session() -> Response {
 }
 
 async fn api_mcp_get(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    if let Some(id) = crate::mcp::mcp_session_id_from_headers(&headers) {
-        if !state.mcp_session_ok(&id) {
+    let session = crate::mcp::mcp_session_id_from_headers(&headers);
+    if let Some(id) = session.as_deref() {
+        if !state.mcp_session_ok(id) {
             return mcp_unknown_session();
         }
     }
     if accept_sse(&headers) {
+        if session.is_some() {
+            let mut res = mcp_sse_hold(state).into_response();
+            attach_mcp_session(&mut res, session.as_deref());
+            return res;
+        }
         return mcp_sse_reply(state.drain_mcp_notifications(), None);
     }
     Json(crate::mcp::http_info(&state)).into_response()
+}
+
+/// Long-lived Streamable HTTP GET (Cursor). Finite flush stays on sessionless GET.
+fn mcp_sse_hold(
+    state: AppState,
+) -> Sse<impl futures_util::Stream<Item = Result<Event, Infallible>>> {
+    let initial = state.drain_mcp_notifications();
+    let first = stream::iter(
+        initial
+            .into_iter()
+            .map(|v| Ok::<_, Infallible>(Event::default().event("message").data(v.to_string()))),
+    );
+    let later =
+        stream::unfold(state, |state| async move {
+            loop {
+                tokio::time::sleep(Duration::from_millis(400)).await;
+                let notes = state.drain_mcp_notifications();
+                if !notes.is_empty() {
+                    return Some((notes, state));
+                }
+            }
+        })
+        .flat_map(|notes| {
+            stream::iter(notes.into_iter().map(|v| {
+                Ok::<_, Infallible>(Event::default().event("message").data(v.to_string()))
+            }))
+        });
+    Sse::new(first.chain(later)).keep_alive(
+        KeepAlive::new()
+            .interval(Duration::from_secs(15))
+            .text("keepalive"),
+    )
 }
 
 async fn api_mcp_post(State(state): State<AppState>, headers: HeaderMap, body: Bytes) -> Response {

@@ -13,9 +13,11 @@
 //! Band 142: HTTP `Mcp-Session-Id` + `DELETE /mcp`.
 
 use std::path::PathBuf;
+use std::time::Duration;
 
 use axum::body::Body;
 use axum::http::{header, Method, Request, StatusCode};
+use futures_util::StreamExt;
 use gsv::mcp::{self, PROTOCOL_VERSION, SERVER_ID};
 use gsv::server::router;
 use gsv::AppState;
@@ -86,6 +88,8 @@ async fn get_mcp_discovers_openbot() {
     );
     assert_eq!(json["http_csrf"], false);
     assert_eq!(json["http"], "/mcp");
+    assert_eq!(json["http_url"], gsv::mcp_http_url());
+    assert_eq!(json["version"], env!("CARGO_PKG_VERSION"));
     let resources = json["resources"].as_array().expect("resources");
     assert_eq!(resources.len(), mcp::resource_uris().len());
     assert_eq!(json["resource_count"], resources.len() as u64);
@@ -251,9 +255,9 @@ fn grok_project_overlay_registers_openbot() {
 }
 
 #[test]
-fn client_configs_spawn_live_stdio() {
+fn stdio_clients_spawn_live_gsv_mcp() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    for rel in [".mcp.json", ".cursor/mcp.json", "opencode.json"] {
+    for rel in [".mcp.json", "opencode.json"] {
         let text = std::fs::read_to_string(root.join(rel)).unwrap_or_default();
         assert!(
             text.contains("target/live/gsv-mcp"),
@@ -264,6 +268,24 @@ fn client_configs_spawn_live_stdio() {
             "{rel} must not cargo-run MCP: {text}"
         );
     }
+}
+
+#[test]
+fn cursor_mcp_uses_live_http_url() {
+    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/.cursor/mcp.json"))
+        .expect(".cursor/mcp.json");
+    assert!(
+        text.contains("http://127.0.0.1:9999/mcp"),
+        "Cursor must attach to live Galaxy HTTP MCP: {text}"
+    );
+    assert!(
+        !text.contains("\"cargo\""),
+        "Cursor must not cargo-run MCP: {text}"
+    );
+    assert!(
+        !text.contains("target/live/gsv-mcp"),
+        "Cursor uses HTTP url, not stdio spawn: {text}"
+    );
 }
 
 #[tokio::test]
@@ -666,6 +688,51 @@ async fn get_mcp_sse_flushes_pending_notifications() {
     assert!(body.contains("\"event\":\"probe\""), "{body}");
 }
 
+#[tokio::test]
+async fn get_mcp_sse_session_holds_and_emits() {
+    let (app, state) = app_with_state();
+    let sid = state.mcp_issue_session();
+    state.push_mcp_notification(json!({
+        "jsonrpc": "2.0",
+        "method": "notifications/message",
+        "params": { "level": "info", "logger": SERVER_ID, "data": { "event": "hold" } }
+    }));
+    let res = app
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::GET)
+                .header(header::ACCEPT, "text/event-stream")
+                .header("mcp-session-id", &sid)
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(res.status(), StatusCode::OK);
+    let ctype = res
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    assert!(
+        ctype.starts_with("text/event-stream"),
+        "content-type: {ctype}"
+    );
+    let mut stream = res.into_body().into_data_stream();
+    let first = tokio::time::timeout(Duration::from_secs(2), stream.next())
+        .await
+        .expect("sse chunk timed out")
+        .expect("stream ended")
+        .expect("frame");
+    let text = String::from_utf8_lossy(&first);
+    assert!(
+        text.contains("event: message") || text.contains("notifications/message"),
+        "{text}"
+    );
+    assert!(text.contains("hold"), "{text}");
+}
+
 fn session_header(res: &axum::http::Response<Body>) -> Option<String> {
     res.headers()
         .get("mcp-session-id")
@@ -969,6 +1036,7 @@ async fn drain_prompt_names_always_on_tools() {
     assert!(text.contains("gsv_watchdog"), "{text}");
     assert!(text.contains("gsv_usage"), "{text}");
     assert!(text.contains("gsv://docs/next"), "{text}");
+    assert!(text.contains("http://127.0.0.1:9999/mcp"), "{text}");
     assert!(text.contains("mid-drain"), "{text}");
 }
 
