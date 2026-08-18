@@ -7,9 +7,9 @@
 //! - update flag (`Arc<AtomicBool>`) + build metadata
 //! - SSE event broadcast sender (`/events`)
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 
@@ -44,6 +44,10 @@ pub struct AppState {
     pub mcp_subscriptions: Arc<std::sync::RwLock<BTreeSet<String>>>,
     /// Pending MCP notifications (`notifications/message`, `notifications/resources/updated`).
     pub mcp_notifications: Arc<Mutex<Vec<Value>>>,
+    /// HTTP Streamable MCP sessions (`Mcp-Session-Id` → issue seq). Process-local.
+    pub mcp_sessions: Arc<std::sync::RwLock<BTreeMap<String, u64>>>,
+    /// Monotonic sequence for new HTTP MCP session ids.
+    pub mcp_session_seq: Arc<AtomicU64>,
     /// SSE event broadcast channel (string payloads, JSON).
     pub events: broadcast::Sender<String>,
 }
@@ -75,6 +79,8 @@ impl AppState {
             mcp_log_level: Arc::new(AtomicU8::new(1)), // info — see mcp::LOG_LEVELS
             mcp_subscriptions: Arc::new(std::sync::RwLock::new(BTreeSet::new())),
             mcp_notifications: Arc::new(Mutex::new(Vec::new())),
+            mcp_sessions: Arc::new(std::sync::RwLock::new(BTreeMap::new())),
+            mcp_session_seq: Arc::new(AtomicU64::new(1)),
             events,
         }
     }
@@ -105,6 +111,49 @@ impl AppState {
             .read()
             .map(|s| s.iter().cloned().collect())
             .unwrap_or_default()
+    }
+
+    /// Issue a process-local HTTP MCP session id (`Mcp-Session-Id`).
+    pub fn mcp_issue_session(&self) -> String {
+        let seq = self.mcp_session_seq.fetch_add(1, Ordering::Relaxed);
+        let id = crate::mcp::new_mcp_session_id(seq);
+        if let Ok(mut map) = self.mcp_sessions.write() {
+            map.insert(id.clone(), seq);
+            let cap = crate::mcp::MCP_SESSION_CAP;
+            while map.len() > cap {
+                let oldest = map.iter().min_by_key(|(_, s)| *s).map(|(k, _)| k.clone());
+                match oldest {
+                    Some(k) => {
+                        map.remove(&k);
+                    }
+                    None => break,
+                }
+            }
+        }
+        id
+    }
+
+    /// True when `id` is a live HTTP MCP session.
+    pub fn mcp_session_ok(&self, id: &str) -> bool {
+        crate::mcp::valid_mcp_session_id(id)
+            && self
+                .mcp_sessions
+                .read()
+                .map(|m| m.contains_key(id))
+                .unwrap_or(false)
+    }
+
+    /// Drop an HTTP MCP session. Returns whether it existed.
+    pub fn mcp_session_delete(&self, id: &str) -> bool {
+        self.mcp_sessions
+            .write()
+            .map(|mut m| m.remove(id).is_some())
+            .unwrap_or(false)
+    }
+
+    /// Count of live HTTP MCP sessions.
+    pub fn mcp_session_count(&self) -> usize {
+        self.mcp_sessions.read().map(|m| m.len()).unwrap_or(0)
     }
 
     /// Reset the update flag (used after a UI "Update" handshake).

@@ -3,7 +3,7 @@
 //! `gsv` is a standalone Rust-first vision server (`S:/rust/GSV`) with boxes:
 //! Tracker, SLI console, Toolchain, IDE, Update, Box preview, SLI terminal,
 //! Tests/bench hooks, OmniRouter (Rust AI proxy/router), and MCP
-//! (`gsv_mcp_openbot` stdio + `POST /mcp`). Runtime/API/tools are
+//! (`gsv_mcp_openbot` stdio + `POST`/`DELETE /mcp`). Runtime/API/tools are
 //! Rust-only; UI is a thin JS/DOM glue (0% WebAssembly for now, 0-5% horizon).
 //!
 //! Workspace layout:

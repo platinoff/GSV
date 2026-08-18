@@ -163,7 +163,10 @@ pub fn router(state: AppState) -> Router {
         .route("/data/{file}", get(api_data_file))
         .route("/events", get(events))
         .route("/assets/vision.svg", get(api_vision_svg))
-        .route("/mcp", get(api_mcp_get).post(api_mcp_post))
+        .route(
+            "/mcp",
+            get(api_mcp_get).post(api_mcp_post).delete(api_mcp_delete),
+        )
         .layer(DefaultBodyLimit::max(crate::security::MAX_BODY_BYTES))
         .layer(middleware::from_fn(security_gate))
         .with_state(state)
@@ -254,7 +257,24 @@ fn mcp_sse_reply(notes: Vec<Value>, rpc: Option<Value>) -> Response {
         .into_response()
 }
 
+fn attach_mcp_session(res: &mut Response, session: Option<&str>) {
+    if let Some(id) = session {
+        if let Ok(v) = HeaderValue::from_str(id) {
+            res.headers_mut().insert(crate::mcp::MCP_SESSION_HEADER, v);
+        }
+    }
+}
+
+fn mcp_unknown_session() -> Response {
+    err_json(StatusCode::NOT_FOUND, "mcp session not found")
+}
+
 async fn api_mcp_get(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    if let Some(id) = crate::mcp::mcp_session_id_from_headers(&headers) {
+        if !state.mcp_session_ok(&id) {
+            return mcp_unknown_session();
+        }
+    }
     if accept_sse(&headers) {
         return mcp_sse_reply(state.drain_mcp_notifications(), None);
     }
@@ -262,34 +282,58 @@ async fn api_mcp_get(State(state): State<AppState>, headers: HeaderMap) -> Respo
 }
 
 async fn api_mcp_post(State(state): State<AppState>, headers: HeaderMap, body: Bytes) -> Response {
+    if let Some(id) = crate::mcp::mcp_session_id_from_headers(&headers) {
+        if !state.mcp_session_ok(&id) {
+            return mcp_unknown_session();
+        }
+    }
     let sse = accept_sse(&headers);
     if body.is_empty() {
         return Json(crate::mcp::rpc_error(None, -32700, "empty body")).into_response();
     }
     match serde_json::from_slice::<Value>(&body) {
-        Ok(v) => match crate::mcp::handle_value(&state, v).await {
-            Some(out) => {
-                let notes = state.drain_mcp_notifications();
-                if sse {
-                    mcp_sse_reply(notes, Some(out))
-                } else {
-                    Json(out).into_response()
-                }
-            }
-            None => {
-                let notes = state.drain_mcp_notifications();
-                if sse {
-                    if notes.is_empty() {
-                        StatusCode::NO_CONTENT.into_response()
+        Ok(v) => {
+            let issued = if crate::mcp::jsonrpc_mentions_initialize(&v) {
+                Some(state.mcp_issue_session())
+            } else {
+                None
+            };
+            match crate::mcp::handle_value(&state, v).await {
+                Some(out) => {
+                    let notes = state.drain_mcp_notifications();
+                    let mut res = if sse {
+                        mcp_sse_reply(notes, Some(out))
                     } else {
-                        mcp_sse_reply(notes, None)
-                    }
-                } else {
-                    StatusCode::NO_CONTENT.into_response()
+                        Json(out).into_response()
+                    };
+                    attach_mcp_session(&mut res, issued.as_deref());
+                    res
+                }
+                None => {
+                    let notes = state.drain_mcp_notifications();
+                    let mut res = if sse {
+                        if notes.is_empty() {
+                            StatusCode::NO_CONTENT.into_response()
+                        } else {
+                            mcp_sse_reply(notes, None)
+                        }
+                    } else {
+                        StatusCode::NO_CONTENT.into_response()
+                    };
+                    attach_mcp_session(&mut res, issued.as_deref());
+                    res
                 }
             }
-        },
+        }
         Err(e) => Json(crate::mcp::rpc_error(None, -32700, format!("parse: {e}"))).into_response(),
+    }
+}
+
+async fn api_mcp_delete(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    match crate::mcp::mcp_session_id_from_headers(&headers) {
+        None => err_json(StatusCode::BAD_REQUEST, "mcp session id required"),
+        Some(id) if !state.mcp_session_delete(&id) => mcp_unknown_session(),
+        Some(_) => Json(json!({ "ok": true })).into_response(),
     }
 }
 

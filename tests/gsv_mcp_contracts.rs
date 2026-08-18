@@ -7,6 +7,7 @@
 //! Band 139: logging/setLevel + completion/complete (resource URIs + prompt names).
 //! Band 140: resources/subscribe+unsubscribe + logging notifications + resource updated.
 //! Band 141: HTTP SSE (`Accept: text/event-stream`) flushes the notification queue.
+//! Band 142: HTTP `Mcp-Session-Id` + `DELETE /mcp`.
 
 use std::path::PathBuf;
 
@@ -86,6 +87,8 @@ async fn get_mcp_discovers_openbot() {
     assert_eq!(json["log_level"], "info");
     assert_eq!(json["sse"], true);
     assert_eq!(json["streamable"], true);
+    assert_eq!(json["sessions"], true);
+    assert_eq!(json["session_count"], 0);
 }
 
 #[tokio::test]
@@ -615,4 +618,201 @@ async fn get_mcp_sse_flushes_pending_notifications() {
     let body = String::from_utf8_lossy(&bytes);
     assert!(body.contains("event: message"), "{body}");
     assert!(body.contains("\"event\":\"probe\""), "{body}");
+}
+
+fn session_header(res: &axum::http::Response<Body>) -> Option<String> {
+    res.headers()
+        .get("mcp-session-id")
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string)
+}
+
+#[tokio::test]
+async fn initialize_issues_mcp_session_id() {
+    let app = app();
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::POST)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "method": "initialize",
+                        "params": {
+                            "protocolVersion": PROTOCOL_VERSION,
+                            "capabilities": {},
+                            "clientInfo": { "name": "gsv-test", "version": "0" }
+                        }
+                    })
+                    .to_string(),
+                ))
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(res.status(), StatusCode::OK);
+    let sid = session_header(&res).expect("Mcp-Session-Id");
+    assert!(mcp::valid_mcp_session_id(&sid), "{sid}");
+    let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .expect("body");
+    let json: Value = serde_json::from_slice(&bytes).expect("json");
+    assert_eq!(json["result"]["serverInfo"]["name"], SERVER_ID);
+
+    let info_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::GET)
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(info_res.status(), StatusCode::OK);
+    let info_bytes = axum::body::to_bytes(info_res.into_body(), usize::MAX)
+        .await
+        .expect("body");
+    let info: Value = serde_json::from_slice(&info_bytes).expect("json");
+    assert_eq!(info["sessions"], true);
+    assert_eq!(info["session_count"], 1);
+
+    let ping = app
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::POST)
+                .header(header::CONTENT_TYPE, "application/json")
+                .header("mcp-session-id", &sid)
+                .body(Body::from(
+                    json!({"jsonrpc":"2.0","id":2,"method":"ping"}).to_string(),
+                ))
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(ping.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn unknown_mcp_session_is_not_found() {
+    let app = app();
+    let res = app
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::POST)
+                .header(header::CONTENT_TYPE, "application/json")
+                .header("mcp-session-id", "deadbeef-00000001")
+                .body(Body::from(
+                    json!({"jsonrpc":"2.0","id":3,"method":"ping"}).to_string(),
+                ))
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(res.status(), StatusCode::NOT_FOUND);
+    let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .expect("body");
+    let json: Value = serde_json::from_slice(&bytes).expect("json");
+    assert_eq!(json["ok"], false);
+    assert_eq!(json["error"], "mcp session not found");
+}
+
+#[tokio::test]
+async fn delete_mcp_ends_session() {
+    let app = app();
+    let init = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::POST)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "method": "initialize",
+                        "params": { "protocolVersion": PROTOCOL_VERSION, "capabilities": {}, "clientInfo": { "name": "gsv-test", "version": "0" } }
+                    })
+                    .to_string(),
+                ))
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    let sid = session_header(&init).expect("sid");
+
+    let missing = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::DELETE)
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(missing.status(), StatusCode::BAD_REQUEST);
+
+    let gone = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::DELETE)
+                .header("mcp-session-id", &sid)
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(gone.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(gone.into_body(), usize::MAX)
+        .await
+        .expect("body");
+    let json: Value = serde_json::from_slice(&bytes).expect("json");
+    assert_eq!(json["ok"], true);
+
+    let reuse = app
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::POST)
+                .header(header::CONTENT_TYPE, "application/json")
+                .header("mcp-session-id", &sid)
+                .body(Body::from(
+                    json!({"jsonrpc":"2.0","id":4,"method":"ping"}).to_string(),
+                ))
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(reuse.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn get_mcp_sse_unknown_session_is_not_found() {
+    let app = app();
+    let res = app
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::GET)
+                .header(header::ACCEPT, "text/event-stream")
+                .header("mcp-session-id", "deadbeef-00000002")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(res.status(), StatusCode::NOT_FOUND);
 }

@@ -856,6 +856,12 @@ pub fn render_mcp(d: &Value) -> String {
     if d["sse"].as_bool().unwrap_or(false) || d["streamable"].as_bool().unwrap_or(false) {
         out.push_str(" · sse");
     }
+    if d["sessions"].as_bool().unwrap_or(false) {
+        out.push_str(&format!(
+            " · sessions <kbd>{}</kbd>",
+            u(&d["session_count"])
+        ));
+    }
     out.push_str("</div>");
     let stdio = s(&d["stdio"]);
     let http = s(&d["http"]);
@@ -1732,6 +1738,8 @@ mod tests {
             "subscription_count": 2,
             "sse": true,
             "streamable": true,
+            "sessions": true,
+            "session_count": 3,
             "log_level": "info"
         }));
         assert!(mcp.contains("gsv_mcp_openbot"), "{mcp}");
@@ -1742,6 +1750,7 @@ mod tests {
         assert!(mcp.contains("completions"), "{mcp}");
         assert!(mcp.contains("subscribe <kbd>2</kbd>"), "{mcp}");
         assert!(mcp.contains(" · sse"), "{mcp}");
+        assert!(mcp.contains("sessions <kbd>3</kbd>"), "{mcp}");
         assert!(mcp.contains("<kbd>gsv_health</kbd>"), "{mcp}");
         assert!(mcp.contains("<kbd>gsv://vision/manifest</kbd>"), "{mcp}");
         assert!(mcp.contains("<kbd>gsv_status</kbd>"), "{mcp}");

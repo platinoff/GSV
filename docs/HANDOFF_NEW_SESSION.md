@@ -1,6 +1,6 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-08-17 (band 141 `mcp_http_sse` ✅)
+**Оновлено:** 2026-08-17 (band 142 `mcp_http_sessions` ✅)
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
 **`абракадабра` / `abrakadabra`** → `scripts/list-vdt-products.sh` → **AskQuestion на проєкти з environment**
@@ -8,12 +8,13 @@
 drain ≤10 PH-S* → Speeds + Rust panel (`bin/record-test-speed.sh` + `bin/record-rust-diagnostics.sh`) → vision-sync → **один commit** → **`git push` + самарі**.
 
 Якщо вибір **gsv:** project scan у [`gsv/GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md)
-(наступний band після 141). MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+(наступний band після 142). MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
 Канон ролей: [`GSV_ROLES.md`](GSV_ROLES.md). Реєстр: [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
 
 ## Стан зараз
 
-- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–140 · **141 ✅**.
+- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–141 · **142 ✅**.
+- **Band 142:** MCP HTTP sessions — `POST /mcp` `initialize` issues process-local `Mcp-Session-Id` (cap 32); unknown id → 404 `{ok:false}`; `DELETE /mcp` ends it; JSON discovery stays sessionless (`sessions`/`session_count`); Galaxy card lists sessions. Same `gsv://` confine; no LAN widen; stdio does not issue HTTP sessions.
 - **Band 141:** MCP HTTP SSE — `GET`/`POST /mcp` with `Accept: text/event-stream` flush `notifications/message` and `notifications/resources/updated` as finite SSE (`event: message`); JSON discovery stays default (`sse`/`streamable`); Galaxy card lists sse. Same `gsv://` confine; no LAN widen.
 - **Band 140:** MCP resource subscribe + logging notifications — `resources/subscribe`+`unsubscribe` (allowlisted `gsv://`; `..` / `file:` → `-32602`); stdio flushes `notifications/message` (filtered by `logging/setLevel`) and `notifications/resources/updated` after `gsv_vision_sync` for subscribed vision URIs. `GET /mcp` `subscribe`/`subscription_count`; Galaxy card lists count.
 - **Band 139:** MCP logging + completions — `logging/setLevel` (RFC 5424, process-local) + `completion/complete` (`ref/resource` allowlisted `gsv://` + `ref/prompt` names; `..` / `file:` → `-32602`). `GET /mcp` `logging`/`completions`/`log_level`; Galaxy card lists both.
@@ -28,9 +29,9 @@ drain ≤10 PH-S* → Speeds + Rust panel (`bin/record-test-speed.sh` + `bin/rec
 - **Band 134:** HTTP response hardening — CSP / nosniff / DENY / no-store / COOP+CORP; POST 256 KiB cap → 413 `{ok:false}`.
 - **VDT kit (band 127):** shared `.agents/skills/` + generic `.cursor/rules/` + `gsv.code-workspace` + `PRODUCTS.md`.
   Discover: `scripts/list-vdt-products.sh` (не hardcoded `gsv | poolai`).
-- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.36%** (rust 16990 / product 17632) · **314** green · clippy 0 · fmt clean.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.43%** (rust 17360 / product 18002) · **320** green · clippy 0 · fmt clean.
 - **Сервер:** canon порт **9999** (`DEFAULT_PORT`; 8765 — Hyper-V reserved range).
-- **Vision rev:** **508** (band 141 `gsv-vision-sync`).
+- **Vision rev:** **509** (band 142 `gsv-vision-sync`).
 - **Live UI** — `gsv-server` → `http://127.0.0.1:9999/`. MCP stdio — `cargo run --quiet --bin gsv-mcp`.
 - **Band 133:** localhost security — `--allow-lan`; CSRF POST gate; terminal cargo/git allowlists; `/data/{file}` allowlist; preview canonicalize.
 - **FM:** band 127 = PoolAI FM §5.108 (PH-S1909…S1918 ✅). Master horizon poolAI: band 128.

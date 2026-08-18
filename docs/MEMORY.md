@@ -4,6 +4,13 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-17 · band 142 ✅)
+
+- **Band 142:** MCP HTTP sessions — `POST /mcp` `initialize` issues process-local `Mcp-Session-Id` (cap 32); unknown id → 404 `{ok:false}`; `DELETE /mcp` ends it; JSON discovery adds `sessions` / `session_count`; Galaxy card lists sessions. Stdio does not issue HTTP sessions.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 still `scripts/list-vdt-products.sh` (environment, not hardcoded pair).
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.43%** (rust 17360 / product 18002) · **320** tests · clippy 0. Vision rev **509**.
+- **Канон продукту:** Rust **95–100%** / wasm **0–5%** (завжди), без Python/Java; bins — лише `src/bin/`.
+
 ## Стан (2026-08-17 · band 141 ✅)
 
 - **Band 141:** MCP HTTP SSE — `GET`/`POST /mcp` with `Accept: text/event-stream` flush notifications as finite SSE (`event: message`); JSON discovery adds `sse` / `streamable`; Galaxy card lists sse.

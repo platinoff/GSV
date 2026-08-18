@@ -26,6 +26,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 139** (MCP logging + completions) **✅** ·
 **band 140** (MCP resource subscribe + logging notifications) **✅** ·
 **band 141** (MCP HTTP SSE / streamable notifications) **✅** ·
+**band 142** (MCP HTTP sessions / `Mcp-Session-Id`) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -578,6 +579,29 @@ Galaxy / stand-smoke. Same `gsv://` confine; no LAN widen.
 | **PH-S2056** | Docs canon | MCP_OPENBOT / SERVER / BOXES / ARCHITECTURE / HANDOFF / NEXT / MEMORY / roadmap — **✅** |
 | **PH-S2057** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy — **✅** |
 | **PH-S2058** | Band close | tests green; vision-sync; one commit + push — **✅** |
+
+## Спринти (band 142) — MCP HTTP sessions (`Mcp-Session-Id`) ✅
+
+Owner 2026-08-17: after band 141, HTTP SSE flushed notifications as a finite
+body but there was no `Mcp-Session-Id`, GET/POST treated every caller as the
+same process queue, and `DELETE /mcp` did not exist. Band 142 issues a
+process-local session on HTTP `initialize`, 404s unknown ids, and ends the
+session on `DELETE /mcp`. JSON discovery stays sessionless for Galaxy /
+stand-smoke. Same `gsv://` confine; no LAN widen; stdio does not issue HTTP
+sessions.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2059** | Scope + queue | this band; `extensions.json` `active_sprint` = `PH-S2059` — **✅** |
+| **PH-S2060** | Session store | process-local map on `AppState` (cap 32, oldest dropped) — **✅** |
+| **PH-S2061** | Initialize | HTTP `initialize` issues `Mcp-Session-Id` (alphanumeric + hyphen) — **✅** |
+| **PH-S2062** | Unknown id | POST/GET with unknown `Mcp-Session-Id` → 404 `{ok:false}`; missing header still allowed — **✅** |
+| **PH-S2063** | DELETE | `DELETE /mcp` requires id (400 if missing); ends session; reuse → 404 — **✅** |
+| **PH-S2064** | Discovery + card | `GET /mcp` `sessions` / `session_count`; Galaxy card lists sessions — **✅** |
+| **PH-S2065** | Contracts | mcp unit + `gsv_mcp_contracts` init/404/DELETE + ui/server card sessions — **✅** |
+| **PH-S2066** | Docs canon | MCP_OPENBOT / SERVER / BOXES / ARCHITECTURE / HANDOFF / NEXT / MEMORY / roadmap — **✅** |
+| **PH-S2067** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy — **✅** |
+| **PH-S2068** | Band close | tests green; vision-sync; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

@@ -9,8 +9,10 @@
 //! filter) + `notifications/resources/updated` after `gsv_vision_sync`.
 //! Band 141: HTTP Streamable HTTP SSE — `POST`/`GET /mcp` with
 //! `Accept: text/event-stream` flush the same notification queue as stdio.
+//! Band 142: HTTP `Mcp-Session-Id` (process-local) + `DELETE /mcp`.
 
 use std::sync::atomic::Ordering;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::body::to_bytes;
 use axum::http::{HeaderMap, HeaderValue};
@@ -27,6 +29,46 @@ pub const SERVER_ID: &str = "gsv_mcp_openbot";
 
 /// MCP protocol version this server speaks.
 pub const PROTOCOL_VERSION: &str = "2025-03-26";
+
+/// Streamable HTTP session header (case-insensitive on the wire).
+pub const MCP_SESSION_HEADER: &str = "mcp-session-id";
+
+/// Cap on process-local HTTP MCP sessions (oldest dropped).
+pub const MCP_SESSION_CAP: usize = 32;
+
+/// Visible ASCII session id: 8–128 alphanumeric or hyphen.
+pub fn valid_mcp_session_id(id: &str) -> bool {
+    let n = id.len();
+    (8..=128).contains(&n) && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+}
+
+/// New HTTP session id from a monotonic sequence (loopback, process-local).
+pub fn new_mcp_session_id(seq: u64) -> String {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos() as u64)
+        .unwrap_or(seq);
+    format!("{nanos:016x}-{seq:08x}")
+}
+
+/// Read `Mcp-Session-Id` from request headers.
+pub fn mcp_session_id_from_headers(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get(MCP_SESSION_HEADER)
+        .and_then(|v| v.to_str().ok())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+}
+
+/// True when this JSON-RPC value (or batch) contains `initialize`.
+pub fn jsonrpc_mentions_initialize(value: &Value) -> bool {
+    match value {
+        Value::Array(items) => items.iter().any(jsonrpc_mentions_initialize),
+        Value::Object(o) => o.get("method").and_then(Value::as_str) == Some("initialize"),
+        _ => false,
+    }
+}
 
 /// RFC 5424 syslog levels advertised by `logging/setLevel`.
 pub const LOG_LEVELS: &[&str] = &[
@@ -393,6 +435,8 @@ pub fn http_info(state: &AppState) -> Value {
         "http": "/mcp",
         "sse": true,
         "streamable": true,
+        "sessions": true,
+        "session_count": state.mcp_session_count(),
         "tools": tools,
         "tool_count": tools.len(),
         "resources": resources,
@@ -531,7 +575,7 @@ fn initialize_result(state: &AppState) -> Value {
             "name": SERVER_ID,
             "version": *state.version,
         },
-        "instructions": "GSV box tools plus allowlisted gsv:// resources and prompts. resources/subscribe is process-local. completion/complete covers resource URIs and prompt names. logging/setLevel filters notifications/message. HTTP Accept: text/event-stream flushes notifications as SSE (stdio uses NDJSON). Terminal uses the HTTP SLI allowlist. Omni chat defaults to dry-run."
+        "instructions": "GSV box tools plus allowlisted gsv:// resources and prompts. resources/subscribe is process-local. completion/complete covers resource URIs and prompt names. logging/setLevel filters notifications/message. HTTP Accept: text/event-stream flushes notifications as SSE (stdio uses NDJSON). HTTP initialize issues Mcp-Session-Id (DELETE /mcp ends it; unknown id → 404). Terminal uses the HTTP SLI allowlist. Omni chat defaults to dry-run."
     })
 }
 
@@ -1259,6 +1303,8 @@ mod tests {
         assert_eq!(info["http"], "/mcp");
         assert_eq!(info["sse"], true);
         assert_eq!(info["streamable"], true);
+        assert_eq!(info["sessions"], true);
+        assert_eq!(info["session_count"], 0);
     }
 
     #[test]
@@ -1281,6 +1327,48 @@ mod tests {
         assert!(body.contains(&format!("data: {note}")), "{body}");
         assert!(body.contains(&format!("data: {rpc}")), "{body}");
         assert!(body.ends_with("\n\n"), "{body}");
+    }
+
+    #[test]
+    fn session_id_helpers_reject_traversal_and_accept_issued() {
+        assert!(!valid_mcp_session_id(""));
+        assert!(!valid_mcp_session_id("short"));
+        assert!(!valid_mcp_session_id("../secret"));
+        assert!(!valid_mcp_session_id("file:gsv"));
+        let id = new_mcp_session_id(7);
+        assert!(valid_mcp_session_id(&id), "{id}");
+        assert!(id.contains('-'));
+        assert!(jsonrpc_mentions_initialize(&json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize"
+        })));
+        assert!(jsonrpc_mentions_initialize(&json!([
+            { "jsonrpc": "2.0", "id": 1, "method": "initialize" },
+            { "jsonrpc": "2.0", "id": 2, "method": "ping" }
+        ])));
+        assert!(!jsonrpc_mentions_initialize(
+            &json!({ "jsonrpc": "2.0", "id": 2, "method": "ping" })
+        ));
+        let mut headers = HeaderMap::new();
+        headers.insert(MCP_SESSION_HEADER, HeaderValue::from_static("abcdefgh"));
+        assert_eq!(
+            mcp_session_id_from_headers(&headers).as_deref(),
+            Some("abcdefgh")
+        );
+    }
+
+    #[test]
+    fn app_state_issues_and_deletes_http_sessions() {
+        let s = state();
+        assert_eq!(s.mcp_session_count(), 0);
+        let id = s.mcp_issue_session();
+        assert!(s.mcp_session_ok(&id));
+        assert_eq!(s.mcp_session_count(), 1);
+        assert!(!s.mcp_session_ok("missing-session-id"));
+        assert!(s.mcp_session_delete(&id));
+        assert_eq!(s.mcp_session_count(), 0);
+        assert!(!s.mcp_session_delete(&id));
     }
 
     #[tokio::test]

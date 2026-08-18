@@ -1,6 +1,6 @@
 # gsv_mcp_openbot — GSV as an MCP server
 
-**Status:** Implemented (band **141**, `PH-S2049…S2058` ✅ · band 140 `PH-S2039…S2048` ✅ · band 139 `PH-S2029…S2038` ✅ · band 138 `PH-S2019…S2028` ✅ · band 137 `PH-S2009…S2018` ✅ · band 136 `PH-S1999…S2008` ✅ · band 135 `PH-S1989…S1998` ✅) · **Date:** 2026-08-17
+**Status:** Implemented (band **142**, `PH-S2059…S2068` ✅ · band 141 `PH-S2049…S2058` ✅ · band 140 `PH-S2039…S2048` ✅ · band 139 `PH-S2029…S2038` ✅ · band 138 `PH-S2019…S2028` ✅ · band 137 `PH-S2009…S2018` ✅ · band 136 `PH-S1999…S2008` ✅ · band 135 `PH-S1989…S1998` ✅) · **Date:** 2026-08-17
 **Deciders:** owner
 
 GSV exposes one MCP server named **`gsv_mcp_openbot`**. OpenCode, Cursor, Grok CLI, and Grok Bot consume the **same** tools. Those products stay **clients** — they are not embedded inside `gsv-server`.
@@ -10,7 +10,7 @@ GSV exposes one MCP server named **`gsv_mcp_openbot`**. OpenCode, Cursor, Grok C
 | Piece | Where |
 |-------|--------|
 | Stdio JSON-RPC (NDJSON) | `src/bin/gsv_mcp.rs` + `src/mcp.rs` · `cargo run --quiet --bin gsv-mcp` |
-| HTTP | `GET /mcp` (discovery JSON unless `Accept: text/event-stream`) · `POST /mcp` JSON-RPC; SSE flushes notifications when Accept lists `text/event-stream`; loopback unless `--allow-lan` |
+| HTTP | `GET /mcp` (discovery JSON unless `Accept: text/event-stream`) · `POST /mcp` JSON-RPC; SSE flushes notifications when Accept lists `text/event-stream`; `initialize` issues `Mcp-Session-Id`; `DELETE /mcp` ends the session; loopback unless `--allow-lan` |
 | Auto-register | `.mcp.json` · `.cursor/mcp.json` · `opencode.json` `mcp.gsv_mcp_openbot` · `.grok/config.toml` |
 | Galaxy card | `GET /api/ui/card/mcp` (`render_mcp`, ops group, `CARD_NAMES` 32) |
 | Tools (26) | health / tracker / ratio / sli / toolchain / vision (summary) / vision_{manifest,feed,queue,map,board,progress,speeds,rust,sprint_map,doc_preview,node_search,sync,extensions} / omni_chat (dry-run default) / ide_sessions / terminal (HTTP allowlist) / hooks_{tests,bench} / update / preview (repo-relative, same confine as HTTP) |
@@ -21,6 +21,7 @@ GSV exposes one MCP server named **`gsv_mcp_openbot`**. OpenCode, Cursor, Grok C
 | Completions | `completion/complete` for `ref/resource` (`gsv://` URIs) and `ref/prompt` (prompt names); `..` / `file:` rejected |
 | Resource updated | `gsv_vision_sync` → `notifications/resources/updated` for subscribed `gsv://vision/*` URIs |
 | Streamable HTTP | `Accept: text/event-stream` on GET/POST `/mcp` → finite SSE (`event: message`); discovery JSON adds `sse` / `streamable` |
+| HTTP sessions | `initialize` on POST `/mcp` issues `Mcp-Session-Id` (process-local, cap 32); unknown id → 404 `{ok:false}`; `DELETE /mcp` ends it; GET JSON discovery stays sessionless |
 | Faster cold start | `target/debug/gsv-mcp.exe` after `cargo build --bin gsv-mcp` |
 
 Grok Bot tunnel of `/mcp` to the public internet remains an **owner opt-in**. Do not port-forward in v1.
@@ -152,7 +153,10 @@ JSON-RPC response. HTTP `POST /mcp` with `Accept: text/event-stream` returns the
 same queue as SSE `event: message` frames (notifications, then the RPC result).
 `GET /mcp` with that Accept flushes pending notifications as a finite SSE body.
 Without `text/event-stream`, POST stays JSON-RPC (queue drained) and GET stays
-discovery JSON (`sse` / `streamable` true) for the Galaxy card and stand-smoke.
+discovery JSON (`sse` / `streamable` / `sessions` / `session_count` true) for the Galaxy
+card and stand-smoke. HTTP `initialize` sets `Mcp-Session-Id`; later POST/GET/DELETE
+with an unknown id return 404 `{ok:false,error}`. Missing header stays allowed so
+Galaxy discovery and stand-smoke keep working. Stdio does not issue HTTP sessions.
 
 No secrets in tool output (`omni.toml` keys stay redacted). POST body cap and CSRF do not apply to stdio; HTTP `/mcp` stays loopback unless `--allow-lan`.
 
@@ -171,6 +175,6 @@ No secrets in tool output (`omni.toml` keys stay redacted). POST body cap and CS
 
 ## See also
 
-- Roadmap sprints: [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) band 135–141
+- Roadmap sprints: [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) band 135–142
 - Server: [`GSV_SERVER.md`](./GSV_SERVER.md)
 - Boxes: [`GSV_BOXES.md`](./GSV_BOXES.md)

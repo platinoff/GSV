@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-17 (**band 141 `mcp_http_sse` ✅**)
+**Оновлено:** 2026-08-17 (**band 142 `mcp_http_sessions` ✅**)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -20,8 +20,8 @@ abrakadabra
 project scan (**warnings first**) → drain наступного band (**без** mid-push) →
 Speeds · Rust panel → vision-sync → **один** commit → **`git push` + самарі**.
 
-Якщо **gsv:** черга — [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) **після band 141**
-(project scan; MCP 26 tools + 6 resources + 3 prompts + logging + completions + subscribe + HTTP SSE already in tree).
+Якщо **gsv:** черга — [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) **після band 142**
+(project scan; MCP 26 tools + 6 resources + 3 prompts + logging + completions + subscribe + HTTP SSE + HTTP `Mcp-Session-Id` already in tree).
 Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics.sh`. Disk: `bash scripts/check_target_disk.sh`.
 
 **⚠️ Зупинити `gsv-server` перед `cargo test`/`build`** (блокує `target/debug/gsv-server.exe`);
@@ -182,6 +182,8 @@ Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics
   (`resources/subscribe`+`unsubscribe` + `notifications/message` + `notifications/resources/updated`).
   **band 141** (PH-S2049…S2058) ✅ — MCP HTTP SSE / streamable notifications
   (`Accept: text/event-stream` on GET/POST `/mcp`).
+  **band 142** (PH-S2059…S2068) ✅ — MCP HTTP sessions (`Mcp-Session-Id` on
+  initialize; `DELETE /mcp`; unknown id → 404).
   **Наступний band**: project scan у наступній сесії `абракадабра` / `abrakadabra`.
 
 ## Канон GSV
@@ -217,6 +219,7 @@ band 138 ✅ (MCP resources + prompts — 6 `gsv://` + 3 prompts) ·
 band 139 ✅ (MCP logging + completions — setLevel + complete) ·
 band 140 ✅ (MCP resource subscribe + logging notifications) ·
 band 141 ✅ (MCP HTTP SSE / streamable notifications) ·
+band 142 ✅ (MCP HTTP sessions / `Mcp-Session-Id`) ·
 не комітити kit-only в PoolAI як «замість» GSV drain ·
 staging `GSV/data/*` / `certs/*.pem` /
 `.env` · mid-push · build/test при запущеному `gsv-server` · обхід ratio-смуги Rust-кодом замість compact UI ·
