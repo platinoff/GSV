@@ -112,6 +112,7 @@ pub const UI_GROUPS: [UiGroup; 4] = [
             "health",
             "products",
             "fingerprints",
+            "sw",
             "mcp",
             "update",
             "tracker",
@@ -1030,6 +1031,26 @@ pub fn render_fingerprints(d: &Value) -> String {
     out
 }
 
+/// Service Worker shell-cache card (`/api/sw`).
+pub fn render_sw(d: &Value) -> String {
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let urls = arr(&d["urls"]);
+    if urls.is_empty() {
+        return empty_html("sw precache");
+    }
+    let mut out = format!(
+        "<div class='dim'>cache <kbd>{}</kbd> · script <kbd>{}</kbd> · {} urls</div>",
+        esc(&s(&d["cache"])),
+        esc(&s(&d["script"])),
+        urls.len()
+    );
+    let rows: Vec<Vec<String>> = urls.iter().map(|u| vec![esc(&s(u))]).collect();
+    out.push_str(&tab(&["url"], rows));
+    out
+}
+
 /// Update card (`/api/update`).
 pub fn render_update(d: &Value) -> String {
     if let Some(msg) = not_ok(d) {
@@ -1387,6 +1408,7 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
         "health" => Some(render_health(d)),
         "products" => Some(render_products(d)),
         "fingerprints" => Some(render_fingerprints(d)),
+        "sw" => Some(render_sw(d)),
         "mcp" => Some(render_mcp(d)),
         "update" => Some(render_update(d)),
         "ide" => Some(render_ide(d)),
@@ -1410,7 +1432,7 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
 }
 
 /// Server-rendered card names (stable contract for `/api/ui/card/:name`).
-pub const CARD_NAMES: [&str; 34] = [
+pub const CARD_NAMES: [&str; 35] = [
     "tracker",
     "sli",
     "toolchain",
@@ -1427,6 +1449,7 @@ pub const CARD_NAMES: [&str; 34] = [
     "health",
     "products",
     "fingerprints",
+    "sw",
     "mcp",
     "update",
     "ide",
@@ -1822,7 +1845,8 @@ mod tests {
         assert!(render_card("products", &d).is_some());
         assert!(render_card("fingerprints", &d).is_some());
         assert!(render_card("nope", &d).is_none());
-        assert_eq!(CARD_NAMES.len(), 34);
+        assert_eq!(CARD_NAMES.len(), 35);
+        assert!(render_card("sw", &d).is_some());
         assert!(render_card("health", &d).is_some());
         assert!(render_card("ide", &d).is_some());
         assert!(render_card("vision", &d).is_some());

@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-18 · band 148 ✅)
+
+- **Band 148:** Service Worker shell cache (owner-picked P2 leftover) — `boxes/sw.rs` renders `GET /sw.js` (Cache Storage `gsv-shell-v1`); precache `/` + `/api/ui/load-palette` + `/api/ui/load-theme` + galaxy/vision svg; fetch skips `/events`, `/mcp`, non-GET, cross-origin. `GET /api/sw` discovery; ops card `sw`; CSP `worker-src 'self'`; thin `serviceWorker.register("/sw.js")`. Do **not** invent band 149.
+- **Canon:** [`gsv/GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md) · remaining P2: omniroute PRODUCTS.md (owner-opt-in), semver minor = band.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 still `scripts/list-vdt-products.sh`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.87%** (rust 18711 / product 19316) · **371** tests · clippy 0.
+- **Канон продукту:** Rust **95–100%** / wasm **0–5%** (завжди), без Python/Java; bins — лише `src/bin/`.
+
 ## Стан (2026-08-18 · band 147 ✅)
 
 - **Band 147:** README-level Galaxy polish leftovers — CSS `--card-radius:12px` / `--card-gap:16px` / `--header-pad:8px 16px` vs presentation shots; README Quick start canon-runs `bash scripts/gsv-live.sh`; `GSV_ARCHITECTURE.md` live-copy note; Always-on spec row in `docs/gsv/README.md`; stand-smoke leftover contracts for `products` + `fingerprints`. Always-on Galaxy (bands 143–147) **closed**. Do **not** invent band 148.

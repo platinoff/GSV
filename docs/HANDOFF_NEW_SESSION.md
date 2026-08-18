@@ -1,21 +1,21 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-08-18 (band 147 ✅ · always-on Galaxy 143–147 closed)
+**Оновлено:** 2026-08-18 (band 148 ✅ · Service Worker shell cache)
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
 **`абракадабра` / `abrakadabra`** → `scripts/list-vdt-products.sh` → **AskQuestion на проєкти з environment**
 (не `gsv | poolai` з голови) → S0 диск/git → project scan (warnings first) →
-**не вигадувати band 148**. Always-on spec closed. Next gsv work = owner pick or scan leftovers (P2: Service Worker, omniroute PRODUCTS.md). Speeds + Rust panel → vision-sync → **один commit** → **`git push` + самарі**.
+**не вигадувати band 149**. Remaining P2: omniroute PRODUCTS.md (owner-opt-in), semver minor = band. Speeds + Rust panel → vision-sync → **один commit** → **`git push` + самарі**.
 
 Якщо вибір **gsv:** scan [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) first
-(spec [`gsv/GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md) **143–147 ✅**, plan
-[`superpowers/plans/2026-08-17-always-on-galaxy.md`](superpowers/plans/2026-08-17-always-on-galaxy.md)).
+(spec [`gsv/GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md) **143–148 ✅**, SW = band 148).
 MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
 Канон ролей: [`GSV_ROLES.md`](GSV_ROLES.md). Реєстр: [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
 
 ## Стан зараз
 
-- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–146 · **147 ✅**.
+- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–147 · **148 ✅**.
+- **Band 148:** Service Worker shell cache — `GET /sw.js` Rust-rendered; precache document + live CSS + galaxy/vision svg; skip SSE `/events` and `/mcp`; `GET /api/sw`; ops card `sw`; CSP `worker-src 'self'`.
 - **Horizon 143–147 (closed):** always-on Galaxy UI (chrome, live copy, products, version/fingerprints, README polish).
 - **Band 147:** README-level polish — `--card-radius:12px` / `--card-gap:16px` / `--header-pad:8px 16px`; README Quick start = `bash scripts/gsv-live.sh`; live-copy note in `GSV_ARCHITECTURE.md`; ALWAYS_ON_UI in docs index; stand-smoke leftover contracts for `products` + `fingerprints`.
 - **Band 146:** version bump + fingerprints — tests use `env!("CARGO_PKG_VERSION")` (no hardcoded `0.1.0`); `scripts/gsv-bump-version.sh` patch +1; `boxes/fingerprint.rs` append/latest JSONL at `docs/gsv/fingerprints.jsonl`; `GET /api/fingerprints?limit=`; Galaxy ops card `fingerprints`; `scripts/gsv-fingerprint.sh` + commit trailers `Gsv-Actor` / `Gsv-Ide` / `Gsv-Model`. Header meta shows latest ide/model/actor. Drain close = bump + fingerprint **in the same commit**.
@@ -37,7 +37,7 @@ MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
 - **Band 134:** HTTP response hardening — CSP / nosniff / DENY / no-store / COOP+CORP; POST 256 KiB cap → 413 `{ok:false}`.
 - **VDT kit (band 127):** shared `.agents/skills/` + generic `.cursor/rules/` + `gsv.code-workspace` + `PRODUCTS.md`.
   Discover: `scripts/list-vdt-products.sh` (не hardcoded `gsv | poolai`).
-- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.87%** (rust 18666 / product 19269) · **363** green · clippy 0 · fmt clean.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.87%** (rust 18711 / product 19316) · **371** green · clippy 0 · fmt clean.
 - **Сервер:** canon порт **9999** (`DEFAULT_PORT`; 8765 — Hyper-V reserved range).
 - **Vision rev:** **513** (band 147 `gsv-vision-sync`).
 - **Live UI** — `gsv-server` → `http://127.0.0.1:9999/`. MCP stdio — `cargo run --quiet --bin gsv-mcp`.

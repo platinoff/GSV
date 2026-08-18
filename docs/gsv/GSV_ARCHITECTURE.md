@@ -7,7 +7,7 @@
 - **Rust 95–100%** — runtime, API, ML, tools, бокси, сервер.
 - **WebAssembly 0–5%** — лише горизонт (за потреби — маленькі wasm-модулі з `crates/poolai-ui-wasm`).
 - **UI** — тонкий JS/DOM glue поверх Rust API; сторінка оновлюється через серверні події (SSE/WS), а не через перезавантаження.
-- **Bind** — default `127.0.0.1:9999`; `--allow-lan` required to listen beyond loopback. Mutating POSTs from a non-local Origin are rejected. Responses carry CSP / `X-Content-Type-Options: nosniff` / `X-Frame-Options: DENY` / `Cache-Control: no-store`; POST bodies are capped at 256 KiB.
+- **Bind** — default `127.0.0.1:9999`; `--allow-lan` required to listen beyond loopback. Mutating POSTs from a non-local Origin are rejected. Responses carry CSP (`worker-src 'self'`) / `X-Content-Type-Options: nosniff` / `X-Frame-Options: DENY` / `Cache-Control: no-store`; POST bodies are capped at 256 KiB.
 - **Без Python/Java.** Bins — лише `src/bin/`.
 
 ## Шари (L0–L5)
@@ -37,6 +37,7 @@
 | `tracker/` | зберігання параметрів виконаного workflow (JSON store) |
 | `ide/` | читання opencode/cursor чатів; вибір сесії |
 | `products/` | VDT environment picker (discover / select / confined open / scan) |
+| `sw/` | Service Worker shell cache (`GET /sw.js` Rust-rendered; `GET /api/sw`) |
 | `update/` | перевірка оновлення бінарника; сигнал «Update»; offline resync |
 | `mcp/` | `gsv_mcp_openbot` JSON-RPC (stdio `gsv-mcp` + `POST /mcp`) |
 

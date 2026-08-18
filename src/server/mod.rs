@@ -69,6 +69,8 @@ fn tracker_wire(state: &AppState) -> Value {
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/", get(index))
+        .route("/sw.js", get(api_sw_js))
+        .route("/api/sw", get(api_sw))
         .route("/api", get(api_index))
         .route("/api/", get(api_index))
         .route("/api/vision/", get(api_vision_index))
@@ -239,6 +241,22 @@ async fn index() -> Html<&'static str> {
     Html(INDEX_HTML)
 }
 
+async fn api_sw_js() -> Response {
+    (
+        StatusCode::OK,
+        [
+            ("Content-Type", "text/javascript; charset=utf-8"),
+            ("Service-Worker-Allowed", "/"),
+        ],
+        crate::boxes::sw::script(),
+    )
+        .into_response()
+}
+
+async fn api_sw() -> Json<Value> {
+    Json(crate::boxes::sw::wire())
+}
+
 async fn api_vision_svg() -> Response {
     (
         StatusCode::OK,
@@ -359,7 +377,7 @@ async fn api_index() -> Json<Value> {
         "categories": [
             "/api/vision/", "/api/ui/", "/api/ratio/", "/api/toolchain/",
             "/api/ide/", "/api/omni/", "/api/sli", "/api/tracker", "/api/products",
-            "/api/fingerprints",
+            "/api/fingerprints", "/api/sw", "/sw.js",
             "/api/hooks/", "/api/preview", "/api/terminal", "/data/", "/mcp"
         ],
         "example": "/api/vision",
@@ -752,6 +770,7 @@ async fn card_wire(state: &AppState, name: &str, q: &CardQuery) -> Result<Value,
             crate::boxes::products::card_wire(&state.repo_root, selected.as_deref())
         }
         "fingerprints" => crate::boxes::fingerprint::wire(&state.repo_root, 20),
+        "sw" => crate::boxes::sw::wire(),
         "mcp" => crate::mcp::http_info(state),
         "update" => json!(crate::boxes::update::wire(state)),
         "ide" => {

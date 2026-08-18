@@ -104,6 +104,7 @@ pub const MAX_BODY_BYTES: usize = 256 * 1024;
 pub const CSP: &str = concat!(
     "default-src 'self'; ",
     "script-src 'self' 'unsafe-inline'; ",
+    "worker-src 'self'; ",
     "style-src 'self' 'unsafe-inline'; ",
     "img-src 'self' data:; ",
     "connect-src 'self'; ",

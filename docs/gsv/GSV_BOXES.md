@@ -127,12 +127,13 @@ Rust модуль: `omni/` (catalog.rs, config.rs, proxy.rs) → `GSV/data/omni.
 | IDE | `ide/` | `/api/ide/…` | opencode/cursor сесії |
 | Products | `products/` (`boxes/products.rs`) | `/api/products` · `/api/products/select` · `/api/products/open` · `/api/products/scan` | workspace ∪ sibling git ∪ kit (mirror `list-vdt-products.sh`); open confined by discovered id |
 | Fingerprints | `fingerprint/` (`boxes/fingerprint.rs`) | `/api/fingerprints` | append-only `docs/gsv/fingerprints.jsonl` (actor / IDE / model / agent / time); ops card `fingerprints` |
+| Service Worker | `sw/` (`boxes/sw.rs`) | `/sw.js` · `/api/sw` | Rust-rendered SW; Cache Storage `gsv-shell-v1`; precache `/` + live CSS + galaxy/vision svg; skip `/events` `/mcp`; ops card `sw` |
 | Update | `update/` | `/api/update` · `/api/update/apply` · `/events` | live copy + версія |
 | Box preview | `preview/` | `/api/preview` | файли |
 | SLI terminal | `terminal/` | `/api/terminal` | SLI-каталог |
 | Tests/bench hooks | `hooks/` | `/api/hooks/…` | `target/` артефакти |
 | OmniRouter | `omni/` | `/api/omni/…` | шіт «AI providers», `omni.toml`, proxy |
 | Vision | `vision/` (`boxes/vision.rs`) | `/api/vision*` · `/assets/vision.svg` | `GSV/docs/vision/{manifest,feed,extensions}.json` → `GSV/data/gsv_*.json` |
-| UI fragments | `ui/` (`boxes/ui.rs`) | `/api/ui/layout` · `/api/ui/card/:name` · `/api/ui/load-palette` · `/api/ui/load-theme` | dashboard `CARD_NAMES` 34 + chrome 8 + layout `html`/`header` + live `:root` CSS; **band 146:** ops card `fingerprints`; **band 145:** ops card `products` (list/select/open/scan); **band 143:** power menu `z-index:80` above workspace, exclusive fullscreen (`data-action='card-fs'`), collapsed cards `display:none` (dock restore), `--fs-*` type scale, speed/rust SVG height 168 |
+| UI fragments | `ui/` (`boxes/ui.rs`) | `/api/ui/layout` · `/api/ui/card/:name` · `/api/ui/load-palette` · `/api/ui/load-theme` | dashboard `CARD_NAMES` 35 + chrome 8 + layout `html`/`header` + live `:root` CSS; **band 148:** ops card `sw`; **band 146:** ops card `fingerprints`; **band 145:** ops card `products` (list/select/open/scan); **band 143:** power menu `z-index:80` above workspace, exclusive fullscreen (`data-action='card-fs'`), collapsed cards `display:none` (dock restore), `--fs-*` type scale, speed/rust SVG height 168 |
 | Stand smoke | `src/bin/gsv_http_stand_smoke.rs` | live HTTP перевірка | всі boxes + `/api/vision*` + SVG + `/api/ui/card/:name` |
 | **gsv_mcp_openbot** | `mcp.rs` + `gsv-mcp` bin | stdio + `GET`/`POST`/`DELETE /mcp` + Galaxy card `/api/ui/card/mcp` | 26 box tools + 6 `gsv://` resources + 3 prompts + `logging/setLevel` + `completion/complete` + `resources/subscribe` + logging/resource notifications + HTTP SSE (`Accept: text/event-stream`) + HTTP `Mcp-Session-Id` (process-local); клієнти: OpenCode / Cursor / Grok CLI / Grok Bot — [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) |

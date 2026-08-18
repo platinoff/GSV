@@ -126,7 +126,7 @@ fn ui_helpers_match_js_semantics() {
     assert!(tab(&["a"], Vec::new()).contains("<span class='dim'>—</span>"));
     assert!(bar(50.0).contains("width:50%"));
     assert!(bar(120.0).contains("width:100%"));
-    assert_eq!(CARD_NAMES.len(), 34);
+    assert_eq!(CARD_NAMES.len(), 35);
 }
 
 #[tokio::test]
@@ -170,10 +170,11 @@ async fn ui_card_mcp_renders_openbot_tools() {
 
 /// The rustCards the thin JS glue fetches via `getText` (mirror of
 /// `rustCards` in `GSV/ui/index.html`).
-const RUST_CARDS: [&str; 26] = [
+const RUST_CARDS: [&str; 27] = [
     "health",
     "products",
     "fingerprints",
+    "sw",
     "mcp",
     "update",
     "tracker",
@@ -350,7 +351,7 @@ async fn ui_index_cards_are_offline_stable() {
             && html.contains("\"terminal\"")
             && html.contains("\"sprint-focus\"")
             && html.contains("\"mcp\"")
-            && html.contains("\"fingerprints\""),
+            && html.contains("\"sw\""),
         "rustCards includes layout ops/sprint cards"
     );
     assert!(

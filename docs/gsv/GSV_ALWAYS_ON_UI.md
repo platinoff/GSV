@@ -1,6 +1,6 @@
 # GSV Always-on Galaxy UI — spec
 
-**Status:** Bands **143–147 ✅** (chrome · live copy · products · version/fingerprints · README polish)  
+**Status:** Bands **143–147 ✅** (always-on Galaxy) · **148 ✅** (Service Worker shell cache)  
 **Date:** 2026-08-17  
 **Owner ask:** Galaxy UI always reachable; page goes **offline** only during binary swap; debug collapse / fullscreen / power menu; typography + chart scale; pick a VDT project and open its folder; auto-parse what the dashboard needs; every commit bumps the crate version; fingerprint who did the work (IDE / bot / model / agent / time). Match the polish of [`README.md`](../../README.md) presentations.
 
@@ -101,7 +101,7 @@ There is an **IDE session** picker, not a **VDT product** picker. `Cargo.toml` i
 
 ### P2 — Later
 
-- Service Worker offline cache (mentioned in GSV_SERVER.md, not required for 143–147).
+- Service Worker offline cache — **done band 148** (`GET /sw.js` Rust-rendered; precache `/` + live CSS + galaxy/vision svg; skip `/events` `/mcp`).
 - Auto-register omniroute in PRODUCTS.md.
 - Semver minor = band number.
 
@@ -142,5 +142,6 @@ There is an **IDE session** picker, not a **VDT product** picker. `Cargo.toml` i
 | **145** | S2089–S2098 | Products list / select / open / scan | ✅ |
 | **146** | S2099–S2108 | Version bump + fingerprints | ✅ |
 | **147** | S2109–S2118 | README-level UI polish leftovers + docs canon | ✅ |
+| **148** | S2119–S2128 | Service Worker shell cache (`/sw.js` Rust-rendered) | ✅ |
 
-Next `абракадабра` on **gsv**: always-on Galaxy (143–147) is closed. Scan first; do **not** invent band 148.
+Next `абракадабра` on **gsv**: scan first. Remaining P2: omniroute PRODUCTS.md (owner-opt-in), semver minor = band. Do **not** invent band 149.

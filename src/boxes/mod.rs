@@ -16,6 +16,7 @@
 //! | UI fragments | `ui` | `/api/ui/card/:name` | server-rendered card HTML |
 //! | Products | `products` | `/api/products` | workspace ∪ sibling git ∪ kit |
 //! | Fingerprints | `fingerprint` | `/api/fingerprints` | `docs/gsv/fingerprints.jsonl` |
+//! | Service Worker | `sw` | `/sw.js` · `/api/sw` | Rust-rendered shell cache |
 
 pub mod fingerprint;
 pub mod hooks;
@@ -25,6 +26,7 @@ pub mod preview;
 pub mod products;
 pub mod ratio;
 pub mod sli;
+pub mod sw;
 pub mod terminal;
 pub mod toolchain;
 pub mod ui;

@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-18 (**band 147 ✅ · always-on Galaxy 143–147 closed · не вигадувати band 148**)
+**Оновлено:** 2026-08-18 (**band 148 ✅ · Service Worker shell cache · не вигадувати band 149**)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -20,8 +20,8 @@ abrakadabra
 project scan (**warnings first**) → drain наступного band (**без** mid-push) →
 Speeds · Rust panel → vision-sync → **один** commit → **`git push` + самарі**.
 
-Якщо **gsv:** always-on Galaxy (**bands 143–147 ✅**) is closed. **Не** вигадувати band 148.
-Next work = project scan (warnings first) or owner pick (P2: Service Worker, omniroute PRODUCTS.md).
+Якщо **gsv:** always-on Galaxy (**bands 143–147 ✅**) + SW cache (**band 148 ✅**) are closed. **Не** вигадувати band 149.
+Next work = project scan (warnings first) or owner pick (P2: omniroute PRODUCTS.md, semver minor = band).
 Spec [`GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md) · plan
 [`superpowers/plans/2026-08-17-always-on-galaxy.md`](superpowers/plans/2026-08-17-always-on-galaxy.md).
 Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics.sh`. Disk: `bash scripts/check_target_disk.sh`.
@@ -195,7 +195,9 @@ Close: `bash scripts/gsv-bump-version.sh` then `bash scripts/gsv-fingerprint.sh`
   `docs/gsv/fingerprints.jsonl`, `GET /api/fingerprints`, ops card).
   **band 147** (PH-S2109…S2118) ✅ — README polish leftovers (`gsv-live.sh` Quick start,
   density tokens, live-copy architecture note, stand-smoke leftover contracts).
-  **Наступний drain**: scan / owner pick — **не** вигадувати band 148.
+  **band 148** (PH-S2119…S2128) ✅ — Service Worker shell cache (`GET /sw.js` Rust-rendered,
+  precache `/` + live CSS, skip `/events` `/mcp`, ops card `sw`).
+  **Наступний drain**: scan / owner pick — **не** вигадувати band 149.
 
 ## Канон GSV
 
@@ -236,7 +238,8 @@ band 144 ✅ (always-on live copy + update apply) ·
 band 145 ✅ (VDT products picker — list / select / open / scan) ·
 band 146 ✅ (version bump + fingerprints — patch + JSONL + trailers) ·
 band 147 ✅ (README polish leftovers — live.sh Quick start + density tokens) ·
-не вигадувати band 148 ·
+band 148 ✅ (Service Worker shell cache — `/sw.js` + `/api/sw` + ops card) ·
+не вигадувати band 149 ·
 не комітити kit-only в PoolAI як «замість» GSV drain ·
 staging `GSV/data/*` / `certs/*.pem` /
 `.env` · mid-push · `cargo test` while `target/debug/gsv-server.exe` is the listener · обхід ratio-смуги Rust-кодом замість compact UI ·

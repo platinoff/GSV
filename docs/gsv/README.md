@@ -12,7 +12,7 @@
 | [`GSV_SERVER.md`](./GSV_SERVER.md) | **exe/bin сервер** «Galaxy StarWalker Vision»: endpoints, update-повідомлення, offline-стійкість, metrics resync |
 | [`GSV_BOXES.md`](./GSV_BOXES.md) | **Специфікація боксів**: Tracker · SLI console · Toolchain · IDE · Update · Box preview · SLI terminal · Rust tests/benchmarks hook |
 | [`GSV_MIGRATION.md`](./GSV_MIGRATION.md) | Міграція з `GSV/docs/vision/` + `src/` у GSV: що переносимо, що лишається, як |
-| [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) | **TechPreroadMap**: логічний порядок → sprints (bands 143–147 always-on Galaxy ✅) |
+| [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) | **TechPreroadMap**: логічний порядок → sprints (bands 143–147 always-on ✅ · **148** SW shell cache ✅) |
 | [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md) | Always-on live binary, chrome bugs, products, version/fingerprints (spec) |
 | [`GSV_VDT_KIT.md`](./GSV_VDT_KIT.md) | GSV як точка входу: shared rules/skills vs product canon (Accepted, band 127) |
 | [`PRODUCTS.md`](./PRODUCTS.md) | Enrichment-реєстр; discover = `scripts/list-vdt-products.sh` |

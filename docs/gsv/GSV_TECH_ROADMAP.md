@@ -32,6 +32,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 145** (VDT products picker + open folder + scan) **✅** ·
 **band 146** (version bump + fingerprints) **✅** ·
 **band 147** (README-level polish leftovers) **✅** ·
+**band 148** (Service Worker shell cache) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -692,6 +693,23 @@ Visual pass vs `docs/assets/presentations/`; stand-smoke new cards; README Quick
 | **PH-S2116** | Docs canon | HANDOFF / NEXT / MEMORY / roadmap — **✅** |
 | **PH-S2117** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy — **✅** |
 | **PH-S2118** | Band close | tests green; vision-sync; one commit + push — **✅** |
+
+## Спринти (band 148) — Service Worker shell cache ✅
+
+Owner-picked P2 leftover from [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md): static UI opens offline. SW script is Rust-rendered (`GET /sw.js`); `/events` / `/mcp` / non-GET stay network-only.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2119** | Scope + queue | this band; `active_sprint` = `PH-S2119` — **✅** |
+| **PH-S2120** | `boxes/sw.rs` | CACHE_NAME + PRECACHE (`/` + palette/theme + galaxy/vision svg); no `/mcp` `/events` — **✅** |
+| **PH-S2121** | `GET /sw.js` | `text/javascript` + `Service-Worker-Allowed: /`; Cache API install/activate — **✅** |
+| **PH-S2122** | `GET /api/sw` | `{ok, cache, script, urls}` — **✅** |
+| **PH-S2123** | CSP + register | `worker-src 'self'`; thin `serviceWorker.register("/sw.js")` — **✅** |
+| **PH-S2124** | Ops card | `render_sw`; `CARD_NAMES` 35; ops group — **✅** |
+| **PH-S2125** | Contracts | `tests/gsv_sw_contracts.rs` + lib unit — **✅** |
+| **PH-S2126** | Docs canon | SERVER / BOXES / ALWAYS_ON_UI P2 / HANDOFF / NEXT / MEMORY — **✅** |
+| **PH-S2127** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy — **✅** |
+| **PH-S2128** | Band close | tests green; vision-sync; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
