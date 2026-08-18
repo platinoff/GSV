@@ -111,10 +111,15 @@ pub struct OmniWire {
     pub routing: Value,
     pub config_path: String,
     pub generated_at: String,
+    /// OmniRouter always uses GSV `data/omni.toml` keys (not the selected VDT product).
+    pub account_product: &'static str,
+    /// Currently selected VDT product id, if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selected_product: Option<String>,
 }
 
 /// Build the overview wire from the current router config.
-pub async fn wire(omni: &OmniRouter) -> OmniWire {
+pub async fn wire(omni: &OmniRouter, selected: Option<&str>) -> OmniWire {
     let cfg = omni.config.read().await.clone();
     let providers: Vec<ProviderWire> = catalog::providers()
         .iter()
@@ -150,6 +155,8 @@ pub async fn wire(omni: &OmniRouter) -> OmniWire {
         }),
         config_path: omni.data_dir.join("omni.toml").display().to_string(),
         generated_at: vision::rfc3339_now(),
+        account_product: "gsv",
+        selected_product: selected.map(str::to_string),
     }
 }
 

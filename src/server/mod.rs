@@ -42,9 +42,16 @@ fn health(state: &AppState) -> Value {
         1,
     );
     let latest = fp.first();
+    let selected = product_selected_id(state);
+    let selected_version = selected.as_deref().and_then(|id| {
+        let rows = crate::boxes::products::discover(&state.repo_root);
+        crate::boxes::products::lookup(&rows, id)
+            .and_then(|row| crate::boxes::fingerprint::pkg_version(std::path::Path::new(&row.path)))
+    });
     json!({
         "name": crate::GSV_SERVER_NAME,
         "version": *state.version,
+        "product": "gsv",
         "ok": true,
         "uptime_secs": state.started_at.elapsed().map(|d| d.as_secs()).unwrap_or(0),
         "update_available": state.update_available(),
@@ -52,9 +59,13 @@ fn health(state: &AppState) -> Value {
             .get("alive")
             .and_then(Value::as_bool)
             .unwrap_or(false),
+        "selected_product": selected,
+        "selected_version": selected_version,
         "fingerprint_actor": latest.map(|f| f.actor.as_str()),
         "fingerprint_ide": latest.map(|f| f.ide.as_str()),
         "fingerprint_model": latest.map(|f| f.model.as_str()),
+        "fingerprint_product": latest.map(|f| f.product.as_str()),
+        "fingerprint_version": latest.map(|f| f.version.as_str()),
     })
 }
 
@@ -546,6 +557,7 @@ async fn api_fingerprints(
 ) -> Json<Value> {
     Json(crate::boxes::fingerprint::wire(
         &state.repo_root,
+        product_selected_id(&state).as_deref(),
         crate::boxes::fingerprint::clamp_limit(q.limit),
     ))
 }
@@ -778,7 +790,10 @@ async fn card_wire(state: &AppState, name: &str, q: &CardQuery) -> Result<Value,
             let selected = product_selected_id(state);
             crate::boxes::products::card_wire(&state.repo_root, selected.as_deref())
         }
-        "fingerprints" => crate::boxes::fingerprint::wire(&state.repo_root, 20),
+        "fingerprints" => {
+            let selected = product_selected_id(state);
+            crate::boxes::fingerprint::wire(&state.repo_root, selected.as_deref(), 20)
+        }
         "sw" => crate::boxes::sw::wire(),
         "mcp" => crate::mcp::http_info(state),
         "update" => json!(crate::boxes::update::wire(state)),
@@ -795,8 +810,11 @@ async fn card_wire(state: &AppState, name: &str, q: &CardQuery) -> Result<Value,
             q.id.as_deref().unwrap_or("galaxy_grid"),
         ),
         "ratio-box" => crate::boxes::ratio::wire(&state.data_dir),
-        "omni" => serde_json::to_value(crate::boxes::omni::wire(&state.omni).await)
-            .unwrap_or(serde_json::Value::Null),
+        "omni" => {
+            let selected = product_selected_id(state);
+            serde_json::to_value(crate::boxes::omni::wire(&state.omni, selected.as_deref()).await)
+                .unwrap_or(serde_json::Value::Null)
+        }
         "galaxy-backdrop" => crate::boxes::vision::chrome_galaxy_wire(),
         "starfield" => crate::boxes::vision::chrome_starfield_wire(),
         "rss-ticker" => crate::boxes::vision::chrome_rss_wire(&state.repo_root, &state.data_dir),
@@ -1153,7 +1171,10 @@ async fn api_vision_control_status(State(state): State<AppState>) -> Json<Value>
 }
 
 async fn api_omni_status(State(state): State<AppState>) -> Json<Value> {
-    Json(json!(crate::boxes::omni::wire(&state.omni).await))
+    let selected = product_selected_id(&state);
+    Json(json!(
+        crate::boxes::omni::wire(&state.omni, selected.as_deref()).await
+    ))
 }
 
 fn toolchain_entry(wire: &Value, tool: &str) -> Value {
@@ -1321,7 +1342,10 @@ async fn api_data_file(State(state): State<AppState>, Path(file): Path<String>) 
 // ── OmniRouter box ─────────────────────────────────────────────────────────────
 
 async fn api_omni(State(state): State<AppState>) -> Json<Value> {
-    Json(json!(crate::boxes::omni::wire(&state.omni).await))
+    let selected = product_selected_id(&state);
+    Json(json!(
+        crate::boxes::omni::wire(&state.omni, selected.as_deref()).await
+    ))
 }
 
 async fn api_omni_config(State(state): State<AppState>) -> Json<Value> {

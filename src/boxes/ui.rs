@@ -724,6 +724,14 @@ pub fn render_omni(d: &Value) -> String {
         models.len(),
         esc(&default_provider),
     );
+    let selected = s(&d["selected_product"]);
+    let account = s(&d["account_product"]);
+    if !selected.is_empty() && selected != account && selected != "gsv" {
+        let acc = if account.is_empty() { "gsv" } else { &account };
+        out.push_str(&err_html(&format!(
+            "OmniRouter keys are {acc} data/omni.toml — not {selected} account"
+        )));
+    }
     if default_provider.is_empty() {
         out.push_str(&err_html("omni unavailable"));
         return out;
@@ -920,7 +928,20 @@ pub fn render_health(d: &Value) -> String {
         &["field", "value"],
         vec![
             vec!["name".into(), esc(&s(&d["name"]))],
+            vec!["product".into(), esc(&s(&d["product"]))],
             vec!["version".into(), esc(&s(&d["version"]))],
+            vec!["selected".into(), {
+                let sel = s(&d["selected_product"]);
+                if sel.is_empty() {
+                    "—".into()
+                } else {
+                    format!(
+                        "<kbd>{}</kbd> v{}",
+                        esc(&sel),
+                        esc(&s(&d["selected_version"]))
+                    )
+                }
+            }],
             vec!["uptime_secs".into(), u(&d["uptime_secs"]).to_string()],
             vec![
                 "ok".into(),
@@ -1019,10 +1040,37 @@ pub fn render_fingerprints(d: &Value) -> String {
         "<div class='dim'>{} fingerprints · <kbd>docs/gsv/fingerprints.jsonl</kbd></div>",
         fps.len()
     );
+    let server = s(&d["server_product"]);
+    let server_ver = s(&d["server_version"]);
+    if !server.is_empty() {
+        out.push_str(&format!(
+            "<div class='dim'>server <kbd>{}</kbd> v{}</div>",
+            esc(&server),
+            esc(&server_ver)
+        ));
+    }
+    let selected = s(&d["selected"]);
+    if !selected.is_empty() {
+        let sel_ver = s(&d["selected_version"]);
+        let warn = b(&d["cross_product"]);
+        out.push_str(&format!(
+            "<div class='{}'>selected <kbd>{}</kbd> v{}{}</div>",
+            if warn { "err" } else { "dim" },
+            esc(&selected),
+            esc(if sel_ver.is_empty() { "—" } else { &sel_ver }),
+            if warn {
+                " · not GSV crate version"
+            } else {
+                ""
+            }
+        ));
+    }
     let rows: Vec<Vec<String>> = fps
         .iter()
         .map(|f| {
+            let product = s(&f["product"]);
             vec![
+                esc(if product.is_empty() { "gsv" } else { &product }),
                 esc(&s(&f["ts"])),
                 esc(&s(&f["ide"])),
                 esc(&s(&f["model"])),
@@ -1033,7 +1081,7 @@ pub fn render_fingerprints(d: &Value) -> String {
         })
         .collect();
     out.push_str(&tab(
-        &["ts", "ide", "model", "agent", "ver", "summary"],
+        &["product", "ts", "ide", "model", "agent", "ver", "summary"],
         rows,
     ));
     out
@@ -1926,6 +1974,27 @@ mod tests {
         assert!(html.contains("<span class='ok'>★</span>"));
         assert!(html.contains("<span class='err'>off</span>"));
         assert!(html.contains("no key"));
+    }
+
+    #[test]
+    fn render_omni_warns_when_selected_is_not_gsv() {
+        let d = serde_json::json!({
+            "providers": [
+                { "id": "openai", "name": "OpenAI", "enabled": true, "key_set": true, "base_url": "https://api.openai.com/v1" }
+            ],
+            "models": [],
+            "recommended": [],
+            "routing": { "default_provider": "openai", "auto": true },
+            "account_product": "gsv",
+            "selected_product": "omniroute"
+        });
+        let html = render_omni(&d);
+        assert!(html.contains("omniroute"), "{html}");
+        assert!(html.contains("gsv"), "{html}");
+        assert!(
+            html.contains("class='err'") || html.contains("class='warn'"),
+            "{html}"
+        );
     }
 
     #[test]

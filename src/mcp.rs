@@ -981,7 +981,12 @@ async fn call_tool(state: &AppState, params: &Value) -> Value {
                     .and_then(|v| v.as_u64())
                     .map(|n| n as usize),
             );
-            tool_ok(crate::boxes::fingerprint::wire(&state.repo_root, limit))
+            let sel = state.product_selected.lock().ok().and_then(|g| g.clone());
+            tool_ok(crate::boxes::fingerprint::wire(
+                &state.repo_root,
+                sel.as_deref(),
+                limit,
+            ))
         }
         "" => tool_err("missing tool name"),
         other => tool_err(format!("unknown tool: {other}")),

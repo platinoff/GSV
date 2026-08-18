@@ -48,6 +48,7 @@ fn sample(summary: &str) -> Fingerprint {
         git_head: Some("abc1234".into()),
         band: Some("146".into()),
         summary: summary.into(),
+        product: "gsv".into(),
     }
 }
 
@@ -81,6 +82,51 @@ async fn get(app: &axum::Router, path: &str) -> (StatusCode, Value) {
 fn jsonl_path_is_under_docs_gsv() {
     let p = fingerprint::jsonl_path(&kit_root());
     assert!(p.ends_with(Path::new("docs/gsv/fingerprints.jsonl")));
+}
+
+#[test]
+fn legacy_jsonl_without_product_defaults_to_gsv() {
+    let raw = r#"{"ts":"2026-08-18T15:06:27Z","actor":"agent","ide":"cursor","model":"grok-4.6","agent":"orchestrator","version":"0.149.0","git_head":"6ef8cd1","band":"149","summary":"omniroute PRODUCTS.md"}"#;
+    let fp: Fingerprint = serde_json::from_str(raw).expect("legacy row");
+    assert_eq!(fp.product, "gsv");
+    assert_eq!(fp.version, "0.149.0");
+}
+
+#[test]
+fn pkg_version_reads_cargo_and_npm() {
+    let dir = std::env::temp_dir().join(format!("gsv-fp-ver-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("tmpdir");
+    std::fs::write(
+        dir.join("Cargo.toml"),
+        "[package]\nname = \"demo\"\nversion = \"1.2.3\"\n",
+    )
+    .expect("toml");
+    assert_eq!(fingerprint::pkg_version(&dir).as_deref(), Some("1.2.3"));
+    let npm = dir.join("npm-only");
+    std::fs::create_dir_all(&npm).expect("npm dir");
+    std::fs::write(
+        npm.join("package.json"),
+        r#"{"name":"omniroute","version":"3.8.50"}"#,
+    )
+    .expect("json");
+    assert_eq!(fingerprint::pkg_version(&npm).as_deref(), Some("3.8.50"));
+}
+
+#[test]
+fn wire_debug_separates_gsv_server_from_selected_product() {
+    let w = fingerprint::wire(&kit_root(), Some("omniroute"), 3);
+    assert_eq!(w["ok"], true);
+    assert_eq!(w["server_product"], "gsv");
+    assert_eq!(w["server_version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(w["selected"], "omniroute");
+    assert_eq!(w["cross_product"], true);
+    let sel_ver = w["selected_version"].as_str().unwrap_or("");
+    assert!(!sel_ver.is_empty(), "{w}");
+    assert_ne!(
+        sel_ver,
+        env!("CARGO_PKG_VERSION"),
+        "omniroute npm version must not be GSV crate version"
+    );
 }
 
 #[test]
@@ -140,6 +186,11 @@ fn render_fingerprints_lists_latest_row() {
     let wire = serde_json::json!({
         "ok": true,
         "path": "docs/gsv/fingerprints.jsonl",
+        "server_product": "gsv",
+        "server_version": env!("CARGO_PKG_VERSION"),
+        "selected": "omniroute",
+        "selected_version": "3.8.50",
+        "cross_product": true,
         "count": 1,
         "fingerprints": [{
             "ts": "2026-08-18T03:00:00Z",
@@ -150,6 +201,7 @@ fn render_fingerprints_lists_latest_row() {
             "version": env!("CARGO_PKG_VERSION"),
             "git_head": "abc1234",
             "band": "146",
+            "product": "gsv",
             "summary": "band 146"
         }]
     });
@@ -158,6 +210,9 @@ fn render_fingerprints_lists_latest_row() {
     assert!(html.contains("grok-4.6"), "{html}");
     assert!(html.contains("orchestrator"), "{html}");
     assert!(html.contains("band 146"), "{html}");
+    assert!(html.contains(">product<"), "{html}");
+    assert!(html.contains("gsv"), "{html}");
+    assert!(html.contains("server"), "{html}");
 }
 
 #[test]
@@ -283,5 +338,44 @@ fn fingerprint_script_appends_jsonl_and_prints_trailers() {
     assert_eq!(fp.ide, "cursor");
     assert_eq!(fp.summary, "contract");
     assert_eq!(fp.version, env!("CARGO_PKG_VERSION"));
+    assert_eq!(fp.product, "gsv");
+    let _ = std::fs::remove_file(&path);
+}
+
+#[test]
+fn fingerprint_script_uses_selected_product_pkg_version() {
+    let path = tmp_jsonl();
+    let _ = std::fs::remove_file(&path);
+    let prod = std::env::temp_dir().join(format!("gsv-fp-omni-{}", std::process::id()));
+    std::fs::create_dir_all(&prod).expect("prod");
+    std::fs::write(
+        prod.join("package.json"),
+        r#"{"name":"omniroute","version":"3.8.50"}"#,
+    )
+    .expect("json");
+    let script = kit_root().join("scripts/gsv-fingerprint.sh");
+    let out = msys_bash()
+        .arg(&script)
+        .env("GSV_FINGERPRINT_FILE", &path)
+        .env("GSV_PRODUCT", "omniroute")
+        .env("GSV_PRODUCT_ROOT", &prod)
+        .env("GSV_ACTOR", "agent")
+        .env("GSV_IDE", "cursor")
+        .env("GSV_MODEL", "grok-4.6")
+        .env("GSV_SUMMARY", "omni drain")
+        .output()
+        .expect("bash");
+    assert!(
+        out.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("Gsv-Product: omniroute"), "{stdout}");
+    let text = std::fs::read_to_string(&path).expect("jsonl");
+    let fp: Fingerprint = serde_json::from_str(text.trim()).expect("parse");
+    assert_eq!(fp.product, "omniroute");
+    assert_eq!(fp.version, "3.8.50");
+    assert_ne!(fp.version, env!("CARGO_PKG_VERSION"));
     let _ = std::fs::remove_file(&path);
 }
