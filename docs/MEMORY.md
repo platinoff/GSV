@@ -4,6 +4,13 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-17 · band 139 ✅)
+
+- **Band 139:** MCP logging + completions — `logging/setLevel` (RFC 5424, process-local on `AppState`) + `completion/complete` (`ref/resource` allowlisted `gsv://` + `ref/prompt` names; `..` / `file:` → `-32602`). `GET /mcp` adds `logging` / `completions` / `log_level`.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 still `scripts/list-vdt-products.sh` (environment, not hardcoded pair).
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.25%** (rust 16471 / product 17113) · **305** tests · clippy 0. Vision rev **506**.
+- **Канон продукту:** Rust **95–100%** / wasm **0–5%** (завжди), без Python/Java; bins — лише `src/bin/`.
+
 ## Стан (2026-08-17 · band 138 ✅)
 
 - **Band 138:** MCP resources + prompts — `resources/list`+`read` (6 `gsv://` URIs, `preview::resolve` confine) + `prompts/list`+`get` (`gsv_status` / `gsv_vision_brief` / `gsv_drain`). `GET /mcp` adds `resource_count` / `prompt_count`. Kit trigger alias `abrakadabra`.

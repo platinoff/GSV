@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-08-17",
+  "generated_at": "2026-08-18",
   "host_label": "PLATINOV",
-  "git_head": "9b579c7",
+  "git_head": "5e68a74",
   "source": "local",
   "notes": [
     "Machine-readable Rust/Clippy warning+error index for vision Rust panel.",
@@ -12,33 +12,11 @@
     "warnings": 0,
     "errors": 0,
     "ok": true,
-    "recorded_at": "2026-08-17T23:49:08Z",
+    "recorded_at": "2026-08-18T00:12:48Z",
     "command": "cargo clippy --message-format=json --all-targets",
-    "wall_secs": 13.2440485
+    "wall_secs": 9.8408707
   },
   "history": [
-    {
-      "kind": "rust_diagnostics",
-      "command": "cargo clippy --message-format=json --all-targets --features ml,enterprise,cloud,test-utils,job-store-sqlite,prometheus",
-      "warnings": 274,
-      "errors": 0,
-      "ok": true,
-      "recorded_at": "2026-08-01T21:53:03Z",
-      "wall_secs": 168.4474261,
-      "host_label": "win10-local",
-      "git_head": "3cb486712",
-      "source": "local",
-      "top_codes": [
-        "clippy::await_holding_lock×88",
-        "clippy::needless_borrows_for_generic_args×83",
-        "clippy::too_many_arguments×18",
-        "clippy::field_reassign_with_default×14",
-        "dead_code×10",
-        "unused_mut×8",
-        "clippy::needless_update×7",
-        "clippy::items_after_test_module×6"
-      ]
-    },
     {
       "kind": "rust_diagnostics",
       "command": "cargo clippy --message-format=json --all-targets --features ml,enterprise,cloud,test-utils,job-store-sqlite,prometheus",
@@ -443,6 +421,18 @@
       "wall_secs": 13.2440485,
       "host_label": "PLATINOV",
       "git_head": "9b579c7",
+      "source": "local"
+    },
+    {
+      "kind": "rust_diagnostics",
+      "command": "cargo clippy --message-format=json --all-targets",
+      "warnings": 0,
+      "errors": 0,
+      "ok": true,
+      "recorded_at": "2026-08-18T00:12:48Z",
+      "wall_secs": 9.8408707,
+      "host_label": "PLATINOV",
+      "git_head": "5e68a74",
       "source": "local"
     }
   ]

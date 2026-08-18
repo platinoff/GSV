@@ -238,8 +238,8 @@ async fn api_health(State(state): State<AppState>) -> Json<Value> {
     Json(health(&state))
 }
 
-async fn api_mcp_get() -> Json<Value> {
-    Json(crate::mcp::http_info())
+async fn api_mcp_get(State(state): State<AppState>) -> Json<Value> {
+    Json(crate::mcp::http_info(&state))
 }
 
 async fn api_mcp_post(State(state): State<AppState>, body: Bytes) -> Response {
@@ -573,7 +573,7 @@ async fn card_wire(state: &AppState, name: &str, q: &CardQuery) -> Result<Value,
             "whitelist": crate::boxes::terminal::WHITELIST,
         }),
         "health" => health(state),
-        "mcp" => crate::mcp::http_info(),
+        "mcp" => crate::mcp::http_info(state),
         "update" => json!(crate::boxes::update::wire(state)),
         "ide" => {
             let selection = state.ide_selection.try_read().ok().and_then(|s| s.clone());

@@ -4,6 +4,9 @@
 //! Tools wrap Tracker / SLI / Toolchain / Ratio / Vision / Omni / IDE / terminal /
 //! preview; they do not add a second shell. Secrets in tool output are redacted.
 //! Band 138: allowlisted `gsv://` `resources/*` and named `prompts/*`.
+//! Band 139: `logging/setLevel` + `completion/complete` (resource URIs + prompt names).
+
+use std::sync::atomic::Ordering;
 
 use axum::body::to_bytes;
 use axum::http::{HeaderMap, HeaderValue};
@@ -20,6 +23,23 @@ pub const SERVER_ID: &str = "gsv_mcp_openbot";
 
 /// MCP protocol version this server speaks.
 pub const PROTOCOL_VERSION: &str = "2025-03-26";
+
+/// RFC 5424 syslog levels advertised by `logging/setLevel`.
+pub const LOG_LEVELS: &[&str] = &[
+    "debug",
+    "info",
+    "notice",
+    "warning",
+    "error",
+    "critical",
+    "alert",
+    "emergency",
+];
+
+/// Default `logging/setLevel` index (`info`).
+pub const DEFAULT_LOG_LEVEL: u8 = 1;
+
+const COMPLETION_MAX: usize = 100;
 
 const SECRET_KEYS: &[&str] = &["api_key", "secret", "authorization", "password", "token"];
 
@@ -337,7 +357,7 @@ pub fn rpc_error(id: Option<Value>, code: i32, message: impl Into<String>) -> Va
 }
 
 /// Discovery payload for `GET /mcp` (not a JSON-RPC session).
-pub fn http_info() -> Value {
+pub fn http_info(state: &AppState) -> Value {
     let tools = tool_names();
     let resources = resource_uris();
     let prompts = prompt_names();
@@ -354,7 +374,23 @@ pub fn http_info() -> Value {
         "resource_count": resources.len(),
         "prompts": prompts,
         "prompt_count": prompts.len(),
+        "logging": true,
+        "completions": true,
+        "log_level": log_level_name(state.mcp_log_level.load(Ordering::Relaxed)),
     })
+}
+
+/// Map a stored index to a syslog level name.
+pub fn log_level_name(idx: u8) -> &'static str {
+    LOG_LEVELS.get(idx as usize).copied().unwrap_or("info")
+}
+
+/// Parse a syslog level name into the stored index.
+pub fn parse_log_level(name: &str) -> Option<u8> {
+    LOG_LEVELS
+        .iter()
+        .position(|level| *level == name)
+        .map(|i| i as u8)
 }
 
 fn tool(name: &str, description: &str, input_schema: Value) -> Value {
@@ -403,6 +439,14 @@ async fn handle_one(state: &AppState, value: Value) -> Option<Value> {
             Ok(result) => Some(rpc_result(id, result)),
             Err(msg) => Some(rpc_error(id, -32602, msg)),
         },
+        "logging/setLevel" => match logging_set_level(state, &params) {
+            Ok(result) => Some(rpc_result(id, result)),
+            Err(msg) => Some(rpc_error(id, -32602, msg)),
+        },
+        "completion/complete" => match completion_complete(&params) {
+            Ok(result) => Some(rpc_result(id, result)),
+            Err(msg) => Some(rpc_error(id, -32602, msg)),
+        },
         "notifications/initialized" | "notifications/cancelled" => None,
         _ if id.is_none() => None,
         _ => Some(rpc_error(id, -32601, format!("method not found: {method}"))),
@@ -415,13 +459,15 @@ fn initialize_result(state: &AppState) -> Value {
         "capabilities": {
             "tools": { "listChanged": false },
             "resources": { "subscribe": false, "listChanged": false },
-            "prompts": { "listChanged": false }
+            "prompts": { "listChanged": false },
+            "logging": {},
+            "completions": {}
         },
         "serverInfo": {
             "name": SERVER_ID,
             "version": *state.version,
         },
-        "instructions": "GSV box tools plus allowlisted gsv:// resources and prompts. Terminal uses the HTTP SLI allowlist. Omni chat defaults to dry-run."
+        "instructions": "GSV box tools plus allowlisted gsv:// resources and prompts. completion/complete covers resource URIs and prompt names. logging/setLevel is process-local. Terminal uses the HTTP SLI allowlist. Omni chat defaults to dry-run."
     })
 }
 
@@ -494,6 +540,61 @@ fn prompts_get(params: &Value) -> Result<Value, String> {
             "role": "user",
             "content": { "type": "text", "text": spec.text }
         }]
+    }))
+}
+
+fn logging_set_level(state: &AppState, params: &Value) -> Result<Value, String> {
+    let level = params.get("level").and_then(Value::as_str).unwrap_or("");
+    let idx = parse_log_level(level).ok_or_else(|| "invalid log level".to_string())?;
+    state.mcp_log_level.store(idx, Ordering::Relaxed);
+    Ok(json!({}))
+}
+
+fn completion_prefix_rejected(value: &str) -> bool {
+    value.contains("..") || value.contains('\\') || value.contains("file:")
+}
+
+fn completion_complete(params: &Value) -> Result<Value, String> {
+    let ref_obj = params
+        .get("ref")
+        .ok_or_else(|| "ref required".to_string())?;
+    let ref_type = ref_obj.get("type").and_then(Value::as_str).unwrap_or("");
+    let value = params
+        .get("argument")
+        .and_then(|a| a.get("value"))
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    if completion_prefix_rejected(value) {
+        return Err("invalid completion prefix".into());
+    }
+    let values: Vec<&str> = match ref_type {
+        "ref/resource" => {
+            let uri_hint = ref_obj.get("uri").and_then(Value::as_str).unwrap_or("");
+            if !uri_hint.is_empty() && completion_prefix_rejected(uri_hint) {
+                return Err("invalid completion prefix".into());
+            }
+            RESOURCE_URIS
+                .iter()
+                .copied()
+                .filter(|uri| uri.starts_with(value))
+                .take(COMPLETION_MAX)
+                .collect()
+        }
+        "ref/prompt" => PROMPT_NAMES
+            .iter()
+            .copied()
+            .filter(|name| name.starts_with(value))
+            .take(COMPLETION_MAX)
+            .collect(),
+        _ => return Err("unknown completion ref".into()),
+    };
+    let total = values.len();
+    Ok(json!({
+        "completion": {
+            "values": values,
+            "total": total,
+            "hasMore": false
+        }
     }))
 }
 
@@ -996,7 +1097,7 @@ mod tests {
 
     #[tokio::test]
     async fn http_info_lists_same_tools() {
-        let info = http_info();
+        let info = http_info(&state());
         assert_eq!(info["ok"], true);
         assert_eq!(info["name"], SERVER_ID);
         assert_eq!(info["protocol"], PROTOCOL_VERSION);
@@ -1099,6 +1200,8 @@ mod tests {
         assert!(caps["tools"].is_object());
         assert!(caps["resources"].is_object());
         assert!(caps["prompts"].is_object());
+        assert!(caps["logging"].is_object());
+        assert!(caps["completions"].is_object());
         assert_eq!(caps["resources"]["listChanged"], false);
         assert_eq!(caps["prompts"]["listChanged"], false);
     }
@@ -1181,7 +1284,7 @@ mod tests {
 
     #[test]
     fn http_info_lists_resources_and_prompts() {
-        let info = http_info();
+        let info = http_info(&state());
         assert_eq!(info["resource_count"], RESOURCE_URIS.len() as u64);
         assert_eq!(info["prompt_count"], PROMPT_NAMES.len() as u64);
         assert_eq!(
@@ -1192,5 +1295,96 @@ mod tests {
             info["prompts"].as_array().map(|a| a.len()),
             Some(PROMPT_NAMES.len())
         );
+        assert_eq!(info["logging"], true);
+        assert_eq!(info["completions"], true);
+        assert_eq!(info["log_level"], "info");
+    }
+
+    #[tokio::test]
+    async fn logging_set_level_updates_http_info() {
+        let s = state();
+        let out = rpc(&s, 70, "logging/setLevel", json!({ "level": "warning" })).await;
+        assert!(out.get("error").is_none(), "{out}");
+        assert!(out["result"].is_object());
+        assert_eq!(http_info(&s)["log_level"], "warning");
+
+        let bad = rpc(&s, 71, "logging/setLevel", json!({ "level": "trace" })).await;
+        assert_eq!(bad["error"]["code"], -32602);
+        assert_eq!(http_info(&s)["log_level"], "warning");
+    }
+
+    #[tokio::test]
+    async fn completion_complete_resources_and_prompts() {
+        let s = state();
+        let resources = rpc(
+            &s,
+            72,
+            "completion/complete",
+            json!({
+                "ref": { "type": "ref/resource", "uri": "gsv://vision/manifest" },
+                "argument": { "name": "uri", "value": "gsv://vision/" }
+            }),
+        )
+        .await;
+        assert!(resources.get("error").is_none(), "{resources}");
+        let values = resources["result"]["completion"]["values"]
+            .as_array()
+            .expect("values");
+        assert_eq!(resources["result"]["completion"]["hasMore"], false);
+        assert_eq!(values.len(), 3);
+        assert!(values
+            .iter()
+            .all(|v| v.as_str().unwrap_or("").starts_with("gsv://vision/")));
+
+        let prompts = rpc(
+            &s,
+            73,
+            "completion/complete",
+            json!({
+                "ref": { "type": "ref/prompt", "name": "gsv_status" },
+                "argument": { "name": "name", "value": "gsv_" }
+            }),
+        )
+        .await;
+        let pvals = prompts["result"]["completion"]["values"]
+            .as_array()
+            .expect("prompts");
+        assert_eq!(pvals.len(), PROMPT_NAMES.len());
+
+        let trav = rpc(
+            &s,
+            74,
+            "completion/complete",
+            json!({
+                "ref": { "type": "ref/resource", "uri": "gsv://vision/manifest" },
+                "argument": { "name": "uri", "value": "gsv://vision/../../../.env" }
+            }),
+        )
+        .await;
+        assert_eq!(trav["error"]["code"], -32602);
+
+        let file_uri = rpc(
+            &s,
+            75,
+            "completion/complete",
+            json!({
+                "ref": { "type": "ref/resource", "uri": "file:///etc/passwd" },
+                "argument": { "name": "uri", "value": "file://" }
+            }),
+        )
+        .await;
+        assert_eq!(file_uri["error"]["code"], -32602);
+
+        let unknown = rpc(
+            &s,
+            76,
+            "completion/complete",
+            json!({
+                "ref": { "type": "ref/tool", "name": "gsv_health" },
+                "argument": { "name": "name", "value": "gsv" }
+            }),
+        )
+        .await;
+        assert_eq!(unknown["error"]["code"], -32602);
     }
 }

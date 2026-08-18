@@ -161,6 +161,8 @@ async fn ui_card_mcp_renders_openbot_tools() {
     assert!(html.contains("prompts "), "counts: {html}");
     assert!(html.contains("gsv://vision/manifest"), "resource: {html}");
     assert!(html.contains("<kbd>gsv_status</kbd>"), "prompt: {html}");
+    assert!(html.contains("logging <kbd>info</kbd>"), "logging: {html}");
+    assert!(html.contains("completions"), "completions: {html}");
 }
 
 /// The rustCards the thin JS glue fetches via `getText` (mirror of

@@ -23,6 +23,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 136** (MCP Galaxy UI + remaining read tools) **✅** ·
 **band 137** (MCP vision completeness) **✅** ·
 **band 138** (MCP resources + prompts) **✅** ·
+**band 139** (MCP logging + completions) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -509,6 +510,27 @@ confine as preview), and ships three drain prompts. Kit trigger alias
 | **PH-S2026** | Docs canon | MCP_OPENBOT / SERVER / BOXES / ARCHITECTURE / HANDOFF / NEXT / MEMORY / roadmap — **✅** |
 | **PH-S2027** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy — **✅** |
 | **PH-S2028** | Band close | tests green; vision-sync; one commit + push — **✅** |
+
+## Спринти (band 139) — MCP logging + completions ✅
+
+Owner 2026-08-17: after band 138, agents could list/read `gsv://` resources and
+named prompts, but Cursor/OpenCode still lacked MCP `completion/complete`
+(URI/name autocomplete) and `logging/setLevel`. Band 139 advertises both,
+allowlists completion prefixes (same `..` / `file:` reject as resources/read),
+and surfaces the process log level on `GET /mcp` + the Galaxy card.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2029** | Scope + queue | this band; `extensions.json` `active_sprint` = `PH-S2029` — **✅** |
+| **PH-S2030** | Capabilities | `initialize` advertises `logging` + `completions` — **✅** |
+| **PH-S2031** | logging/setLevel | RFC 5424 levels; invalid → `-32602`; process-local on `AppState` — **✅** |
+| **PH-S2032** | completion resources | `ref/resource` prefix-match allowlisted `gsv://` URIs; `..` / `file:` → `-32602` — **✅** |
+| **PH-S2033** | completion prompts | `ref/prompt` prefix-match prompt names; unknown ref type → `-32602` — **✅** |
+| **PH-S2034** | Discovery + card | `GET /mcp` `logging`/`completions`/`log_level`; Galaxy card lists both — **✅** |
+| **PH-S2035** | Contracts | mcp unit + `gsv_mcp_contracts` + ui/server card logging/completions — **✅** |
+| **PH-S2036** | Docs canon | MCP_OPENBOT / SERVER / BOXES / ARCHITECTURE / HANDOFF / NEXT / MEMORY / roadmap — **✅** |
+| **PH-S2037** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy — **✅** |
+| **PH-S2038** | Band close | tests green; vision-sync; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

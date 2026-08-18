@@ -133,4 +133,4 @@ Rust модуль: `omni/` (catalog.rs, config.rs, proxy.rs) → `GSV/data/omni.
 | Vision | `vision/` (`boxes/vision.rs`) | `/api/vision*` · `/assets/vision.svg` | `GSV/docs/vision/{manifest,feed,extensions}.json` → `GSV/data/gsv_*.json` |
 | UI fragments | `ui/` (`boxes/ui.rs`) | `/api/ui/layout` · `/api/ui/card/:name` · `/api/ui/load-palette` · `/api/ui/load-theme` | dashboard `CARD_NAMES` 32 + chrome 8 + layout `html`/`header` + live `:root` CSS |
 | Stand smoke | `src/bin/gsv_http_stand_smoke.rs` | live HTTP перевірка | всі boxes + `/api/vision*` + SVG + `/api/ui/card/:name` |
-| **gsv_mcp_openbot** | `mcp.rs` + `gsv-mcp` bin | stdio + `GET`/`POST /mcp` + Galaxy card `/api/ui/card/mcp` | 26 box tools + 6 `gsv://` resources + 3 prompts; клієнти: OpenCode / Cursor / Grok CLI / Grok Bot — [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) |
+| **gsv_mcp_openbot** | `mcp.rs` + `gsv-mcp` bin | stdio + `GET`/`POST /mcp` + Galaxy card `/api/ui/card/mcp` | 26 box tools + 6 `gsv://` resources + 3 prompts + `logging/setLevel` + `completion/complete`; клієнти: OpenCode / Cursor / Grok CLI / Grok Bot — [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) |

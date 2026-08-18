@@ -578,6 +578,14 @@ async fn ui_layout_endpoint_returns_four_groups() {
         mcp_html.contains("<kbd>gsv_health</kbd>"),
         "mcp card tools: {mcp_html}"
     );
+    assert!(
+        mcp_html.contains("logging <kbd>info</kbd>"),
+        "mcp card logging: {mcp_html}"
+    );
+    assert!(
+        mcp_html.contains("completions"),
+        "mcp card completions: {mcp_html}"
+    );
     let (rss_status, rss_json) = get(&app, "/api/ui/card/rss-ticker").await;
     assert_eq!(rss_status, StatusCode::OK);
     let rss_html = rss_json["html"].as_str().expect("rss html");

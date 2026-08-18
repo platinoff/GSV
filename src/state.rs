@@ -8,7 +8,7 @@
 //! - SSE event broadcast sender (`/events`)
 
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::Arc;
 use std::time::SystemTime;
 
@@ -36,6 +36,8 @@ pub struct AppState {
     pub ide_selection: Arc<RwLock<Option<crate::boxes::ide::IdeSelection>>>,
     /// `true` once an update notification has been received.
     pub update_flag: Arc<AtomicBool>,
+    /// MCP `logging/setLevel` index into [`crate::mcp::LOG_LEVELS`] (default `info`).
+    pub mcp_log_level: Arc<AtomicU8>,
     /// SSE event broadcast channel (string payloads, JSON).
     pub events: broadcast::Sender<String>,
 }
@@ -64,6 +66,7 @@ impl AppState {
             omni: Arc::new(omni),
             ide_selection: Arc::new(RwLock::new(None)),
             update_flag: Arc::new(AtomicBool::new(false)),
+            mcp_log_level: Arc::new(AtomicU8::new(1)), // info — see mcp::LOG_LEVELS
             events,
         }
     }

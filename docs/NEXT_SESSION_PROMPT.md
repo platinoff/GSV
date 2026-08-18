@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-17 (**band 138 `mcp_resources_prompts` ✅**)
+**Оновлено:** 2026-08-17 (**band 139 `mcp_logging_completions` ✅**)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -20,8 +20,8 @@ abrakadabra
 project scan (**warnings first**) → drain наступного band (**без** mid-push) →
 Speeds · Rust panel → vision-sync → **один** commit → **`git push` + самарі**.
 
-Якщо **gsv:** черга — [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) **після band 138**
-(project scan; MCP 26 tools + 6 resources + 3 prompts already in tree).
+Якщо **gsv:** черга — [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) **після band 139**
+(project scan; MCP 26 tools + 6 resources + 3 prompts + logging + completions already in tree).
 Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics.sh`. Disk: `bash scripts/check_target_disk.sh`.
 
 **⚠️ Зупинити `gsv-server` перед `cargo test`/`build`** (блокує `target/debug/gsv-server.exe`);
@@ -176,6 +176,8 @@ Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics
   doc-preview / node-search / sync / extensions / preview) → **26** tools.
   **band 138** (PH-S2019…S2028) ✅ — MCP resources + prompts (`gsv://` allowlist +
   `gsv_status` / `gsv_vision_brief` / `gsv_drain`) + `abrakadabra` trigger alias.
+  **band 139** (PH-S2029…S2038) ✅ — MCP logging + completions (`logging/setLevel` +
+  `completion/complete` for `gsv://` URIs and prompt names).
   **Наступний band**: project scan у наступній сесії `абракадабра` / `abrakadabra`.
 
 ## Канон GSV
@@ -208,6 +210,7 @@ band 135 ✅ (`gsv_mcp_openbot` — stdio `gsv-mcp` + `/mcp`) ·
 band 136 ✅ (MCP Galaxy UI + remaining read tools) ·
 band 137 ✅ (MCP vision completeness — 26 tools) ·
 band 138 ✅ (MCP resources + prompts — 6 `gsv://` + 3 prompts) ·
+band 139 ✅ (MCP logging + completions — setLevel + complete) ·
 не комітити kit-only в PoolAI як «замість» GSV drain ·
 staging `GSV/data/*` / `certs/*.pem` /
 `.env` · mid-push · build/test при запущеному `gsv-server` · обхід ratio-смуги Rust-кодом замість compact UI ·

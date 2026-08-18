@@ -826,13 +826,28 @@ pub fn render_mcp(d: &Value) -> String {
     let resource_count = u(&d["resource_count"]).max(resources.len() as u64);
     let prompt_count = u(&d["prompt_count"]).max(prompts.len() as u64);
     let mut out = format!(
-        "<div class='dim'>{} · {} · tools {} · resources {} · prompts {}</div>",
+        "<div class='dim'>{} · {} · tools {} · resources {} · prompts {}",
         esc(&s(&d["name"])),
         esc(&s(&d["protocol"])),
         count,
         resource_count,
         prompt_count
     );
+    let log_level = s(&d["log_level"]);
+    if d["logging"].as_bool().unwrap_or(false) || !log_level.is_empty() {
+        out.push_str(&format!(
+            " · logging <kbd>{}</kbd>",
+            esc(if log_level.is_empty() {
+                "on"
+            } else {
+                &log_level
+            })
+        ));
+    }
+    if d["completions"].as_bool().unwrap_or(false) {
+        out.push_str(" · completions");
+    }
+    out.push_str("</div>");
     let stdio = s(&d["stdio"]);
     let http = s(&d["http"]);
     if !stdio.is_empty() || !http.is_empty() {
@@ -1701,12 +1716,17 @@ mod tests {
             "resource_count": 1,
             "resources": ["gsv://vision/manifest"],
             "prompt_count": 1,
-            "prompts": ["gsv_status"]
+            "prompts": ["gsv_status"],
+            "logging": true,
+            "completions": true,
+            "log_level": "info"
         }));
         assert!(mcp.contains("gsv_mcp_openbot"), "{mcp}");
         assert!(mcp.contains("tools 2"), "{mcp}");
         assert!(mcp.contains("resources 1"), "{mcp}");
         assert!(mcp.contains("prompts 1"), "{mcp}");
+        assert!(mcp.contains("logging <kbd>info</kbd>"), "{mcp}");
+        assert!(mcp.contains("completions"), "{mcp}");
         assert!(mcp.contains("<kbd>gsv_health</kbd>"), "{mcp}");
         assert!(mcp.contains("<kbd>gsv://vision/manifest</kbd>"), "{mcp}");
         assert!(mcp.contains("<kbd>gsv_status</kbd>"), "{mcp}");

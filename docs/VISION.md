@@ -44,6 +44,9 @@ remaining read-only MCP tools (19) + `.grok/config.toml`.
 node-search / summary / sync / extensions / preview (26 tools; preview same confine as HTTP).
 **band 138 (PH-S2019…S2028, ✅)** — MCP resources + prompts: 6 `gsv://` URIs + 3 prompts
 (`gsv_status` / `gsv_vision_brief` / `gsv_drain`); Galaxy card lists both.
+**band 139 (PH-S2029…S2038, ✅)** — MCP logging + completions: `logging/setLevel` (RFC 5424)
++ `completion/complete` (`ref/resource` `gsv://` + `ref/prompt`); Galaxy card shows
+`log_level` + completions.
 
 ## Що це
 
