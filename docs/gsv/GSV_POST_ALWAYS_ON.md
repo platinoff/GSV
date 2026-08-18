@@ -1,9 +1,9 @@
 # GSV after always-on — MCP catch-up (conception)
 
-**Status:** Landed (band **152** ✅ · next drain = **153** watchdog card)  
+**Status:** Landed (band **154** ✅ · watchdog ops card + fingerprint model)  
 **Date:** 2026-08-18  
 **Owner ask:** update needed docs/plans; put what the next `абракадабра` / `abrakadabra` on **gsv** must drain.  
-**Scan (same day):** clippy 0 · roadmap 102–152 all ✅ · no `TODO` in `src/` · always-on P2 leftovers closed.
+**Scan (same day):** clippy 0 · roadmap 102–154 all ✅ · no `TODO` in `src/` · always-on P2 leftovers closed except Grok Bot tunnel (owner opt-in).
 
 **Plan:** [`docs/superpowers/plans/2026-08-18-mcp-always-on-catchup.md`](../superpowers/plans/2026-08-18-mcp-always-on-catchup.md)  
 **Roadmap:** band **152** (then 153) in [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md)  
@@ -81,10 +81,8 @@ Cost of leaving it: the next drain session invents work, or the agent repeats a 
 - `gsv_drain` prompt: call scan on the selected id, then read HANDOFF/NEXT resources.
 - Do **not** add `gsv_products_open` unless the owner asks.
 
-### P2 — Later (band 153+)
+### P2 — Later (band 155+)
 
-- Dedicated Galaxy ops card `watchdog` (today: health row `watchdog_alive` only).
-- Fingerprint `model` from Cursor session vs env (default `unknown` stays valid).
 - Grok Bot tunnel runbook (owner opt-in only).
 - wasm 0–5% horizon unchanged.
 
@@ -97,7 +95,6 @@ Cost of leaving it: the next drain session invents work, or the agent repeats a 
 
 ## Open questions (non-blocking)
 
-- Fingerprint `model` string source — owner, band 153.
 - Whether `gsv_products_open` ever belongs on MCP — default **no**.
 
 ## Phasing (VDT bands)
@@ -107,7 +104,8 @@ Cost of leaving it: the next drain session invents work, or the agent repeats a 
 | **this session** | — | Spec + plan + HANDOFF/NEXT/MEMORY · **no product code** | 2026-08-18 |
 | **151** | S2149–S2158 | MCP catch-up: 5 tools + 2 resources + `gsv_drain` text + contracts | **✅ 2026-08-18** |
 | **152** | S2159–S2168 | MCP `products_select` + scan-without-id | **✅ 2026-08-18** |
-| **153** | S2169–S2178 | Watchdog ops card + fingerprint model (owner pick) | later |
+| **153** | S2169–S2178 | rust-first `cargo xtask` | **✅ 2026-08-18** |
+| **154** | S2179–S2188 | Watchdog ops card + fingerprint model (owner pick) | **✅ 2026-08-18** |
 
 ## Constraints
 

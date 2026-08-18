@@ -113,6 +113,7 @@ pub const UI_GROUPS: [UiGroup; 4] = [
             "products",
             "fingerprints",
             "sw",
+            "watchdog",
             "mcp",
             "update",
             "tracker",
@@ -1087,6 +1088,57 @@ pub fn render_fingerprints(d: &Value) -> String {
     out
 }
 
+/// Live watchdog ops card (`/api/watchdog`).
+pub fn render_watchdog(d: &Value) -> String {
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let path = s(&d["path"]);
+    if path.is_empty() && d.get("pid").is_none() && d.get("last_action").is_none() {
+        return empty_html("watchdog");
+    }
+    let alive = b(&d["alive"]);
+    let mut out = format!(
+        "<div class='dim'>heartbeat <kbd>{}</kbd></div>",
+        esc(if path.is_empty() { "—" } else { &path })
+    );
+    let age = if d["age_secs"].is_null() {
+        "—".into()
+    } else {
+        u(&d["age_secs"]).to_string()
+    };
+    let pid = if d.get("pid").and_then(Value::as_u64).is_some() {
+        u(&d["pid"]).to_string()
+    } else {
+        "—".into()
+    };
+    let action = s(&d["last_action"]);
+    out.push_str(&tab(
+        &["field", "value"],
+        vec![
+            vec![
+                "alive".into(),
+                format!(
+                    "<span class='{}'>{}</span>",
+                    if alive { "ok" } else { "dim" },
+                    alive
+                ),
+            ],
+            vec!["pid".into(), pid],
+            vec!["age_secs".into(), age],
+            vec![
+                "last_action".into(),
+                esc(if action.is_empty() { "—" } else { &action }),
+            ],
+            vec![
+                "consecutive_failures".into(),
+                u(&d["consecutive_failures"]).to_string(),
+            ],
+        ],
+    ));
+    out
+}
+
 /// Service Worker shell-cache card (`/api/sw`).
 pub fn render_sw(d: &Value) -> String {
     if let Some(msg) = not_ok(d) {
@@ -1465,6 +1517,7 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
         "products" => Some(render_products(d)),
         "fingerprints" => Some(render_fingerprints(d)),
         "sw" => Some(render_sw(d)),
+        "watchdog" => Some(render_watchdog(d)),
         "mcp" => Some(render_mcp(d)),
         "update" => Some(render_update(d)),
         "ide" => Some(render_ide(d)),
@@ -1488,7 +1541,7 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
 }
 
 /// Server-rendered card names (stable contract for `/api/ui/card/:name`).
-pub const CARD_NAMES: [&str; 35] = [
+pub const CARD_NAMES: [&str; 36] = [
     "tracker",
     "sli",
     "toolchain",
@@ -1506,6 +1559,7 @@ pub const CARD_NAMES: [&str; 35] = [
     "products",
     "fingerprints",
     "sw",
+    "watchdog",
     "mcp",
     "update",
     "ide",
@@ -1901,8 +1955,9 @@ mod tests {
         assert!(render_card("products", &d).is_some());
         assert!(render_card("fingerprints", &d).is_some());
         assert!(render_card("nope", &d).is_none());
-        assert_eq!(CARD_NAMES.len(), 35);
+        assert_eq!(CARD_NAMES.len(), 36);
         assert!(render_card("sw", &d).is_some());
+        assert!(render_card("watchdog", &d).is_some());
         assert!(render_card("health", &d).is_some());
         assert!(render_card("ide", &d).is_some());
         assert!(render_card("vision", &d).is_some());

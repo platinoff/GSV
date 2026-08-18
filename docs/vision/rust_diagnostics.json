@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generated_at": "2026-08-18",
   "host_label": "PLATINOV",
-  "git_head": "905b824",
+  "git_head": "600abe0",
   "source": "local",
   "notes": [
     "Machine-readable Rust/Clippy warning+error index for vision Rust panel.",
@@ -12,23 +12,11 @@
     "warnings": 0,
     "errors": 0,
     "ok": true,
-    "recorded_at": "2026-08-18T17:45:03Z",
+    "recorded_at": "2026-08-18T19:42:00Z",
     "command": "cargo clippy --message-format=json --all-targets",
-    "wall_secs": 18.9234619
+    "wall_secs": 24.0764817
   },
   "history": [
-    {
-      "kind": "rust_diagnostics",
-      "command": "cargo clippy --message-format=json --all-targets --features ml,enterprise,cloud,test-utils,job-store-sqlite,prometheus",
-      "warnings": 0,
-      "errors": 0,
-      "ok": true,
-      "recorded_at": "2026-08-14T01:52:14Z",
-      "wall_secs": 159.0495888,
-      "host_label": "PLATINOV",
-      "git_head": "724ac035c",
-      "source": "local"
-    },
     {
       "kind": "rust_diagnostics",
       "command": "cargo clippy --message-format=json --all-targets --features ml,enterprise,cloud,test-utils,job-store-sqlite,prometheus",
@@ -397,6 +385,18 @@
       "wall_secs": 18.9234619,
       "host_label": "PLATINOV",
       "git_head": "905b824",
+      "source": "local"
+    },
+    {
+      "kind": "rust_diagnostics",
+      "command": "cargo clippy --message-format=json --all-targets",
+      "warnings": 0,
+      "errors": 0,
+      "ok": true,
+      "recorded_at": "2026-08-18T19:42:00Z",
+      "wall_secs": 24.0764817,
+      "host_label": "PLATINOV",
+      "git_head": "600abe0",
       "source": "local"
     }
   ]

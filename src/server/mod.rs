@@ -825,6 +825,7 @@ async fn card_wire(state: &AppState, name: &str, q: &CardQuery) -> Result<Value,
             crate::boxes::fingerprint::wire(&state.repo_root, selected.as_deref(), 20)
         }
         "sw" => crate::boxes::sw::wire(),
+        "watchdog" => crate::boxes::watchdog::wire(&state.repo_root),
         "mcp" => crate::mcp::http_info(state),
         "update" => json!(crate::boxes::update::wire(state)),
         "ide" => {

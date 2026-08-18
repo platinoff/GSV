@@ -153,6 +153,56 @@ fn clamp_limit_defaults_and_caps() {
     assert_eq!(fingerprint::clamp_limit(Some(500)), 100);
 }
 
+#[test]
+fn resolve_model_defaults_to_unknown() {
+    assert_eq!(fingerprint::resolve_model_from(None, None, None), "unknown");
+}
+
+#[test]
+fn resolve_model_env_wins_over_session() {
+    assert_eq!(
+        fingerprint::resolve_model_from(Some("grok-4.6"), Some("cursor-session"), Some("jsonl")),
+        "grok-4.6"
+    );
+}
+
+#[test]
+fn resolve_model_session_when_env_empty() {
+    assert_eq!(
+        fingerprint::resolve_model_from(Some(""), Some("  "), Some("cursor-grok-4.6")),
+        "cursor-grok-4.6"
+    );
+    assert_eq!(
+        fingerprint::resolve_model_from(None, Some("composer"), None),
+        "composer"
+    );
+}
+
+#[test]
+fn resolve_model_explicit_unknown_stays_valid() {
+    assert_eq!(
+        fingerprint::resolve_model_from(Some("unknown"), Some("composer"), None),
+        "unknown"
+    );
+}
+
+#[test]
+fn session_model_from_json_reads_model_field() {
+    assert_eq!(
+        fingerprint::session_model_from_json(r#"{"model":"grok-4.6"}"#).as_deref(),
+        Some("grok-4.6")
+    );
+    assert_eq!(
+        fingerprint::session_model_from_json(r#"{"session":{"model":"composer"}}"#).as_deref(),
+        Some("composer")
+    );
+    assert_eq!(fingerprint::session_model_from_json("{"), None);
+    assert_eq!(
+        fingerprint::session_model_from_json(r#"{"model":""}"#),
+        None
+    );
+}
+
 #[tokio::test]
 async fn fingerprints_http_ok_shape() {
     let (app, _state) = app();

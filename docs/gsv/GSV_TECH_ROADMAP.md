@@ -38,7 +38,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 151** (MCP catch-up) **✅** ·
 **band 152** (MCP products select) **✅** ·
 **band 153** (rust-first cargo xtask) **✅** ·
-**band 154** (watchdog ops card — queued) ·
+**band 154** (watchdog ops card + fingerprint model) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -785,7 +785,7 @@ Owner 2026-08-18: wrap products / scan / watchdog / sw / fingerprints on `gsv_mc
 | **PH-S2167** | (reserve) | — **✅** |
 | **PH-S2168** | Band close | tests **399** green; `--stretch-96` 96.61%; `--band 152` → `0.152.0` + fingerprint; one commit + push — **✅** |
 
-Band **153** (rust-first xtask) closed this session. Watchdog ops card moves to **band 154**.
+Band **154** (watchdog ops card + fingerprint model) closed this session. Next gsv drain: scan / owner pick (Grok Bot tunnel stays opt-in).
 
 ## Спринти (band 153) — rust-first tests/benches/scripts ✅
 
@@ -804,22 +804,22 @@ Owner ask: product tests, benches, and kit scripts in `.rs` (`cargo xtask`), not
 | **PH-S2177** | Docs / skills | AGENTS / HANDOFF / NEXT / abracadabra / MCP_OPENBOT — **✅** |
 | **PH-S2178** | Band close | tests green; `--band 153` + fingerprint; one commit + push — **✅** |
 
-## Спринти (band 154) — watchdog ops card (queued)
+## Спринти (band 154) — watchdog ops card + fingerprint model ✅
 
-Owner pick. Dedicated Galaxy ops card `watchdog`; optional fingerprint `model` from Cursor session. Still **no** MCP `products/open`, **no** `update/apply`, **no** Grok Bot tunnel.
+Owner pick. Dedicated Galaxy ops card `watchdog`; fingerprint `model` from Cursor session vs env. Still **no** MCP `products/open`, **no** `update/apply`, **no** Grok Bot tunnel.
 
 | Sprint | Фокус | Acceptance (ключ) |
 |--------|-------|-------------------|
-| **PH-S2179** | Scope + queue | this band |
-| **PH-S2180** | Watchdog ops card | `render_watchdog` + `CARD_NAMES` + Galaxy ops |
-| **PH-S2181** | Fingerprint model | session vs env (default `unknown` stays valid) |
-| **PH-S2182** | (reserve) | — |
-| **PH-S2183** | (reserve) | — |
-| **PH-S2184** | (reserve) | — |
-| **PH-S2185** | (reserve) | — |
-| **PH-S2186** | Contracts | card + health row |
-| **PH-S2187** | Docs | HANDOFF / NEXT / BOXES |
-| **PH-S2188** | Band close | tests green; `--band 154` + fingerprint; one commit + push |
+| **PH-S2179** | Scope + queue | this band — **✅** |
+| **PH-S2180** | Watchdog ops card | `render_watchdog` + `CARD_NAMES` 36 + Galaxy ops — **✅** |
+| **PH-S2181** | Fingerprint model | `GSV_MODEL` else Cursor session (`CURSOR_MODEL` / `GSV_SESSION_FILE`); default `unknown` stays valid — **✅** |
+| **PH-S2182** | (reserve) | — **✅** |
+| **PH-S2183** | (reserve) | — **✅** |
+| **PH-S2184** | (reserve) | — **✅** |
+| **PH-S2185** | (reserve) | — **✅** |
+| **PH-S2186** | Contracts | card + health row + `resolve_model_from` — **✅** |
+| **PH-S2187** | Docs | HANDOFF / NEXT / BOXES — **✅** |
+| **PH-S2188** | Band close | tests **428** green; `--stretch-96` **99.14%**; `--band 154` + fingerprint; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

@@ -172,6 +172,54 @@ fn env_or(key: &str, default: &str) -> String {
         .unwrap_or_else(|| default.to_string())
 }
 
+fn nonempty_opt(s: Option<&str>) -> Option<String> {
+    s.map(str::trim)
+        .filter(|t| !t.is_empty())
+        .map(str::to_string)
+}
+
+/// Fingerprint `model`: explicit `GSV_MODEL` env, then Cursor session (`CURSOR_MODEL`
+/// or session JSON), else `unknown`. The literal `unknown` is a valid recorded value.
+pub fn resolve_model_from(
+    gsv_model: Option<&str>,
+    cursor_model: Option<&str>,
+    session_model: Option<&str>,
+) -> String {
+    nonempty_opt(gsv_model)
+        .or_else(|| nonempty_opt(cursor_model))
+        .or_else(|| nonempty_opt(session_model))
+        .unwrap_or_else(|| "unknown".to_string())
+}
+
+/// Read `model` from a Cursor/session JSON blob (`{"model":…}` or `{"session":{"model":…}}`).
+pub fn session_model_from_json(text: &str) -> Option<String> {
+    let v: Value = serde_json::from_str(text).ok()?;
+    v.get("model")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            v.get("session")
+                .and_then(|s| s.get("model"))
+                .and_then(Value::as_str)
+        })
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+}
+
+fn read_session_model() -> Option<String> {
+    let path = std::env::var_os("GSV_SESSION_FILE").map(PathBuf::from)?;
+    let text = fs::read_to_string(path).ok()?;
+    session_model_from_json(&text)
+}
+
+/// Process env + optional `GSV_SESSION_FILE` JSON.
+pub fn resolve_model() -> String {
+    let gsv = std::env::var("GSV_MODEL").ok();
+    let cursor = std::env::var("CURSOR_MODEL").ok();
+    let session = read_session_model();
+    resolve_model_from(gsv.as_deref(), cursor.as_deref(), session.as_deref())
+}
+
 fn git_head_short(root: &Path) -> Option<String> {
     crate::vision::command("git")
         .current_dir(root)
@@ -260,7 +308,7 @@ pub fn record_from_env(
     let band = std::env::var("GSV_BAND").ok().filter(|s| !s.is_empty());
     let actor = env_or("GSV_ACTOR", "agent");
     let ide = env_or("GSV_IDE", "cursor");
-    let model = env_or("GSV_MODEL", "unknown");
+    let model = resolve_model();
     let agent = env_or("GSV_AGENT", "orchestrator");
     let summary = env_or("GSV_SUMMARY", "drain close");
     record(RecordOpts {

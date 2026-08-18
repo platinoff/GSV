@@ -130,7 +130,7 @@ There is an **IDE session** picker, not a **VDT product** picker. `Cargo.toml` i
 
 ## Open questions (non-blocking)
 
-- Fingerprint `model` string: Cursor session vs env. Default `unknown` if missing.
+- Fingerprint `model` string: Cursor session vs env. **Decision (band 154):** `GSV_MODEL` wins; else `CURSOR_MODEL` / `GSV_SESSION_FILE` JSON; default `unknown` is valid.
 - Supervisor: `cargo xtask live` / `gsv-live` bin. **Decision (band 153):** Rust supervisor; `gsv-watchdog` is the outer loop when that process dies (Cursor abort).
 
 ## Phasing (VDT bands)
@@ -146,4 +146,4 @@ There is an **IDE session** picker, not a **VDT product** picker. `Cargo.toml` i
 | **149** | S2129–S2138 | OmniRoute PRODUCTS.md + semver minor = band | ✅ |
 | **150** | S2139–S2148 | Live watchdog (`gsv-watchdog` probes `/api/health`, respawns live copy) | ✅ |
 
-Always-on horizon **closed**. MCP catch-up **band 151 ✅**. Next `абракадабра` on **gsv**: scan first, then drain **band 152** (MCP `products_select`) from [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md). Watchdog stays the always-on outer loop.
+Always-on horizon **closed**. MCP catch-up **band 151–152 ✅**. Rust-first xtask **band 153 ✅**. Watchdog ops card + fingerprint model **band 154 ✅**. Next `абракадабра` on **gsv**: scan first, then owner pick. Grok Bot tunnel stays opt-in.

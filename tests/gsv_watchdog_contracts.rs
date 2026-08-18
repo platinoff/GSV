@@ -9,7 +9,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
-use gsv::boxes::ui::render_card;
+use gsv::boxes::ui::{render_card, CARD_NAMES};
 use gsv::boxes::watchdog::{self, Heartbeat};
 use gsv::server::router;
 use gsv::AppState;
@@ -201,4 +201,45 @@ fn health_card_lists_watchdog() {
     )
     .expect("health card");
     assert!(html.contains("watchdog"), "{html}");
+}
+
+#[test]
+fn render_watchdog_lists_heartbeat() {
+    let html = render_card(
+        "watchdog",
+        &serde_json::json!({
+            "ok": true,
+            "alive": true,
+            "path": "S:/rust/GSV/target/live/watchdog.json",
+            "epoch_secs": 1,
+            "age_secs": 3,
+            "last_action": "probe",
+            "consecutive_failures": 0,
+            "pid": 4242
+        }),
+    )
+    .expect("watchdog card");
+    assert!(html.contains("watchdog.json"), "{html}");
+    assert!(html.contains("probe"), "{html}");
+    assert!(html.contains("4242"), "{html}");
+    assert!(html.contains("class='ok'>true"), "{html}");
+}
+
+#[test]
+fn render_watchdog_empty_and_error() {
+    let empty = serde_json::json!({ "ok": true });
+    let html = render_card("watchdog", &empty).expect("empty");
+    assert!(html.contains("watchdog — no data"), "{html}");
+    let err = serde_json::json!({ "ok": false, "error": "stand-error" });
+    let html = render_card("watchdog", &err).expect("err");
+    assert!(
+        html.contains("<span class='err'>stand-error</span>"),
+        "{html}"
+    );
+}
+
+#[test]
+fn card_names_include_watchdog() {
+    assert!(CARD_NAMES.contains(&"watchdog"));
+    assert_eq!(CARD_NAMES.len(), 36);
 }
