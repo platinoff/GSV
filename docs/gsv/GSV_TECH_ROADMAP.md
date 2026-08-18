@@ -27,6 +27,8 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 140** (MCP resource subscribe + logging notifications) **✅** ·
 **band 141** (MCP HTTP SSE / streamable notifications) **✅** ·
 **band 142** (MCP HTTP sessions / `Mcp-Session-Id`) **✅** ·
+**band 143** (Galaxy chrome + type/chart scale) queued ·
+**bands 144–147** (always-on live copy · products · version/fingerprints · polish) queued ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -602,6 +604,91 @@ sessions.
 | **PH-S2066** | Docs canon | MCP_OPENBOT / SERVER / BOXES / ARCHITECTURE / HANDOFF / NEXT / MEMORY / roadmap — **✅** |
 | **PH-S2067** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy — **✅** |
 | **PH-S2068** | Band close | tests green; vision-sync; one commit + push — **✅** |
+
+## Спринти (band 143) — Galaxy chrome + type/chart scale
+
+Owner 2026-08-17: server must stay the live product; first drain is **debug chrome** (power menu under cards, collapse/fullscreen), then type/chart balance. Spec: [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md). Plan: [`docs/superpowers/plans/2026-08-17-always-on-galaxy.md`](../superpowers/plans/2026-08-17-always-on-galaxy.md). Implement **only this band** on the next `абракадабра` gsv drain.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2069** | Scope + queue | this band; spec Accepted; `extensions.json` `active_sprint` = `PH-S2069` |
+| **PH-S2070** | Power menu stack | header z-index ≥ 40; drop `body>header,.workspace{z-index:2}`; menu z-index 80 |
+| **PH-S2071** | Exclusive fullscreen | one `.fullscreen`; `data-action='card-fs'`; `exitFullscreen()`; Esc not `:last-child` |
+| **PH-S2072** | Collapse → dock | `.card.collapsed{display:none}`; restore from dock |
+| **PH-S2073** | Type scale | `--fs-ui/card/meta/chart`; card body max-height 420px |
+| **PH-S2074** | Chart SVG | speed/rust height 168; font-size 11; ui-monospace stack |
+| **PH-S2075** | Contracts | `gsv_ui_contracts` stack/collapse/fs/type markers |
+| **PH-S2076** | Docs canon | ALWAYS_ON_UI / BOXES / HANDOFF / NEXT / MEMORY / roadmap |
+| **PH-S2077** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy |
+| **PH-S2078** | Band close | tests green; vision-sync; one commit + push |
+
+## Спринти (band 144) — Always-on live binary + offline during apply
+
+Windows locks the running exe. Canon process is a **copy** (`target/live/gsv-server.exe`) so `cargo test`/`build` may overwrite `target/debug/`. UI goes **offline** on apply, SSE `onopen` resyncs.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2079** | Scope + queue | this band; `active_sprint` = `PH-S2079` |
+| **PH-S2080** | `scripts/gsv-live.sh` | copy debug → live; loop restart; gitignore `target/live/` |
+| **PH-S2081** | Apply API | `POST /api/update/apply` → SSE offline; exit gated by `GSV_UPDATE_APPLY_EXIT` |
+| **PH-S2082** | UI apply | `doUpdate()` POST apply; stay offline until SSE `onopen` |
+| **PH-S2083** | Drain docs | AGENTS/HANDOFF/NEXT: do **not** kill live copy before cargo test |
+| **PH-S2084** | Contracts | update-flow apply + server POST 200 `{ok,applying}` |
+| **PH-S2085** | GSV_SERVER | live-copy + apply scenario |
+| **PH-S2086** | Docs canon | HANDOFF / NEXT / MEMORY / roadmap |
+| **PH-S2087** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy |
+| **PH-S2088** | Band close | tests green; vision-sync; one commit + push |
+
+## Спринти (band 145) — VDT products picker + open folder + scan
+
+Same discovery merge as `scripts/list-vdt-products.sh`, in Rust. Open path confined to discovered roots.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2089** | Scope + queue | this band; `active_sprint` = `PH-S2089` |
+| **PH-S2090** | `boxes/products.rs` | `discover(kit_root)` includes gsv rust registered |
+| **PH-S2091** | HTTP list/select | `GET /api/products`; `POST /api/products/select`; unknown id → 404 |
+| **PH-S2092** | Open folder | `POST /api/products/open`; explorer/cursor; id allowlist |
+| **PH-S2093** | Auto-parse scan | `GET /api/products/scan` git/kind/HANDOFF/cargo_name (no cargo test) |
+| **PH-S2094** | Galaxy card | `render_products`; `CARD_NAMES` + ops group |
+| **PH-S2095** | Contracts | `gsv_products_contracts` + ui/server |
+| **PH-S2096** | Docs canon | BOXES / SERVER / HANDOFF / NEXT / MEMORY |
+| **PH-S2097** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy |
+| **PH-S2098** | Band close | tests green; vision-sync; one commit + push |
+
+## Спринти (band 146) — Version bump + fingerprints
+
+Each drain commit increments `CARGO_PKG_VERSION` patch. Fingerprint JSONL: actor, IDE, model, agent, time.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2099** | Scope + queue | this band; `active_sprint` = `PH-S2099` |
+| **PH-S2100** | Version tests | `assert_eq!(wire.version, env!("CARGO_PKG_VERSION"))` (no hardcoded `0.1.0`) |
+| **PH-S2101** | `gsv-bump-version.sh` | patch +1 in `Cargo.toml` `[package]` |
+| **PH-S2102** | Fingerprint module | `docs/gsv/fingerprints.jsonl`; `append` / `latest` |
+| **PH-S2103** | HTTP + card | `GET /api/fingerprints`; `render_fingerprints`; ops group |
+| **PH-S2104** | Drain scripts | `gsv-fingerprint.sh` + commit trailers `Gsv-Actor/Ide/Model` |
+| **PH-S2105** | Contracts | `gsv_fingerprint_contracts` + ui/server |
+| **PH-S2106** | Docs canon | HANDOFF close step = bump + fingerprint; MEMORY |
+| **PH-S2107** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy |
+| **PH-S2108** | Band close | bump in the same commit; tests green; vision-sync; push |
+
+## Спринти (band 147) — README-level Galaxy polish leftovers
+
+Visual pass vs `docs/assets/presentations/`; stand-smoke new cards; README Quick start → `gsv-live.sh`.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2109** | Scope + queue | this band; `active_sprint` = `PH-S2109` |
+| **PH-S2110** | Header/card density | padding/gap vs presentation shots (not pixel-perfect) |
+| **PH-S2111** | Stand-smoke | `products` + `fingerprints` in `CARDS` |
+| **PH-S2112** | README Quick start | `bash scripts/gsv-live.sh` as canon run |
+| **PH-S2113** | Architecture note | live-copy in `GSV_ARCHITECTURE.md` |
+| **PH-S2114** | Docs index | ALWAYS_ON_UI row in `docs/gsv/README.md` |
+| **PH-S2115** | Contracts | stand-smoke + ui leftover markers |
+| **PH-S2116** | Docs canon | HANDOFF / NEXT / MEMORY / roadmap |
+| **PH-S2117** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy |
+| **PH-S2118** | Band close | tests green; vision-sync; one commit + push |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

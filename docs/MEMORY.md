@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-17 · always-on Galaxy spec queued · band 142 ✅)
+
+- **Owner ask → spec/plan, no code this session:** always-on `:9999`; page **offline** only during binary swap; debug collapse/fullscreen/power-menu z-index; type+chart balance; VDT product picker + open folder + auto-parse; patch version per commit; fingerprint (IDE / bot / model / agent / time); UI toward README presentations.
+- **Canon:** [`gsv/GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md) · plan [`superpowers/plans/2026-08-17-always-on-galaxy.md`](superpowers/plans/2026-08-17-always-on-galaxy.md) · roadmap bands **143–147**.
+- **Next drain:** band **143** chrome (`PH-S2069…S2078`). Live copy = band 144 (until then, debug exe still locks `cargo test`).
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 still `scripts/list-vdt-products.sh`.
+- **Ratio / тести:** last measured band 142 — `gsv-loc-audit --stretch-96` → **96.43%** (rust 17360 / product 18002) · **320** tests · clippy 0. Vision rev **509**.
+
 ## Стан (2026-08-17 · band 142 ✅)
 
 - **Band 142:** MCP HTTP sessions — `POST /mcp` `initialize` issues process-local `Mcp-Session-Id` (cap 32); unknown id → 404 `{ok:false}`; `DELETE /mcp` ends it; JSON discovery adds `sessions` / `session_count`; Galaxy card lists sessions. Stdio does not issue HTTP sessions.

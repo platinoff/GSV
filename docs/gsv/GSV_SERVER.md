@@ -99,6 +99,8 @@ cargo run --manifest-path GSV/Cargo.toml --bin gsv-http-stand-smoke -- --base-ur
 - UI показує кнопку/бейдж **Update** замість auto-reload.
 - Клієнтський JS тримає стан offline в `navigator.onLine` / heartbeat SSE; при реконекті робить `GET /api/...` full-resync та оновлює метрики (Tracker/SLI/toolchain/speed/rust diagnostics).
 
+**Horizon (bands 144+):** run a live copy (`target/live/gsv-server.exe` via `scripts/gsv-live.sh`) so `cargo test`/`build` does not lock the listening process. `POST /api/update/apply` emits SSE `offline` and exits; the supervisor recopies debug → live and rebinds `:9999`; the page stays **offline** until SSE `onopen` then resyncs. Spec: [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md).
+
 ## Offline-стійкість
 
 - Static assets (UI) кешуються у Service Worker / localStorage → сторінка відкривається офлайн.
