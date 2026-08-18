@@ -196,11 +196,63 @@ fn session_model_from_json_reads_model_field() {
         fingerprint::session_model_from_json(r#"{"session":{"model":"composer"}}"#).as_deref(),
         Some("composer")
     );
+    assert_eq!(
+        fingerprint::session_model_from_json(r#"{"modelId":"grok-4.6"}"#).as_deref(),
+        Some("grok-4.6")
+    );
     assert_eq!(fingerprint::session_model_from_json("{"), None);
     assert_eq!(
         fingerprint::session_model_from_json(r#"{"model":""}"#),
         None
     );
+}
+
+#[test]
+fn cursor_renderer_log_takes_last_catalog_model() {
+    let log = "\
+2026-08-18 16:08:40.057 [info] [buildRequestedModel] catalogModelId=composer-2.5 composerModelName=composer-2.5
+2026-08-18 20:31:33.091 [info] [buildRequestedModel] catalogModelId=grok-4.6 composerModelName=grok-4.6
+";
+    assert_eq!(
+        fingerprint::cursor_model_from_renderer_log(log).as_deref(),
+        Some("grok-4.6")
+    );
+    assert_eq!(
+        fingerprint::cursor_model_from_renderer_log("no model here"),
+        None
+    );
+}
+
+#[test]
+fn discover_cursor_model_from_logs_reads_newest_renderer() {
+    let root = std::env::temp_dir().join(format!(
+        "gsv-fp-cursor-logs-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0)
+    ));
+    let old = root.join("20260801T000000").join("window1");
+    let new = root.join("20260818T000000").join("window1");
+    std::fs::create_dir_all(&old).expect("old dir");
+    std::fs::create_dir_all(&new).expect("new dir");
+    std::fs::write(
+        old.join("renderer.log"),
+        "[buildRequestedModel] catalogModelId=composer-2.5\n",
+    )
+    .expect("old log");
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    std::fs::write(
+        new.join("renderer.log"),
+        "[buildRequestedModel] catalogModelId=grok-4.6\n",
+    )
+    .expect("new log");
+    assert_eq!(
+        fingerprint::discover_cursor_model_from_logs(&root).as_deref(),
+        Some("grok-4.6")
+    );
+    let _ = std::fs::remove_dir_all(&root);
 }
 
 #[tokio::test]

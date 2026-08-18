@@ -179,7 +179,8 @@ fn nonempty_opt(s: Option<&str>) -> Option<String> {
 }
 
 /// Fingerprint `model`: explicit `GSV_MODEL` env, then Cursor session (`CURSOR_MODEL`
-/// or session JSON), else `unknown`. The literal `unknown` is a valid recorded value.
+/// or session JSON), then the latest Cursor `renderer.log` `catalogModelId`, else
+/// `unknown`. The literal `unknown` is a valid recorded value.
 pub fn resolve_model_from(
     gsv_model: Option<&str>,
     cursor_model: Option<&str>,
@@ -191,33 +192,144 @@ pub fn resolve_model_from(
         .unwrap_or_else(|| "unknown".to_string())
 }
 
-/// Read `model` from a Cursor/session JSON blob (`{"model":…}` or `{"session":{"model":…}}`).
+fn json_str_model(v: &Value, keys: &[&str]) -> Option<String> {
+    for key in keys {
+        if let Some(s) = v.get(*key).and_then(Value::as_str).map(str::trim) {
+            if !s.is_empty() {
+                return Some(s.to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Read `model` from a Cursor/session JSON blob (`model` / `modelId` / nested `session`).
 pub fn session_model_from_json(text: &str) -> Option<String> {
     let v: Value = serde_json::from_str(text).ok()?;
-    v.get("model")
-        .and_then(Value::as_str)
-        .or_else(|| {
-            v.get("session")
-                .and_then(|s| s.get("model"))
-                .and_then(Value::as_str)
-        })
+    const KEYS: [&str; 4] = ["model", "modelId", "catalogModelId", "composerModelName"];
+    json_str_model(&v, &KEYS).or_else(|| v.get("session").and_then(|s| json_str_model(s, &KEYS)))
+}
+
+/// Last `catalogModelId=` (else `composerModelName=`) in a Cursor renderer log.
+pub fn cursor_model_from_renderer_log(text: &str) -> Option<String> {
+    let mut last = None;
+    for line in text.lines() {
+        if let Some(id) =
+            log_kv(line, "catalogModelId=").or_else(|| log_kv(line, "composerModelName="))
+        {
+            last = Some(id);
+        }
+    }
+    last
+}
+
+fn log_kv(line: &str, key: &str) -> Option<String> {
+    let i = line.find(key)?;
+    let id = line[i + key.len()..]
+        .split_whitespace()
+        .next()
         .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(str::to_string)
+        .filter(|s| !s.is_empty())?;
+    Some(id.to_string())
+}
+
+const RENDERER_TAIL_BYTES: usize = 64 * 1024;
+
+fn read_tail_text(path: &Path, max: usize) -> Option<String> {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut f = fs::File::open(path).ok()?;
+    let len = f.metadata().ok()?.len();
+    let start = len.saturating_sub(max as u64);
+    f.seek(SeekFrom::Start(start)).ok()?;
+    let mut buf = String::new();
+    f.read_to_string(&mut buf).ok()?;
+    Some(buf)
+}
+
+/// Newest `window*/renderer.log` under a Cursor `logs/` tree (testable).
+pub fn discover_cursor_model_from_logs(logs_root: &Path) -> Option<String> {
+    let mut best: Option<(std::time::SystemTime, PathBuf)> = None;
+    let Ok(sessions) = fs::read_dir(logs_root) else {
+        return None;
+    };
+    let mut guard = 0usize;
+    for session in sessions.flatten() {
+        let session_path = session.path();
+        if !session_path.is_dir() {
+            continue;
+        }
+        let Ok(windows) = fs::read_dir(&session_path) else {
+            continue;
+        };
+        for window in windows.flatten() {
+            guard += 1;
+            if guard > 200 {
+                break;
+            }
+            let log = window.path().join("renderer.log");
+            let Ok(meta) = fs::metadata(&log) else {
+                continue;
+            };
+            if !meta.is_file() {
+                continue;
+            }
+            let mtime = meta.modified().unwrap_or(std::time::UNIX_EPOCH);
+            if best.as_ref().map(|(t, _)| mtime >= *t).unwrap_or(true) {
+                best = Some((mtime, log));
+            }
+        }
+    }
+    let (_, path) = best?;
+    let text = read_tail_text(&path, RENDERER_TAIL_BYTES)?;
+    cursor_model_from_renderer_log(&text)
+}
+
+/// Cursor log root: `%APPDATA%/Cursor/logs` or macOS/Linux config dirs.
+pub fn cursor_logs_root() -> Option<PathBuf> {
+    if let Some(appdata) = std::env::var_os("APPDATA").map(PathBuf::from) {
+        let p = appdata.join("Cursor").join("logs");
+        if p.is_dir() {
+            return Some(p);
+        }
+    }
+    let home = crate::boxes::ide::home_dir()?;
+    for rel in [
+        "Library/Application Support/Cursor/logs",
+        ".config/Cursor/logs",
+        "AppData/Roaming/Cursor/logs",
+    ] {
+        let p = home.join(rel);
+        if p.is_dir() {
+            return Some(p);
+        }
+    }
+    None
 }
 
 fn read_session_model() -> Option<String> {
-    let path = std::env::var_os("GSV_SESSION_FILE").map(PathBuf::from)?;
+    let path = std::env::var_os("GSV_SESSION_FILE")
+        .or_else(|| std::env::var_os("CURSOR_SESSION_FILE"))
+        .map(PathBuf::from)?;
     let text = fs::read_to_string(path).ok()?;
     session_model_from_json(&text)
 }
 
-/// Process env + optional `GSV_SESSION_FILE` JSON.
+fn discovered_cursor_model() -> Option<String> {
+    discover_cursor_model_from_logs(&cursor_logs_root()?)
+}
+
+/// Process env + optional session JSON + Cursor renderer log (no env needed).
 pub fn resolve_model() -> String {
     let gsv = std::env::var("GSV_MODEL").ok();
     let cursor = std::env::var("CURSOR_MODEL").ok();
     let session = read_session_model();
-    resolve_model_from(gsv.as_deref(), cursor.as_deref(), session.as_deref())
+    if nonempty_opt(gsv.as_deref()).is_some()
+        || nonempty_opt(cursor.as_deref()).is_some()
+        || nonempty_opt(session.as_deref()).is_some()
+    {
+        return resolve_model_from(gsv.as_deref(), cursor.as_deref(), session.as_deref());
+    }
+    nonempty_opt(discovered_cursor_model().as_deref()).unwrap_or_else(|| "unknown".to_string())
 }
 
 fn git_head_short(root: &Path) -> Option<String> {
@@ -290,10 +402,12 @@ pub fn record(opts: RecordOpts<'_>) -> Result<(Fingerprint, String), String> {
 }
 
 /// Append one fingerprint from env (`GSV_ACTOR` / `GSV_IDE` / …).
+/// `model_override` wins over env / Cursor log discovery.
 pub fn record_from_env(
     kit_root: &Path,
     jsonl: Option<&Path>,
     product_root: Option<&Path>,
+    model_override: Option<&str>,
 ) -> Result<(Fingerprint, String), String> {
     let product = env_or("GSV_PRODUCT", "gsv");
     let root = product_root
@@ -308,7 +422,7 @@ pub fn record_from_env(
     let band = std::env::var("GSV_BAND").ok().filter(|s| !s.is_empty());
     let actor = env_or("GSV_ACTOR", "agent");
     let ide = env_or("GSV_IDE", "cursor");
-    let model = resolve_model();
+    let model = nonempty_opt(model_override).unwrap_or_else(resolve_model);
     let agent = env_or("GSV_AGENT", "orchestrator");
     let summary = env_or("GSV_SUMMARY", "drain close");
     record(RecordOpts {

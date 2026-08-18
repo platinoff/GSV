@@ -192,17 +192,28 @@ fn main() -> ExitCode {
                 }
             }
         }
-        "fingerprint" => match fingerprint::record_from_env(&root, None, None) {
-            Ok((_, msg)) => {
-                print!("{msg}");
-                let _ = std::io::Write::flush(&mut std::io::stdout());
-                ExitCode::SUCCESS
+        "fingerprint" => {
+            let mut model: Option<String> = None;
+            let mut i = 0;
+            while i < args.len() {
+                if args[i] == "--model" {
+                    i += 1;
+                    model = args.get(i).cloned();
+                }
+                i += 1;
             }
-            Err(e) => {
-                eprintln!("{e}");
-                ExitCode::FAILURE
+            match fingerprint::record_from_env(&root, None, None, model.as_deref()) {
+                Ok((_, msg)) => {
+                    print!("{msg}");
+                    let _ = std::io::Write::flush(&mut std::io::stdout());
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("{e}");
+                    ExitCode::FAILURE
+                }
             }
-        },
+        }
         "record-speed" => {
             let skip = args.iter().any(|a| a == "--skip-run");
             match xtask::record_speed(&root, skip) {

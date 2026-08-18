@@ -130,7 +130,7 @@ There is an **IDE session** picker, not a **VDT product** picker. `Cargo.toml` i
 
 ## Open questions (non-blocking)
 
-- Fingerprint `model` string: Cursor session vs env. **Decision (band 154):** `GSV_MODEL` wins; else `CURSOR_MODEL` / `GSV_SESSION_FILE` JSON; default `unknown` is valid.
+- Fingerprint `model` string: Cursor session vs env. **Decision (band 154):** `GSV_MODEL` wins; else `CURSOR_MODEL` / `GSV_SESSION_FILE` JSON; else Cursor `renderer.log` `catalogModelId`; default `unknown` is valid.
 - Supervisor: `cargo xtask live` / `gsv-live` bin. **Decision (band 153):** Rust supervisor; `gsv-watchdog` is the outer loop when that process dies (Cursor abort).
 
 ## Phasing (VDT bands)

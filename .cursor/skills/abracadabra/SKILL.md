@@ -123,6 +123,7 @@ Ratio: n/a (node). `gsv-loc-audit` does not apply.
 - **Never** stage: `.env*`, `*.pem`/`*.key`, `certs/*.pem`, `data/audit/*` (except `.gitkeep`), `comitmsg/*` except `comitmsg/README.md`.
 - Warnings >0 or errors >0 fixable → 1–3 PH-S* at the top of the band.
 - Shell is **MSYS2 bash**, not PowerShell: `C:\msys64\usr\bin\bash.exe -lc '…'`.
+- Fingerprint close: `cargo xtask fingerprint` (optional `--model grok-4.6`). If env is empty, GSV reads the latest Cursor `renderer.log` `catalogModelId`. Do not copy `Gsv-Model: unknown` into the commit when the session model is known.
 
 ## See also
 

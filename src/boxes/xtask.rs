@@ -54,7 +54,7 @@ pub const TASKS: &[(&str, &str)] = &[
     ("bump", "Set Cargo.toml semver minor = band (`--band N`)"),
     (
         "fingerprint",
-        "Append drain fingerprint JSONL + print trailers",
+        "Append drain fingerprint JSONL + print trailers (`--model` optional)",
     ),
     ("record-speed", "Time `cargo test` → gsv-speed-index"),
     ("record-rust", "Scan clippy via gsv-rust-diagnostics"),

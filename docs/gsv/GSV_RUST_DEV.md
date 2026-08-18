@@ -17,7 +17,7 @@ JSON remains **data or host protocol** (vision snapshots, MCP client configs, `C
 | Outer watchdog | `cargo xtask watchdog` / `cargo xtask watchdog-install` |
 | Speeds / Clippy panels | `cargo xtask record-speed` / `cargo xtask record-rust` |
 | Vision close | `cargo xtask sync` then `cargo xtask sync --check` |
-| Band close | `cargo xtask bump --band N` then `cargo xtask fingerprint` |
+| Band close | `cargo xtask bump --band N` then `cargo xtask fingerprint` (optional `--model`) |
 | Skill mirrors | `cargo xtask mirrors` |
 | Push after commit | `cargo xtask git push` (alias `cargo xtask push`) |
 | Commit (message file) | `cargo xtask git commit --file comitmsg/<name>.md` |
