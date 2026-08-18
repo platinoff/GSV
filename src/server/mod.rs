@@ -238,23 +238,55 @@ async fn api_health(State(state): State<AppState>) -> Json<Value> {
     Json(health(&state))
 }
 
-async fn api_mcp_get(State(state): State<AppState>) -> Json<Value> {
-    Json(crate::mcp::http_info(&state))
+fn accept_sse(headers: &HeaderMap) -> bool {
+    crate::mcp::wants_sse(headers.get(header::ACCEPT).and_then(|v| v.to_str().ok()))
 }
 
-async fn api_mcp_post(State(state): State<AppState>, body: Bytes) -> Response {
+fn mcp_sse_reply(notes: Vec<Value>, rpc: Option<Value>) -> Response {
+    (
+        StatusCode::OK,
+        [
+            (header::CONTENT_TYPE, "text/event-stream"),
+            (header::CACHE_CONTROL, "no-cache"),
+        ],
+        crate::mcp::sse_body(notes, rpc),
+    )
+        .into_response()
+}
+
+async fn api_mcp_get(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    if accept_sse(&headers) {
+        return mcp_sse_reply(state.drain_mcp_notifications(), None);
+    }
+    Json(crate::mcp::http_info(&state)).into_response()
+}
+
+async fn api_mcp_post(State(state): State<AppState>, headers: HeaderMap, body: Bytes) -> Response {
+    let sse = accept_sse(&headers);
     if body.is_empty() {
         return Json(crate::mcp::rpc_error(None, -32700, "empty body")).into_response();
     }
     match serde_json::from_slice::<Value>(&body) {
         Ok(v) => match crate::mcp::handle_value(&state, v).await {
             Some(out) => {
-                let _ = state.drain_mcp_notifications();
-                Json(out).into_response()
+                let notes = state.drain_mcp_notifications();
+                if sse {
+                    mcp_sse_reply(notes, Some(out))
+                } else {
+                    Json(out).into_response()
+                }
             }
             None => {
-                let _ = state.drain_mcp_notifications();
-                StatusCode::NO_CONTENT.into_response()
+                let notes = state.drain_mcp_notifications();
+                if sse {
+                    if notes.is_empty() {
+                        StatusCode::NO_CONTENT.into_response()
+                    } else {
+                        mcp_sse_reply(notes, None)
+                    }
+                } else {
+                    StatusCode::NO_CONTENT.into_response()
+                }
             }
         },
         Err(e) => Json(crate::mcp::rpc_error(None, -32700, format!("parse: {e}"))).into_response(),

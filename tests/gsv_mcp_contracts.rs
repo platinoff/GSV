@@ -6,6 +6,7 @@
 //! Band 138: resources/list+read (gsv:// allowlist) + prompts/list+get.
 //! Band 139: logging/setLevel + completion/complete (resource URIs + prompt names).
 //! Band 140: resources/subscribe+unsubscribe + logging notifications + resource updated.
+//! Band 141: HTTP SSE (`Accept: text/event-stream`) flushes the notification queue.
 
 use std::path::PathBuf;
 
@@ -83,6 +84,8 @@ async fn get_mcp_discovers_openbot() {
     assert_eq!(json["subscribe"], true);
     assert_eq!(json["subscription_count"], 0);
     assert_eq!(json["log_level"], "info");
+    assert_eq!(json["sse"], true);
+    assert_eq!(json["streamable"], true);
 }
 
 #[tokio::test]
@@ -517,4 +520,99 @@ async fn mcp_post_gets_security_headers() {
         headers.get("cache-control").and_then(|v| v.to_str().ok()),
         Some("no-store")
     );
+}
+
+fn app_with_state() -> (axum::Router, AppState) {
+    let (tx, _rx) = broadcast::channel(32);
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let state = AppState::new(Some(repo_root), None, tx);
+    (router(state.clone()), state)
+}
+
+async fn mcp_post_sse(app: &axum::Router, body: Value) -> (StatusCode, String, String) {
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::POST)
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::ACCEPT, "application/json, text/event-stream")
+                .body(Body::from(body.to_string()))
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    let status = res.status();
+    let ctype = res
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+    let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .expect("body");
+    (status, ctype, String::from_utf8_lossy(&bytes).into_owned())
+}
+
+#[tokio::test]
+async fn post_subscribe_sse_includes_notification_then_result() {
+    let app = app();
+    let (status, ctype, body) = mcp_post_sse(
+        &app,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 21,
+            "method": "resources/subscribe",
+            "params": { "uri": "gsv://docs/next" }
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        ctype.starts_with("text/event-stream"),
+        "content-type: {ctype}"
+    );
+    assert!(body.contains("event: message"), "{body}");
+    assert!(body.contains("notifications/message"), "{body}");
+    assert!(body.contains("\"id\":21"), "{body}");
+    assert!(body.contains("\"result\""), "{body}");
+}
+
+#[tokio::test]
+async fn get_mcp_sse_flushes_pending_notifications() {
+    let (app, state) = app_with_state();
+    state.push_mcp_notification(json!({
+        "jsonrpc": "2.0",
+        "method": "notifications/message",
+        "params": { "level": "info", "logger": SERVER_ID, "data": { "event": "probe" } }
+    }));
+    let res = app
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::GET)
+                .header(header::ACCEPT, "text/event-stream")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(res.status(), StatusCode::OK);
+    let ctype = res
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    assert!(
+        ctype.starts_with("text/event-stream"),
+        "content-type: {ctype}"
+    );
+    let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .expect("body");
+    let body = String::from_utf8_lossy(&bytes);
+    assert!(body.contains("event: message"), "{body}");
+    assert!(body.contains("\"event\":\"probe\""), "{body}");
 }

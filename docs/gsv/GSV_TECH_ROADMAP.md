@@ -25,6 +25,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 138** (MCP resources + prompts) **✅** ·
 **band 139** (MCP logging + completions) **✅** ·
 **band 140** (MCP resource subscribe + logging notifications) **✅** ·
+**band 141** (MCP HTTP SSE / streamable notifications) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -555,6 +556,28 @@ level but the server never emitted `notifications/message`, and
 | **PH-S2046** | Docs canon | MCP_OPENBOT / SERVER / BOXES / ARCHITECTURE / HANDOFF / NEXT / MEMORY / roadmap — **✅** |
 | **PH-S2047** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy — **✅** |
 | **PH-S2048** | Band close | tests green; vision-sync; one commit + push — **✅** |
+
+## Спринти (band 141) — MCP HTTP SSE / streamable notifications ✅
+
+Owner 2026-08-17: after band 140, stdio flushed `notifications/message` and
+`notifications/resources/updated`, but HTTP `POST /mcp` discarded the queue
+and `GET /mcp` advertised `transport: streamable-http` without SSE. Band 141
+honors `Accept: text/event-stream` on GET/POST (finite SSE: pending notes,
+then the JSON-RPC result on POST). JSON discovery stays the default for
+Galaxy / stand-smoke. Same `gsv://` confine; no LAN widen.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2049** | Scope + queue | this band; `extensions.json` `active_sprint` = `PH-S2049` — **✅** |
+| **PH-S2050** | SSE helpers | `wants_sse` / `format_sse_message` / `sse_body` (`event: message`) — **✅** |
+| **PH-S2051** | POST SSE | `Accept: text/event-stream` → notifications then JSON-RPC result — **✅** |
+| **PH-S2052** | GET SSE | `Accept: text/event-stream` flushes pending; JSON discovery unchanged — **✅** |
+| **PH-S2053** | Discovery + card | `GET /mcp` `sse` / `streamable`; Galaxy card lists sse — **✅** |
+| **PH-S2054** | JSON drain | POST without SSE still JSON; queue drained; loopback unless `--allow-lan` — **✅** |
+| **PH-S2055** | Contracts | mcp unit + `gsv_mcp_contracts` POST/GET SSE + ui/server card sse — **✅** |
+| **PH-S2056** | Docs canon | MCP_OPENBOT / SERVER / BOXES / ARCHITECTURE / HANDOFF / NEXT / MEMORY / roadmap — **✅** |
+| **PH-S2057** | Ratio hold | `gsv-loc-audit --stretch-96` ≥96%; fmt/clippy — **✅** |
+| **PH-S2058** | Band close | tests green; vision-sync; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

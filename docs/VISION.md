@@ -47,6 +47,10 @@ node-search / summary / sync / extensions / preview (26 tools; preview same conf
 **band 139 (PH-S2029…S2038, ✅)** — MCP logging + completions: `logging/setLevel` (RFC 5424)
 + `completion/complete` (`ref/resource` `gsv://` + `ref/prompt`); Galaxy card shows
 `log_level` + completions.
+**band 141 (PH-S2049…S2058, ✅)** — MCP HTTP SSE / streamable notifications:
+`Accept: text/event-stream` on GET/POST `/mcp` flushes the same notification
+queue as stdio; Galaxy card shows sse.
+
 **band 140 (PH-S2039…S2048, ✅)** — MCP resource subscribe + logging notifications:
 `resources/subscribe`+`unsubscribe`; stdio `notifications/message` +
 `notifications/resources/updated` after `gsv_vision_sync`; Galaxy card shows subscribe count.

@@ -7,6 +7,8 @@
 //! Band 139: `logging/setLevel` + `completion/complete` (resource URIs + prompt names).
 //! Band 140: `resources/subscribe`+`unsubscribe` + `notifications/message` (log
 //! filter) + `notifications/resources/updated` after `gsv_vision_sync`.
+//! Band 141: HTTP Streamable HTTP SSE — `POST`/`GET /mcp` with
+//! `Accept: text/event-stream` flush the same notification queue as stdio.
 
 use std::sync::atomic::Ordering;
 
@@ -389,6 +391,8 @@ pub fn http_info(state: &AppState) -> Value {
         "transport": "streamable-http",
         "stdio": "gsv-mcp",
         "http": "/mcp",
+        "sse": true,
+        "streamable": true,
         "tools": tools,
         "tool_count": tools.len(),
         "resources": resources,
@@ -402,6 +406,34 @@ pub fn http_info(state: &AppState) -> Value {
         "subscriptions": subscriptions,
         "subscription_count": subscription_count,
     })
+}
+
+/// True when `Accept` lists `text/event-stream` (MCP Streamable HTTP).
+pub fn wants_sse(accept: Option<&str>) -> bool {
+    accept.unwrap_or("").split(',').any(|part| {
+        part.trim()
+            .split(';')
+            .next()
+            .unwrap_or("")
+            .eq_ignore_ascii_case("text/event-stream")
+    })
+}
+
+/// One SSE `message` event wrapping a JSON-RPC value.
+pub fn format_sse_message(value: &Value) -> String {
+    format!("event: message\ndata: {value}\n\n")
+}
+
+/// Finite SSE body: pending notifications, then the optional JSON-RPC response.
+pub fn sse_body(notes: Vec<Value>, rpc: Option<Value>) -> String {
+    let mut out = String::new();
+    for note in notes {
+        out.push_str(&format_sse_message(&note));
+    }
+    if let Some(value) = rpc {
+        out.push_str(&format_sse_message(&value));
+    }
+    out
 }
 
 /// Map a stored index to a syslog level name.
@@ -499,7 +531,7 @@ fn initialize_result(state: &AppState) -> Value {
             "name": SERVER_ID,
             "version": *state.version,
         },
-        "instructions": "GSV box tools plus allowlisted gsv:// resources and prompts. resources/subscribe is process-local. completion/complete covers resource URIs and prompt names. logging/setLevel filters notifications/message. Terminal uses the HTTP SLI allowlist. Omni chat defaults to dry-run."
+        "instructions": "GSV box tools plus allowlisted gsv:// resources and prompts. resources/subscribe is process-local. completion/complete covers resource URIs and prompt names. logging/setLevel filters notifications/message. HTTP Accept: text/event-stream flushes notifications as SSE (stdio uses NDJSON). Terminal uses the HTTP SLI allowlist. Omni chat defaults to dry-run."
     })
 }
 
@@ -1225,6 +1257,30 @@ mod tests {
         assert_eq!(info["tool_count"], TOOL_NAMES.len() as u64);
         assert_eq!(info["stdio"], "gsv-mcp");
         assert_eq!(info["http"], "/mcp");
+        assert_eq!(info["sse"], true);
+        assert_eq!(info["streamable"], true);
+    }
+
+    #[test]
+    fn wants_sse_parses_accept_list() {
+        assert!(!wants_sse(None));
+        assert!(!wants_sse(Some("application/json")));
+        assert!(!wants_sse(Some("*/*")));
+        assert!(wants_sse(Some("text/event-stream")));
+        assert!(wants_sse(Some(
+            "application/json, text/event-stream; charset=utf-8"
+        )));
+    }
+
+    #[test]
+    fn sse_body_emits_message_events() {
+        let note = json!({"jsonrpc": "2.0", "method": "notifications/message"});
+        let rpc = json!({"jsonrpc": "2.0", "id": 1, "result": {}});
+        let body = sse_body(vec![note.clone()], Some(rpc.clone()));
+        assert!(body.starts_with("event: message\n"), "{body}");
+        assert!(body.contains(&format!("data: {note}")), "{body}");
+        assert!(body.contains(&format!("data: {rpc}")), "{body}");
+        assert!(body.ends_with("\n\n"), "{body}");
     }
 
     #[tokio::test]

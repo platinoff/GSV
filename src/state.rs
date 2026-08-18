@@ -91,7 +91,7 @@ impl AppState {
         }
     }
 
-    /// Take queued MCP notifications (stdio writes them; HTTP discards).
+    /// Take queued MCP notifications (stdio NDJSON; HTTP SSE when Accept asks).
     pub fn drain_mcp_notifications(&self) -> Vec<Value> {
         self.mcp_notifications
             .lock()

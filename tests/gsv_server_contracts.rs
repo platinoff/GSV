@@ -590,6 +590,7 @@ async fn ui_layout_endpoint_returns_four_groups() {
         mcp_html.contains("subscribe <kbd>0</kbd>"),
         "mcp card subscribe: {mcp_html}"
     );
+    assert!(mcp_html.contains(" · sse"), "mcp card sse: {mcp_html}");
     let (rss_status, rss_json) = get(&app, "/api/ui/card/rss-ticker").await;
     assert_eq!(rss_status, StatusCode::OK);
     let rss_html = rss_json["html"].as_str().expect("rss html");

@@ -3369,7 +3369,7 @@
       "z": 5
     }
   ],
-  "next_sprint": "PH-S2039",
+  "next_sprint": "PH-S2049",
   "nodes": [
     {
       "id": "galaxy_grid",
@@ -12745,7 +12745,7 @@
       "path": ".cursor/skills/abracadabra/SKILL.md"
     }
   ],
-  "revision": 507,
+  "revision": 508,
   "sprint_queue": [],
   "sprint_queue_open_count": 0,
   "updated_at": "2026-06-20",
