@@ -446,6 +446,31 @@ async fn ui_index_defines_type_scale() {
     assert!(html.contains("--fs-chart:11px"));
 }
 
+/// Band 147: header/card density vs presentation shots (not pixel-perfect).
+#[tokio::test]
+async fn ui_index_readme_density_tokens() {
+    let (app, _state) = app();
+    let html = get_index_html(&app).await;
+    assert!(
+        html.contains("--card-radius:12px"),
+        "card radius token vs presentation shots"
+    );
+    assert!(
+        html.contains("--card-gap:16px"),
+        "card gap token vs presentation shots"
+    );
+    assert!(
+        html.contains("--header-pad:8px 16px"),
+        "denser header padding vs presentation shots"
+    );
+    assert!(
+        html.contains("loadRssTicker")
+            && (html.contains(".rss-ticker{display:none")
+                || html.contains(".rss-ticker { display: none")),
+        "RSS ticker hidden until feed items exist"
+    );
+}
+
 /// Band 144: Update badge POSTs apply and stays offline until SSE reconnects.
 #[tokio::test]
 async fn ui_index_do_update_posts_apply() {

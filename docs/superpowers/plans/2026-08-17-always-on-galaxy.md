@@ -594,9 +594,9 @@ Run bump + fingerprint append **in the same commit** as the band. Gate + push.
 
 ---
 
-# Band 147 — README-level polish leftovers (PH-S2109…S2118)
+# Band 147 — README-level polish leftovers (PH-S2109…S2118) ✅
 
-Only what 143–146 did not absorb:
+Shipped 2026-08-18. Always-on Galaxy (bands 143–147) is closed. Next `абракадабра` on gsv is a **scan** (do not invent band 148).
 
 - Header density vs presentation shots (padding, RSS ticker always visible if feed non-empty — already loadRssTicker).
 - Card `border-radius` / gap matching `docs/assets/presentations/gsv-galaxy-ui.png` (visual, not pixel-perfect).
@@ -621,4 +621,4 @@ Only what 143–146 did not absorb:
 | Fingerprints | Task 13 |
 | README polish remainder | Band 147 |
 
-No TBD placeholders. Band 143 is the only work for the next `абракадабра` gsv drain.
+No TBD placeholders. Always-on Galaxy (bands 143–147) is closed.

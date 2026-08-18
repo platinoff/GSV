@@ -158,6 +158,39 @@ async fn post_update_apply_emits_offline_and_ok() {
     );
 }
 
+/// Band 147: README Quick start canon-runs the live copy, not a locking debug exe.
+#[test]
+fn readme_quick_start_uses_gsv_live() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let readme = std::fs::read_to_string(root.join("README.md")).expect("README");
+    assert!(
+        readme.contains("bash scripts/gsv-live.sh"),
+        "Quick start must canon-run scripts/gsv-live.sh"
+    );
+}
+
+/// Band 147: architecture documents the live-copy supervisor.
+#[test]
+fn architecture_notes_live_copy() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let arch = std::fs::read_to_string(root.join("docs/gsv/GSV_ARCHITECTURE.md")).expect("arch");
+    assert!(
+        arch.contains("gsv-live.sh") && arch.contains("target/live"),
+        "GSV_ARCHITECTURE.md must note the live-copy supervisor"
+    );
+}
+
+/// Band 147: docs index lists the Always-on spec.
+#[test]
+fn docs_index_lists_always_on_spec() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let idx = std::fs::read_to_string(root.join("docs/gsv/README.md")).expect("docs index");
+    assert!(
+        idx.contains("GSV_ALWAYS_ON_UI.md"),
+        "docs/gsv/README.md must list ALWAYS_ON_UI"
+    );
+}
+
 #[test]
 fn gsv_live_script_copies_debug_to_live() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));

@@ -31,7 +31,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 144** (always-on live copy + apply) **✅** ·
 **band 145** (VDT products picker + open folder + scan) **✅** ·
 **band 146** (version bump + fingerprints) **✅** ·
-**band 147** (README-level polish leftovers) queued ·
+**band 147** (README-level polish leftovers) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -676,22 +676,22 @@ Each drain commit increments `CARGO_PKG_VERSION` patch. Fingerprint JSONL: actor
 | **PH-S2107** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy — **✅** |
 | **PH-S2108** | Band close | bump in the same commit; tests green; vision-sync; push — **✅** |
 
-## Спринти (band 147) — README-level Galaxy polish leftovers
+## Спринти (band 147) — README-level Galaxy polish leftovers ✅
 
 Visual pass vs `docs/assets/presentations/`; stand-smoke new cards; README Quick start → `gsv-live.sh`.
 
 | Sprint | Фокус | Acceptance (ключ) |
 |--------|-------|-------------------|
-| **PH-S2109** | Scope + queue | this band; `active_sprint` = `PH-S2109` |
-| **PH-S2110** | Header/card density | padding/gap vs presentation shots (not pixel-perfect) |
-| **PH-S2111** | Stand-smoke | `products` + `fingerprints` in `CARDS` |
-| **PH-S2112** | README Quick start | `bash scripts/gsv-live.sh` as canon run |
-| **PH-S2113** | Architecture note | live-copy in `GSV_ARCHITECTURE.md` |
-| **PH-S2114** | Docs index | ALWAYS_ON_UI row in `docs/gsv/README.md` |
-| **PH-S2115** | Contracts | stand-smoke + ui leftover markers |
-| **PH-S2116** | Docs canon | HANDOFF / NEXT / MEMORY / roadmap |
-| **PH-S2117** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy |
-| **PH-S2118** | Band close | tests green; vision-sync; one commit + push |
+| **PH-S2109** | Scope + queue | this band; `active_sprint` = `PH-S2109` — **✅** |
+| **PH-S2110** | Header/card density | padding/gap vs presentation shots (not pixel-perfect) — **✅** |
+| **PH-S2111** | Stand-smoke | `products` + `fingerprints` in `CARDS` — **✅** |
+| **PH-S2112** | README Quick start | `bash scripts/gsv-live.sh` as canon run — **✅** |
+| **PH-S2113** | Architecture note | live-copy in `GSV_ARCHITECTURE.md` — **✅** |
+| **PH-S2114** | Docs index | ALWAYS_ON_UI row in `docs/gsv/README.md` — **✅** |
+| **PH-S2115** | Contracts | stand-smoke + ui leftover markers — **✅** |
+| **PH-S2116** | Docs canon | HANDOFF / NEXT / MEMORY / roadmap — **✅** |
+| **PH-S2117** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy — **✅** |
+| **PH-S2118** | Band close | tests green; vision-sync; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

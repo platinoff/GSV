@@ -182,6 +182,24 @@ fn smoke_report_shape_is_stable() {
     assert!(report["tool"].is_string());
 }
 
+/// Band 147 leftover: stand-smoke must hit the ops cards added in 145–146.
+#[test]
+fn stand_smoke_cards_include_products_and_fingerprints() {
+    let smoke_src = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/bin/gsv_http_stand_smoke.rs"
+    ))
+    .expect("stand smoke source readable");
+    assert!(
+        smoke_src.contains("\"products\""),
+        "products must stay in stand-smoke CARDS"
+    );
+    assert!(
+        smoke_src.contains("\"fingerprints\""),
+        "fingerprints must stay in stand-smoke CARDS"
+    );
+}
+
 /// The bin's card list must not drift from the UI registry (mirror of the bin's
 /// own unit test, guarded at the crate boundary so integration users see it too).
 #[test]

@@ -85,11 +85,11 @@ export RUSTUP_TOOLCHAIN="stable-x86_64-pc-windows-gnu"
 cd /s/rust/GSV
 unset CARGO_TARGET_DIR
 
-cargo build --all-targets
-cargo run --bin gsv-server -- --host 127.0.0.1 --port 9999
+cargo build --bin gsv-server
+bash scripts/gsv-live.sh
 ```
 
-Open [http://127.0.0.1:9999/](http://127.0.0.1:9999/).
+Open [http://127.0.0.1:9999/](http://127.0.0.1:9999/). The supervisor copies `target/debug/gsv-server.exe` → `target/live/` so `cargo test` / `cargo build` do not lock the listener. `cargo run --bin gsv-server` still works but **locks** `target/debug/` on Windows.
 
 ```bash
 cargo fmt -- --check
@@ -190,7 +190,7 @@ GSV/
 | [`docs/gsv/GSV_ARCHITECTURE.md`](docs/gsv/GSV_ARCHITECTURE.md) | Server + boxes, Rust / wasm split |
 | [`docs/gsv/GSV_SERVER.md`](docs/gsv/GSV_SERVER.md) | Endpoints, update, offline |
 | [`docs/gsv/GSV_BOXES.md`](docs/gsv/GSV_BOXES.md) | Box spec |
-| [`docs/gsv/GSV_TECH_ROADMAP.md`](docs/gsv/GSV_TECH_ROADMAP.md) | Sprint order (next: band 147 README polish) |
+| [`docs/gsv/GSV_TECH_ROADMAP.md`](docs/gsv/GSV_TECH_ROADMAP.md) | Sprint order (always-on 143–147 ✅) |
 | [`docs/gsv/GSV_ALWAYS_ON_UI.md`](docs/gsv/GSV_ALWAYS_ON_UI.md) | Always-on server, chrome, products, fingerprints |
 | [`docs/gsv/GSV_VDT_KIT.md`](docs/gsv/GSV_VDT_KIT.md) | Shared kit vs product |
 | [`docs/gsv/GSV_MCP_OPENBOT.md`](docs/gsv/GSV_MCP_OPENBOT.md) | MCP plan |
