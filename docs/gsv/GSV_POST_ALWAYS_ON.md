@@ -1,19 +1,19 @@
 # GSV after always-on — MCP catch-up (conception)
 
-**Status:** Landed (band **151** ✅ · next drain = **152** select)  
+**Status:** Landed (band **152** ✅ · next drain = **153** watchdog card)  
 **Date:** 2026-08-18  
 **Owner ask:** update needed docs/plans; put what the next `абракадабра` / `abrakadabra` on **gsv** must drain.  
-**Scan (same day):** clippy 0 · roadmap 102–150 all ✅ · no `TODO` in `src/` · always-on P2 leftovers closed.
+**Scan (same day):** clippy 0 · roadmap 102–152 all ✅ · no `TODO` in `src/` · always-on P2 leftovers closed.
 
 **Plan:** [`docs/superpowers/plans/2026-08-18-mcp-always-on-catchup.md`](../superpowers/plans/2026-08-18-mcp-always-on-catchup.md)  
-**Roadmap:** band **151** (then 152–153) in [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md)  
+**Roadmap:** band **152** (then 153) in [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md)  
 **Closed horizon:** [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md) bands **143–150 ✅**
 
 ## Problem statement
 
 Always-on Galaxy is the live product: `:9999` stays up across `cargo test` (live copy + watchdog), the page goes offline only during binary swap, and ops cards exist for **products**, **fingerprints**, **sw**, and **watchdog** (health row).
 
-`gsv_mcp_openbot` wraps those boxes as of band **151**: **31 tools**, **8 `gsv://` resources**, **3 prompts**. An agent that starts from `абракадабра` or from Cursor/OpenCode MCP can list environment products, scan a HANDOFF, see whether the watchdog is alive, and read drain fingerprints.
+`gsv_mcp_openbot` wraps those boxes as of band **152**: **32 tools**, **8 `gsv://` resources**, **3 prompts**. An agent that starts from `абракадабра` or from Cursor/OpenCode MCP can list environment products, select one, scan a HANDOFF, see whether the watchdog is alive, and read drain fingerprints.
 
 Cost of leaving it: the next drain session invents work, or the agent repeats a warnings-first scan with no queued band. This spec is the queued band.
 
@@ -74,7 +74,7 @@ Cost of leaving it: the next drain session invents work, or the agent repeats a 
 - `GSV_ARCHITECTURE.md` has a `watchdog/` row next to `sw/`.
 - `.cursor/commands/git-push.md` is tracked (PH-S1921 leftover).
 
-### P1 — Should (band 152)
+### P1 — Should (band 152) ✅
 
 - MCP `gsv_products_select` `{id}` — same allowlist as `POST /api/products/select`; unknown id → tool error.
 - `gsv_products_scan` may omit `id` when a product is already selected on `AppState`.
@@ -106,8 +106,7 @@ Cost of leaving it: the next drain session invents work, or the agent repeats a 
 |------|-------|--------|------|
 | **this session** | — | Spec + plan + HANDOFF/NEXT/MEMORY · **no product code** | 2026-08-18 |
 | **151** | S2149–S2158 | MCP catch-up: 5 tools + 2 resources + `gsv_drain` text + contracts | **✅ 2026-08-18** |
-| **152** | S2159–S2168 | MCP `products_select` + scan-without-id | **next `абракадабра` on gsv** |
-| **152** | S2159–S2168 | MCP `products_select` + scan-without-id | after 151 |
+| **152** | S2159–S2168 | MCP `products_select` + scan-without-id | **✅ 2026-08-18** |
 | **153** | S2169–S2178 | Watchdog ops card + fingerprint model (owner pick) | later |
 
 ## Constraints

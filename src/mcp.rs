@@ -229,7 +229,17 @@ pub fn tools_list() -> Vec<Value> {
         tool("gsv_products", "VDT environment products (workspace ∪ sibling git ∪ kit).", object_schema()),
         tool(
             "gsv_products_scan",
-            "Scan one discovered product (git HEAD, HANDOFF/NEXT, kind). id required.",
+            "Scan one discovered product (git HEAD, HANDOFF/NEXT, kind). id optional after gsv_products_select.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "Product id from gsv_products (e.g. gsv). Omit when a product is already selected." }
+                }
+            }),
+        ),
+        tool(
+            "gsv_products_select",
+            "Select a discovered VDT product (same allowlist as POST /api/products/select).",
             json!({
                 "type": "object",
                 "properties": {
@@ -353,7 +363,7 @@ const PROMPTS: &[PromptSpec] = &[
     PromptSpec {
         name: "gsv_drain",
         description: "Start a VDT drain: next PH-S* band after the last closed sprint.",
-        text: "Start a GSV VDT drain. Read gsv://docs/next and gsv://docs/post-always-on. Call gsv_products, gsv_products_scan with id=gsv (or the owner pick), and gsv_watchdog. Propose the next ≤10 PH-S* after the last closed band. Do not push mid-drain. Shell is MSYS2 bash.",
+        text: "Start a GSV VDT drain. Read gsv://docs/next and gsv://docs/post-always-on. Call gsv_products, then gsv_products_select with the owner pick, then gsv_products_scan (id optional after select), and gsv_watchdog. Propose the next ≤10 PH-S* after the last closed band. Do not push mid-drain. Shell is MSYS2 bash.",
     },
 ];
 
@@ -396,6 +406,7 @@ const TOOL_NAMES: &[&str] = &[
     "gsv_preview",
     "gsv_products",
     "gsv_products_scan",
+    "gsv_products_select",
     "gsv_watchdog",
     "gsv_sw",
     "gsv_fingerprints",
@@ -941,9 +952,17 @@ async fn call_tool(state: &AppState, params: &Value) -> Value {
             ))
         }
         "gsv_products_scan" => {
-            let id = arg_str(&args, "id");
+            let mut id = arg_str(&args, "id");
             if id.is_empty() {
-                tool_err("id required")
+                id = state
+                    .product_selected
+                    .lock()
+                    .ok()
+                    .and_then(|g| g.clone())
+                    .unwrap_or_default();
+            }
+            if id.is_empty() {
+                tool_err("no product selected")
             } else {
                 match crate::boxes::products::scan(&state.repo_root, &id) {
                     Ok(s) => {
@@ -953,6 +972,7 @@ async fn call_tool(state: &AppState, params: &Value) -> Value {
                 }
             }
         }
+        "gsv_products_select" => tool_products_select(state, &args),
         "gsv_watchdog" => tool_ok(crate::boxes::watchdog::wire(&state.repo_root)),
         "gsv_sw" => tool_ok(crate::boxes::sw::wire()),
         "gsv_fingerprints" => {
@@ -992,6 +1012,21 @@ fn arg_str(args: &Value, key: &str) -> String {
         .and_then(Value::as_str)
         .unwrap_or("")
         .to_string()
+}
+
+fn tool_products_select(state: &AppState, args: &Value) -> Value {
+    let id = arg_str(args, "id");
+    if id.is_empty() {
+        return tool_err("id required");
+    }
+    let rows = crate::boxes::products::discover(&state.repo_root);
+    if crate::boxes::products::lookup(&rows, &id).is_none() {
+        return tool_err("unknown product");
+    }
+    if let Ok(mut g) = state.product_selected.lock() {
+        *g = Some(id.clone());
+    }
+    tool_ok(json!({ "ok": true, "selected": id }))
 }
 
 fn tool_preview(state: &AppState, args: &Value) -> Value {
@@ -1157,13 +1192,14 @@ mod tests {
             "gsv_preview",
             "gsv_products",
             "gsv_products_scan",
+            "gsv_products_select",
             "gsv_watchdog",
             "gsv_sw",
             "gsv_fingerprints",
         ] {
             assert!(names.contains(&n), "missing {n}");
         }
-        assert_eq!(names.len(), 31);
+        assert_eq!(names.len(), 32);
     }
 
     #[tokio::test]
@@ -1866,9 +1902,58 @@ mod tests {
             .unwrap_or("");
         assert!(text.contains("gsv_products"), "{text}");
         assert!(text.contains("gsv_products_scan"), "{text}");
+        assert!(text.contains("gsv_products_select"), "{text}");
         assert!(text.contains("gsv_watchdog"), "{text}");
         assert!(text.contains("gsv://docs/next"), "{text}");
         assert!(text.contains("mid-drain"), "{text}");
+    }
+
+    #[tokio::test]
+    async fn products_select_unknown_is_tool_error() {
+        let s = state();
+        let (is_err, text) =
+            tool_text(&s, 102, "gsv_products_select", json!({ "id": "nope" })).await;
+        assert!(is_err);
+        assert!(text.contains("unknown product"), "{text}");
+        assert!(!text.contains("unknown tool"), "{text}");
+    }
+
+    #[tokio::test]
+    async fn products_scan_without_id_requires_selection() {
+        let s = state();
+        let (is_err, text) = tool_text(&s, 103, "gsv_products_scan", json!({})).await;
+        assert!(is_err);
+        assert!(
+            text.contains("id required") || text.contains("no product selected"),
+            "{text}"
+        );
+    }
+
+    #[tokio::test]
+    async fn products_select_then_scan_omits_id() {
+        let s = state();
+        let sel = rpc(
+            &s,
+            100,
+            "tools/call",
+            json!({ "name": "gsv_products_select", "arguments": { "id": "gsv" } }),
+        )
+        .await;
+        assert_eq!(sel["result"]["isError"], false, "{sel}");
+        let text = sel["result"]["content"][0]["text"].as_str().unwrap_or("");
+        assert!(text.contains("gsv"), "{text}");
+        assert!(text.contains("selected"), "{text}");
+
+        let scan = rpc(
+            &s,
+            101,
+            "tools/call",
+            json!({ "name": "gsv_products_scan", "arguments": {} }),
+        )
+        .await;
+        assert_eq!(scan["result"]["isError"], false, "{scan}");
+        let text = scan["result"]["content"][0]["text"].as_str().unwrap_or("");
+        assert!(text.contains("git_head"), "{text}");
     }
 
     #[tokio::test]

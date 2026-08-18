@@ -1,25 +1,26 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-08-18 (band 151 ✅ · post-always-on MCP catch-up landed → **band 152**)
+**Оновлено:** 2026-08-18 (band 152 ✅ · MCP products select landed → **band 153**)
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
 **`абракадабра` / `abrakadabra`** → `scripts/list-vdt-products.sh` → **AskQuestion на проєкти з environment**
 (не `gsv | poolai` з голови) → S0 диск/git → project scan (warnings first) →
-якщо **gsv:** drain **band 152** (`PH-S2159…S2168`) з
+якщо **gsv:** drain **band 153** (`PH-S2169…S2178`) з
 [`gsv/GSV_POST_ALWAYS_ON.md`](gsv/GSV_POST_ALWAYS_ON.md) +
-[`superpowers/plans/2026-08-18-mcp-always-on-catchup.md`](superpowers/plans/2026-08-18-mcp-always-on-catchup.md) (band 152 sketch).
+[`superpowers/plans/2026-08-18-mcp-always-on-catchup.md`](superpowers/plans/2026-08-18-mcp-always-on-catchup.md) (band 153 sketch: watchdog ops card).
 Speeds + Rust panel → vision-sync → **один commit** → **`git push` + самарі**.
 
 Якщо вибір **gsv:** scan [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) first
 (always-on [`gsv/GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md) **143–150 ✅**;
-MCP catch-up **151 ✅**). MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+MCP catch-up **151 ✅**; MCP products select **152 ✅**). MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
 Канон ролей: [`GSV_ROLES.md`](GSV_ROLES.md). Реєстр: [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
 
 ## Стан зараз
 
-- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–150 · **151 ✅**.
-- **Next drain (gsv):** **band 152** — MCP `products_select` + scan-without-id. Band **151** wrapped products / scan / watchdog / sw / fingerprints on `gsv_mcp_openbot` (**31** tools, **8** resources).
-- **Band 151:** MCP catch-up — `gsv_products` / `gsv_products_scan` (`id` required) / `gsv_watchdog` / `gsv_sw` / `gsv_fingerprints`; resources `gsv://docs/fingerprints` + `gsv://docs/post-always-on`; `gsv_drain` prompt names the new tools.
+- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–151 · **152 ✅**.
+- **Next drain (gsv):** **band 153** — watchdog ops card + fingerprint model (owner pick). Band **152** added `gsv_products_select` + scan-without-id on `gsv_mcp_openbot` (**32** tools, **8** resources).
+- **Band 152:** MCP `gsv_products_select` `{id}` (same allowlist as `POST /api/products/select`; unknown → tool error); `gsv_products_scan` may omit `id` when selected; `gsv_drain` names select then scan.
+- **Band 151:** MCP catch-up — `gsv_products` / `gsv_products_scan` / `gsv_watchdog` / `gsv_sw` / `gsv_fingerprints`; resources `gsv://docs/fingerprints` + `gsv://docs/post-always-on`; `gsv_drain` prompt names the new tools.
 - **Band 150:** live watchdog — `boxes/watchdog.rs` + bin `gsv-watchdog` probe `GET /api/health` every 3s; after 2 misses copy debug→live and spawn detached; `GET /api/watchdog`; health `watchdog_alive`; `scripts/gsv-watchdog.sh` + install (schtasks ONLOGON, else HKCU Run).
 - **Band 149:** owner-picked remaining P2 — `PRODUCTS.md` registers **omniroute** (node; `npm test`; ratio n/a); `gsv-bump-version.sh --band N` sets semver minor = band (`0.149.0`); scan HANDOFF fallback `AGENTS.md` / `docs/ROADMAP.md`; abracadabra node flow (no PH-S* invent).
 - **Band 148:** Service Worker shell cache — `GET /sw.js` Rust-rendered; precache document + live CSS + galaxy/vision svg; skip SSE `/events` and `/mcp`; `GET /api/sw`; ops card `sw`; CSP `worker-src 'self'`.
@@ -44,9 +45,9 @@ MCP catch-up **151 ✅**). MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPE
 - **Band 134:** HTTP response hardening — CSP / nosniff / DENY / no-store / COOP+CORP; POST 256 KiB cap → 413 `{ok:false}`.
 - **VDT kit (band 127):** shared `.agents/skills/` + generic `.cursor/rules/` + `gsv.code-workspace` + `PRODUCTS.md`.
   Discover: `scripts/list-vdt-products.sh` (не hardcoded `gsv | poolai`).
-- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.59%** (rust 19767 / product 20465) · **393** green · clippy 0 · fmt clean.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.61%** (rust 19921 / product 20619) · **399** green · clippy 0 · fmt clean.
 - **Сервер:** canon порт **9999** (`DEFAULT_PORT`; 8765 — Hyper-V reserved range).
-- **Vision rev:** **513** (band 151 `gsv-vision-sync`).
+- **Vision rev:** **514** (band 152 `gsv-vision-sync`).
 - **Live UI** — `gsv-server` → `http://127.0.0.1:9999/`. MCP stdio — `cargo run --quiet --bin gsv-mcp`.
 - **Band 133:** localhost security — `--allow-lan`; CSRF POST gate; terminal cargo/git allowlists; `/data/{file}` allowlist; preview canonicalize.
 - **FM:** band 127 = PoolAI FM §5.108 (PH-S1909…S1918 ✅). Master horizon poolAI: band 128.

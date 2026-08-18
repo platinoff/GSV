@@ -3336,7 +3336,7 @@
       "signature": "queue: FM §5.12 next band 107"
     }
   ],
-  "last_sprint_closed": "PH-S1988",
+  "last_sprint_closed": "PH-S2168",
   "layers": [
     {
       "id": "L0",
@@ -3369,7 +3369,7 @@
       "z": 5
     }
   ],
-  "next_sprint": "PH-S2149",
+  "next_sprint": "PH-S2169",
   "nodes": [
     {
       "id": "galaxy_grid",
@@ -12745,9 +12745,9 @@
       "path": ".cursor/skills/abracadabra/SKILL.md"
     }
   ],
-  "revision": 513,
+  "revision": 514,
   "sprint_queue": [],
   "sprint_queue_open_count": 0,
-  "updated_at": "2026-08-17",
+  "updated_at": "2026-08-18",
   "vision_ui_rev": 59
 }

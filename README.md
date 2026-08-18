@@ -163,7 +163,7 @@ One MCP server GSV owns; OpenCode / Cursor / Grok CLI / Grok Bot are **clients**
 cargo run --quiet --bin gsv-mcp
 ```
 
-Auto-register: `.mcp.json` · `.cursor/mcp.json` · `opencode.json` · `.grok/config.toml`. HTTP twin: `GET`/`POST`/`DELETE http://127.0.0.1:9999/mcp` (loopback; LAN needs `--allow-lan`; `Accept: text/event-stream` flushes notifications as SSE; `initialize` issues `Mcp-Session-Id`). Galaxy card: `/api/ui/card/mcp`. **31 tools** + **8 `gsv://` resources** + **3 prompts** + **logging** + **completions** + **subscribe** + **SSE** + **HTTP sessions**. Next gsv drain (**band 152**): MCP `products_select` — [`GSV_POST_ALWAYS_ON.md`](docs/gsv/GSV_POST_ALWAYS_ON.md). Grok Bot public tunnel is an owner opt-in — not on by default.
+Auto-register: `.mcp.json` · `.cursor/mcp.json` · `opencode.json` · `.grok/config.toml`. HTTP twin: `GET`/`POST`/`DELETE http://127.0.0.1:9999/mcp` (loopback; LAN needs `--allow-lan`; `Accept: text/event-stream` flushes notifications as SSE; `initialize` issues `Mcp-Session-Id`). Galaxy card: `/api/ui/card/mcp`. **32 tools** + **8 `gsv://` resources** + **3 prompts** + **logging** + **completions** + **subscribe** + **SSE** + **HTTP sessions**. Next gsv drain (**band 153**): watchdog ops card — [`GSV_POST_ALWAYS_ON.md`](docs/gsv/GSV_POST_ALWAYS_ON.md). Grok Bot public tunnel is an owner opt-in — not on by default.
 
 Canon: [`docs/gsv/GSV_MCP_OPENBOT.md`](docs/gsv/GSV_MCP_OPENBOT.md).
 

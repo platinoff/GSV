@@ -36,7 +36,8 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 149** (omniroute PRODUCTS.md + semver minor = band) **✅** ·
 **band 150** (live watchdog) **✅** ·
 **band 151** (MCP catch-up) **✅** ·
-**band 152** (MCP products select — queued) ·
+**band 152** (MCP products select) **✅** ·
+**band 153** (watchdog ops card — queued) ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -766,24 +767,41 @@ Owner 2026-08-18: wrap products / scan / watchdog / sw / fingerprints on `gsv_mc
 | **PH-S2157** | Docs canon | MCP_OPENBOT / SERVER / BOXES / ARCHITECTURE / HANDOFF / NEXT / MEMORY — **✅** |
 | **PH-S2158** | Band close | tests green; `--stretch-96` ≥96%; `--band 151` + fingerprint; one commit + push — **✅** |
 
-## Спринти (band 152) — MCP products select (queued)
+## Спринти (band 152) — MCP products select ✅
 
-Do **not** start until 151 ✅. `gsv_products_select` `{id}` (same allowlist as HTTP); `gsv_products_scan` may omit `id` when selected. Still **no** `gsv_products_open`, **no** `update/apply`.
+`gsv_products_select` `{id}` (same allowlist as HTTP); `gsv_products_scan` may omit `id` when selected. Still **no** `gsv_products_open`, **no** `update/apply`.
 
 | Sprint | Фокус | Acceptance (ключ) |
 |--------|-------|-------------------|
-| **PH-S2159** | Scope + queue | this band; `active_sprint` = `PH-S2159` when code starts |
-| **PH-S2160** | `gsv_products_select` | wrap select allowlist; unknown id → tool error |
-| **PH-S2161** | Scan without id | omit `id` when `AppState` has a selection |
-| **PH-S2162** | `gsv_drain` prompt | uses selected id |
-| **PH-S2163** | Contracts | mcp unit + `gsv_mcp_contracts` |
-| **PH-S2164** | Docs | MCP_OPENBOT / HANDOFF / NEXT |
-| **PH-S2165** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy |
-| **PH-S2166** | (reserve) | — |
-| **PH-S2167** | (reserve) | — |
-| **PH-S2168** | Band close | tests green; `--band 152` + fingerprint; one commit + push |
+| **PH-S2159** | Scope + queue | this band; `active_sprint` = `PH-S2159` — **✅** |
+| **PH-S2160** | `gsv_products_select` | wrap select allowlist; unknown id → tool error — **✅** |
+| **PH-S2161** | Scan without id | omit `id` when `AppState` has a selection — **✅** |
+| **PH-S2162** | `gsv_drain` prompt | uses selected id — **✅** |
+| **PH-S2163** | Contracts | mcp unit + `gsv_mcp_contracts` — **✅** |
+| **PH-S2164** | Docs | MCP_OPENBOT / HANDOFF / NEXT — **✅** |
+| **PH-S2165** | Ratio hold | `--stretch-96` **96.61%** (19921/20619); fmt/clippy 0 — **✅** |
+| **PH-S2166** | (reserve) | — **✅** |
+| **PH-S2167** | (reserve) | — **✅** |
+| **PH-S2168** | Band close | tests **399** green; `--stretch-96` 96.61%; `--band 152` → `0.152.0` + fingerprint; one commit + push — **✅** |
 
 Band **153** (watchdog card + fingerprint model) stays sketched in the plan — do not start until 152 ✅.
+
+## Спринти (band 153) — watchdog ops card (queued)
+
+Owner pick. Dedicated Galaxy ops card `watchdog`; optional fingerprint `model` from Cursor session. Still **no** MCP `products/open`, **no** `update/apply`, **no** Grok Bot tunnel.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2169** | Scope + queue | this band; `active_sprint` = `PH-S2169` when code starts |
+| **PH-S2170** | Watchdog ops card | `render_watchdog` + `CARD_NAMES` + Galaxy ops |
+| **PH-S2171** | Fingerprint model | session vs env (default `unknown` stays valid) |
+| **PH-S2172** | (reserve) | — |
+| **PH-S2173** | (reserve) | — |
+| **PH-S2174** | (reserve) | — |
+| **PH-S2175** | (reserve) | — |
+| **PH-S2176** | Contracts | card + health row |
+| **PH-S2177** | Docs | HANDOFF / NEXT / BOXES |
+| **PH-S2178** | Band close | tests green; `--band 153` + fingerprint; one commit + push |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

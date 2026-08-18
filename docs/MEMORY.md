@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-18 · band 152 ✅)
+
+- **Band 152:** MCP `gsv_products_select` `{id}` (same allowlist as HTTP select; unknown → tool error); `gsv_products_scan` may omit `id` when `AppState` has a selection; `gsv_drain` names select then scan. **32** tools · **8** resources.
+- **Canon:** [`gsv/GSV_POST_ALWAYS_ON.md`](gsv/GSV_POST_ALWAYS_ON.md) · [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+- **Next drain:** band **153** (`PH-S2169…S2178`) — watchdog ops card + fingerprint model (owner pick).
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 still `scripts/list-vdt-products.sh`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.61%** (rust 19921 / product 20619) · **399** tests · clippy 0. Vision rev **514**.
+
 ## Стан (2026-08-18 · band 151 ✅)
 
 - **Band 151:** MCP catch-up — `gsv_products` / `gsv_products_scan` (`id` required; unknown → tool error) / `gsv_watchdog` / `gsv_sw` / `gsv_fingerprints`; resources `gsv://docs/fingerprints` + `gsv://docs/post-always-on`; `gsv_drain` prompt names the new tools. **31** tools · **8** resources.

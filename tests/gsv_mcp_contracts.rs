@@ -4,6 +4,7 @@
 //! terminal stays on the HTTP allowlist (no extra shell); Omni defaults to dry-run.
 //! Band 137: vision completeness (26 tools then) + preview confine.
 //! Band 151: always-on catch-up (31 tools + 8 resources).
+//! Band 152: `gsv_products_select` + scan-without-id (32 tools).
 //! Band 138: resources/list+read (gsv:// allowlist) + prompts/list+get.
 //! Band 139: logging/setLevel + completion/complete (resource URIs + prompt names).
 //! Band 140: resources/subscribe+unsubscribe + logging notifications + resource updated.
@@ -136,10 +137,11 @@ async fn post_initialize_and_tools_list() {
     assert!(names.contains(&"gsv_preview"));
     assert!(names.contains(&"gsv_products"));
     assert!(names.contains(&"gsv_products_scan"));
+    assert!(names.contains(&"gsv_products_select"));
     assert!(names.contains(&"gsv_watchdog"));
     assert!(names.contains(&"gsv_sw"));
     assert!(names.contains(&"gsv_fingerprints"));
-    assert_eq!(names.len(), 31);
+    assert_eq!(names.len(), 32);
 }
 
 #[tokio::test]
@@ -925,7 +927,83 @@ async fn drain_prompt_names_always_on_tools() {
         .unwrap_or("");
     assert!(text.contains("gsv_products"), "{text}");
     assert!(text.contains("gsv_products_scan"), "{text}");
+    assert!(text.contains("gsv_products_select"), "{text}");
     assert!(text.contains("gsv_watchdog"), "{text}");
     assert!(text.contains("gsv://docs/next"), "{text}");
     assert!(text.contains("mid-drain"), "{text}");
+}
+
+#[tokio::test]
+async fn products_select_unknown_id_is_tool_error() {
+    let app = app();
+    let (status, body) = mcp_post(
+        &app,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 85,
+            "method": "tools/call",
+            "params": { "name": "gsv_products_select", "arguments": { "id": "nope" } }
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["result"]["isError"], true);
+    let text = body["result"]["content"][0]["text"].as_str().unwrap_or("");
+    assert!(text.contains("unknown product"), "{text}");
+    assert!(!text.contains("unknown tool"), "{text}");
+}
+
+#[tokio::test]
+async fn products_scan_without_id_needs_select() {
+    let app = app();
+    let (status, body) = mcp_post(
+        &app,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 86,
+            "method": "tools/call",
+            "params": { "name": "gsv_products_scan", "arguments": {} }
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["result"]["isError"], true);
+}
+
+#[tokio::test]
+async fn products_select_then_scan_omits_id() {
+    let app = app();
+    let (status, sel) = mcp_post(
+        &app,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 87,
+            "method": "tools/call",
+            "params": { "name": "gsv_products_select", "arguments": { "id": "gsv" } }
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(sel["result"]["isError"], false);
+    let text = sel["result"]["content"][0]["text"].as_str().unwrap_or("");
+    assert!(text.contains("gsv"), "{text}");
+
+    let (status, scan) = mcp_post(
+        &app,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 88,
+            "method": "tools/call",
+            "params": { "name": "gsv_products_scan", "arguments": {} }
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(scan["result"]["isError"], false, "{scan}");
+    let text = scan["result"]["content"][0]["text"].as_str().unwrap_or("");
+    assert!(
+        text.contains("\"ok\":true") || text.contains("\"ok\": true"),
+        "{text}"
+    );
+    assert!(text.contains("git_head"), "{text}");
 }

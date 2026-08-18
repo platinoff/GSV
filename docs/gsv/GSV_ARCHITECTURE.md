@@ -40,7 +40,7 @@
 | `sw/` | Service Worker shell cache (`GET /sw.js` Rust-rendered; `GET /api/sw`) |
 | `watchdog/` | live watchdog heartbeat (`GET /api/watchdog`) + bin `gsv-watchdog` |
 | `update/` | перевірка оновлення бінарника; сигнал «Update»; offline resync |
-| `mcp/` | `gsv_mcp_openbot` JSON-RPC (stdio `gsv-mcp` + `POST /mcp`); **31** tools + **8** `gsv://` (band **151 ✅** wraps products / scan / watchdog / sw / fingerprints) |
+| `mcp/` | `gsv_mcp_openbot` JSON-RPC (stdio `gsv-mcp` + `POST /mcp`); **32** tools + **8** `gsv://` (band **152 ✅** `products_select` + scan-without-id; **151 ✅** wraps products / scan / watchdog / sw / fingerprints) |
 
 ### UI (тонкий JS glue)
 
@@ -69,4 +69,4 @@
 
 ## Порядок реалізації (коротко)
 
-Повний порядок зі спринтами — [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md). Логіка: **docs/architecture → server scaffold → SLI console + Tracker → Toolchain → IDE → Update/offline → Preview + SLI terminal → Tests/bench hooks → band close**. MCP: [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) (band 135–151 ✅: stdio + `/mcp` + Galaxy card + **31** tools + **8** resources + 3 prompts + logging + completions + resource subscribe + logging/resource notifications + HTTP SSE + HTTP `Mcp-Session-Id` + always-on box wraps). **Band 152 queued:** MCP `products_select` — [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md).
+Повний порядок зі спринтами — [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md). Логіка: **docs/architecture → server scaffold → SLI console + Tracker → Toolchain → IDE → Update/offline → Preview + SLI terminal → Tests/bench hooks → band close**. MCP: [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) (band 135–152 ✅: stdio + `/mcp` + Galaxy card + **32** tools + **8** resources + 3 prompts + logging + completions + resource subscribe + logging/resource notifications + HTTP SSE + HTTP `Mcp-Session-Id` + always-on box wraps + `products_select`). **Band 153 queued:** watchdog ops card — [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md).

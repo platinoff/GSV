@@ -462,15 +462,13 @@ Expected: fmt clean, clippy 0, tests green, stretch ≥ 96%.
 
 ---
 
-# Band 152 — MCP products select (PH-S2159…S2168) sketched
+# Band 152 — MCP products select (PH-S2159…S2168) ✅
 
-Do **not** start until 151 is ✅.
-
-- `gsv_products_select` `{id}` → same allowlist as `POST /api/products/select`.
-- `gsv_products_scan` may omit `id` when `AppState` has a selection.
-- Still **no** `gsv_products_open`, **no** `update/apply`.
-- Prompt `gsv_drain` uses selected id.
-- Close: `--band 152` + fingerprint; next = 153 or owner pick.
+Landed 2026-08-18. `gsv_products_select` `{id}` → same allowlist as `POST /api/products/select`.
+`gsv_products_scan` may omit `id` when `AppState` has a selection.
+Still **no** `gsv_products_open`, **no** `update/apply`.
+Prompt `gsv_drain` uses selected id.
+Close: `--band 152` + fingerprint; next = 153.
 
 # Band 153 — Watchdog card + fingerprint model (later)
 
