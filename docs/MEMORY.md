@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-18 · band 150 ✅)
+
+- **Band 150:** live watchdog (owner ask) — `gsv-watchdog` probes `/api/health` every 3s and respawns `target/live/gsv-server.exe` after 2 misses (grace for update-apply). Heartbeat `target/live/watchdog.json`; `GET /api/watchdog`; health card `watchdog`. Scripts: `gsv-watchdog.sh` (detach) + `gsv-watchdog-install.sh` (ONLOGON / HKCU Run). Do **not** invent band 151.
+- **Canon:** [`gsv/GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md) · `gsv-live.sh` is the inner supervisor; watchdog is the outer loop when that shell dies.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 still `scripts/list-vdt-products.sh`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.75%** (rust 19027 / product 19667) · **386** tests · clippy 0. Vision rev **513**.
+- **Канон продукту:** Rust **95–100%** / wasm **0–5%** (завжди), без Python/Java; bins — лише `src/bin/`.
+
 ## Стан (2026-08-18 · band 149 ✅)
 
 - **Band 149:** owner-picked remaining P2 — `docs/gsv/PRODUCTS.md` registers **omniroute** (node, `npm test`, ratio n/a); `scripts/gsv-bump-version.sh --band N` sets crate semver minor = band (`0.{band}.0`, same-band patch +1); `products::scan` treats `AGENTS.md` / `docs/ROADMAP.md` as handoff/next; abracadabra registered-node flow (no PH-S* invent). Do **not** invent band 150.

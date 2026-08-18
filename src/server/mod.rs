@@ -48,6 +48,10 @@ fn health(state: &AppState) -> Value {
         "ok": true,
         "uptime_secs": state.started_at.elapsed().map(|d| d.as_secs()).unwrap_or(0),
         "update_available": state.update_available(),
+        "watchdog_alive": crate::boxes::watchdog::wire(&state.repo_root)
+            .get("alive")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
         "fingerprint_actor": latest.map(|f| f.actor.as_str()),
         "fingerprint_ide": latest.map(|f| f.ide.as_str()),
         "fingerprint_model": latest.map(|f| f.model.as_str()),
@@ -78,6 +82,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/ui/", get(api_ui_index))
         .route("/api/omni/", get(api_omni_index))
         .route("/api/health", get(api_health))
+        .route("/api/watchdog", get(api_watchdog))
         .route("/api/tracker", get(api_tracker))
         .route("/api/sli", get(api_sli))
         .route("/api/toolchain", get(api_toolchain))
@@ -273,6 +278,10 @@ async fn api_health(State(state): State<AppState>) -> Json<Value> {
     Json(health(&state))
 }
 
+async fn api_watchdog(State(state): State<AppState>) -> Json<Value> {
+    Json(crate::boxes::watchdog::wire(&state.repo_root))
+}
+
 fn accept_sse(headers: &HeaderMap) -> bool {
     crate::mcp::wants_sse(headers.get(header::ACCEPT).and_then(|v| v.to_str().ok()))
 }
@@ -377,7 +386,7 @@ async fn api_index() -> Json<Value> {
         "categories": [
             "/api/vision/", "/api/ui/", "/api/ratio/", "/api/toolchain/",
             "/api/ide/", "/api/omni/", "/api/sli", "/api/tracker", "/api/products",
-            "/api/fingerprints", "/api/sw", "/sw.js",
+            "/api/fingerprints", "/api/sw", "/api/watchdog", "/sw.js",
             "/api/hooks/", "/api/preview", "/api/terminal", "/data/", "/mcp"
         ],
         "example": "/api/vision",

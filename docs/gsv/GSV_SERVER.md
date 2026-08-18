@@ -25,7 +25,7 @@
 | GET | `/api/products/scan` | selected product: git HEAD/status, kind, registered, HANDOFF/NEXT (`AGENTS.md` / `docs/ROADMAP.md` fallback), `cargo_name` |
 | GET | `/api/fingerprints` | drain fingerprints (`ok`, `path`, `count`, `fingerprints`; `?limit=` default 20, cap 100) |
 | GET | `/sw.js` | Rust-rendered Service Worker (shell Cache API; `Service-Worker-Allowed: /`) |
-| GET | `/api/sw` | SW discovery (`ok`, `cache`, `script`, `urls`) |
+| GET | `/api/watchdog` | live watchdog heartbeat (`ok`, `alive`, `path`, `last_action`) |
 | GET | `/api/update` | статус оновлення (Update box; `live_copy` if running from `target/live/`) |
 | POST | `/api/update/notify` | виставити `update_available` + SSE |
 | POST | `/api/update/apply` | SSE `offline` + `{ok,applying}`; process exit unless `GSV_UPDATE_APPLY_EXIT=0` |
@@ -103,7 +103,7 @@ cargo run --manifest-path GSV/Cargo.toml --bin gsv-http-stand-smoke -- --base-ur
 3. Вебсторінка **не падає** при офлайн — переходить у стан «offline».
 4. Після відновлення зв’язку **всі метрики синхронізуються** (resync).
 
-**Always-on (band 144):** run a live copy (`target/live/gsv-server.exe` via `scripts/gsv-live.sh`) so `cargo test`/`build` does not lock the listening process. `POST /api/update/apply` emits SSE `offline` and exits (gated by `GSV_UPDATE_APPLY_EXIT`); the supervisor recopies debug → live and rebinds `:9999`; the page stays **offline** until SSE `onopen` then resyncs. Do **not** kill the live copy before `cargo test`. Spec: [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md).
+**Always-on (band 144 + watchdog):** run a live copy (`target/live/gsv-server.exe` via `scripts/gsv-live.sh`) so `cargo test`/`build` does not lock the listening process. `POST /api/update/apply` emits SSE `offline` and exits (gated by `GSV_UPDATE_APPLY_EXIT`); the supervisor recopies debug → live and rebinds `:9999`; the page stays **offline** until SSE `onopen` then resyncs. If the supervisor shell dies (Cursor abort), `gsv-watchdog` probes `/api/health` and respawns the live copy. Do **not** kill the live copy before `cargo test`. Spec: [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md).
 
 Реалізація (Rust):
 - Сервер тримає `update_flag` (AtomicBool) + версію бінарника.
@@ -118,8 +118,10 @@ cargo run --manifest-path GSV/Cargo.toml --bin gsv-http-stand-smoke -- --base-ur
 Windows locks a running exe. The canon listener is a **copy**:
 
 ```bash
-cargo build --bin gsv-server
+cargo build --bin gsv-server --bin gsv-watchdog
 bash scripts/gsv-live.sh          # copies target/debug → target/live, loop restart
+bash scripts/gsv-watchdog.sh      # detached health probe + respawn if :9999 dies
+bash scripts/gsv-watchdog-install.sh   # ONLOGON scheduled task (survives Cursor)
 ```
 
 | Step | What happens |

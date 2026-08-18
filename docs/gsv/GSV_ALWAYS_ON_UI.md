@@ -1,7 +1,7 @@
 # GSV Always-on Galaxy UI — spec
 
-**Status:** Bands **143–147 ✅** (always-on Galaxy) · **148 ✅** (Service Worker shell cache) · **149 ✅** (omniroute PRODUCTS.md + semver minor = band)  
-**Date:** 2026-08-17  
+**Status:** Bands **143–147 ✅** (always-on Galaxy) · **148 ✅** (Service Worker shell cache) · **149 ✅** (omniroute PRODUCTS.md + semver minor = band) · **150 ✅** (live watchdog)  
+**Date:** 2026-08-18  
 **Owner ask:** Galaxy UI always reachable; page goes **offline** only during binary swap; debug collapse / fullscreen / power menu; typography + chart scale; pick a VDT project and open its folder; auto-parse what the dashboard needs; every commit bumps the crate version; fingerprint who did the work (IDE / bot / model / agent / time). Match the polish of [`README.md`](../../README.md) presentations.
 
 **Plan:** [`docs/superpowers/plans/2026-08-17-always-on-galaxy.md`](../superpowers/plans/2026-08-17-always-on-galaxy.md)  
@@ -131,7 +131,7 @@ There is an **IDE session** picker, not a **VDT product** picker. `Cargo.toml` i
 ## Open questions (non-blocking)
 
 - Fingerprint `model` string: Cursor session vs env. Default `unknown` if missing.
-- Supervisor: `scripts/gsv-live.sh` vs a `gsv-live` bin. **Decision:** bash supervisor first (Windows-friendly copy+exec); bin only if bash restart is flaky.
+- Supervisor: `scripts/gsv-live.sh` vs a `gsv-live` bin. **Decision:** bash supervisor first; `gsv-watchdog` bin is the outer loop when that shell dies (Cursor abort).
 
 ## Phasing (VDT bands)
 
@@ -144,5 +144,6 @@ There is an **IDE session** picker, not a **VDT product** picker. `Cargo.toml` i
 | **147** | S2109–S2118 | README-level UI polish leftovers + docs canon | ✅ |
 | **148** | S2119–S2128 | Service Worker shell cache (`/sw.js` Rust-rendered) | ✅ |
 | **149** | S2129–S2138 | OmniRoute PRODUCTS.md + semver minor = band | ✅ |
+| **150** | S2139–S2148 | Live watchdog (`gsv-watchdog` probes `/api/health`, respawns live copy) | ✅ |
 
-Next `абракадабра` on **gsv**: scan first. Always-on P2 leftovers are closed. Do **not** invent band 150.
+Next `абракадабра` on **gsv**: scan first. Watchdog is the always-on outer loop. Do **not** invent band 151.

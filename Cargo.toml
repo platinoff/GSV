@@ -4,7 +4,7 @@ members = ["."]
 
 [package]
 name = "gsv"
-version = "0.149.0"
+version = "0.150.0"
 edition = "2021"
 authors = ["PoolAI Team"]
 description = "GSV (Galaxy StarWalker Vision) - Rust-first vision server with boxes (Tracker, SLI, Toolchain, IDE, Update, Preview, Terminal, Hooks)"
@@ -42,6 +42,10 @@ path = "src/bin/gsv_rust_diagnostics.rs"
 [[bin]]
 name = "gsv-mcp"
 path = "src/bin/gsv_mcp.rs"
+
+[[bin]]
+name = "gsv-watchdog"
+path = "src/bin/gsv_watchdog.rs"
 
 [dependencies]
 # Serialization

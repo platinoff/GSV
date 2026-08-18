@@ -128,6 +128,7 @@ Rust модуль: `omni/` (catalog.rs, config.rs, proxy.rs) → `GSV/data/omni.
 | Products | `products/` (`boxes/products.rs`) | `/api/products` · `/api/products/select` · `/api/products/open` · `/api/products/scan` | workspace ∪ sibling git ∪ kit; `registered` from PRODUCTS.md (`omniroute` band 149); scan HANDOFF fallback `AGENTS.md` / `docs/ROADMAP.md` |
 | Fingerprints | `fingerprint/` (`boxes/fingerprint.rs`) | `/api/fingerprints` | append-only `docs/gsv/fingerprints.jsonl` (actor / IDE / model / agent / time); ops card `fingerprints` |
 | Service Worker | `sw/` (`boxes/sw.rs`) | `/sw.js` · `/api/sw` | Rust-rendered SW; Cache Storage `gsv-shell-v1`; precache `/` + live CSS + galaxy/vision svg; skip `/events` `/mcp`; ops card `sw` |
+| Watchdog | `watchdog/` (`boxes/watchdog.rs`) | `/api/watchdog` · bin `gsv-watchdog` | probe `/api/health`; after 2 misses copy debug→live and spawn detached; heartbeat `target/live/watchdog.json`; health card `watchdog_alive` |
 | Update | `update/` | `/api/update` · `/api/update/apply` · `/events` | live copy + версія |
 | Box preview | `preview/` | `/api/preview` | файли |
 | SLI terminal | `terminal/` | `/api/terminal` | SLI-каталог |

@@ -934,6 +934,14 @@ pub fn render_health(d: &Value) -> String {
                     avail
                 ),
             ],
+            vec![
+                "watchdog".into(),
+                format!(
+                    "<span class='{}'>{}</span>",
+                    if b(&d["watchdog_alive"]) { "ok" } else { "dim" },
+                    b(&d["watchdog_alive"])
+                ),
+            ],
         ],
     )
 }

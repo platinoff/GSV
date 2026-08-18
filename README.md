@@ -87,9 +87,10 @@ unset CARGO_TARGET_DIR
 
 cargo build --bin gsv-server
 bash scripts/gsv-live.sh
+bash scripts/gsv-watchdog.sh          # keep :9999 up if the live shell dies
 ```
 
-Open [http://127.0.0.1:9999/](http://127.0.0.1:9999/). The supervisor copies `target/debug/gsv-server.exe` → `target/live/` so `cargo test` / `cargo build` do not lock the listener. `cargo run --bin gsv-server` still works but **locks** `target/debug/` on Windows.
+Open [http://127.0.0.1:9999/](http://127.0.0.1:9999/). The supervisor copies `target/debug/gsv-server.exe` → `target/live/` so `cargo test` / `cargo build` do not lock the listener. `gsv-watchdog` probes `/api/health` and respawns the live copy if Cursor (or anything else) kills the supervisor. `cargo run --bin gsv-server` still works but **locks** `target/debug/` on Windows.
 
 ```bash
 cargo fmt -- --check

@@ -728,6 +728,23 @@ Owner-picked remaining P2 from [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md): r
 | **PH-S2137** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy — **✅** |
 | **PH-S2138** | Band close | tests green; vision-sync; `--band 149` + fingerprint; one commit + push — **✅** |
 
+## Спринти (band 150) — live watchdog ✅
+
+Owner ask: keep `:9999` up when `gsv-live.sh` (Cursor terminal) dies. Outer loop probes health and respawns the live copy.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2139** | Scope + queue | this band; `active_sprint` = `PH-S2139` — **✅** |
+| **PH-S2140** | `boxes/watchdog.rs` | tick / cooldown / heartbeat / copy debug→live — **✅** |
+| **PH-S2141** | `gsv-watchdog` bin | probe `/api/health`; spawn detached; `--once` — **✅** |
+| **PH-S2142** | HTTP | `GET /api/watchdog`; health `watchdog_alive` — **✅** |
+| **PH-S2143** | Scripts | `gsv-watchdog.sh` + `gsv-watchdog-install.sh` (schtasks / HKCU Run) — **✅** |
+| **PH-S2144** | Health card | `watchdog` row in `render_health` — **✅** |
+| **PH-S2145** | Contracts | `tests/gsv_watchdog_contracts.rs` — **✅** |
+| **PH-S2146** | Docs canon | SERVER / BOXES / ALWAYS_ON_UI / HANDOFF / NEXT / MEMORY — **✅** |
+| **PH-S2147** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy — **✅** |
+| **PH-S2148** | Band close | tests green; vision-sync; `--band 150` + fingerprint; one commit + push — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

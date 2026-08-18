@@ -17,6 +17,7 @@
 //! | Products | `products` | `/api/products` | workspace ∪ sibling git ∪ kit |
 //! | Fingerprints | `fingerprint` | `/api/fingerprints` | `docs/gsv/fingerprints.jsonl` |
 //! | Service Worker | `sw` | `/sw.js` · `/api/sw` | Rust-rendered shell cache |
+//! | Watchdog | `watchdog` | `/api/watchdog` | `target/live/watchdog.json` heartbeat + respawn live copy |
 
 pub mod fingerprint;
 pub mod hooks;
@@ -32,6 +33,7 @@ pub mod toolchain;
 pub mod ui;
 pub mod update;
 pub mod vision;
+pub mod watchdog;
 
 pub use fingerprint::Fingerprint;
 pub use ide::{IdeSelection, IdeSession, IdeWire};
