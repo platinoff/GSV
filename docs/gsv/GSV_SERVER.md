@@ -111,7 +111,7 @@ cargo run --manifest-path GSV/Cargo.toml --bin gsv-http-stand-smoke -- --base-ur
 - UI показує кнопку/бейдж **Update** замість auto-reload; `doUpdate()` POSTs `/api/update/apply`.
 - Клієнтський JS тримає стан offline; при SSE `onopen` робить full-resync (Tracker/SLI/toolchain/speed/rust diagnostics).
 
-**Horizon (band 148):** Service Worker shell cache. Spec P2 in [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md).
+**Horizon (band 151 queued):** MCP catch-up — wrap products / watchdog / sw / fingerprints on `gsv_mcp_openbot` (still 26 tools). Spec: [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md). Service Worker shell cache is **done** (band 148).
 
 ## Live copy + apply (band 144)
 

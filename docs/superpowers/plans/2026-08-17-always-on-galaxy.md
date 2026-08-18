@@ -621,4 +621,4 @@ Shipped 2026-08-18. Always-on Galaxy (bands 143–147) is closed. Next `абра
 | Fingerprints | Task 13 |
 | README polish remainder | Band 147 |
 
-No TBD placeholders. Always-on Galaxy (bands 143–147) is closed.
+No TBD placeholders. Always-on Galaxy (bands 143–147) is closed. Bands 148–150 (SW, omniroute/semver, watchdog) closed after this plan. Next gsv drain is **band 151** MCP catch-up: [`GSV_POST_ALWAYS_ON.md`](../../gsv/GSV_POST_ALWAYS_ON.md) · [`2026-08-18-mcp-always-on-catchup.md`](./2026-08-18-mcp-always-on-catchup.md).

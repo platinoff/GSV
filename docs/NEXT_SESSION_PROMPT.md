@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-18 (**band 150 ✅ · live watchdog · не вигадувати band 151**)
+**Оновлено:** 2026-08-18 (**band 150 ✅ · next gsv drain = band 151 MCP catch-up**)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -20,10 +20,11 @@ abrakadabra
 project scan (**warnings first**) → drain наступного band (**без** mid-push) →
 Speeds · Rust panel → vision-sync → **один** commit → **`git push` + самарі**.
 
-Якщо **gsv:** always-on Galaxy (**bands 143–147 ✅**) + SW cache (**band 148 ✅**) + omniroute/semver (**band 149 ✅**) + live watchdog (**band 150 ✅**) are closed. **Не** вигадувати band 151.
-Next work = project scan (warnings first) or owner pick.
-Spec [`GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md) · plan
-[`superpowers/plans/2026-08-17-always-on-galaxy.md`](superpowers/plans/2026-08-17-always-on-galaxy.md).
+Якщо **gsv:** always-on Galaxy (**bands 143–147 ✅**) + SW cache (**band 148 ✅**) + omniroute/semver (**band 149 ✅**) + live watchdog (**band 150 ✅**) are closed.
+**Next drain = band 151** (`PH-S2149…S2158`) — MCP tools for products / scan / watchdog / sw / fingerprints.
+Spec [`GSV_POST_ALWAYS_ON.md`](gsv/GSV_POST_ALWAYS_ON.md) · plan
+[`superpowers/plans/2026-08-18-mcp-always-on-catchup.md`](superpowers/plans/2026-08-18-mcp-always-on-catchup.md).
+Always-on canon stays [`GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md).
 Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics.sh`. Disk: `bash scripts/check_target_disk.sh`.
 Close: `bash scripts/gsv-bump-version.sh --band N` then `bash scripts/gsv-fingerprint.sh` in the same commit.
 
@@ -201,7 +202,8 @@ Close: `bash scripts/gsv-bump-version.sh --band N` then `bash scripts/gsv-finger
   semver minor = band (`gsv-bump-version.sh --band N` → `0.149.0`).
   **band 150** (PH-S2139…S2148) ✅ — live watchdog (`gsv-watchdog` probes `/api/health`,
   respawns `target/live/`; `GET /api/watchdog`; install HKCU Run / schtasks).
-  **Наступний drain**: scan / owner pick — **не** вигадувати band 151.
+  **band 151** (PH-S2149…S2158) queued — MCP catch-up (5 tools + 2 `gsv://` resources).
+  Spec [`GSV_POST_ALWAYS_ON.md`](gsv/GSV_POST_ALWAYS_ON.md). **Наступний drain:** band 151.
 
 ## Канон GSV
 
@@ -245,7 +247,7 @@ band 147 ✅ (README polish leftovers — live.sh Quick start + density tokens) 
 band 148 ✅ (Service Worker shell cache — `/sw.js` + `/api/sw` + ops card) ·
 band 149 ✅ (omniroute PRODUCTS.md + semver minor = band) ·
 band 150 ✅ (live watchdog — health probe + respawn live copy) ·
-не вигадувати band 151 ·
+band 151 queued (MCP catch-up — products/watchdog/sw/fingerprints tools) ·
 не комітити kit-only в PoolAI як «замість» GSV drain ·
 staging `GSV/data/*` / `certs/*.pem` /
 `.env` · mid-push · `cargo test` while `target/debug/gsv-server.exe` is the listener · обхід ratio-смуги Rust-кодом замість compact UI ·

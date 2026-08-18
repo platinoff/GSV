@@ -1,21 +1,25 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-08-18 (band 150 ✅ · live watchdog)
+**Оновлено:** 2026-08-18 (band 150 ✅ · post-always-on spec queued → **band 151**)
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
 **`абракадабра` / `abrakadabra`** → `scripts/list-vdt-products.sh` → **AskQuestion на проєкти з environment**
 (не `gsv | poolai` з голови) → S0 диск/git → project scan (warnings first) →
-**не вигадувати band 151**. Speeds + Rust panel → vision-sync → **один commit** → **`git push` + самарі**.
+якщо **gsv:** drain **band 151** (`PH-S2149…S2158`) з
+[`gsv/GSV_POST_ALWAYS_ON.md`](gsv/GSV_POST_ALWAYS_ON.md) +
+[`superpowers/plans/2026-08-18-mcp-always-on-catchup.md`](superpowers/plans/2026-08-18-mcp-always-on-catchup.md).
+Speeds + Rust panel → vision-sync → **один commit** → **`git push` + самарі**.
 
 Якщо вибір **gsv:** scan [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) first
-(spec [`gsv/GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md) **143–150 ✅**).
-MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+(always-on [`gsv/GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md) **143–150 ✅**;
+next horizon **MCP catch-up**). MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
 Канон ролей: [`GSV_ROLES.md`](GSV_ROLES.md). Реєстр: [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
 
 ## Стан зараз
 
 - **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–149 · **150 ✅**.
-- **Band 150:** live watchdog — `boxes/watchdog.rs` + bin `gsv-watchdog` probe `GET /api/health` every 3s; after 2 misses copy debug→live and spawn detached; `GET /api/watchdog`; health `watchdog_alive`; `scripts/gsv-watchdog.sh` + install (schtasks ONLOGON, else HKCU Run). Do **not** invent band 151.
+- **Next drain (gsv):** **band 151** — MCP catch-up. Always-on boxes (products / scan / watchdog / sw / fingerprints) exist on HTTP but **not** on `gsv_mcp_openbot` (still 26 tools). Spec queued this session (no 151 code yet).
+- **Band 150:** live watchdog — `boxes/watchdog.rs` + bin `gsv-watchdog` probe `GET /api/health` every 3s; after 2 misses copy debug→live and spawn detached; `GET /api/watchdog`; health `watchdog_alive`; `scripts/gsv-watchdog.sh` + install (schtasks ONLOGON, else HKCU Run).
 - **Band 149:** owner-picked remaining P2 — `PRODUCTS.md` registers **omniroute** (node; `npm test`; ratio n/a); `gsv-bump-version.sh --band N` sets semver minor = band (`0.149.0`); scan HANDOFF fallback `AGENTS.md` / `docs/ROADMAP.md`; abracadabra node flow (no PH-S* invent).
 - **Band 148:** Service Worker shell cache — `GET /sw.js` Rust-rendered; precache document + live CSS + galaxy/vision svg; skip SSE `/events` and `/mcp`; `GET /api/sw`; ops card `sw`; CSP `worker-src 'self'`.
 - **Horizon 143–147 (closed):** always-on Galaxy UI (chrome, live copy, products, version/fingerprints, README polish).

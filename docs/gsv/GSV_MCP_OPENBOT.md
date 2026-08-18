@@ -1,6 +1,6 @@
 # gsv_mcp_openbot — GSV as an MCP server
 
-**Status:** Implemented (band **142**, `PH-S2059…S2068` ✅ · band 141 `PH-S2049…S2058` ✅ · band 140 `PH-S2039…S2048` ✅ · band 139 `PH-S2029…S2038` ✅ · band 138 `PH-S2019…S2028` ✅ · band 137 `PH-S2009…S2018` ✅ · band 136 `PH-S1999…S2008` ✅ · band 135 `PH-S1989…S1998` ✅) · **Date:** 2026-08-17
+**Status:** Implemented (band **142**, `PH-S2059…S2068` ✅ · band 141 `PH-S2049…S2058` ✅ · band 140 `PH-S2039…S2048` ✅ · band 139 `PH-S2029…S2038` ✅ · band 138 `PH-S2019…S2028` ✅ · band 137 `PH-S2009…S2018` ✅ · band 136 `PH-S1999…S2008` ✅ · band 135 `PH-S1989…S1998` ✅) · **Horizon band 151 queued** (MCP catch-up for always-on boxes) · **Date:** 2026-08-18
 **Deciders:** owner
 
 GSV exposes one MCP server named **`gsv_mcp_openbot`**. OpenCode, Cursor, Grok CLI, and Grok Bot consume the **same** tools. Those products stay **clients** — they are not embedded inside `gsv-server`.
@@ -173,8 +173,26 @@ No secrets in tool output (`omni.toml` keys stay redacted). POST body cap and CS
 - Auto-generating a second Galaxy UI for OpenCode.
 - Python MCP adapters.
 
+## Horizon (band 151 queued)
+
+Always-on Galaxy added HTTP boxes that MCP does **not** wrap yet. Next gsv drain:
+
+| Tool / URI | Wraps |
+|------------|--------|
+| `gsv_products` | `GET /api/products` |
+| `gsv_products_scan` | `products::scan` (`id` required) |
+| `gsv_watchdog` | `GET /api/watchdog` |
+| `gsv_sw` | `GET /api/sw` |
+| `gsv_fingerprints` | `GET /api/fingerprints` |
+| `gsv://docs/fingerprints` | `docs/gsv/fingerprints.jsonl` |
+| `gsv://docs/post-always-on` | `docs/gsv/GSV_POST_ALWAYS_ON.md` |
+
+Not in 151: MCP `products/open`, `products/select` (152), `update/apply`, Grok Bot tunnel.
+
+Spec: [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md). Plan: [`docs/superpowers/plans/2026-08-18-mcp-always-on-catchup.md`](../superpowers/plans/2026-08-18-mcp-always-on-catchup.md).
+
 ## See also
 
-- Roadmap sprints: [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) band 135–142
+- Roadmap sprints: [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) band 135–142 ✅ · **151 queued**
 - Server: [`GSV_SERVER.md`](./GSV_SERVER.md)
 - Boxes: [`GSV_BOXES.md`](./GSV_BOXES.md)

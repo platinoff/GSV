@@ -33,6 +33,9 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 146** (version bump + fingerprints) **✅** ·
 **band 147** (README-level polish leftovers) **✅** ·
 **band 148** (Service Worker shell cache) **✅** ·
+**band 149** (omniroute PRODUCTS.md + semver minor = band) **✅** ·
+**band 150** (live watchdog) **✅** ·
+**band 151** (MCP catch-up — queued) ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -744,6 +747,25 @@ Owner ask: keep `:9999` up when `gsv-live.sh` (Cursor terminal) dies. Outer loop
 | **PH-S2146** | Docs canon | SERVER / BOXES / ALWAYS_ON_UI / HANDOFF / NEXT / MEMORY — **✅** |
 | **PH-S2147** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy — **✅** |
 | **PH-S2148** | Band close | tests green; vision-sync; `--band 150` + fingerprint; one commit + push — **✅** |
+
+## Спринти (band 151) — MCP always-on catch-up (queued)
+
+Owner 2026-08-18: always-on HTTP boxes are not on `gsv_mcp_openbot` (26 tools). Spec/plan only this session; **next `абракадабра` on gsv drains this band**. Spec: [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md). Plan: [`docs/superpowers/plans/2026-08-18-mcp-always-on-catchup.md`](../superpowers/plans/2026-08-18-mcp-always-on-catchup.md).
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2149** | Scope + queue | this band; `active_sprint` = `PH-S2149` when code starts |
+| **PH-S2150** | `gsv_products` + scan | wrap `products::wire` / `scan`; `id` required; unknown id → tool error |
+| **PH-S2151** | `gsv_watchdog` + `gsv_sw` | wrap `watchdog::wire` / `sw::wire` |
+| **PH-S2152** | `gsv_fingerprints` | wrap `fingerprint::wire` + `clamp_limit` |
+| **PH-S2153** | Resources | `gsv://docs/fingerprints` + `gsv://docs/post-always-on`; `..` / `file:` → `-32602` |
+| **PH-S2154** | `gsv_drain` prompt | text names products / scan / watchdog + `gsv://docs/next` |
+| **PH-S2155** | Discovery | `TOOL_NAMES` 31; `RESOURCE_URIS` 8; Galaxy card count |
+| **PH-S2156** | Contracts | `gsv_mcp_contracts` + mcp unit (no hardcoded 26) |
+| **PH-S2157** | Docs canon | MCP_OPENBOT / SERVER / BOXES / ARCHITECTURE / HANDOFF / NEXT / MEMORY |
+| **PH-S2158** | Band close | tests green; `--stretch-96` ≥96%; `--band 151` + fingerprint; one commit + push |
+
+Band **152** (select) and **153** (watchdog card) stay sketched in the plan — do not start until 151 ✅.
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

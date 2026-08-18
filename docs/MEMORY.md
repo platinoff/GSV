@@ -4,9 +4,17 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-18 · post-always-on spec queued · band 150 ✅)
+
+- **Owner ask → spec/plan, no band-151 code this session:** MCP catch-up. Always-on HTTP boxes (products / fingerprints / sw / watchdog) are not on `gsv_mcp_openbot` (still 26 tools / 6 resources). Scan 2026-08-18: clippy 0, roadmap 102–150 ✅.
+- **Canon:** [`gsv/GSV_POST_ALWAYS_ON.md`](gsv/GSV_POST_ALWAYS_ON.md) · plan [`superpowers/plans/2026-08-18-mcp-always-on-catchup.md`](superpowers/plans/2026-08-18-mcp-always-on-catchup.md).
+- **Next drain:** band **151** (`PH-S2149…S2158`) — five MCP tools + two `gsv://` resources + `gsv_drain` prompt. Then 152 select, 153 watchdog card (owner pick).
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 still `scripts/list-vdt-products.sh`.
+- **Ratio / тести:** last measured band 150 — `gsv-loc-audit --stretch-96` → **96.75%** (rust 19027 / product 19667) · **386** tests · clippy 0. Vision rev **513**.
+
 ## Стан (2026-08-18 · band 150 ✅)
 
-- **Band 150:** live watchdog (owner ask) — `gsv-watchdog` probes `/api/health` every 3s and respawns `target/live/gsv-server.exe` after 2 misses (grace for update-apply). Heartbeat `target/live/watchdog.json`; `GET /api/watchdog`; health card `watchdog`. Scripts: `gsv-watchdog.sh` (detach) + `gsv-watchdog-install.sh` (ONLOGON / HKCU Run). Do **not** invent band 151.
+- **Band 150:** live watchdog (owner ask) — `gsv-watchdog` probes `/api/health` every 3s and respawns `target/live/gsv-server.exe` after 2 misses (grace for update-apply). Heartbeat `target/live/watchdog.json`; `GET /api/watchdog`; health card `watchdog`. Scripts: `gsv-watchdog.sh` (detach) + `gsv-watchdog-install.sh` (ONLOGON / HKCU Run).
 - **Canon:** [`gsv/GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md) · `gsv-live.sh` is the inner supervisor; watchdog is the outer loop when that shell dies.
 - **VDT kit:** `абракадабра` / `abrakadabra` Step 0 still `scripts/list-vdt-products.sh`.
 - **Ratio / тести:** `gsv-loc-audit --stretch-96` → **96.75%** (rust 19027 / product 19667) · **386** tests · clippy 0. Vision rev **513**.
