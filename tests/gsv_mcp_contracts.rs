@@ -134,6 +134,7 @@ async fn post_initialize_and_tools_list() {
     assert!(names.contains(&"gsv_health"));
     assert!(names.contains(&"gsv_terminal"));
     assert!(names.contains(&"gsv_omni_chat"));
+    assert!(names.contains(&"gsv_omni_route"));
     assert!(names.contains(&"gsv_vision_sprint_map"));
     assert!(names.contains(&"gsv_preview"));
     assert!(names.contains(&"gsv_products"));
@@ -436,13 +437,16 @@ async fn logging_and_completion_over_http() {
     let values = complete["result"]["completion"]["values"]
         .as_array()
         .expect("values");
-    assert_eq!(values.len(), 6);
+    assert_eq!(values.len(), 7);
     assert!(values
         .iter()
         .all(|v| v.as_str().unwrap_or("").starts_with("gsv://docs/")));
     assert!(values
         .iter()
         .any(|v| v.as_str() == Some("gsv://docs/rust-dev")));
+    assert!(values
+        .iter()
+        .any(|v| v.as_str() == Some("gsv://docs/omni-catalog")));
 
     let (status, rejected) = mcp_post(
         &app,

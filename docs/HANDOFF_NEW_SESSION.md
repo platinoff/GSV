@@ -1,6 +1,6 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-08-18 (band 156 ✅ · streaming usage + VDT git + owner tunnel)
+**Оновлено:** 2026-08-18 (band 157 ✅ · OmniRouter catalog + quota timers)
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
 **`абракадабра` / `abrakadabra`** → `cargo xtask products` → **AskQuestion на проєкти з environment**
@@ -11,14 +11,17 @@ Speeds + Rust panel → vision-sync → **один commit** → **`git push` + �
 Якщо вибір **gsv:** scan [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) first
 (always-on [`gsv/GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md) **143–150 ✅**;
 MCP catch-up **151 ✅**; MCP products select **152 ✅**; rust-first xtask **153 ✅**;
-watchdog card **154 ✅**; session token usage **155 ✅**; streaming + VDT git + tunnel **156 ✅**). MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+watchdog card **154 ✅**; session token usage **155 ✅**; streaming + VDT git + tunnel **156 ✅**;
+OmniRouter catalog + quota timers **157 ✅**). MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+Omni catalog: [`gsv/GSV_OMNI_CATALOG.md`](gsv/GSV_OMNI_CATALOG.md).
 Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 Канон ролей: [`GSV_ROLES.md`](GSV_ROLES.md). Реєстр: [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
 
 ## Стан зараз
 
-- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–155 · **156 ✅**.
-- **Next drain (gsv):** scan / owner pick. Band **156** streaming OmniRouter usage + fullscreen chart imgs + `cargo xtask git` (`comitmsg/*.md`) + owner `cargo xtask tunnel` (cloudflared). Band **155** session token usage. Band **154** watchdog ops card + fingerprint `model`.
+- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–156 · **157 ✅**.
+- **Next drain (gsv):** scan / owner pick. Band **157** shared OmniRouter catalog (Cursor / OpenCode / Grok / Omni) for Rust+web with free-tier `reset_secs` so `gsv_omni_route` auto-switches on cooldown.
+- **Band 157:** `catalog.rs` + `quota.rs`; `GET /api/omni/route`; MCP `gsv_omni_route` (**36** tools) + `gsv://docs/omni-catalog` (**10** resources); recommended Grok 4.6 / GPT-5.2 Codex / Claude Sonnet 4.6 / Gemini 3 Pro / Kimi K2.7 Code / GPT-5.3 Codex.
 - **Band 156:** `stream:true` SSE tap + `stream_options.include_usage`; `.card.fullscreen img{max-height:none`; VDT git kit replaces `comitmsg/*.sh`; Grok Bot tunnel is CLI-only (not MCP).
 - **Band 155:** automatic per-session token spend — OmniRouter completions + MCP bot (`Mcp-Session-Id` / stdio) + fail-open OmniRoute `/api/usage/history`; persist `data/gsv_usage.json`; Galaxy studio card `usage`.
 - **Band 154:** Galaxy ops card `watchdog` (`render_watchdog` + `/api/ui/card/watchdog`); fingerprint `resolve_model` (`GSV_MODEL` > `CURSOR_MODEL` / `GSV_SESSION_FILE` > `unknown`). Health row `watchdog_alive` kept.
@@ -48,7 +51,7 @@ Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 - **Band 134:** HTTP response hardening — CSP / nosniff / DENY / no-store / COOP+CORP; POST 256 KiB cap → 413 `{ok:false}`.
 - **VDT kit (band 127):** shared `.agents/skills/` + generic `.cursor/rules/` + `gsv.code-workspace` + `PRODUCTS.md`.
   Discover: `cargo xtask products` (не hardcoded `gsv | poolai`).
-- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.17%** (rust 22798 / product 22988) · **457** green · clippy 0 · fmt clean.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.21%** (rust 23960 / product 24150) · **466** green · clippy 0 · fmt clean.
 - **Сервер:** canon порт **9999** (`DEFAULT_PORT`; 8765 — Hyper-V reserved range).
 - **Vision rev:** **516** (band 156 `cargo xtask sync`; next `PH-S2209`).
 - **Live UI** — `gsv-server` → `http://127.0.0.1:9999/`. MCP stdio — `cargo run --quiet --bin gsv-mcp`.

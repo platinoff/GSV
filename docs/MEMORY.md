@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-18 · band 157 ✅)
+
+- **Band 157:** OmniRouter shared catalog for Cursor / OpenCode / Grok / Omni (Rust+web). `quota.rs` timers; MCP `gsv_omni_route` auto-skips cooling free hosts; `GET /api/omni/route`; resource `gsv://docs/omni-catalog`. **36** tools · **10** resources.
+- **Canon:** [`gsv/GSV_OMNI_CATALOG.md`](gsv/GSV_OMNI_CATALOG.md) · [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+- **Next drain:** scan / owner pick.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.21%** (rust 23960 / product 24150) · **466** tests · clippy 0.
+
 ## Стан (2026-08-18 · band 156 ✅)
 
 - **Band 156:** streaming OmniRouter token usage (`SseUsageTap` + `stream_options.include_usage`); fullscreen chart imgs unclipped; `cargo xtask git` (status/log/fetch/commit `--file comitmsg/*.md`/push) replaces `comitmsg/*.sh`; `cargo xtask tunnel` (cloudflared, owner opt-in, not MCP).

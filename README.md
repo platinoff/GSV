@@ -133,6 +133,7 @@ Rust AI proxy (`src/boxes/omni/`). Catalog (Aug 2026): GPT 5.2 · GPT 5.2 Codex 
 
 ```
 GET  /api/omni
+GET  /api/omni/route
 GET  /api/omni/v1/models
 POST /api/omni/v1/chat/completions
 ```
@@ -164,7 +165,7 @@ One MCP server GSV owns; OpenCode / Cursor / Grok CLI / Grok Bot are **clients**
 cargo run --quiet --bin gsv-mcp
 ```
 
-Auto-register: `.mcp.json` · `.cursor/mcp.json` · `opencode.json` · `.grok/config.toml`. HTTP twin: `GET`/`POST`/`DELETE http://127.0.0.1:9999/mcp` (loopback; LAN needs `--allow-lan`; `Accept: text/event-stream` flushes notifications as SSE; `initialize` issues `Mcp-Session-Id`). Galaxy card: `/api/ui/card/mcp`. **35 tools** + **9 `gsv://` resources** + **3 prompts** + **logging** + **completions** + **subscribe** + **SSE** + **HTTP sessions**. Band **156**: streaming token usage + `cargo xtask git` / `cargo xtask tunnel` (owner opt-in) — [`GSV_MCP_OPENBOT.md`](docs/gsv/GSV_MCP_OPENBOT.md).
+Auto-register: `.mcp.json` · `.cursor/mcp.json` · `opencode.json` · `.grok/config.toml`. HTTP twin: `GET`/`POST`/`DELETE http://127.0.0.1:9999/mcp` (loopback; LAN needs `--allow-lan`; `Accept: text/event-stream` flushes notifications as SSE; `initialize` issues `Mcp-Session-Id`). Galaxy card: `/api/ui/card/mcp`. **36 tools** + **10 `gsv://` resources** + **3 prompts** + **logging** + **completions** + **subscribe** + **SSE** + **HTTP sessions**. Band **157**: OmniRouter shared catalog + quota timers (`gsv_omni_route`) — [`GSV_OMNI_CATALOG.md`](docs/gsv/GSV_OMNI_CATALOG.md). Band **156**: streaming token usage + `cargo xtask git` / `cargo xtask tunnel` (owner opt-in) — [`GSV_MCP_OPENBOT.md`](docs/gsv/GSV_MCP_OPENBOT.md).
 
 Canon: [`docs/gsv/GSV_MCP_OPENBOT.md`](docs/gsv/GSV_MCP_OPENBOT.md).
 

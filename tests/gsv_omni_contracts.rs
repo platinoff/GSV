@@ -110,6 +110,12 @@ async fn omni_overview_returns_catalog_and_recommended() {
     let rec = json["recommended"].as_array().expect("recommended");
     assert_eq!(rec.len(), 6);
     assert!(json["routing"]["auto"] == true);
+    assert!(json["routing"]["free_fallback_order"].as_array().is_some());
+    assert_eq!(json["researched_at"], "2026-08-18");
+    assert!(json["clients"]
+        .as_array()
+        .map(|a| a.len() == 4)
+        .unwrap_or(false));
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -174,6 +180,7 @@ async fn omni_v1_models_is_openai_shaped() {
     let ids: Vec<&str> = data.iter().filter_map(|m| m["id"].as_str()).collect();
     assert!(ids.contains(&"gpt-5.2"));
     assert!(ids.contains(&"gemini-3-pro"));
+    assert!(ids.contains(&"grok-4.6"));
     let gpt = data.iter().find(|m| m["id"] == "gpt-5.2").expect("gpt");
     assert_eq!(gpt["owned_by"], "openai");
     assert_eq!(gpt["context_window"], 400_000);
@@ -266,5 +273,21 @@ async fn omni_test_requires_provider() {
         .as_str()
         .unwrap_or_default()
         .contains("provider required"));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
+async fn omni_route_picks_rust_model_skipping_secrets() {
+    let (app, dir) = {
+        let d = temp_data_dir("route");
+        (app(d.clone()), d)
+    };
+    let (status, json) = get(&app, "/api/omni/route?task=rust&prefer_free=true").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["ok"], true);
+    assert!(!json["model"].as_str().unwrap_or("").is_empty());
+    assert!(!json["provider"].as_str().unwrap_or("").is_empty());
+    assert_eq!(json["rust"], true);
+    assert!(json.get("api_key").is_none());
     let _ = std::fs::remove_dir_all(&dir);
 }

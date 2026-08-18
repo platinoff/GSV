@@ -177,6 +177,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/omni/v1/chat/completions", post(api_omni_chat))
         .route("/api/omni/test", post(api_omni_test))
         .route("/api/omni/status", get(api_omni_status))
+        .route("/api/omni/route", get(api_omni_route))
         .route("/api/toolchain/rustc", get(api_toolchain_rustc))
         .route("/api/toolchain/cargo", get(api_toolchain_cargo))
         .route("/api/toolchain/clippy", get(api_toolchain_clippy))
@@ -483,7 +484,7 @@ async fn api_omni_index() -> Json<Value> {
     Json(json!({
         "ok": true,
         "endpoints": [
-            "/api/omni", "/api/omni/config", "/api/omni/status",
+            "/api/omni", "/api/omni/config", "/api/omni/status", "/api/omni/route",
             "/api/omni/v1/models", "POST /api/omni/v1/chat/completions",
             "POST /api/omni/test"
         ]
@@ -1218,6 +1219,21 @@ async fn api_omni_status(State(state): State<AppState>) -> Json<Value> {
     Json(json!(
         crate::boxes::omni::wire(&state.omni, selected.as_deref()).await
     ))
+}
+
+#[derive(serde::Deserialize)]
+struct OmniRouteQuery {
+    task: Option<String>,
+    prefer_free: Option<bool>,
+}
+
+async fn api_omni_route(
+    State(state): State<AppState>,
+    Query(q): Query<OmniRouteQuery>,
+) -> Json<Value> {
+    let task = q.task.as_deref().unwrap_or("rust");
+    let prefer_free = q.prefer_free.unwrap_or(true);
+    Json(crate::boxes::omni::route_wire(&state.omni, task, prefer_free).await)
 }
 
 fn toolchain_entry(wire: &Value, tool: &str) -> Value {

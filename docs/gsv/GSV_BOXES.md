@@ -93,29 +93,32 @@ Rust модуль: `ide/` (read-only).
 
 ## 9. OmniRouter (Rust AI-проксі/роутер)
 
-**Роль:** Rust-роутер по AI-провайдерах із шіта «AI providers by opencode» (Aug 2026) — рекомендований список (GPT 5.2, GPT 5.1 Codex, Claude Opus 4.5, Claude Sonnet 4.5, MiniMax M2.1, Gemini 3 Pro) + китайські (DeepSeek V4-Pro/Flash, Kimi K3/K2.7 Code, GLM-4.6, Qwen3 Coder 480B) + free/швидкі хости (OpenRouter `:free`, Groq, Cerebras, NVIDIA, Hugging Face, GitHub Copilot Free).
+**Роль:** Rust-роутер по AI-провайдерах (researched 2026-08-18) для **Rust + web** на OmniRouter, Cursor, OpenCode і Grok. Рекомендовані: Grok 4.6, GPT-5.2 Codex, Claude Sonnet 4.6, Gemini 3 Pro, Kimi K2.7 Code, GPT-5.3 Codex. Кожен провайдер має `quota.reset_secs` — MCP `gsv_omni_route` пропускає host у cooldown.
 
 **Дані:**
 
 | Поле | Джерело |
 |------|---------|
-| Каталог провайдерів | `catalog.rs` (17 providers) |
-| Каталог моделей (ctx / max output) | шіт «AI providers», `catalog.rs` (25 models) |
+| Каталог провайдерів | `catalog.rs` (19 providers, incl. xAI + Cursor) |
+| Каталог моделей (ctx / rust / web / clients) | `catalog.rs` |
+| Квоти / таймери | `quota.rs` → `data/omni_quota.json` (не git) |
 | Конфіг / тюнінг | `GSV/data/omni.toml` + env `OMNI_<PROVIDER>_API_KEY` / `_BASE_URL` |
-| Рекомендований список | шіт (6 моделей) |
+| Рекомендований список | rust+web research 2026-08-18 (6 моделей) |
+| Canon notes | [`GSV_OMNI_CATALOG.md`](./GSV_OMNI_CATALOG.md) |
 
 **Endpoints:**
 
-- `GET /api/omni` — overview wire (providers, models, recommended, routing).
+- `GET /api/omni` — overview wire (providers, models, clients, quotas, recommended, routing).
+- `GET /api/omni/route?task=rust|web&prefer_free=` — timer-aware next pick.
 - `GET /api/omni/config` — конфіг **redacted** (лише `key_set`, без ключів).
 - `POST /api/omni/config` — тюнінг (base_url / api_key / enabled / priority / routing).
 - `GET /api/omni/v1/models` — OpenAI-сумісний список моделей.
-- `POST /api/omni/v1/chat/completions` — OpenAI-сумісний proxy (SSE passthrough для `stream:true`; band **156** records token usage from the final SSE chunk; dry-run через `X-Omni-Dry-Run: 1`).
+- `POST /api/omni/v1/chat/completions` — OpenAI-сумісний proxy (empty `model` auto-picks; 429 starts cooldown; dry-run через `X-Omni-Dry-Run: 1`).
 - `POST /api/omni/test {provider}` — connectivity check (`GET {base}/models`).
 
-**Роутинг** (`proxy.rs::select_provider`): `X-Omni-Provider` header / `provider` у тілі → власник моделі з каталогу → `routing.default_provider` → `routing.fallback_order` → найвищий пріоритет серед enabled провайдерів з base_url. `base_url` може вказувати на OmniRoute (`http://127.0.0.1:20128/v1`) — тоді Rust-роутер проксірує запити через OmniRoute.
+**Роутинг** (`proxy.rs::select_provider`): `X-Omni-Provider` header / `provider` у тілі → власник моделі з каталогу (skip cooling) → `free_fallback_order` → `routing.default_provider` → `routing.fallback_order` → найвищий пріоритет. `base_url` може вказувати на OmniRoute (`http://127.0.0.1:20128/v1`).
 
-Rust модуль: `omni/` (catalog.rs, config.rs, proxy.rs) → `GSV/data/omni.toml`.
+Rust модуль: `omni/` (catalog.rs, config.rs, proxy.rs, quota.rs) → `GSV/data/omni.toml`.
 
 ## Зведена таблиця
 
@@ -134,8 +137,8 @@ Rust модуль: `omni/` (catalog.rs, config.rs, proxy.rs) → `GSV/data/omni.
 | Box preview | `preview/` | `/api/preview` | файли |
 | SLI terminal | `terminal/` | `/api/terminal` | SLI-каталог |
 | Tests/bench hooks | `hooks/` | `/api/hooks/…` | `target/` артефакти |
-| OmniRouter | `omni/` | `/api/omni/…` | шіт «AI providers», `omni.toml`, proxy |
+| OmniRouter | `omni/` | `/api/omni/…` | shared catalog + `omni.toml` + quota timers |
 | Vision | `vision/` (`boxes/vision.rs`) | `/api/vision*` · `/assets/vision.svg` | `GSV/docs/vision/{manifest,feed,extensions}.json` → `GSV/data/gsv_*.json` |
 | UI fragments | `ui/` (`boxes/ui.rs`) | `/api/ui/layout` · `/api/ui/card/:name` · `/api/ui/load-palette` · `/api/ui/load-theme` | dashboard `CARD_NAMES` 37 + chrome 8 + layout `html`/`header` + live `:root` CSS; **band 156:** `.card.fullscreen img{max-height:none`; **band 155:** studio card `usage`; **band 154:** ops card `watchdog`; **band 148:** ops card `sw`; **band 146:** ops card `fingerprints`; **band 145:** ops card `products` (list/select/open/scan); **band 143:** power menu `z-index:80` above workspace, exclusive fullscreen (`data-action='card-fs'`), collapsed cards `display:none` (dock restore), `--fs-*` type scale, speed/rust SVG height 168 |
 | Stand smoke | `src/bin/gsv_http_stand_smoke.rs` | live HTTP перевірка | всі boxes + `/api/vision*` + SVG + `/api/ui/card/:name` |
-| **gsv_mcp_openbot** | `mcp.rs` + `gsv-mcp` bin | stdio + `GET`/`POST`/`DELETE /mcp` + Galaxy card `/api/ui/card/mcp` | 34 box tools + 9 `gsv://` resources (band 137–142 ✅ · **151 ✅** · **152 ✅** products_select · **153 ✅** xtask/disk + rust-dev) — [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md) · [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) |
+| **gsv_mcp_openbot** | `mcp.rs` + `gsv-mcp` bin | stdio + `GET`/`POST`/`DELETE /mcp` + Galaxy card `/api/ui/card/mcp` | 36 box tools + 10 `gsv://` resources (band **157** omni route) — [`GSV_OMNI_CATALOG.md`](./GSV_OMNI_CATALOG.md) · [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) |

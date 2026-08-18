@@ -114,17 +114,33 @@ pub fn tools_list() -> Vec<Value> {
         ),
         tool(
             "gsv_omni_chat",
-            "OmniRouter chat completions. Default is dry-run (no upstream). Set live=true to forward.",
+            "OmniRouter chat completions. Default is dry-run (no upstream). Set live=true to forward. Empty model auto-picks the next live host (skips cooldown timers).",
             json!({
                 "type": "object",
                 "properties": {
                     "model": { "type": "string" },
                     "messages": { "type": "array" },
                     "provider": { "type": "string" },
+                    "task": {
+                        "type": "string",
+                        "description": "rust | web | any — used when model is empty"
+                    },
+                    "prefer_free": { "type": "boolean" },
                     "live": {
                         "type": "boolean",
                         "description": "If true, call the upstream provider. Default false (dry-run)."
                     }
+                }
+            }),
+        ),
+        tool(
+            "gsv_omni_route",
+            "Timer-aware OmniRouter pick: next Rust/web model that is not in a free-tier cooldown. Shared catalog for Cursor / OpenCode / Grok.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "task": { "type": "string", "description": "rust | web | any (default rust)" },
+                    "prefer_free": { "type": "boolean", "description": "Prefer free hosts (default true)" }
                 }
             }),
         ),
@@ -300,6 +316,7 @@ const RESOURCE_URIS: &[&str] = &[
     "gsv://docs/fingerprints",
     "gsv://docs/post-always-on",
     "gsv://docs/rust-dev",
+    "gsv://docs/omni-catalog",
 ];
 
 const PROMPT_NAMES: &[&str] = &["gsv_status", "gsv_vision_brief", "gsv_drain"];
@@ -376,6 +393,14 @@ const RESOURCES: &[ResourceSpec] = &[
         mime: "text/markdown",
         rel: "docs/gsv/GSV_RUST_DEV.md",
     },
+    ResourceSpec {
+        uri: "gsv://docs/omni-catalog",
+        name: "OmniRouter shared catalog",
+        description:
+            "Rust+web models for OmniRouter, Cursor, OpenCode, Grok — free notes and quota timers.",
+        mime: "text/markdown",
+        rel: "docs/gsv/GSV_OMNI_CATALOG.md",
+    },
 ];
 
 struct PromptSpec {
@@ -398,7 +423,7 @@ const PROMPTS: &[PromptSpec] = &[
     PromptSpec {
         name: "gsv_drain",
         description: "Start a VDT drain: next PH-S* band after the last closed sprint.",
-        text: "Start a GSV VDT drain. Read gsv://docs/next, gsv://docs/rust-dev, and gsv://docs/post-always-on. Call gsv_xtask (task=products) or gsv_products, then gsv_products_select with the owner pick, then gsv_products_scan (id optional after select), gsv_disk, gsv_watchdog, and gsv_usage. Product tests/benches/scripts are cargo xtask / tests/*.rs / benches/*.rs — do not add .sh/.ps1/JSON harnesses. Propose the next ≤10 PH-S* after the last closed band. Do not push mid-drain. Invoke cargo via MSYS2 bash.",
+        text: "Start a GSV VDT drain. Read gsv://docs/next, gsv://docs/rust-dev, and gsv://docs/post-always-on. Call gsv_xtask (task=products) or gsv_products, then gsv_products_select with the owner pick, then gsv_products_scan (id optional after select), gsv_disk, gsv_watchdog, and gsv_usage. For model routing call gsv_omni_route (task=rust|web, prefer_free) so cooldown timers skip exhausted free hosts. Product tests/benches/scripts are cargo xtask / tests/*.rs / benches/*.rs — do not add .sh/.ps1/JSON harnesses. Propose the next ≤10 PH-S* after the last closed band. Do not push mid-drain. Invoke cargo via MSYS2 bash.",
     },
 ];
 
@@ -422,6 +447,7 @@ const TOOL_NAMES: &[&str] = &[
     "gsv_vision_feed",
     "gsv_vision_queue",
     "gsv_omni_chat",
+    "gsv_omni_route",
     "gsv_ide_sessions",
     "gsv_terminal",
     "gsv_vision_map",
@@ -921,6 +947,7 @@ async fn call_tool(state: &AppState, params: &Value, session: Option<&str>) -> V
         }
         "gsv_terminal" => tool_terminal(state, &args),
         "gsv_omni_chat" => tool_omni(state, &args, session).await,
+        "gsv_omni_route" => tool_omni_route(state, &args).await,
         "gsv_vision_map" => tool_ok(crate::boxes::vision::wire_map(
             &state.repo_root,
             &state.data_dir,
@@ -1134,6 +1161,8 @@ async fn tool_omni(state: &AppState, args: &Value, session: Option<&str>) -> Val
     let mut body = args.clone();
     if let Value::Object(map) = &mut body {
         map.remove("live");
+        map.remove("task");
+        map.remove("prefer_free");
         map.insert("stream".to_string(), json!(false));
     }
     let raw = match serde_json::to_vec(&body) {
@@ -1154,6 +1183,19 @@ async fn tool_omni(state: &AppState, args: &Value, session: Option<&str>) -> Val
             headers.insert("x-omni-provider", v);
         }
     }
+    if let Some(t) = args.get("task").and_then(Value::as_str) {
+        if let Ok(v) = HeaderValue::from_str(t) {
+            headers.insert("x-omni-task", v);
+        }
+    }
+    let prefer_free = args
+        .get("prefer_free")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
+    headers.insert(
+        "x-omni-prefer-free",
+        HeaderValue::from_static(if prefer_free { "1" } else { "0" }),
+    );
     match chat_completions(state, &headers, &raw).await {
         Ok(res) => {
             let bytes = to_bytes(res.into_body(), crate::security::MAX_BODY_BYTES)
@@ -1165,6 +1207,15 @@ async fn tool_omni(state: &AppState, args: &Value, session: Option<&str>) -> Val
         }
         Err(e) => tool_err(e.message()),
     }
+}
+
+async fn tool_omni_route(state: &AppState, args: &Value) -> Value {
+    let task = args.get("task").and_then(Value::as_str).unwrap_or("rust");
+    let prefer_free = args
+        .get("prefer_free")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
+    tool_ok(crate::boxes::omni::route_wire(&state.omni, task, prefer_free).await)
 }
 
 fn to_json<T: serde::Serialize>(v: T) -> Value {
@@ -1251,6 +1302,7 @@ mod tests {
             "gsv_vision_feed",
             "gsv_vision_queue",
             "gsv_omni_chat",
+            "gsv_omni_route",
             "gsv_ide_sessions",
             "gsv_terminal",
             "gsv_vision_map",
@@ -1588,6 +1640,18 @@ mod tests {
         assert!(!text.contains("Bearer sk"));
     }
 
+    #[tokio::test]
+    async fn omni_route_tool_returns_pick() {
+        let s = state();
+        let (is_err, text) = tool_text(&s, 41, "gsv_omni_route", json!({ "task": "rust" })).await;
+        assert!(!is_err, "{text}");
+        assert!(
+            text.contains("provider") || text.contains("model"),
+            "{text}"
+        );
+        assert!(!text.to_ascii_lowercase().contains("api_key") || text.contains("[redacted]"));
+    }
+
     #[test]
     fn rpc_error_uses_null_id_when_missing() {
         let v = rpc_error(None, -32600, "invalid request");
@@ -1676,6 +1740,7 @@ mod tests {
         assert!(RESOURCE_URIS.contains(&"gsv://docs/fingerprints"));
         assert!(RESOURCE_URIS.contains(&"gsv://docs/post-always-on"));
         assert!(RESOURCE_URIS.contains(&"gsv://docs/rust-dev"));
+        assert!(RESOURCE_URIS.contains(&"gsv://docs/omni-catalog"));
         assert_eq!(listed.len(), RESOURCE_URIS.len());
         for (item, expected) in listed.iter().zip(RESOURCE_URIS.iter()) {
             assert_eq!(item["uri"], *expected);
@@ -1988,6 +2053,7 @@ mod tests {
         assert!(text.contains("gsv_xtask"), "{text}");
         assert!(text.contains("gsv_disk"), "{text}");
         assert!(text.contains("gsv_usage"), "{text}");
+        assert!(text.contains("gsv_omni_route"), "{text}");
         assert!(text.contains("gsv://docs/next"), "{text}");
         assert!(text.contains("gsv://docs/rust-dev"), "{text}");
         assert!(text.contains("mid-drain"), "{text}");

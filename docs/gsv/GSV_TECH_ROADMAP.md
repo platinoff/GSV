@@ -41,6 +41,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 154** (watchdog ops card + fingerprint model) **✅** ·
 **band 155** (session token usage — MCP + OmniRoute + sync) **✅** ·
 **band 156** (streaming usage + VDT git + owner tunnel) **✅** ·
+**band 157** (OmniRouter catalog + quota timers) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -856,6 +857,23 @@ Owner pick: record `stream:true` tokens; fullscreen chart imgs; Grok Bot `cargo 
 | **PH-S2206** | Docs / kit | RUST_DEV / MCP_OPENBOT / git-workflow / abracadabra never-stage — **✅** |
 | **PH-S2207** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy — **✅** |
 | **PH-S2208** | Band close | tests **457** green; `--stretch-96` **99.17%**; `--band 156` + fingerprint; one commit + push — **✅** |
+
+## Спринти (band 157) — OmniRouter shared catalog + quota timers
+
+Owner pick (`абракадабра` gsv / omnirouter): research Cursor / OpenCode / Grok / Omni models for Rust+web; shared catalog with free notes and `reset_secs` so MCP auto-switches on cooldown.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2209** | Catalog | `catalog.rs` xAI/Cursor/Grok 4.6, rust+web+clients, quota windows — **✅** |
+| **PH-S2210** | Quota store | `quota.rs` `data/omni_quota.json`; 429 / RPM → cooldown — **✅** |
+| **PH-S2211** | Route | `select_provider` skips cooling; `GET /api/omni/route`; empty-model chat auto-pick — **✅** |
+| **PH-S2212** | MCP | `gsv_omni_route` + resource `gsv://docs/omni-catalog`; tools **36** / resources **10** — **✅** |
+| **PH-S2213** | Galaxy | `render_omni` free/timer columns; wire `clients` + `researched_at` — **✅** |
+| **PH-S2214** | Contracts | omni route + catalog recommended rust+web + mcp tool — **✅** |
+| **PH-S2215** | Docs | `GSV_OMNI_CATALOG.md` + BOXES / SERVER / MCP_OPENBOT — **✅** |
+| **PH-S2216** | (reserve) | — **✅** |
+| **PH-S2217** | Ratio hold | `--stretch-96` **99.21%**; fmt/clippy — **✅** |
+| **PH-S2218** | Band close | tests **466** green; `--band 157` + fingerprint; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

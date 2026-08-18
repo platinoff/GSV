@@ -17,6 +17,7 @@
 | [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md) | After always-on: MCP catch-up (**band 151 ✅** · next **152** select) |
 | [`GSV_VDT_KIT.md`](./GSV_VDT_KIT.md) | GSV як точка входу: shared rules/skills vs product canon (Accepted, band 127) |
 | [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md) | Rust-first tests/benches/scripts (`cargo xtask`; band **153 ✅**) |
+| [`GSV_OMNI_CATALOG.md`](./GSV_OMNI_CATALOG.md) | Shared OmniRouter / Cursor / OpenCode / Grok models + free timers (band **157**) |
 | [`PRODUCTS.md`](./PRODUCTS.md) | Enrichment-реєстр; discover = `cargo xtask products` |
 | [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) | MCP `gsv_mcp_openbot` (band 135–151 ✅ · **152** select queued) |
 | [`../GSV/docs/GSV_ROLES.md`](../GSV_ROLES.md) | Ролі GSV VDT + канон сесії + Rust ratio gate (band 108) |

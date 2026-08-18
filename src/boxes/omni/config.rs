@@ -23,6 +23,8 @@ pub struct RoutingConfig {
     pub auto: bool,
     /// Ordered fallback chain (provider ids).
     pub fallback_order: Vec<String>,
+    /// Free-tier chain used by MCP auto-switch (`prefer_free`).
+    pub free_fallback_order: Vec<String>,
 }
 
 impl Default for RoutingConfig {
@@ -32,6 +34,7 @@ impl Default for RoutingConfig {
             auto: true,
             fallback_order: [
                 "openai",
+                "xai",
                 "anthropic",
                 "google",
                 "minimax",
@@ -40,6 +43,18 @@ impl Default for RoutingConfig {
                 "zai",
                 "qwen",
                 "openrouter",
+            ]
+            .iter()
+            .map(|s| (*s).to_string())
+            .collect(),
+            free_fallback_order: [
+                "groq",
+                "openrouter",
+                "nvidia",
+                "cerebras",
+                "huggingface",
+                "google",
+                "opencode-zen",
             ]
             .iter()
             .map(|s| (*s).to_string())
@@ -175,6 +190,7 @@ impl OmniConfig {
                 "default_provider": self.routing.default_provider,
                 "auto": self.routing.auto,
                 "fallback_order": self.routing.fallback_order,
+                "free_fallback_order": self.routing.free_fallback_order,
             },
             "provider": providers,
         })
@@ -199,6 +215,13 @@ impl OmniConfig {
             }
             if let Some(fo) = r.get("fallback_order").and_then(Value::as_array) {
                 self.routing.fallback_order = fo
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(ToOwned::to_owned)
+                    .collect();
+            }
+            if let Some(fo) = r.get("free_fallback_order").and_then(Value::as_array) {
+                self.routing.free_fallback_order = fo
                     .iter()
                     .filter_map(Value::as_str)
                     .map(ToOwned::to_owned)

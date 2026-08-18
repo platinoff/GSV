@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-18 (**band 156 ✅ · next gsv drain = scan / owner pick**)
+**Оновлено:** 2026-08-18 (**band 157 ✅ · next gsv drain = scan / owner pick**)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -20,10 +20,10 @@ abrakadabra
 project scan (**warnings first**) → drain наступного band (**без** mid-push) →
 Speeds · Rust panel → vision-sync → **один** commit → **`git push` + самарі**.
 
-Якщо **gsv:** always-on Galaxy (**bands 143–147 ✅**) + SW cache (**band 148 ✅**) + omniroute/semver (**band 149 ✅**) + live watchdog (**band 150 ✅**) + MCP catch-up (**band 151 ✅**) + MCP products select (**band 152 ✅**) + rust-first xtask (**band 153 ✅**) + watchdog ops card (**band 154 ✅**) + session token usage (**band 155 ✅**) + streaming usage / VDT git / owner tunnel (**band 156 ✅**) are closed.
+Якщо **gsv:** always-on Galaxy (**bands 143–147 ✅**) + SW cache (**band 148 ✅**) + omniroute/semver (**band 149 ✅**) + live watchdog (**band 150 ✅**) + MCP catch-up (**band 151 ✅**) + MCP products select (**band 152 ✅**) + rust-first xtask (**band 153 ✅**) + watchdog ops card (**band 154 ✅**) + session token usage (**band 155 ✅**) + streaming usage / VDT git / owner tunnel (**band 156 ✅**) + OmniRouter catalog / quota timers (**band 157 ✅**) are closed.
 **Next drain = scan / owner pick**.
+Canon [`GSV_OMNI_CATALOG.md`](gsv/GSV_OMNI_CATALOG.md) · [`GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md) · [`GSV_POST_ALWAYS_ON.md`](gsv/GSV_POST_ALWAYS_ON.md).
 `cargo xtask git commit --file comitmsg/<name>.md` then `cargo xtask git push`. Grok Bot tunnel: `cargo xtask tunnel` (not on by default).
-Spec [`GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md) · [`GSV_POST_ALWAYS_ON.md`](gsv/GSV_POST_ALWAYS_ON.md).
 Always-on canon stays [`GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md).
 Speeds/Rust: `cargo xtask record-speed` + `cargo xtask record-rust`. Disk: `cargo xtask disk`.
 Close: `cargo xtask bump --band N` then `cargo xtask fingerprint` in the same commit.

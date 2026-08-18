@@ -27,14 +27,28 @@ use crate::AppState;
 
 use super::catalog;
 use super::config::OmniConfig;
+use super::quota;
 use super::OmniRouter;
 
-/// Resolve the provider for a request.
+/// Resolve the provider for a request. Explicit targets ignore cooldown.
 pub fn select_provider(
     model: &str,
     explicit: Option<&str>,
     cfg: &OmniConfig,
 ) -> Result<String, String> {
+    select_provider_filtered(model, explicit, cfg, |_| true)
+}
+
+/// Like [`select_provider`], but `available` skips cooling / exhausted hosts.
+pub fn select_provider_filtered<F>(
+    model: &str,
+    explicit: Option<&str>,
+    cfg: &OmniConfig,
+    available: F,
+) -> Result<String, String>
+where
+    F: Fn(&str) -> bool,
+{
     if let Some(p) = explicit.map(str::trim).filter(|s| !s.is_empty()) {
         if catalog::provider(p).is_none() {
             return Err(format!("unknown provider: {p}"));
@@ -48,6 +62,8 @@ pub fn select_provider(
         return Ok(p.to_string());
     }
 
+    let live = |id: &str| cfg.enabled(id) && cfg.effective_base_url(id).is_some() && available(id);
+
     if !model.is_empty() {
         let mut owners: Vec<&str> = catalog::find_models(model)
             .iter()
@@ -56,7 +72,7 @@ pub fn select_provider(
         owners.dedup();
         owners.sort_by_key(|id| -cfg.priority(id));
         for id in owners {
-            if cfg.enabled(id) && cfg.effective_base_url(id).is_some() {
+            if live(id) {
                 return Ok(id.to_string());
             }
         }
@@ -64,11 +80,16 @@ pub fn select_provider(
 
     if cfg.routing.auto || model.is_empty() {
         let def = cfg.routing.default_provider.trim();
-        if !def.is_empty() && cfg.enabled(def) && cfg.effective_base_url(def).is_some() {
+        if !def.is_empty() && live(def) {
             return Ok(def.to_string());
         }
-        for id in &cfg.routing.fallback_order {
-            if cfg.enabled(id) && cfg.effective_base_url(id).is_some() {
+        for id in cfg
+            .routing
+            .free_fallback_order
+            .iter()
+            .chain(cfg.routing.fallback_order.iter())
+        {
+            if live(id) {
                 return Ok(id.clone());
             }
         }
@@ -76,7 +97,7 @@ pub fn select_provider(
 
     let mut best: Option<(i32, &str)> = None;
     for spec in catalog::providers() {
-        if cfg.enabled(spec.id) && cfg.effective_base_url(spec.id).is_some() {
+        if live(spec.id) {
             let p = cfg.priority(spec.id);
             if best.map(|(bp, _)| p > bp).unwrap_or(true) {
                 best = Some((p, spec.id));
@@ -104,8 +125,28 @@ pub async fn chat_completions(
         .to_string();
     let explicit = explicit_provider(headers, &body);
     let cfg = omni.config.read().await.clone();
-    let provider_id = select_provider(&model, explicit.as_deref(), &cfg)
-        .map_err(|e| AppError::new(format!("route: {e}")))?;
+    let now = quota::now_utc();
+    let cooling = omni.quota.read().await.clone();
+    let mut model = model;
+    let task = headers
+        .get("x-omni-task")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("rust");
+    let prefer_free = headers
+        .get("x-omni-prefer-free")
+        .and_then(|v| v.to_str().ok())
+        .is_none_or(|v| v != "0");
+    let provider_id = if model.is_empty() && explicit.is_none() {
+        let pick = quota::pick_route(&cfg, &cooling, task, prefer_free, now)
+            .map_err(|e| AppError::new(format!("route: {e}")))?;
+        model = pick.model;
+        pick.provider
+    } else {
+        select_provider_filtered(&model, explicit.as_deref(), &cfg, |id| {
+            explicit.is_some() || !cooling.is_cooling(id, now)
+        })
+        .map_err(|e| AppError::new(format!("route: {e}")))?
+    };
     let base_url = cfg
         .effective_base_url(&provider_id)
         .ok_or_else(|| AppError::new(format!("provider {provider_id} has no base_url")))?;
@@ -168,6 +209,9 @@ pub async fn v1_models(omni: &OmniRouter) -> Result<Response, AppError> {
             "context_window": spec.context_window,
             "max_output": spec.max_output,
             "tier": spec.tier,
+            "rust": spec.rust,
+            "web": spec.web,
+            "clients": spec.clients,
         }));
     }
     Ok(value_into_response(
@@ -226,6 +270,13 @@ async fn json_response(
     provider_id: &str,
 ) -> Result<Response, AppError> {
     let status = upstream.status();
+    let retry = quota::retry_after_secs(
+        upstream.headers(),
+        catalog::provider(provider_id)
+            .map(|p| p.quota.reset_secs)
+            .unwrap_or(60),
+    );
+    record_quota(state, provider_id, status.as_u16(), Some(retry)).await;
     let bytes = upstream
         .bytes()
         .await
@@ -260,7 +311,15 @@ async fn stream_response(
     model: &str,
     provider_id: &str,
 ) -> Result<Response, AppError> {
-    let mut builder = Response::builder().status(upstream.status());
+    let status = upstream.status();
+    let retry = quota::retry_after_secs(
+        upstream.headers(),
+        catalog::provider(provider_id)
+            .map(|p| p.quota.reset_secs)
+            .unwrap_or(60),
+    );
+    record_quota(state, provider_id, status.as_u16(), Some(retry)).await;
+    let mut builder = Response::builder().status(status);
     if let Some(ct) = upstream.headers().get(header::CONTENT_TYPE) {
         builder = builder.header(header::CONTENT_TYPE, ct);
     }
@@ -327,6 +386,15 @@ where
             Poll::Pending => Poll::Pending,
         }
     }
+}
+
+/// Record a live upstream status into the durable cooldown store.
+async fn record_quota(state: &AppState, provider_id: &str, status: u16, retry_after: Option<u32>) {
+    {
+        let mut store = state.omni.quota.write().await;
+        store.record(provider_id, status, retry_after, quota::now_utc());
+    }
+    state.omni.persist_quota();
 }
 
 /// Build an already-OK JSON axum response (used by `v1_models`).
@@ -406,10 +474,9 @@ mod tests {
         )
         .expect("apply");
         // Disabled default is skipped → another enabled catalog provider wins.
-        assert_eq!(
-            select_provider("gpt-5.2", None, &cfg).as_deref(),
-            Ok("anthropic")
-        );
+        let selected = select_provider("gpt-5.2", None, &cfg).expect("route");
+        assert_ne!(selected, "openai");
+        assert!(cfg.enabled(&selected));
     }
 
     #[test]
@@ -430,5 +497,13 @@ mod tests {
             select_provider("deepseek-v4-pro", None, &cfg).as_deref(),
             Ok("deepseek")
         );
+    }
+
+    #[test]
+    fn filtered_select_skips_cooling_owner() {
+        let cfg = cfg_with("anthropic", "http://localhost:1/v1", Some("k"));
+        let picked =
+            select_provider_filtered("claude-opus-4.5", None, &cfg, |id| id != "anthropic");
+        assert!(picked.is_err() || picked.as_deref() != Ok("anthropic"));
     }
 }

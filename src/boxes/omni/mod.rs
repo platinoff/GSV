@@ -1,14 +1,14 @@
-//! OmniRouter box — Rust AI proxy/router tuned to the "AI providers" sheet.
+//! OmniRouter box — Rust AI proxy/router with a shared model catalog.
 //!
-//! Box 9: a router for the AI providers listed in the Aug 2026 "AI providers by
-//! opencode" spreadsheet (recommended: GPT 5.2, GPT 5.1 Codex, Claude Opus 4.5,
-//! Claude Sonnet 4.5, MiniMax M2.1, Gemini 3 Pro; plus Chinese and free hosts).
-//! It exposes a catalog + config (tunable per provider) and an OpenAI-compatible
-//! proxy (`/api/omni/v1/chat/completions`) that forwards to the resolved upstream
-//! — which can itself be an OmniRoute instance (e.g. base_url → `http://127.0.0.1:20128/v1`).
+//! Box 9: router for AI providers researched 2026-08-18 for **Rust + web**
+//! across OmniRouter, Cursor, OpenCode, and Grok. Recommended: Grok 4.6,
+//! GPT-5.2 Codex, Claude Sonnet 4.6, Gemini 3 Pro, Kimi K2.7 Code, GPT-5.3 Codex.
+//! Each provider carries a quota window (`reset_secs`) so MCP can skip a host
+//! until the free-tier timer elapses (`gsv_omni_route` / `GET /api/omni/route`).
 //!
 //! Endpoints:
-//! - `GET /api/omni` — overview wire (providers, models, recommended, routing)
+//! - `GET /api/omni` — overview wire (providers, models, clients, quotas, routing)
+//! - `GET /api/omni/route` — timer-aware next pick (`task=rust|web|any`)
 //! - `GET /api/omni/config` · `POST /api/omni/config` — read (redacted) / tune
 //! - `GET /api/omni/v1/models` — OpenAI-compatible model list
 //! - `POST /api/omni/v1/chat/completions` — OpenAI-compatible proxy
@@ -17,6 +17,7 @@
 pub mod catalog;
 pub mod config;
 pub mod proxy;
+pub mod quota;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -28,9 +29,10 @@ use tokio::sync::RwLock;
 
 use crate::vision;
 
-pub use catalog::{ModelSpec, ProviderSpec};
+pub use catalog::{ClientSpec, ModelSpec, ProviderSpec, QuotaSpec};
 pub use config::{OmniConfig, ProviderConfig, RoutingConfig};
 pub use proxy::select_provider;
+pub use quota::{pick_route, QuotaStore, RoutePick};
 
 /// Canonical box name.
 pub const OMNI_ROUTER_NAME: &str = "OmniRouter";
@@ -44,12 +46,15 @@ pub struct OmniRouter {
     pub client: reqwest::Client,
     /// Tuned config (toml-backed, lock-guarded).
     pub config: Arc<RwLock<OmniConfig>>,
+    /// Live cooldown windows (toml-adjacent JSON, no secrets).
+    pub quota: Arc<RwLock<QuotaStore>>,
 }
 
 impl OmniRouter {
     /// Build a router from the durable config at `data_dir`.
     pub fn new(data_dir: &Path) -> Self {
         let config = OmniConfig::load(data_dir);
+        let quota = QuotaStore::load(data_dir);
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(120))
             .build()
@@ -58,6 +63,7 @@ impl OmniRouter {
             data_dir: Arc::new(data_dir.to_path_buf()),
             client,
             config: Arc::new(RwLock::new(config)),
+            quota: Arc::new(RwLock::new(quota)),
         }
     }
 
@@ -70,6 +76,14 @@ impl OmniRouter {
             .unwrap_or_default();
         if let Err(e) = cfg.save(&self.data_dir) {
             tracing::warn!(error = %e, "omni config save failed");
+        }
+    }
+
+    /// Persist live quota cooldowns (best effort).
+    pub fn persist_quota(&self) {
+        let q = self.quota.try_read().map(|c| c.clone()).unwrap_or_default();
+        if let Err(e) = q.save(&self.data_dir) {
+            tracing::warn!(error = %e, "omni quota save failed");
         }
     }
 }
@@ -86,6 +100,7 @@ pub struct ProviderWire {
     pub priority: i32,
     pub key_set: bool,
     pub notes: String,
+    pub quota: serde_json::Value,
 }
 
 /// One model row in the `/api/omni` wire.
@@ -99,6 +114,9 @@ pub struct ModelWire {
     pub free: bool,
     pub recommended: bool,
     pub tier: String,
+    pub rust: bool,
+    pub web: bool,
+    pub clients: Vec<String>,
 }
 
 /// `/api/omni` overview wire.
@@ -109,6 +127,8 @@ pub struct OmniWire {
     pub models: Vec<ModelWire>,
     pub recommended: Vec<ModelWire>,
     pub routing: Value,
+    pub clients: Vec<Value>,
+    pub researched_at: &'static str,
     pub config_path: String,
     pub generated_at: String,
     /// OmniRouter always uses GSV `data/omni.toml` keys (not the selected VDT product).
@@ -121,6 +141,8 @@ pub struct OmniWire {
 /// Build the overview wire from the current router config.
 pub async fn wire(omni: &OmniRouter, selected: Option<&str>) -> OmniWire {
     let cfg = omni.config.read().await.clone();
+    let store = omni.quota.read().await.clone();
+    let now = quota::now_utc();
     let providers: Vec<ProviderWire> = catalog::providers()
         .iter()
         .map(|p| {
@@ -135,6 +157,7 @@ pub async fn wire(omni: &OmniRouter, selected: Option<&str>) -> OmniWire {
                 priority: pc.priority,
                 key_set: cfg.effective_api_key(p.id).is_some(),
                 notes: p.notes.to_string(),
+                quota: quota::quota_wire(p.quota, &store, p.id, now),
             }
         })
         .collect();
@@ -142,6 +165,27 @@ pub async fn wire(omni: &OmniRouter, selected: Option<&str>) -> OmniWire {
     let recommended = catalog::recommended_models()
         .iter()
         .map(|m| model_wire(m))
+        .collect();
+    let clients: Vec<Value> = catalog::clients()
+        .iter()
+        .map(|c| {
+            json!({
+                "id": c.id,
+                "name": c.name,
+                "kind": c.kind,
+                "notes": c.notes,
+                "rust_models": c.rust_models,
+                "web_models": c.web_models,
+                "free_models": c.free_models,
+                "quota": {
+                    "rpm": c.quota.rpm,
+                    "rpd": c.quota.rpd,
+                    "reset_secs": c.quota.reset_secs,
+                    "daily_reset_secs": c.quota.daily_reset_secs,
+                    "notes": c.quota.notes,
+                },
+            })
+        })
         .collect();
     OmniWire {
         name: OMNI_ROUTER_NAME,
@@ -152,11 +196,37 @@ pub async fn wire(omni: &OmniRouter, selected: Option<&str>) -> OmniWire {
             "default_provider": cfg.routing.default_provider,
             "auto": cfg.routing.auto,
             "fallback_order": cfg.routing.fallback_order,
+            "free_fallback_order": cfg.routing.free_fallback_order,
         }),
+        clients,
+        researched_at: catalog::RESEARCHED_AT,
         config_path: omni.data_dir.join("omni.toml").display().to_string(),
         generated_at: vision::rfc3339_now(),
         account_product: "gsv",
         selected_product: selected.map(str::to_string),
+    }
+}
+
+/// Timer-aware next pick (`task=rust|web|any`, `prefer_free`).
+pub async fn route_wire(omni: &OmniRouter, task: &str, prefer_free: bool) -> Value {
+    let cfg = omni.config.read().await.clone();
+    let store = omni.quota.read().await.clone();
+    match pick_route(&cfg, &store, task, prefer_free, quota::now_utc()) {
+        Ok(p) => json!({
+            "ok": true,
+            "researched_at": catalog::RESEARCHED_AT,
+            "task": task,
+            "prefer_free": prefer_free,
+            "provider": p.provider,
+            "model": p.model,
+            "free": p.free,
+            "reason": p.reason,
+            "reset_secs": p.reset_secs,
+            "cooldown_secs": p.cooldown_secs,
+            "rust": p.rust,
+            "web": p.web,
+        }),
+        Err(e) => json!({ "ok": false, "error": e }),
     }
 }
 
@@ -170,5 +240,8 @@ fn model_wire(m: &ModelSpec) -> ModelWire {
         free: m.free,
         recommended: m.recommended,
         tier: m.tier.to_string(),
+        rust: m.rust,
+        web: m.web,
+        clients: m.clients.iter().map(|s| (*s).to_string()).collect(),
     }
 }

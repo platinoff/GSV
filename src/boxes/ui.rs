@@ -727,10 +727,11 @@ pub fn render_omni(d: &Value) -> String {
     let routing = &d["routing"];
     let default_provider = s(&routing["default_provider"]);
     let mut out = format!(
-        "<div class='dim'>providers {} · models {} · default <kbd>{}</kbd></div>",
+        "<div class='dim'>providers {} · models {} · default <kbd>{}</kbd> · research {}</div>",
         providers.len(),
         models.len(),
         esc(&default_provider),
+        esc(&s(&d["researched_at"])),
     );
     let selected = s(&d["selected_product"]);
     let account = s(&d["account_product"]);
@@ -777,10 +778,28 @@ pub fn render_omni(d: &Value) -> String {
                     "<span class='dim'>no key</span>".to_string()
                 },
                 format!("<span class='dim'>{}</span>", esc(&s(&p["base_url"]))),
+                {
+                    let q = &p["quota"];
+                    let rpm = q["rpm"]
+                        .as_u64()
+                        .map(|n| format!("{n}rpm"))
+                        .unwrap_or_default();
+                    let cool = q["cooldown_secs"].as_u64().unwrap_or(0);
+                    if cool > 0 {
+                        format!("<span class='err'>wait {cool}s</span>")
+                    } else if b(&p["free"]) {
+                        format!("<span class='ok'>free {rpm}</span>")
+                    } else {
+                        rpm
+                    }
+                },
             ]
         })
         .collect();
-    out.push_str(&tab(&["id", "name", "state", "key", "base_url"], rows));
+    out.push_str(&tab(
+        &["id", "name", "state", "key", "base_url", "quota"],
+        rows,
+    ));
     out.push_str("</details>");
     out.push_str(&format!(
         "<details style='margin-top:6px'><summary>Models ({})</summary>",
@@ -812,10 +831,20 @@ pub fn render_omni(d: &Value) -> String {
                 } else {
                     String::new()
                 },
+                {
+                    let mut tags = Vec::new();
+                    if b(&m["rust"]) {
+                        tags.push("rs");
+                    }
+                    if b(&m["web"]) {
+                        tags.push("web");
+                    }
+                    tags.join(" ")
+                },
             ]
         })
         .collect();
-    out.push_str(&tab(&["id", "provider", "ctx", "out", "", ""], rows));
+    out.push_str(&tab(&["id", "provider", "ctx", "out", "", "", "fit"], rows));
     out.push_str("</details>");
     out
 }
