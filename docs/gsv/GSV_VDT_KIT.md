@@ -24,7 +24,7 @@ PoolAI тримає лише продуктовий шар + вказівник 
    - `.cursor/rules/` — generic VDT (S0 диск, MSYS2, git, ролі, rust style)
    - дзеркала `.cursor/skills/` і `.opencode/skills/` (Windows: **copy**, не symlink)
 2. **Cursor відкривати на GSV.** `абракадабра` / `abrakadabra` **спочатку** сканує environment
-   (`scripts/list-vdt-products.sh`) і питає з **яким із видимих проєктів** працювати.
+   (`cargo xtask products`) і питає з **яким із видимих проєктів** працювати.
    `PRODUCTS.md` збагачує зареєстровані (HANDOFF / тести / ratio), не є єдиним списком опцій.
    Робота в дереві того репо (`S:\rust\poolAI`, `S:\rust\GSV`, далі — нові).
 3. **Продуктовий шар лишається в продукті** (не переїжджає в GSV):

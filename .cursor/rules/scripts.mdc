@@ -1,19 +1,19 @@
 ---
-description: GSV kit scripts — bash only (MSYS2), scripts/ vs bin/ vs src/bin/
-globs: "{scripts/**,bin/**}"
+description: GSV kit automation is cargo xtask (src/bin), not scripts/*.sh
+globs: "{scripts/**,bin/**,src/bin/**,benches/**}"
 alwaysApply: false
 ---
 
-# Scripts Structure
+# Scripts structure (rust-first)
 
-## Bash only — no PowerShell, no cmd
-
-All git/cargo/scripts: `C:\msys64\usr\bin\bash.exe`. New scripts: `scripts/*.sh` or `bin/*.sh`. **Never** add `.ps1`.
+Product automation is **Rust**: `src/boxes/xtask.rs` + `src/bin/gsv_xtask.rs` (`cargo xtask`). Long-running daemons stay dedicated bins (`gsv-live`, `gsv-watchdog`, `gsv-server`).
 
 ```
-scripts/          kit helpers (disk, git push, skill mirrors)
-bin/              product wrappers (record-test-speed, record-rust-diagnostics, gsv-vision-sync)
-src/bin/          Rust bins only (`cargo run --bin …`)
+src/bin/          cargo run --bin …  and cargo xtask
+benches/          cargo bench --bench gsv_dev
+tests/            cargo test
+scripts/          README only (no new .sh / .ps1)
+bin/              empty of product wrappers
 ```
 
-When adding a script: put it in `scripts/` or `bin/`, document it in `scripts/README.md`, no Python.
+Never add `.ps1`. Never add `.sh` for tests, benches, or kit scripts. See [`docs/gsv/GSV_RUST_DEV.md`](../../docs/gsv/GSV_RUST_DEV.md).

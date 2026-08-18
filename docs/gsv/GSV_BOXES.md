@@ -22,7 +22,7 @@ Rust модуль: `tracker/` → `gsv_tracker.json`.
 
 **Роль:** бачити, які команди використовуються, та **всі SLI-функції, які можна створити з наявних скриптів** (+ нові).
 
-- Парсинг `bin/` + `scripts/` + `src/bin/` → каталог SLI-команд (назва, опис, входи).
+- Парсинг `src/bin/` + `cargo xtask` → каталог SLI-команд (назва, опис, входи). No product `.sh`.
 - Виводить фактично використані команди (з Tracker/history).
 - Пропонує **незадіяні скрипти** → потенційні нові SLI-функції.
 - Відкритий реєстр для нових функцій.
@@ -59,7 +59,7 @@ Rust модуль: `ide/` (read-only).
 
 Поведінка:
 1. Перекомпіляція → новий бінарник (`target/debug/`).
-2. Canon listener — **live copy** `scripts/gsv-live.sh` → `target/live/gsv-server.exe`.
+2. Canon listener — **live copy** `cargo xtask live` → `target/live/gsv-server.exe`.
 3. UI: **«Update»** → `POST /api/update/apply` (SSE `offline`, process exit).
 4. Сторінка не падає — «offline» лише під час swap; SSE `onopen` → resync.
 
@@ -137,4 +137,4 @@ Rust модуль: `omni/` (catalog.rs, config.rs, proxy.rs) → `GSV/data/omni.
 | Vision | `vision/` (`boxes/vision.rs`) | `/api/vision*` · `/assets/vision.svg` | `GSV/docs/vision/{manifest,feed,extensions}.json` → `GSV/data/gsv_*.json` |
 | UI fragments | `ui/` (`boxes/ui.rs`) | `/api/ui/layout` · `/api/ui/card/:name` · `/api/ui/load-palette` · `/api/ui/load-theme` | dashboard `CARD_NAMES` 35 + chrome 8 + layout `html`/`header` + live `:root` CSS; **band 148:** ops card `sw`; **band 146:** ops card `fingerprints`; **band 145:** ops card `products` (list/select/open/scan); **band 143:** power menu `z-index:80` above workspace, exclusive fullscreen (`data-action='card-fs'`), collapsed cards `display:none` (dock restore), `--fs-*` type scale, speed/rust SVG height 168 |
 | Stand smoke | `src/bin/gsv_http_stand_smoke.rs` | live HTTP перевірка | всі boxes + `/api/vision*` + SVG + `/api/ui/card/:name` |
-| **gsv_mcp_openbot** | `mcp.rs` + `gsv-mcp` bin | stdio + `GET`/`POST`/`DELETE /mcp` + Galaxy card `/api/ui/card/mcp` | 32 box tools + 8 `gsv://` resources (band 137–142 ✅ · **151 ✅** products/scan/watchdog/sw/fingerprints · **152 ✅** products_select + scan-without-id) — [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md) · [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) |
+| **gsv_mcp_openbot** | `mcp.rs` + `gsv-mcp` bin | stdio + `GET`/`POST`/`DELETE /mcp` + Galaxy card `/api/ui/card/mcp` | 34 box tools + 9 `gsv://` resources (band 137–142 ✅ · **151 ✅** · **152 ✅** products_select · **153 ✅** xtask/disk + rust-dev) — [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md) · [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) |

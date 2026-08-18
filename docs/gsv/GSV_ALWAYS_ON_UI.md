@@ -26,7 +26,7 @@ There is an **IDE session** picker, not a **VDT product** picker. `Cargo.toml` i
 2. During swap the UI badge is **offline**; after the new process binds, SSE `onopen` → full resync → **online**.
 3. Collapse, exclusive fullscreen, Esc, and the power menu behave correctly and stay above cards.
 4. One type scale for chrome, cards, and Rust SVG charts.
-5. Ops card: list environment projects (same merge as `scripts/list-vdt-products.sh`), select one, open its folder (Windows Explorer, confined), auto-parse git/kind/HANDOFF/Cargo name.
+5. Ops card: list environment projects (same merge as `cargo xtask products`), select one, open its folder (Windows Explorer, confined), auto-parse git/kind/HANDOFF/Cargo name.
 6. Each product commit sets `CARGO_PKG_VERSION` minor to the band (`0.{band}.0`). Health / Update / header show it.
 7. Append-only fingerprint (timestamp, actor, IDE, model, agent, version, git head, summary) on drain close; Galaxy card lists latest.
 
@@ -48,7 +48,7 @@ There is an **IDE session** picker, not a **VDT product** picker. `Cargo.toml` i
 | P3 | fullscreen click | Second card can also get `.fullscreen`; both shown under `panel-fs-active` — **fixed band 143** |
 | P4 | Esc | `.actions button:last-child` is brittle — **fixed band 143** |
 | P5 | `doUpdate()` | Offline forever until manual restart; no apply/restart API — **fixed band 144** |
-| P6 | `cargo test` | Locks running `target/debug/gsv-server.exe` (Windows) — **fixed band 144** (`gsv-live.sh`) |
+| P6 | `cargo test` | Locks running `target/debug/gsv-server.exe` (Windows) — **fixed band 144** (`gsv-live`; Rust bin as of band 153) |
 
 ## Requirements
 
@@ -81,7 +81,7 @@ There is an **IDE session** picker, not a **VDT product** picker. `Cargo.toml` i
 
 **Products**
 
-- `GET /api/products` — same rows as `list-vdt-products.sh` (workspace folders ∪ sibling git ∪ kit).
+- `GET /api/products` — same rows as `cargo xtask products` (workspace folders ∪ sibling git ∪ kit).
 - `POST /api/products/select` `{id}` — process-local selection on `AppState`.
 - `POST /api/products/open` `{id}` — open folder; path must be a discovered root (no `..`).
 - `GET /api/products/scan` — selected product: `git_head`, `git_status_short`, `kind`, `registered`, HANDOFF/NEXT path exists, `cargo_name` if `Cargo.toml`.
@@ -89,7 +89,7 @@ There is an **IDE session** picker, not a **VDT product** picker. `Cargo.toml` i
 
 **Version + fingerprint**
 
-- Drain-close bump: `bash scripts/gsv-bump-version.sh --band N` sets semver **minor = band** (`0.1.3` → `0.149.0`; same band → patch +1). Tests compare `env!("CARGO_PKG_VERSION")`, not a hardcoded version.
+- Drain-close bump: `cargo xtask bump --band N` sets semver **minor = band** (`0.1.3` → `0.149.0`; same band → patch +1). Tests compare `env!("CARGO_PKG_VERSION")`, not a hardcoded version.
 - `docs/gsv/fingerprints.jsonl` append-only; card `fingerprints` in ops.
 - Commit trailers: `Gsv-Actor`, `Gsv-Ide`, `Gsv-Model` (no secrets).
 
@@ -103,7 +103,7 @@ There is an **IDE session** picker, not a **VDT product** picker. `Cargo.toml` i
 
 - Service Worker offline cache — **done band 148** (`GET /sw.js` Rust-rendered; precache `/` + live CSS + galaxy/vision svg; skip `/events` `/mcp`).
 - Auto-register omniroute in PRODUCTS.md — **done band 149** (owner-opt-in).
-- Semver minor = band number — **done band 149** (`gsv-bump-version.sh --band N`).
+- Semver minor = band number — **done band 149** (`cargo xtask bump --band N`).
 
 ## User stories
 
@@ -131,7 +131,7 @@ There is an **IDE session** picker, not a **VDT product** picker. `Cargo.toml` i
 ## Open questions (non-blocking)
 
 - Fingerprint `model` string: Cursor session vs env. Default `unknown` if missing.
-- Supervisor: `scripts/gsv-live.sh` vs a `gsv-live` bin. **Decision:** bash supervisor first; `gsv-watchdog` bin is the outer loop when that shell dies (Cursor abort).
+- Supervisor: `cargo xtask live` / `gsv-live` bin. **Decision (band 153):** Rust supervisor; `gsv-watchdog` is the outer loop when that process dies (Cursor abort).
 
 ## Phasing (VDT bands)
 

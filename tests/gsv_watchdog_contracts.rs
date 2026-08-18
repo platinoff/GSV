@@ -1,6 +1,6 @@
 //! GSV live watchdog contracts (band 150).
 //!
-//! `gsv-live.sh` only restarts while that shell lives. The watchdog probes
+//! `gsv-live` only restarts while that process lives. The watchdog probes
 //! `GET /api/health` and respawns `target/live/gsv-server.exe` after consecutive
 //! failures (grace for update-apply). Spawn is skipped under cargo-test `deps/`.
 
@@ -134,14 +134,37 @@ fn spawn_live_skipped_in_cargo_test_harness() {
 }
 
 #[test]
-fn watchdog_script_and_bin_exist() {
+fn spawn_live_windows_flags_hide_console() {
+    assert_eq!(
+        watchdog::SPAWN_LIVE_WINDOWS_FLAGS & gsv::vision::CREATE_NO_WINDOW,
+        gsv::vision::CREATE_NO_WINDOW,
+        "detached live copy must also set CREATE_NO_WINDOW"
+    );
+    const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
+    assert_eq!(
+        watchdog::SPAWN_LIVE_WINDOWS_FLAGS & CREATE_BREAKAWAY_FROM_JOB,
+        0,
+        "CREATE_BREAKAWAY_FROM_JOB causes Access denied (5) inside Cursor/job objects"
+    );
+}
+
+#[test]
+fn watchdog_bin_declared() {
     let root = kit_root();
-    assert!(root.join("scripts/gsv-watchdog.sh").is_file());
-    assert!(root.join("scripts/gsv-watchdog-install.sh").is_file());
+    assert!(!root.join("scripts/gsv-watchdog.sh").is_file());
+    assert!(!root.join("scripts/gsv-watchdog-install.sh").is_file());
     let toml = std::fs::read_to_string(root.join("Cargo.toml")).expect("toml");
     assert!(
         toml.contains("name = \"gsv-watchdog\""),
         "Cargo.toml must declare gsv-watchdog bin"
+    );
+    assert!(
+        toml.contains("name = \"gsv-live\""),
+        "Cargo.toml must declare gsv-live bin"
+    );
+    assert!(
+        toml.contains("name = \"gsv-xtask\""),
+        "Cargo.toml must declare gsv-xtask bin"
     );
 }
 

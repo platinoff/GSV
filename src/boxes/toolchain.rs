@@ -4,10 +4,37 @@
 //! from `rust-toolchain.toml` when present.
 
 use std::path::Path;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 
 use crate::vision;
+
+/// Reuse probe results so Auto-resync does not spawn rustc/git/bash every tick.
+const WIRE_CACHE_TTL: Duration = Duration::from_secs(300);
+
+struct WireCache {
+    at: Instant,
+    wire: ToolchainWire,
+}
+
+static WIRE_CACHE: Mutex<Option<WireCache>> = Mutex::new(None);
+
+#[cfg(test)]
+static PROBE_CALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+#[cfg(test)]
+fn probe_calls() -> u64 {
+    PROBE_CALLS.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+#[cfg(test)]
+fn clear_wire_cache() {
+    if let Ok(mut g) = WIRE_CACHE.lock() {
+        *g = None;
+    }
+}
 
 /// One tool inventory entry.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -41,10 +68,9 @@ const PROBES: &[(&str, &[&str])] = &[
 
 /// Probe a tool version; returns a short single-line version.
 fn probe(program: &str, args: &[&str]) -> Option<String> {
-    let out = std::process::Command::new(program)
-        .args(args)
-        .output()
-        .ok()?;
+    #[cfg(test)]
+    PROBE_CALLS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let out = vision::command(program).args(args).output().ok()?;
     if !out.status.success() {
         return None;
     }
@@ -93,10 +119,24 @@ pub fn build(repo_root: &Path) -> Vec<ToolchainEntry> {
 
 /// Serve `/api/toolchain`.
 pub fn wire(repo_root: &Path) -> ToolchainWire {
-    ToolchainWire {
+    if let Ok(guard) = WIRE_CACHE.lock() {
+        if let Some(c) = guard.as_ref() {
+            if c.at.elapsed() < WIRE_CACHE_TTL {
+                return c.wire.clone();
+            }
+        }
+    }
+    let w = ToolchainWire {
         entries: build(repo_root),
         generated_at: vision::rfc3339_now(),
+    };
+    if let Ok(mut guard) = WIRE_CACHE.lock() {
+        *guard = Some(WireCache {
+            at: Instant::now(),
+            wire: w.clone(),
+        });
     }
+    w
 }
 
 #[cfg(test)]
@@ -119,5 +159,21 @@ mod tests {
     #[test]
     fn probe_returns_none_for_missing_binary() {
         assert!(probe("definitely-missing-binary-xyz", &["--version"]).is_none());
+    }
+
+    #[test]
+    fn wire_caches_probes_within_ttl() {
+        clear_wire_cache();
+        let dir = std::env::temp_dir().join(format!("gsv-tc-cache-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let _ = wire(&dir);
+        let after_first = probe_calls();
+        let _ = wire(&dir);
+        assert_eq!(
+            probe_calls(),
+            after_first,
+            "second wire() must not re-probe (console flash)"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

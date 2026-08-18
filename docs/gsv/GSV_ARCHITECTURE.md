@@ -25,7 +25,7 @@
 
 ### gsv-server (bin)
 
-`src/bin/gsv_server.rs`. Canon run is `bash scripts/gsv-live.sh`: copies `target/debug/gsv-server.exe` → `target/live/gsv-server.exe` and execs the copy on `127.0.0.1:9999`. `cargo test` / `cargo build` may overwrite `target/debug/` without killing the listener. `POST /api/update/apply` exits so the supervisor recopies. `cargo run --bin gsv-server` still works but locks `target/debug/` on Windows. Spec: [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md).
+`src/bin/gsv_server.rs`. Canon run is `cargo xtask live` (`gsv-live`): copies `target/debug/gsv-server.exe` → `target/live/gsv-server.exe` and execs the copy on `127.0.0.1:9999`. `cargo test` / `cargo build` may overwrite `target/debug/` without killing the listener. `POST /api/update/apply` exits so the supervisor recopies. `cargo run --bin gsv-server` still works but locks `target/debug/` on Windows. Spec: [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md).
 
 | Модуль | Роль |
 |--------|------|

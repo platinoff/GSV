@@ -1,6 +1,6 @@
 ---
 description: Generic Rust style — edition 2021, Result, tokio, no unwrap in product
-globs: "{src/**,tests/**}"
+globs: "{src/**,tests/**,benches/**}"
 alwaysApply: false
 ---
 
@@ -8,7 +8,7 @@ alwaysApply: false
 
 - Edition **2021**. `snake_case` functions, `PascalCase` types. Prefer private; `pub` only when needed.
 - Product code: `Result` / `Option`, `?`, **no** `unwrap()` / `expect()`. Shared state: `Arc<RwLock<T>>`. Async: `tokio`. Logs: `tracing`.
-- Modules via `mod.rs`. Bins only under `src/bin/`.
+- Modules via `mod.rs`. Bins only under `src/bin/`. Tests in `tests/*.rs`. Benches in `benches/*.rs`. Kit scripts: `cargo xtask` (`src/boxes/xtask.rs`) — no product `.sh` / `.ps1`.
 - **No Python** product files (`.py`, `requirements.txt`, `pyproject.toml`, venv). **No Java** unless the owner asks.
 - After code changes: `cargo fmt --all` then the product’s test command ([`docs/gsv/PRODUCTS.md`](../../docs/gsv/PRODUCTS.md)).
 - Clippy warnings that fit 1–3 files → top of the `абракадабра` / `abrakadabra` band.

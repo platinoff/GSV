@@ -3,7 +3,7 @@
 //! | Box | Rust module | Endpoint | Data source |
 //! |-----|-------------|----------|-------------|
 //! | Tracker | `tracker` | `/api/tracker` | FM §5.12, history, loc-audit |
-//! | SLI console | `sli` | `/api/sli` | `bin/`, `scripts/`, `src/bin/` |
+//! | SLI console | `sli` | `/api/sli` | `src/bin/` + `cargo xtask` |
 //! | Toolchain | `toolchain` | `/api/toolchain` | toolchain, env |
 //! | IDE | `ide` | `/api/ide/…` | opencode/cursor sessions |
 //! | Update | `update` | `/api/update` · `/api/update/apply` · `/events` | live copy + version |
@@ -18,6 +18,7 @@
 //! | Fingerprints | `fingerprint` | `/api/fingerprints` | `docs/gsv/fingerprints.jsonl` |
 //! | Service Worker | `sw` | `/sw.js` · `/api/sw` | Rust-rendered shell cache |
 //! | Watchdog | `watchdog` | `/api/watchdog` | `target/live/watchdog.json` heartbeat + respawn live copy |
+//! | Xtask | `xtask` | `/api/xtask` · `/api/disk` | `cargo xtask` product automation (no `.sh`) |
 
 pub mod fingerprint;
 pub mod hooks;
@@ -34,6 +35,7 @@ pub mod ui;
 pub mod update;
 pub mod vision;
 pub mod watchdog;
+pub mod xtask;
 
 pub use fingerprint::Fingerprint;
 pub use ide::{IdeSelection, IdeSession, IdeWire};

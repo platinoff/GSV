@@ -478,7 +478,7 @@ pub fn render_speed_index(d: &Value) -> String {
         return err_html(&msg);
     }
     if !b(&d["present"]) {
-        return "<div class='dim'>no speed_index.json — run bin/record-test-speed.sh</div>"
+        return "<div class='dim'>no speed_index.json — run cargo xtask record-speed</div>"
             .to_string();
     }
     let si = &d["speed_index"];
@@ -517,7 +517,7 @@ pub fn render_rust_diagnostics(d: &Value) -> String {
         return err_html(&msg);
     }
     if !b(&d["present"]) {
-        return "<div class='dim'>no rust_diagnostics.json — run bin/record-rust-diagnostics.sh</div>"
+        return "<div class='dim'>no rust_diagnostics.json — run cargo xtask record-rust</div>"
             .to_string();
     }
     let rd = &d["rust_diagnostics"];

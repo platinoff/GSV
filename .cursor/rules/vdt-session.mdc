@@ -5,11 +5,11 @@ alwaysApply: true
 
 # VDT session (shared kit)
 
-Host workspace is **`S:\rust\GSV`**. Step 0 of `абракадабра` / `abrakadabra`: `scripts/list-vdt-products.sh` then AskQuestion on **those** rows. [`docs/gsv/PRODUCTS.md`](../../docs/gsv/PRODUCTS.md) enriches registered picks (HANDOFF / tests / ratio).
+Host workspace is **`S:\rust\GSV`**. Step 0 of `абракадабра` / `abrakadabra`: `cargo xtask products` then AskQuestion on **those** rows. [`docs/gsv/PRODUCTS.md`](../../docs/gsv/PRODUCTS.md) enriches registered picks (HANDOFF / tests / ratio).
 
 ## S0 (disk before git/cargo)
 
-1. `df -h /s | tail -1` — avail **<5G** → `cargo clean` in **that product’s** `target/`; **<12G** → clean before heavy builds.
+1. `df -h /s | tail -1` — avail **<5G** → `cargo clean` in **that product’s** `target/`; **<12G** → clean before heavy builds. GSV: `cargo xtask disk`.
 2. `git fetch` → `git status -sb` → `git log -1 --oneline` in the **product** repo.
 3. Read that product’s HANDOFF + NEXT (paths in PRODUCTS.md).
 

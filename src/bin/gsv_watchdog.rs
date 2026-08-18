@@ -1,4 +1,4 @@
-//! `gsv-watchdog` — keep `:9999` up when `gsv-live.sh` (or Cursor) dies.
+//! `gsv-watchdog` — keep `:9999` up when `gsv-live` (or Cursor) dies.
 //!
 //! Probes `GET /api/health`. After consecutive failures, copies
 //! `target/debug/gsv-server.exe` → `target/live/` and spawns a detached
@@ -8,8 +8,8 @@
 //! ```text
 //! cargo run --quiet --bin gsv-watchdog
 //! cargo run --quiet --bin gsv-watchdog -- --once
-//! bash scripts/gsv-watchdog.sh
-//! bash scripts/gsv-watchdog-install.sh
+//! cargo xtask watchdog
+//! cargo xtask watchdog-install
 //! ```
 
 use std::path::PathBuf;

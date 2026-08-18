@@ -1349,7 +1349,7 @@ pub fn speed_index_chart_svg(repo_root: &Path, data_dir: &Path) -> String {
     if r.test_ci_history.is_empty() {
         return svg_empty(
             "Speed index history",
-            "no speed_index.json history - run bin/record-test-speed.sh",
+            "no speed_index.json history - run cargo xtask record-speed",
         );
     }
     let n = r.test_ci_history.len().min(24);
@@ -1403,7 +1403,7 @@ pub fn rust_diagnostics_chart_svg(repo_root: &Path, data_dir: &Path) -> String {
     if r.history.is_empty() {
         return svg_empty(
             "Rust diagnostics history",
-            "no rust_diagnostics.json history - run bin/record-rust-diagnostics.sh",
+            "no rust_diagnostics.json history - run cargo xtask record-rust",
         );
     }
     let n = r.history.len().min(24);

@@ -95,7 +95,7 @@ pub fn tools_list() -> Vec<Value> {
         tool("gsv_health", "GSV process health (name, version, uptime).", object_schema()),
         tool("gsv_tracker", "Tracker box: sprint snapshot and recent records.", object_schema()),
         tool("gsv_ratio", "Rust LOC ratio report (`gsv-loc-audit` store).", object_schema()),
-        tool("gsv_sli", "SLI command catalog from bin/, scripts/, src/bin/.", object_schema()),
+        tool("gsv_sli", "SLI command catalog from src/bin/ and cargo xtask.", object_schema()),
         tool(
             "gsv_toolchain",
             "Toolchain inventory (rustc, cargo, clippy, MSYS2).",
@@ -260,6 +260,32 @@ pub fn tools_list() -> Vec<Value> {
                 }
             }),
         ),
+        tool(
+            "gsv_xtask",
+            "Read-only cargo xtask catalog (task=catalog|products|disk). Mutating tasks stay on cargo xtask.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "string",
+                        "description": "catalog (default), products, or disk."
+                    }
+                }
+            }),
+        ),
+        tool(
+            "gsv_disk",
+            "S0 disk guard (free GiB on the repo volume + target/ size).",
+            json!({
+                "type": "object",
+                "properties": {
+                    "enforce": {
+                        "type": "boolean",
+                        "description": "If true, ok=false when limits trip (same as cargo xtask disk --enforce)."
+                    }
+                }
+            }),
+        ),
     ]
 }
 
@@ -272,6 +298,7 @@ const RESOURCE_URIS: &[&str] = &[
     "gsv://docs/next",
     "gsv://docs/fingerprints",
     "gsv://docs/post-always-on",
+    "gsv://docs/rust-dev",
 ];
 
 const PROMPT_NAMES: &[&str] = &["gsv_status", "gsv_vision_brief", "gsv_drain"];
@@ -341,6 +368,13 @@ const RESOURCES: &[ResourceSpec] = &[
         mime: "text/markdown",
         rel: "docs/gsv/GSV_POST_ALWAYS_ON.md",
     },
+    ResourceSpec {
+        uri: "gsv://docs/rust-dev",
+        name: "Rust-first tests/benches/scripts",
+        description: "cargo xtask canon: product automation in .rs, not .sh/.ps1/JSON harnesses.",
+        mime: "text/markdown",
+        rel: "docs/gsv/GSV_RUST_DEV.md",
+    },
 ];
 
 struct PromptSpec {
@@ -363,7 +397,7 @@ const PROMPTS: &[PromptSpec] = &[
     PromptSpec {
         name: "gsv_drain",
         description: "Start a VDT drain: next PH-S* band after the last closed sprint.",
-        text: "Start a GSV VDT drain. Read gsv://docs/next and gsv://docs/post-always-on. Call gsv_products, then gsv_products_select with the owner pick, then gsv_products_scan (id optional after select), and gsv_watchdog. Propose the next ≤10 PH-S* after the last closed band. Do not push mid-drain. Shell is MSYS2 bash.",
+        text: "Start a GSV VDT drain. Read gsv://docs/next, gsv://docs/rust-dev, and gsv://docs/post-always-on. Call gsv_xtask (task=products) or gsv_products, then gsv_products_select with the owner pick, then gsv_products_scan (id optional after select), gsv_disk, and gsv_watchdog. Product tests/benches/scripts are cargo xtask / tests/*.rs / benches/*.rs — do not add .sh/.ps1/JSON harnesses. Propose the next ≤10 PH-S* after the last closed band. Do not push mid-drain. Invoke cargo via MSYS2 bash.",
     },
 ];
 
@@ -410,6 +444,8 @@ const TOOL_NAMES: &[&str] = &[
     "gsv_watchdog",
     "gsv_sw",
     "gsv_fingerprints",
+    "gsv_xtask",
+    "gsv_disk",
 ];
 
 /// Stable tool name list (tests / GET /mcp).
@@ -988,6 +1024,23 @@ async fn call_tool(state: &AppState, params: &Value) -> Value {
                 limit,
             ))
         }
+        "gsv_xtask" => {
+            let task = args
+                .get("task")
+                .and_then(Value::as_str)
+                .unwrap_or("catalog");
+            match crate::boxes::xtask::mcp_run(&state.repo_root, task) {
+                Ok(v) => tool_ok(v),
+                Err(e) => tool_err(e),
+            }
+        }
+        "gsv_disk" => {
+            let enforce = args
+                .get("enforce")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            tool_ok(crate::boxes::xtask::disk_wire(&state.repo_root, enforce))
+        }
         "" => tool_err("missing tool name"),
         other => tool_err(format!("unknown tool: {other}")),
     }
@@ -1201,10 +1254,12 @@ mod tests {
             "gsv_watchdog",
             "gsv_sw",
             "gsv_fingerprints",
+            "gsv_xtask",
+            "gsv_disk",
         ] {
             assert!(names.contains(&n), "missing {n}");
         }
-        assert_eq!(names.len(), 32);
+        assert_eq!(names.len(), TOOL_NAMES.len());
     }
 
     #[tokio::test]
@@ -1597,9 +1652,9 @@ mod tests {
         let listed = out["result"]["resources"].as_array().expect("resources");
         assert_eq!(RESOURCES.len(), RESOURCE_URIS.len());
         assert_eq!(PROMPTS.len(), PROMPT_NAMES.len());
-        assert_eq!(RESOURCE_URIS.len(), 8);
         assert!(RESOURCE_URIS.contains(&"gsv://docs/fingerprints"));
         assert!(RESOURCE_URIS.contains(&"gsv://docs/post-always-on"));
+        assert!(RESOURCE_URIS.contains(&"gsv://docs/rust-dev"));
         assert_eq!(listed.len(), RESOURCE_URIS.len());
         for (item, expected) in listed.iter().zip(RESOURCE_URIS.iter()) {
             assert_eq!(item["uri"], *expected);
@@ -1909,7 +1964,10 @@ mod tests {
         assert!(text.contains("gsv_products_scan"), "{text}");
         assert!(text.contains("gsv_products_select"), "{text}");
         assert!(text.contains("gsv_watchdog"), "{text}");
+        assert!(text.contains("gsv_xtask"), "{text}");
+        assert!(text.contains("gsv_disk"), "{text}");
         assert!(text.contains("gsv://docs/next"), "{text}");
+        assert!(text.contains("gsv://docs/rust-dev"), "{text}");
         assert!(text.contains("mid-drain"), "{text}");
     }
 

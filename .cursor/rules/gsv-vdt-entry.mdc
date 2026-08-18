@@ -12,7 +12,7 @@ alwaysApply: true
 
 ## Коли власник пише `абракадабра` або `abrakadabra`
 
-1. **Спочатку** `bash scripts/list-vdt-products.sh` — проєкти з **environment** (workspace + git-сусіди під `S:/rust`), не захардкоджені `gsv | poolai`.
+1. **Спочатку** `cargo xtask products` — проєкти з **environment** (workspace + git-сусіди під `S:/rust`), не захардкоджені `gsv | poolai`.
 2. `AskQuestion` / `question`: один пункт на кожен рядок скану. `PRODUCTS.md` лише збагачує зареєстровані.
 3. Не підміняти вибір «ми вже в GSV, отже лише GSV» — GSV-вікно ≠ обов’язково GSV-продукт.
 4. Далі — скіл [`.agents/skills/abracadabra/`](../../.agents/skills/abracadabra/SKILL.md).

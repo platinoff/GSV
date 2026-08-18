@@ -35,7 +35,7 @@ the projects the agent can see in the environment.
 ### 0a. Scan (MSYS2 bash)
 
 ```bash
-C:\msys64\usr\bin\bash.exe -lc '/s/rust/GSV/scripts/list-vdt-products.sh'
+C:\msys64\usr\bin\bash.exe -lc 'cd /s/rust/GSV && cargo xtask products'
 ```
 
 The script merges, in order:
@@ -82,15 +82,16 @@ list. A discovered repo that is not registered is still a valid choice.
 
 New **registered** products: add a row to PRODUCTS.md (root, handoff, test, ratio).
 Discovery will pick them up automatically from disk / workspace; no need to
-hardcode options in this skill.
+hardcode options in this skill. Implementation: `src/boxes/products.rs` /
+`cargo xtask products` (not a `.sh` script).
 
 ## gsv flow
 
 1. S0 disk (GSV has its own `target/` at `S:/rust/GSV`): `df -h /s` → `cargo clean` if needed → `git fetch` + GSV HANDOFF.
 2. Project scan: warnings first (`cargo clippy --all-targets` in `S:/rust/GSV`) → `docs/gsv/GSV_TECH_ROADMAP.md` unchecked rows → gaps → next band. **VDT kit** (`.cursor/rules`, `.agents/skills`) is an in-tree product gap until band close.
 3. Drain next band (≤10 open PH-S*; no mid-drain push). Work in **`S:/rust/GSV`**.
-4. Vision close: GSV HANDOFF + GSV NEXT → `bash bin/gsv-vision-sync.sh` (or `cargo run --bin gsv-vision-sync`) → `--check`. Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics.sh`.
-5. Test: `cargo test` in `S:/rust/GSV` — do **not** kill `target/live/` copy (only stop `target/debug/gsv-server.exe` if that file is the listener). Disk guard: `bash scripts/check_target_disk.sh`.
+4. Vision close: GSV HANDOFF + GSV NEXT → `cargo xtask sync` then `cargo xtask sync --check`. Speeds/Rust: `cargo xtask record-speed` + `cargo xtask record-rust`.
+5. Test: `cargo test` in `S:/rust/GSV` — do **not** kill `target/live/` copy (only stop `target/debug/gsv-server.exe` if that file is the listener). Disk guard: `cargo xtask disk`.
 6. Git (end of session): one commit in the GSV repo. Push `origin` (`https://github.com/platinoff/GSV`) if the remote exists.
 
 ## poolai flow
@@ -126,7 +127,7 @@ Ratio: n/a (node). `gsv-loc-audit` does not apply.
 ## See also
 
 - Kit: `docs/gsv/GSV_VDT_KIT.md`
-- Registry: `docs/gsv/PRODUCTS.md` (enrichment; discovery is `scripts/list-vdt-products.sh`)
+- Registry: `docs/gsv/PRODUCTS.md` (enrichment; discovery is `cargo xtask products`)
 - MCP horizon: `docs/gsv/GSV_MCP_OPENBOT.md`
 - GSV: `docs/NEXT_SESSION_PROMPT.md`, `docs/GSV_ROLES.md`, `docs/gsv/GSV_TECH_ROADMAP.md`
 - PoolAI: `S:/rust/poolAI/docs/development/NEXT_SESSION_PROMPT.md`, `S:/rust/poolAI/docs/catalog/FUNCTION_MANAGEMENT.md`

@@ -3,7 +3,7 @@
 Registered products the host skill [`abracadabra`](../../.agents/skills/abracadabra/SKILL.md) can **drain** (HANDOFF, tests, ratio). Node rows are enrichment only — no PH-S* invent, no GSV loc-audit.
 
 **Discovery is not this table.** When the owner writes `абракадабра` or `abrakadabra`, the agent runs
-[`scripts/list-vdt-products.sh`](../../scripts/list-vdt-products.sh) and asks about
+[`cargo xtask products`](../../src/boxes/xtask.rs) and asks about
 **projects visible in the environment** (workspace folders + sibling git repos).
 This file only **enriches** a pick that is already registered.
 

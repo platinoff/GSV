@@ -13,7 +13,7 @@
 
 Always-on Galaxy is the live product: `:9999` stays up across `cargo test` (live copy + watchdog), the page goes offline only during binary swap, and ops cards exist for **products**, **fingerprints**, **sw**, and **watchdog** (health row).
 
-`gsv_mcp_openbot` wraps those boxes as of band **152**: **32 tools**, **8 `gsv://` resources**, **3 prompts**. An agent that starts from `абракадабра` or from Cursor/OpenCode MCP can list environment products, select one, scan a HANDOFF, see whether the watchdog is alive, and read drain fingerprints.
+`gsv_mcp_openbot` wraps those boxes as of band **153**: **34 tools**, **9 `gsv://` resources**, **3 prompts**. An agent that starts from `абракадабра` or from Cursor/OpenCode MCP can list environment products (`gsv_xtask` / `gsv_products`), select one, scan a HANDOFF, check disk (`gsv_disk`), see whether the watchdog is alive, and read drain fingerprints. Product tests/benches/scripts are `cargo xtask` — [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md).
 
 Cost of leaving it: the next drain session invents work, or the agent repeats a warnings-first scan with no queued band. This spec is the queued band.
 

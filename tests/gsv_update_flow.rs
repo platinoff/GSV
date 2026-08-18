@@ -164,8 +164,8 @@ fn readme_quick_start_uses_gsv_live() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let readme = std::fs::read_to_string(root.join("README.md")).expect("README");
     assert!(
-        readme.contains("bash scripts/gsv-live.sh"),
-        "Quick start must canon-run scripts/gsv-live.sh"
+        readme.contains("cargo xtask live"),
+        "Quick start must canon-run cargo xtask live"
     );
 }
 
@@ -175,7 +175,7 @@ fn architecture_notes_live_copy() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let arch = std::fs::read_to_string(root.join("docs/gsv/GSV_ARCHITECTURE.md")).expect("arch");
     assert!(
-        arch.contains("gsv-live.sh") && arch.contains("target/live"),
+        arch.contains("gsv-live") && arch.contains("target/live"),
         "GSV_ARCHITECTURE.md must note the live-copy supervisor"
     );
 }
@@ -192,11 +192,12 @@ fn docs_index_lists_always_on_spec() {
 }
 
 #[test]
-fn gsv_live_script_copies_debug_to_live() {
+fn gsv_live_is_rust_bin() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let script = std::fs::read_to_string(root.join("scripts/gsv-live.sh")).expect("gsv-live.sh");
-    assert!(script.contains("target/live"), "{script}");
-    assert!(script.contains("gsv-server"), "{script}");
+    let src = std::fs::read_to_string(root.join("src/bin/gsv_live.rs")).expect("gsv-live");
+    assert!(src.contains("run_live"), "{src}");
+    assert!(src.contains("gsv-server") || src.contains("xtask"), "{src}");
+    assert!(!root.join("scripts/gsv-live.sh").is_file());
 }
 
 #[test]

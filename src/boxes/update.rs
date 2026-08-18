@@ -8,7 +8,7 @@
 //! the running binary (i.e. a rebuild is pending on disk), or an explicit
 //! `POST /api/update/notify` arrived, `update_available` is `true`.
 //! `POST /api/update/apply` emits SSE `offline` and (outside tests) exits so
-//! `scripts/gsv-live.sh` can recopy `target/debug/` → `target/live/` and restart.
+//! `cargo xtask live` can recopy `target/debug/` → `target/live/` and restart.
 
 use std::path::Path;
 

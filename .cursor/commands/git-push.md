@@ -19,6 +19,6 @@ git commit -m "type(scope): subject" \
 git push origin main
 ```
 
-Push-only after a commit: `bash scripts/git-push-only.sh`
+Push-only after a commit: `cargo xtask push`
 
 Never stage: `.env*` · `*.pem`/`*.key` · `data/*` (except `.gitkeep`) · `comitmsg/*.txt` · `.opencode/node_modules`

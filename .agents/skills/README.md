@@ -3,7 +3,7 @@
 Canon for shared Agent Skills is **this directory**. Edit here first, then:
 
 ```bash
-bash scripts/sync-vdt-skill-mirrors.sh
+cargo xtask mirrors
 ```
 
 Client copies (must stay identical on Windows — copy, not symlink):

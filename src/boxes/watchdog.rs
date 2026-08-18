@@ -1,7 +1,7 @@
 //! Live watchdog — probe `/api/health` and respawn `target/live/gsv-server.exe`.
 //!
-//! `scripts/gsv-live.sh` only restarts while that shell stays alive (Cursor
-//! aborting the terminal is the usual `:9999` offline). This box is the
+//! `cargo xtask live` (`gsv-live`) only restarts while that process stays alive
+//! (Cursor aborting the terminal is the usual `:9999` offline). This box is the
 //! process-level loop: consecutive probe failures (grace for update-apply)
 //! copy debug → live and spawn a detached listener.
 
@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::boxes::update;
+use crate::vision::CREATE_NO_WINDOW;
 
 /// Probe interval (seconds).
 pub const DEFAULT_INTERVAL_SECS: u64 = 3;
@@ -150,6 +151,16 @@ pub fn copy_debug_to_live(repo_root: &Path) -> Result<PathBuf, String> {
     Ok(live)
 }
 
+/// Windows flags for the detached live copy (no console flash).
+///
+/// Do **not** set `CREATE_BREAKAWAY_FROM_JOB` — inside Cursor/job objects that
+/// returns Win32 error 5 (Access denied) and the live copy never starts.
+pub const SPAWN_LIVE_WINDOWS_FLAGS: u32 = {
+    const DETACHED_PROCESS: u32 = 0x0000_0008;
+    const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+    CREATE_NO_WINDOW | DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+};
+
 /// Spawn the live copy detached. Cargo-test harness never execs.
 pub fn spawn_live(repo_root: &Path, host: &str, port: u16) -> Result<SpawnOutcome, String> {
     if update::is_cargo_test_harness() {
@@ -171,10 +182,7 @@ pub fn spawn_live(repo_root: &Path, host: &str, port: u16) -> Result<SpawnOutcom
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        const DETACHED_PROCESS: u32 = 0x0000_0008;
-        const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
-        const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
-        cmd.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_BREAKAWAY_FROM_JOB);
+        cmd.creation_flags(SPAWN_LIVE_WINDOWS_FLAGS);
     }
     cmd.spawn().map_err(|e| e.to_string())?;
     Ok(SpawnOutcome::Spawned)

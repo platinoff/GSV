@@ -1,14 +1,14 @@
-//! SLI console box — command catalog from `bin/` + `scripts/` + `src/bin/`.
+//! SLI console box — command catalog from `src/bin/` (Rust) + `cargo xtask`.
 //!
-//! Parses executable scripts and Rust bins into SLI entries (name, path, kind,
-//! description, inputs). Marks entries as `used` when their name appears in the
-//! recent shell history / tracker commands.
+//! Product tests, benches, and scripts are `.rs`. Shell wrappers in `bin/` /
+//! `scripts/` are not catalogued.
 
 use std::fs;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+use crate::boxes::xtask;
 use crate::vision;
 
 /// One SLI catalog entry.
@@ -18,7 +18,7 @@ pub struct SliEntry {
     pub name: String,
     /// Repo-relative path.
     pub path: String,
-    /// Kind: sh | rs | bin.
+    /// Kind: rs | xtask.
     pub kind: String,
     /// One-line description (doc comment / shebang doc).
     pub description: String,
@@ -52,70 +52,60 @@ impl SliCatalog {
     /// Scan the repo (best effort): read-only, never mutates.
     pub fn scan(repo_root: &Path) -> Self {
         let mut entries = Vec::new();
-        for (rel_dir, kind) in [("bin", "sh"), ("scripts", "sh"), ("src/bin", "rs")] {
-            let dir = repo_root.join(rel_dir);
-            let Ok(read) = fs::read_dir(&dir) else {
-                continue;
-            };
+        let dir = repo_root.join("src/bin");
+        if let Ok(read) = fs::read_dir(&dir) {
             for entry in read.flatten() {
                 let path = entry.path();
+                if path.extension().is_none_or(|e| e != "rs") {
+                    continue;
+                }
                 let Some(name) = path.file_stem().and_then(|s| s.to_str()) else {
                     continue;
                 };
-                let is_rs = kind == "rs" && path.extension().is_some_and(|e| e == "rs");
-                let is_sh = kind == "sh"
-                    && (path.extension().is_some_and(|e| e == "sh") || {
-                        // shebang detection for extensionless scripts
-                        fs::read_to_string(&path)
-                            .ok()
-                            .is_some_and(|raw| raw.starts_with("#!") || raw.contains("#!/"))
-                    });
-                if !is_rs && !is_sh {
-                    continue;
-                }
-                let description = first_doc_line(&path, kind);
-                let rel = format!("{rel_dir}/{name}");
+                let description = first_doc_line(&path);
                 entries.push(SliEntry {
-                    example: example_for(kind, name),
-                    kind: kind.to_string(),
-                    path: rel,
+                    example: example_for(name),
+                    kind: "rs".to_string(),
+                    path: format!("src/bin/{name}.rs"),
                     description,
                     name: name.to_string(),
                     used: is_used(name),
                 });
             }
         }
+        for (name, desc) in xtask::TASKS {
+            entries.push(SliEntry {
+                example: format!("cargo xtask {name}"),
+                kind: "xtask".to_string(),
+                path: "src/boxes/xtask.rs".into(),
+                description: (*desc).into(),
+                name: (*name).into(),
+                used: is_used(name),
+            });
+        }
         entries.sort_by(|a, b| a.name.cmp(&b.name));
         let used_count = entries.iter().filter(|e| e.used).count();
         let unused_count = entries.len() - used_count;
-        let roots = vec![
-            "bin/".to_string(),
-            "scripts/".to_string(),
-            "src/bin/".to_string(),
-        ];
         Self {
             entries,
-            roots,
+            roots: vec!["src/bin/".into(), "cargo xtask".into()],
             used_count,
             unused_count,
         }
     }
 }
 
-/// First doc/comment line for a script or Rust bin.
-fn first_doc_line(path: &Path, kind: &str) -> String {
+/// First doc/comment line for a Rust bin.
+fn first_doc_line(path: &Path) -> String {
     let Ok(raw) = fs::read_to_string(path) else {
         return String::new();
     };
     for line in raw.lines() {
         let line = line.trim_start();
-        let desc = if kind == "rs" {
-            line.strip_prefix("//!")
-                .or_else(|| line.strip_prefix("///"))
-        } else {
-            line.strip_prefix('#')
-        };
-        if let Some(desc) = desc {
+        if let Some(desc) = line
+            .strip_prefix("//!")
+            .or_else(|| line.strip_prefix("///"))
+        {
             let desc = desc.trim();
             if !desc.is_empty() {
                 return desc.to_string();
@@ -125,10 +115,13 @@ fn first_doc_line(path: &Path, kind: &str) -> String {
     String::new()
 }
 
-fn example_for(kind: &str, name: &str) -> String {
-    match kind {
-        "sh" => format!("bash {name}.sh …"),
-        _ => format!("cargo run --bin {name} -- …"),
+fn example_for(name: &str) -> String {
+    if name == "gsv_xtask" {
+        "cargo xtask <task>".into()
+    } else if name == "gsv_live" {
+        "cargo xtask live".into()
+    } else {
+        format!("cargo run --bin {} -- …", name.replace('_', "-"))
     }
 }
 
@@ -157,13 +150,25 @@ mod tests {
         let _ = fs::create_dir_all(&dir);
         let f = dir.join("tool.rs");
         fs::write(&f, "//! A tool doc\n//! second\nfn main() {}").expect("write");
-        assert_eq!(first_doc_line(&f, "rs"), "A tool doc");
+        assert_eq!(first_doc_line(&f), "A tool doc");
         let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
-    fn example_for_kinds() {
-        assert!(example_for("sh", "run").starts_with("bash"));
-        assert!(example_for("rs", "sync").starts_with("cargo"));
+    fn example_for_xtask_bin() {
+        assert_eq!(example_for("gsv_xtask"), "cargo xtask <task>");
+        assert!(example_for("gsv_server").starts_with("cargo run --bin"));
+    }
+
+    #[test]
+    fn scan_includes_xtask_products() {
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let cat = SliCatalog::scan(&root);
+        assert!(cat
+            .entries
+            .iter()
+            .any(|e| e.name == "products" && e.kind == "xtask"));
+        assert!(cat.entries.iter().any(|e| e.kind == "rs"));
+        assert!(!cat.entries.iter().any(|e| e.kind == "sh"));
     }
 }

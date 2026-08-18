@@ -7,7 +7,7 @@
 use serde_json::{json, Value};
 
 /// Cache Storage name (bump when PRECACHE membership changes).
-pub const CACHE_NAME: &str = "gsv-shell-v1";
+pub const CACHE_NAME: &str = "gsv-shell-v2";
 
 /// Same-origin GET paths installed on `install`. No `/mcp`, `/events`, POST.
 pub const PRECACHE: &[&str] = &[
@@ -41,7 +41,7 @@ pub fn script() -> String {
          const PRECACHE={urls};\n\
          self.addEventListener('install',e=>{{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(PRECACHE)).then(()=>self.skipWaiting()));}});\n\
          self.addEventListener('activate',e=>{{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));}});\n\
-         self.addEventListener('fetch',e=>{{const req=e.request;if(req.method!=='GET')return;const u=new URL(req.url);if(u.origin!==self.location.origin)return;if(u.pathname==='/events'||u.pathname==='/mcp')return;if(PRECACHE.indexOf(u.pathname)<0)return;e.respondWith(caches.match(req).then(hit=>hit||fetch(req).then(res=>{{const copy=res.clone();caches.open(CACHE).then(c=>c.put(req,copy));return res;}}).catch(()=>caches.match('/'))));}});\n"
+         self.addEventListener('fetch',e=>{{const req=e.request;if(req.method!=='GET')return;const u=new URL(req.url);if(u.origin!==self.location.origin)return;if(u.pathname==='/events'||u.pathname==='/mcp')return;if(PRECACHE.indexOf(u.pathname)<0)return;e.respondWith(fetch(req).then(res=>{{const copy=res.clone();caches.open(CACHE).then(c=>c.put(req,copy));return res;}}).catch(()=>caches.match(req).then(hit=>hit||caches.match('/'))));}});\n"
     )
 }
 
@@ -69,6 +69,14 @@ mod tests {
         assert!(js.contains("u.origin!==self.location.origin"));
         assert!(js.contains("pathname==='/events'"));
         assert!(js.contains("pathname==='/mcp'"));
+        assert!(
+            !js.contains("hit=>hit||fetch"),
+            "shell must be network-first so UI JS updates without a stuck Auto-resync"
+        );
+        assert!(
+            js.contains("fetch(req).then"),
+            "network-first fetch for precache paths"
+        );
     }
 
     #[test]

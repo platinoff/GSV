@@ -41,7 +41,7 @@ GSV is a standalone crate (`S:\rust\GSV`, sibling of PoolAI — not a subfolder)
 ```mermaid
 flowchart LR
   Owner[Owner] --> Ask["абракадабра / abrakadabra"]
-  Ask --> Scan[list-vdt-products]
+  Ask --> Scan[cargo xtask products]
   Scan --> Pick[AskQuestion: env projects]
   Pick --> Drain[S0 → scan → band]
   Drain --> GSV[gsv-server :9999]
@@ -85,9 +85,10 @@ export RUSTUP_TOOLCHAIN="stable-x86_64-pc-windows-gnu"
 cd /s/rust/GSV
 unset CARGO_TARGET_DIR
 
-cargo build --bin gsv-server
-bash scripts/gsv-live.sh
-bash scripts/gsv-watchdog.sh          # keep :9999 up if the live shell dies
+cargo build --bin gsv-server --bin gsv-live --bin gsv-watchdog
+cargo xtask live                 # copies target/debug → target/live, loop restart
+# other terminal:
+cargo xtask watchdog             # keep :9999 up if the live process dies
 ```
 
 Open [http://127.0.0.1:9999/](http://127.0.0.1:9999/). The supervisor copies `target/debug/gsv-server.exe` → `target/live/` so `cargo test` / `cargo build` do not lock the listener. `gsv-watchdog` probes `/api/health` and respawns the live copy if Cursor (or anything else) kills the supervisor. `cargo run --bin gsv-server` still works but **locks** `target/debug/` on Windows.
@@ -111,7 +112,7 @@ Live panels served by Rust (`src/boxes/`), not a port of legacy `vision.js`.
 | Box | Role |
 |-----|------|
 | **Tracker** | Last workflow: sprints, commands, timings |
-| **SLI console** | Commands actually used + catalog from `bin/` · `scripts/` · `src/bin/` |
+| **SLI console** | Commands actually used + catalog from `src/bin/` · `cargo xtask` |
 | **Toolchain** | rustc / cargo / clippy / MSYS2 inventory |
 | **IDE** | OpenCode + Cursor sessions; pick which host you are on |
 | **Update** | Bin rebuild → UI shows **Update** instead of reload; page survives offline; metrics resync |
@@ -147,7 +148,7 @@ GSV is also the **VDT kit** (rules, skills, drain loop). Opening this folder doe
 Same trigger in Latin: **`abrakadabra`**. Either spelling starts the same drain (`abracadabra` is the skill folder name).
 
 1. Owner types `абракадабра` or `abrakadabra`.
-2. Agent runs `scripts/list-vdt-products.sh` — workspace folders **and** sibling git repos under `S:/rust` (today that is GSV, PoolAI, omniroute, …).
+2. Agent runs `cargo xtask products` — workspace folders **and** sibling git repos under `S:/rust` (today that is GSV, PoolAI, omniroute, …).
 3. AskQuestion / OpenCode `question`: **which of those do we work with?**
 4. S0 disk → warnings-first scan → drain ≤10 PH-S* → one commit + push.
 
@@ -163,7 +164,7 @@ One MCP server GSV owns; OpenCode / Cursor / Grok CLI / Grok Bot are **clients**
 cargo run --quiet --bin gsv-mcp
 ```
 
-Auto-register: `.mcp.json` · `.cursor/mcp.json` · `opencode.json` · `.grok/config.toml`. HTTP twin: `GET`/`POST`/`DELETE http://127.0.0.1:9999/mcp` (loopback; LAN needs `--allow-lan`; `Accept: text/event-stream` flushes notifications as SSE; `initialize` issues `Mcp-Session-Id`). Galaxy card: `/api/ui/card/mcp`. **32 tools** + **8 `gsv://` resources** + **3 prompts** + **logging** + **completions** + **subscribe** + **SSE** + **HTTP sessions**. Next gsv drain (**band 153**): watchdog ops card — [`GSV_POST_ALWAYS_ON.md`](docs/gsv/GSV_POST_ALWAYS_ON.md). Grok Bot public tunnel is an owner opt-in — not on by default.
+Auto-register: `.mcp.json` · `.cursor/mcp.json` · `opencode.json` · `.grok/config.toml`. HTTP twin: `GET`/`POST`/`DELETE http://127.0.0.1:9999/mcp` (loopback; LAN needs `--allow-lan`; `Accept: text/event-stream` flushes notifications as SSE; `initialize` issues `Mcp-Session-Id`). Galaxy card: `/api/ui/card/mcp`. **34 tools** + **9 `gsv://` resources** + **3 prompts** + **logging** + **completions** + **subscribe** + **SSE** + **HTTP sessions**. Band **153**: rust-first `cargo xtask` — [`GSV_RUST_DEV.md`](docs/gsv/GSV_RUST_DEV.md). Grok Bot public tunnel is an owner opt-in — not on by default.
 
 Canon: [`docs/gsv/GSV_MCP_OPENBOT.md`](docs/gsv/GSV_MCP_OPENBOT.md).
 
@@ -174,7 +175,9 @@ Canon: [`docs/gsv/GSV_MCP_OPENBOT.md`](docs/gsv/GSV_MCP_OPENBOT.md).
 ```
 GSV/
 ├── src/bin/gsv_server.rs     live Galaxy UI + API
-├── src/bin/gsv_mcp.rs        gsv_mcp_openbot (stdio MCP)
+├── src/bin/gsv_xtask.rs      cargo xtask (product scripts in Rust)
+├── src/bin/gsv_live.rs       always-on live-copy supervisor
+├── benches/gsv_dev.rs        std benches (no shell harness)
 ├── src/boxes/                Tracker, SLI, OmniRouter, Vision, …
 ├── ui/                       thin HTML/CSS/JS glue
 ├── docs/gsv/                 architecture, boxes, roadmap, VDT kit

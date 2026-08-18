@@ -1,6 +1,6 @@
 //! GSV VDT products picker contracts (band 145).
 //!
-//! Discovery mirrors `scripts/list-vdt-products.sh` (workspace ∪ sibling git ∪ kit).
+//! Discovery matches `cargo xtask products` (workspace ∪ sibling git ∪ kit).
 //! HTTP: list / select / open / scan. Unknown id → 404 `{ok:false}`.
 
 use std::path::PathBuf;

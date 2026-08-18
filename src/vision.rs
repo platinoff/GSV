@@ -4,11 +4,36 @@
 //! (`docs/development/speed_index.json`, `docs/development/rust_diagnostics.json`),
 //! and safe command execution for the Toolchain / Terminal boxes.
 
+use std::ffi::OsStr;
 use std::path::Path;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
+
+/// Win32 `CREATE_NO_WINDOW` — child console apps (`git`, `rustc`, `bash`) must
+/// not flash a terminal when `gsv-server` is detached (watchdog live copy).
+pub const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+/// Apply [`CREATE_NO_WINDOW`] on Windows. No-op elsewhere.
+pub fn hide_console(cmd: &mut Command) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = cmd;
+    }
+}
+
+/// `Command::new` that never flashes a console window on Windows.
+pub fn command(program: impl AsRef<OsStr>) -> Command {
+    let mut cmd = Command::new(program);
+    hide_console(&mut cmd);
+    cmd
+}
 
 /// RFC3339 timestamp for the current moment.
 pub fn rfc3339_now() -> String {
@@ -46,7 +71,7 @@ pub fn read_vision_json(repo_root: &Path, rel: &str) -> Option<Value> {
 
 /// Run a command under `cwd`, returning trimmed stdout on success.
 pub fn run(cwd: &Path, program: &str, args: &[&str]) -> Result<String, String> {
-    let out = Command::new(program)
+    let out = command(program)
         .args(args)
         .current_dir(cwd)
         .output()
@@ -85,5 +110,17 @@ mod tests {
         let tmp = std::env::temp_dir();
         // temp dir is not a git repo → run fails → None
         assert!(git_head(&tmp).is_none() || git_head(&tmp).is_some());
+    }
+
+    #[test]
+    fn create_no_window_is_win32_hide_flag() {
+        assert_eq!(CREATE_NO_WINDOW, 0x0800_0000);
+    }
+
+    #[test]
+    fn hidden_run_captures_git_inside_this_repo() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let out = run(root, "git", &["rev-parse", "--is-inside-work-tree"]).expect("git");
+        assert_eq!(out.trim(), "true");
     }
 }

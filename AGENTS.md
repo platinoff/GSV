@@ -10,7 +10,7 @@ drain target is GSV — the skill asks first.
 
 ## Stack
 
-- Runtime / API / boxes: **Rust** (`edition 2021`, `tokio`, `axum`) in `src/`, `tests/`, `src/bin/`.
+- Runtime / API / boxes: **Rust** (`edition 2021`, `tokio`, `axum`) in `src/`, `tests/`, `benches/`, `src/bin/`. Product tests/benches/scripts are `.rs` (`cargo xtask`).
 - UI: thin HTML/CSS/JS glue in `ui/` (no Python, no Java).
 - Ratio canon: Rust **95–100%** / wasm 0–5% — `cargo run --bin gsv-loc-audit -- --stretch-96`.
 - Terminal: **MSYS2 bash**, not PowerShell.
@@ -26,7 +26,7 @@ unset CARGO_TARGET_DIR
 
 Trigger skill: `.agents/skills/abracadabra/`. Either spelling starts the same drain. Вікно GSV ≠ автоматично drain GSV.
 
-1. `bash scripts/list-vdt-products.sh` → AskQuestion / `question` on **those** environment projects (not a hardcoded `gsv | poolai` pair).
+1. `cargo xtask products` → AskQuestion / `question` on **those** environment projects (not a hardcoded `gsv | poolai` pair).
 2. S0 disk for **that** product → `git fetch` → its HANDOFF.
 3. Drain next band (GSV: `docs/gsv/GSV_TECH_ROADMAP.md`; PoolAI: FM §5.12).
 4. If **gsv:** do **not** kill `target/live/gsv-server.exe` before `cargo test` / `cargo build`. Only stop `target/debug/gsv-server.exe` if that file is the listener.
@@ -43,11 +43,11 @@ C:\msys64\usr\bin\bash.exe -lc 'команда'
 
 `абракадабра` / `abrakadabra` in OpenCode uses the `question` tool (not Cursor AskQuestion). Skills: `.agents/skills/` (`opencode.json` → `skills.paths`). Plugin host: `.opencode/package.json` (`@opencode-ai/plugin`). **Do not auto-generate a product UI** — live Galaxy UI is `gsv-server` at `http://127.0.0.1:9999/`.
 
-Cursor ↔ OpenCode: Cursor `AskQuestion` = OpenCode `question`. Shared kit git-canon is this repo; copy (not symlink) to `.cursor/skills/` and `.opencode/skills/` via `bash scripts/sync-vdt-skill-mirrors.sh`.
+Cursor ↔ OpenCode: Cursor `AskQuestion` = OpenCode `question`. Shared kit git-canon is this repo; copy (not symlink) to `.cursor/skills/` and `.opencode/skills/` via `cargo xtask mirrors`.
 
 ## Speeds + Rust panel (GSV drain)
 
-After tests: `bash bin/record-test-speed.sh` (or `--skip-run`) and `bash bin/record-rust-diagnostics.sh`. Writers: `gsv-speed-index` / `gsv-rust-diagnostics` → `docs/vision/*.json`. Then `bash bin/gsv-vision-sync.sh`.
+After tests: `cargo xtask record-speed` (or `--skip-run`) and `cargo xtask record-rust`. Writers: `gsv-speed-index` / `gsv-rust-diagnostics` → `docs/vision/*.json`. Then `cargo xtask sync`.
 
 ## Defaults
 

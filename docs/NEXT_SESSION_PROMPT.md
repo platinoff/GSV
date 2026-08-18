@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-18 (**band 152 ✅ · next gsv drain = band 153 watchdog card**)
+**Оновлено:** 2026-08-18 (**band 153 ✅ · next gsv drain = band 154 watchdog card**)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -15,20 +15,19 @@
 abrakadabra
 ```
 
-**Порядок:** `bash scripts/list-vdt-products.sh` → AskQuestion **на ці рядки** (вікно GSV ≠ автоматично продукт GSV) →
-**S0 диск** (`df -h /s` → `cargo clean` за потреби) →
+**Порядок:** `cargo xtask products` → AskQuestion **на ці рядки** (вікно GSV ≠ автоматично продукт GSV) →
+**S0 диск** (`df -h /s` → `cargo xtask disk` → `cargo clean` за потреби) →
 project scan (**warnings first**) → drain наступного band (**без** mid-push) →
 Speeds · Rust panel → vision-sync → **один** commit → **`git push` + самарі**.
 
-Якщо **gsv:** always-on Galaxy (**bands 143–147 ✅**) + SW cache (**band 148 ✅**) + omniroute/semver (**band 149 ✅**) + live watchdog (**band 150 ✅**) + MCP catch-up (**band 151 ✅**) + MCP products select (**band 152 ✅**) are closed.
-**Next drain = band 153** (`PH-S2169…S2178`) — watchdog ops card + fingerprint model (owner pick).
-Spec [`GSV_POST_ALWAYS_ON.md`](gsv/GSV_POST_ALWAYS_ON.md) · plan
-[`superpowers/plans/2026-08-18-mcp-always-on-catchup.md`](superpowers/plans/2026-08-18-mcp-always-on-catchup.md) (band 153 sketch).
+Якщо **gsv:** always-on Galaxy (**bands 143–147 ✅**) + SW cache (**band 148 ✅**) + omniroute/semver (**band 149 ✅**) + live watchdog (**band 150 ✅**) + MCP catch-up (**band 151 ✅**) + MCP products select (**band 152 ✅**) + rust-first xtask (**band 153 ✅**) are closed.
+**Next drain = band 154** (`PH-S2179…S2188`) — watchdog ops card + fingerprint model (owner pick).
+Spec [`GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md) · [`GSV_POST_ALWAYS_ON.md`](gsv/GSV_POST_ALWAYS_ON.md).
 Always-on canon stays [`GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md).
-Speeds/Rust: `bash bin/record-test-speed.sh` + `bash bin/record-rust-diagnostics.sh`. Disk: `bash scripts/check_target_disk.sh`.
-Close: `bash scripts/gsv-bump-version.sh --band N` then `bash scripts/gsv-fingerprint.sh` in the same commit.
+Speeds/Rust: `cargo xtask record-speed` + `cargo xtask record-rust`. Disk: `cargo xtask disk`.
+Close: `cargo xtask bump --band N` then `cargo xtask fingerprint` in the same commit.
 
-**⚠️ Canon run is `bash scripts/gsv-live.sh` (`target/live/gsv-server.exe`) plus `bash scripts/gsv-watchdog.sh`.** Do not kill the live copy before `cargo test`/`build`. Only stop `target/debug/gsv-server.exe` if it is the listener. After apply, the supervisor recopies and rebinds :9999; the watchdog respawns if that shell is gone.
+**⚠️ Canon run is `cargo xtask live` (`target/live/gsv-server.exe`) plus `cargo xtask watchdog`.** Do not kill the live copy before `cargo test`/`build`. Only stop `target/debug/gsv-server.exe` if it is the listener. After apply, the supervisor recopies and rebinds :9999; the watchdog respawns if that process is gone.
 
 ## Band стан
 

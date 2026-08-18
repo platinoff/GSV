@@ -4,7 +4,7 @@
 
 ## Призначення
 
-- **Bin/exe** «Galaxy StarWalker Vision» — canon always-on: `bash scripts/gsv-live.sh` (`target/live/gsv-server.exe`). `cargo run --bin gsv-server` still works but **locks** `target/debug/` on Windows.
+- **Bin/exe** «Galaxy StarWalker Vision» — canon always-on: `cargo xtask live` (`target/live/gsv-server.exe`). `cargo run --bin gsv-server` still works but **locks** `target/debug/` on Windows.
 - Віддає static UI (спадкоємець деактивованого legacy `GSV/docs/vision/index.html` — band 117) + REST API боксів + події (SSE).
 - Працює як **self-contained server**: доки + метрики + бокs — все в одному Rust бінарнику.
 
@@ -26,6 +26,8 @@
 | GET | `/api/fingerprints` | drain fingerprints (`ok`, `path`, `count`, `fingerprints`; `?limit=` default 20, cap 100) |
 | GET | `/sw.js` | Rust-rendered Service Worker (shell Cache API; `Service-Worker-Allowed: /`) |
 | GET | `/api/watchdog` | live watchdog heartbeat (`ok`, `alive`, `path`, `last_action`) |
+| GET | `/api/xtask` | cargo xtask catalog (`?task=catalog\|products\|disk`; mutating names → 400) |
+| GET | `/api/disk` | S0 disk guard (`ok`, `free_gb`, `target_gb`; `?enforce=true`) |
 | GET | `/api/update` | статус оновлення (Update box; `live_copy` if running from `target/live/`) |
 | POST | `/api/update/notify` | виставити `update_available` + SSE |
 | POST | `/api/update/apply` | SSE `offline` + `{ok,applying}`; process exit unless `GSV_UPDATE_APPLY_EXIT=0` |
@@ -40,7 +42,7 @@
 | POST | `/api/omni/v1/chat/completions` | OpenAI-сумісний proxy (dry-run через `X-Omni-Dry-Run: 1`) |
 | POST | `/api/omni/test` | connectivity check провайдера (`GET {base}/models`) |
 | GET | `/api/health` | health-чек |
-| GET | `/mcp` | MCP discovery (`gsv_mcp_openbot` name + 32 tools + 8 resources + 3 prompts + `stdio`/`http`/`tool_count`/`resource_count`/`prompt_count`/`logging`/`completions`/`log_level`/`subscribe`/`subscription_count`/`sse`/`streamable`/`sessions`/`session_count`); `Accept: text/event-stream` flushes pending notifications as SSE; unknown `Mcp-Session-Id` → 404 |
+| GET | `/mcp` | MCP discovery (`gsv_mcp_openbot` name + 34 tools + 9 resources + 3 prompts + `stdio`/`http`/`tool_count`/`resource_count`/`prompt_count`/`logging`/`completions`/`log_level`/`subscribe`/`subscription_count`/`sse`/`streamable`/`sessions`/`session_count`); `Accept: text/event-stream` flushes pending notifications as SSE; unknown `Mcp-Session-Id` → 404 |
 | POST | `/mcp` | MCP JSON-RPC (initialize / tools/* / resources/* including subscribe/unsubscribe / prompts/* / logging/setLevel / completion/complete); `initialize` issues `Mcp-Session-Id`; unknown id → 404; `Accept: text/event-stream` → SSE notifications then result; stdio twin is `gsv-mcp` |
 | DELETE | `/mcp` | End HTTP MCP session (`Mcp-Session-Id` required; missing → 400; unknown → 404) |
 | GET | `/api/ui/layout` | grouped IA (ops/vision/sprint/studio) + `chrome` (8) + `html` (sidebar nav) + `header` (GPU/Auto/Power) |
@@ -103,7 +105,7 @@ cargo run --manifest-path GSV/Cargo.toml --bin gsv-http-stand-smoke -- --base-ur
 3. Вебсторінка **не падає** при офлайн — переходить у стан «offline».
 4. Після відновлення зв’язку **всі метрики синхронізуються** (resync).
 
-**Always-on (band 144 + watchdog):** run a live copy (`target/live/gsv-server.exe` via `scripts/gsv-live.sh`) so `cargo test`/`build` does not lock the listening process. `POST /api/update/apply` emits SSE `offline` and exits (gated by `GSV_UPDATE_APPLY_EXIT`); the supervisor recopies debug → live and rebinds `:9999`; the page stays **offline** until SSE `onopen` then resyncs. If the supervisor shell dies (Cursor abort), `gsv-watchdog` probes `/api/health` and respawns the live copy. Do **not** kill the live copy before `cargo test`. Spec: [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md).
+**Always-on (band 144 + watchdog + band 153 rust live):** run a live copy (`target/live/gsv-server.exe` via `cargo xtask live`) so `cargo test`/`build` does not lock the listening process. `POST /api/update/apply` emits SSE `offline` and exits (gated by `GSV_UPDATE_APPLY_EXIT`); the supervisor recopies debug → live and rebinds `:9999`; the page stays **offline** until SSE `onopen` then resyncs. If the supervisor process dies (Cursor abort), `gsv-watchdog` probes `/api/health` and respawns the live copy. Do **not** kill the live copy before `cargo test`. Spec: [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md).
 
 Реалізація (Rust):
 - Сервер тримає `update_flag` (AtomicBool) + версію бінарника.
@@ -111,17 +113,17 @@ cargo run --manifest-path GSV/Cargo.toml --bin gsv-http-stand-smoke -- --base-ur
 - UI показує кнопку/бейдж **Update** замість auto-reload; `doUpdate()` POSTs `/api/update/apply`.
 - Клієнтський JS тримає стан offline; при SSE `onopen` робить full-resync (Tracker/SLI/toolchain/speed/rust diagnostics).
 
-**Horizon (band 153 queued):** watchdog ops card + fingerprint model. Band **152 ✅** MCP `products_select` + scan-without-id (**32** tools, **8** resources). Spec: [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md).
+**Horizon (band 154 queued):** watchdog ops card + fingerprint model. Band **153 ✅** rust-first `cargo xtask` (**34** tools, **9** resources). Band **152 ✅** MCP `products_select`. Spec: [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md) · [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md).
 
 ## Live copy + apply (band 144)
 
 Windows locks a running exe. The canon listener is a **copy**:
 
 ```bash
-cargo build --bin gsv-server --bin gsv-watchdog
-bash scripts/gsv-live.sh          # copies target/debug → target/live, loop restart
-bash scripts/gsv-watchdog.sh      # detached health probe + respawn if :9999 dies
-bash scripts/gsv-watchdog-install.sh   # ONLOGON scheduled task (survives Cursor)
+cargo build --bin gsv-server --bin gsv-watchdog --bin gsv-live
+cargo xtask live                 # copies target/debug → target/live, loop restart
+cargo xtask watchdog             # detached health probe + respawn if :9999 dies
+cargo xtask watchdog-install     # ONLOGON scheduled task (survives Cursor)
 ```
 
 | Step | What happens |

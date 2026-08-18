@@ -1,0 +1,19 @@
+---
+description: GSV rust-first tests, benches, scripts — cargo xtask, no product .sh/.ps1
+globs: "{src/**,tests/**,benches/**,scripts/**,bin/**}"
+alwaysApply: true
+---
+
+# Rust-first tests / benches / scripts
+
+Product **tests** (`tests/*.rs`), **benches** (`benches/*.rs`), and **kit scripts** (`src/bin/` + `cargo xtask`) are **Rust**.
+
+Do **not** add `.sh`, `.ps1`, or JSON harnesses for those. JSON is data or host protocol (vision snapshots, `.mcp.json`), not a drain script.
+
+```
+cargo xtask products|disk|live|watchdog|sync|bump|fingerprint|record-speed|record-rust|mirrors|push
+cargo test
+cargo bench --bench gsv_dev
+```
+
+Canon: [`docs/gsv/GSV_RUST_DEV.md`](../../docs/gsv/GSV_RUST_DEV.md). MCP: `gsv_xtask` / `gsv_disk`. Agent shell is still MSYS2 bash to **invoke** cargo — that is not a product script.

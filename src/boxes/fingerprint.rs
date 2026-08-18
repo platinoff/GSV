@@ -117,6 +117,166 @@ pub fn clamp_limit(raw: Option<usize>) -> usize {
     raw.unwrap_or(20).clamp(1, 100)
 }
 
+/// Set `[package] version` so semver minor equals the VDT band.
+/// Same band already on minor N → patch +1. New band → `MAJOR.N.0`.
+pub fn bump_package_version(toml: &Path, band: u32) -> Result<String, String> {
+    let text = fs::read_to_string(toml).map_err(|e| format!("read {}: {e}", toml.display()))?;
+    let mut in_package = false;
+    let mut bumped = false;
+    let mut new_ver = String::new();
+    let mut out = String::new();
+    for line in text.lines() {
+        let t = line.trim();
+        if t.starts_with('[') {
+            in_package = t == "[package]";
+        }
+        if in_package && !bumped {
+            if let Some(rest) = t.strip_prefix("version") {
+                let rest = rest.trim().trim_start_matches('=').trim();
+                let ver = rest.trim_matches('"').trim_matches('\'').trim();
+                let mut parts = ver.split('.');
+                let major = parts.next().and_then(|s| s.parse::<u32>().ok());
+                let minor = parts.next().and_then(|s| s.parse::<u32>().ok());
+                let patch = parts.next().and_then(|s| s.parse::<u32>().ok());
+                if let (Some(major), Some(minor), Some(patch)) = (major, minor, patch) {
+                    let (minor, patch) = if minor == band {
+                        (minor, patch.saturating_add(1))
+                    } else {
+                        (band, 0)
+                    };
+                    new_ver = format!("{major}.{minor}.{patch}");
+                    out.push_str(&format!("version = \"{new_ver}\"\n"));
+                    bumped = true;
+                    in_package = false;
+                    continue;
+                }
+            }
+        }
+        out.push_str(line);
+        out.push('\n');
+    }
+    if !bumped {
+        return Err(format!(
+            "no [package] version = \"X.Y.Z\" in {}",
+            toml.display()
+        ));
+    }
+    fs::write(toml, out).map_err(|e| format!("write {}: {e}", toml.display()))?;
+    Ok(new_ver)
+}
+
+fn env_or(key: &str, default: &str) -> String {
+    std::env::var(key)
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| default.to_string())
+}
+
+fn git_head_short(root: &Path) -> Option<String> {
+    crate::vision::command("git")
+        .current_dir(root)
+        .args(["rev-parse", "--short", "HEAD"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+/// Commit trailers for the drain-close commit.
+pub fn trailers(fp: &Fingerprint) -> String {
+    format!(
+        "Gsv-Actor: {}\nGsv-Ide: {}\nGsv-Model: {}\nGsv-Product: {}\n",
+        fp.actor, fp.ide, fp.model, fp.product
+    )
+}
+
+/// Fields for [`record`].
+pub struct RecordOpts<'a> {
+    pub kit_root: &'a Path,
+    pub jsonl: Option<&'a Path>,
+    pub product_root: &'a Path,
+    pub actor: &'a str,
+    pub ide: &'a str,
+    pub model: &'a str,
+    pub agent: &'a str,
+    pub band: Option<&'a str>,
+    pub summary: &'a str,
+    pub product: &'a str,
+}
+
+/// Append one fingerprint (explicit fields; used by `cargo xtask fingerprint` and tests).
+pub fn record(opts: RecordOpts<'_>) -> Result<(Fingerprint, String), String> {
+    let version = pkg_version(opts.product_root).ok_or_else(|| {
+        format!(
+            "gsv-fingerprint: no version in {} (Cargo.toml / package.json)",
+            crate::boxes::products::display_path(opts.product_root)
+        )
+    })?;
+    let fp = Fingerprint {
+        ts: crate::vision::rfc3339_now(),
+        actor: opts.actor.into(),
+        ide: opts.ide.into(),
+        model: opts.model.into(),
+        agent: opts.agent.into(),
+        version,
+        git_head: git_head_short(opts.product_root),
+        band: opts.band.filter(|s| !s.is_empty()).map(str::to_string),
+        summary: opts.summary.into(),
+        product: opts.product.into(),
+    };
+    let path = opts
+        .jsonl
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| jsonl_path(opts.kit_root));
+    append(&path, &fp).map_err(|e| format!("append {}: {e}", path.display()))?;
+    let msg = format!(
+        "{}gsv-fingerprint: appended {} (product={} v{})\n",
+        trailers(&fp),
+        crate::boxes::products::display_path(&path),
+        fp.product,
+        fp.version
+    );
+    Ok((fp, msg))
+}
+
+/// Append one fingerprint from env (`GSV_ACTOR` / `GSV_IDE` / …).
+pub fn record_from_env(
+    kit_root: &Path,
+    jsonl: Option<&Path>,
+    product_root: Option<&Path>,
+) -> Result<(Fingerprint, String), String> {
+    let product = env_or("GSV_PRODUCT", "gsv");
+    let root = product_root
+        .map(Path::to_path_buf)
+        .or_else(|| std::env::var("GSV_PRODUCT_ROOT").ok().map(PathBuf::from))
+        .unwrap_or_else(|| kit_root.to_path_buf());
+    let path = jsonl.map(Path::to_path_buf).or_else(|| {
+        std::env::var("GSV_FINGERPRINT_FILE")
+            .ok()
+            .map(PathBuf::from)
+    });
+    let band = std::env::var("GSV_BAND").ok().filter(|s| !s.is_empty());
+    let actor = env_or("GSV_ACTOR", "agent");
+    let ide = env_or("GSV_IDE", "cursor");
+    let model = env_or("GSV_MODEL", "unknown");
+    let agent = env_or("GSV_AGENT", "orchestrator");
+    let summary = env_or("GSV_SUMMARY", "drain close");
+    record(RecordOpts {
+        kit_root,
+        jsonl: path.as_deref(),
+        product_root: &root,
+        actor: &actor,
+        ide: &ide,
+        model: &model,
+        agent: &agent,
+        band: band.as_deref(),
+        summary: &summary,
+        product: &product,
+    })
+}
+
 /// HTTP / card wire. `selected` is the VDT product id (may differ from GSV crate).
 pub fn wire(repo_root: &Path, selected: Option<&str>, limit: usize) -> Value {
     let fingerprints = latest(&jsonl_path(repo_root), limit);

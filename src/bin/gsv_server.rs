@@ -54,8 +54,24 @@ fn parse_args() -> (String, u16, Option<PathBuf>, Option<PathBuf>) {
     (host, port, repo_root, data_dir)
 }
 
+/// Prepend cargo + MSYS2 bins so a Hidden/watchdog start still finds git/bash.
+fn prepend_tool_path() {
+    let mut prefix = Vec::new();
+    if let Some(home) = std::env::var_os("USERPROFILE") {
+        prefix.push(std::path::PathBuf::from(home).join(".cargo").join("bin"));
+    }
+    prefix.push(std::path::PathBuf::from(r"C:\msys64\ucrt64\bin"));
+    prefix.push(std::path::PathBuf::from(r"C:\msys64\usr\bin"));
+    let old = std::env::var_os("PATH").unwrap_or_default();
+    let rest = std::env::split_paths(&old);
+    if let Ok(joined) = std::env::join_paths(prefix.into_iter().chain(rest)) {
+        std::env::set_var("PATH", joined);
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    prepend_tool_path();
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info,gsv=debug")),

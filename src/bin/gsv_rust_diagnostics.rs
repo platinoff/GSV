@@ -114,7 +114,7 @@ fn load_index(path: &Path) -> RustDiagnostics {
             schema_version: 1,
             notes: vec![
                 "Machine-readable Rust/Clippy warning+error index for vision Rust panel.".into(),
-                "Record via gsv-rust-diagnostics or bin/record-rust-diagnostics.sh.".into(),
+                "Record via cargo xtask record-rust.".into(),
             ],
             ..Default::default()
         },

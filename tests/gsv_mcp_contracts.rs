@@ -4,7 +4,8 @@
 //! terminal stays on the HTTP allowlist (no extra shell); Omni defaults to dry-run.
 //! Band 137: vision completeness (26 tools then) + preview confine.
 //! Band 151: always-on catch-up (31 tools + 8 resources).
-//! Band 152: `gsv_products_select` + scan-without-id (32 tools).
+//! Band 152: `gsv_products_select` + scan-without-id.
+//! Band 153: `gsv_xtask` + `gsv_disk` + `gsv://docs/rust-dev`.
 //! Band 138: resources/list+read (gsv:// allowlist) + prompts/list+get.
 //! Band 139: logging/setLevel + completion/complete (resource URIs + prompt names).
 //! Band 140: resources/subscribe+unsubscribe + logging notifications + resource updated.
@@ -141,7 +142,9 @@ async fn post_initialize_and_tools_list() {
     assert!(names.contains(&"gsv_watchdog"));
     assert!(names.contains(&"gsv_sw"));
     assert!(names.contains(&"gsv_fingerprints"));
-    assert_eq!(names.len(), 32);
+    assert!(names.contains(&"gsv_xtask"));
+    assert!(names.contains(&"gsv_disk"));
+    assert_eq!(names.len(), mcp::tool_names().len());
 }
 
 #[tokio::test]
@@ -432,10 +435,13 @@ async fn logging_and_completion_over_http() {
     let values = complete["result"]["completion"]["values"]
         .as_array()
         .expect("values");
-    assert_eq!(values.len(), 5);
+    assert_eq!(values.len(), 6);
     assert!(values
         .iter()
         .all(|v| v.as_str().unwrap_or("").starts_with("gsv://docs/")));
+    assert!(values
+        .iter()
+        .any(|v| v.as_str() == Some("gsv://docs/rust-dev")));
 
     let (status, rejected) = mcp_post(
         &app,
@@ -870,7 +876,7 @@ async fn watchdog_and_sw_tools_ok() {
     let app = app();
     for (id, name, needle) in [
         (82u64, "gsv_watchdog", "alive"),
-        (83, "gsv_sw", "gsv-shell-v1"),
+        (83, "gsv_sw", "gsv-shell-v2"),
     ] {
         let (status, body) = mcp_post(
             &app,

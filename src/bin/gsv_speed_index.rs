@@ -113,8 +113,7 @@ fn load_index(path: &Path) -> SpeedIndex {
             schema_version: 1,
             notes: vec![
                 "Machine-readable wall-clock index for cargo test + Criterion medians.".into(),
-                "Record via gsv-speed-index or bin/record-test-speed.sh (абракадабра drain)."
-                    .into(),
+                "Record via cargo xtask record-speed (абракадабра drain).".into(),
             ],
             ..Default::default()
         },

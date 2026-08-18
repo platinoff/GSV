@@ -16,7 +16,8 @@
 | [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md) | Always-on live binary, chrome bugs, products, version/fingerprints (spec, **143–150 ✅**) |
 | [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md) | After always-on: MCP catch-up (**band 151 ✅** · next **152** select) |
 | [`GSV_VDT_KIT.md`](./GSV_VDT_KIT.md) | GSV як точка входу: shared rules/skills vs product canon (Accepted, band 127) |
-| [`PRODUCTS.md`](./PRODUCTS.md) | Enrichment-реєстр; discover = `scripts/list-vdt-products.sh` |
+| [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md) | Rust-first tests/benches/scripts (`cargo xtask`; band **153 ✅**) |
+| [`PRODUCTS.md`](./PRODUCTS.md) | Enrichment-реєстр; discover = `cargo xtask products` |
 | [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) | MCP `gsv_mcp_openbot` (band 135–151 ✅ · **152** select queued) |
 | [`../GSV/docs/GSV_ROLES.md`](../GSV_ROLES.md) | Ролі GSV VDT + канон сесії + Rust ratio gate (band 108) |
 

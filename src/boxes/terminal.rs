@@ -4,7 +4,12 @@
 //! a whitelist check: the command's first token must be a known SLI tool and no
 //! shell metacharacters may appear (sandbox). Results are audited to the Tracker.
 
-use std::process::Command;
+//! SLI terminal box — execute whitelisted SLI commands (AI → server).
+//!
+//! `POST /api/terminal {command}` runs a command through MSYS2 bash (`-lc`) after
+//! a whitelist check: the command's first token must be a known SLI tool and no
+//! shell metacharacters may appear (sandbox). Results are audited to the Tracker.
+
 use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
@@ -30,6 +35,10 @@ pub const WHITELIST: &[&str] = &[
     "gsv-vision-sync",
     "gsv-rust-diagnostics",
     "gsv-speed-index",
+    "gsv-xtask",
+    "gsv-live",
+    "gsv-watchdog",
+    "gsv-mcp",
 ];
 
 /// `cargo` second token (no `run` / `install` / `publish`).
@@ -43,6 +52,8 @@ const CARGO_OK: &[&str] = &[
     "check",
     "test",
     "build",
+    "xtask",
+    "bench",
 ];
 
 /// Read-oriented `git` second token.
@@ -134,7 +145,10 @@ pub fn validate(command: &str) -> Result<(), String> {
 /// when bash is unavailable.
 pub fn execute(command: &str) -> (Option<i32>, String, String) {
     let bash = "C:/msys64/usr/bin/bash.exe";
-    let out = Command::new(bash).arg("-lc").arg(command).output();
+    let out = crate::vision::command(bash)
+        .arg("-lc")
+        .arg(command)
+        .output();
     match out {
         Ok(o) => (
             o.status.code(),
@@ -209,6 +223,8 @@ mod tests {
         assert!(validate("bash").is_err());
         assert!(validate("cat README.md").is_err());
         assert!(validate("cargo run").is_err());
+        assert!(validate("cargo xtask products").is_ok());
+        assert!(validate("cargo bench").is_ok());
         assert!(validate("git push").is_err());
         assert!(validate("echo ../secret").is_err());
     }

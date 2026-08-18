@@ -94,6 +94,8 @@ pub fn router(state: AppState) -> Router {
         .route("/api/omni/", get(api_omni_index))
         .route("/api/health", get(api_health))
         .route("/api/watchdog", get(api_watchdog))
+        .route("/api/xtask", get(api_xtask))
+        .route("/api/disk", get(api_disk))
         .route("/api/tracker", get(api_tracker))
         .route("/api/sli", get(api_sli))
         .route("/api/toolchain", get(api_toolchain))
@@ -293,6 +295,34 @@ async fn api_watchdog(State(state): State<AppState>) -> Json<Value> {
     Json(crate::boxes::watchdog::wire(&state.repo_root))
 }
 
+#[derive(serde::Deserialize)]
+struct XtaskQuery {
+    task: Option<String>,
+}
+
+async fn api_xtask(
+    State(state): State<AppState>,
+    Query(q): Query<XtaskQuery>,
+) -> impl IntoResponse {
+    let task = q.task.as_deref().unwrap_or("catalog");
+    match crate::boxes::xtask::mcp_run(&state.repo_root, task) {
+        Ok(v) => Json(v).into_response(),
+        Err(e) => err_json(StatusCode::BAD_REQUEST, &e),
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct DiskQuery {
+    enforce: Option<bool>,
+}
+
+async fn api_disk(State(state): State<AppState>, Query(q): Query<DiskQuery>) -> Json<Value> {
+    Json(crate::boxes::xtask::disk_wire(
+        &state.repo_root,
+        q.enforce.unwrap_or(false),
+    ))
+}
+
 fn accept_sse(headers: &HeaderMap) -> bool {
     crate::mcp::wants_sse(headers.get(header::ACCEPT).and_then(|v| v.to_str().ok()))
 }
@@ -397,7 +427,7 @@ async fn api_index() -> Json<Value> {
         "categories": [
             "/api/vision/", "/api/ui/", "/api/ratio/", "/api/toolchain/",
             "/api/ide/", "/api/omni/", "/api/sli", "/api/tracker", "/api/products",
-            "/api/fingerprints", "/api/sw", "/api/watchdog", "/sw.js",
+            "/api/fingerprints", "/api/sw", "/api/watchdog", "/api/xtask", "/api/disk", "/sw.js",
             "/api/hooks/", "/api/preview", "/api/terminal", "/data/", "/mcp"
         ],
         "example": "/api/vision",
@@ -1210,7 +1240,7 @@ async fn api_toolchain_detailed(State(state): State<AppState>) -> Json<Value> {
 }
 
 fn spawn_cargo(args: &[&str], repo_root: &std::path::Path) -> Response {
-    match std::process::Command::new("cargo")
+    match crate::vision::command("cargo")
         .args(args)
         .current_dir(repo_root)
         .spawn()
@@ -1280,7 +1310,7 @@ async fn api_vision_restart(State(state): State<AppState>) -> Json<Value> {
     let dir = std::env::current_dir().unwrap_or_default();
     tokio::spawn(async move {
         tokio::time::sleep(Duration::from_millis(200)).await;
-        let _ = std::process::Command::new(&exe).current_dir(&dir).spawn();
+        let _ = crate::vision::command(&exe).current_dir(&dir).spawn();
         std::process::exit(0);
     });
     Json(json!({ "ok": true, "action": "restart", "generated_at": vision::rfc3339_now() }))

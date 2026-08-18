@@ -37,7 +37,8 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 150** (live watchdog) **✅** ·
 **band 151** (MCP catch-up) **✅** ·
 **band 152** (MCP products select) **✅** ·
-**band 153** (watchdog ops card — queued) ·
+**band 153** (rust-first cargo xtask) **✅** ·
+**band 154** (watchdog ops card — queued) ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -784,24 +785,41 @@ Owner 2026-08-18: wrap products / scan / watchdog / sw / fingerprints on `gsv_mc
 | **PH-S2167** | (reserve) | — **✅** |
 | **PH-S2168** | Band close | tests **399** green; `--stretch-96` 96.61%; `--band 152` → `0.152.0` + fingerprint; one commit + push — **✅** |
 
-Band **153** (watchdog card + fingerprint model) stays sketched in the plan — do not start until 152 ✅.
+Band **153** (rust-first xtask) closed this session. Watchdog ops card moves to **band 154**.
 
-## Спринти (band 153) — watchdog ops card (queued)
+## Спринти (band 153) — rust-first tests/benches/scripts ✅
+
+Owner ask: product tests, benches, and kit scripts in `.rs` (`cargo xtask`), not `.sh` / `.ps1` / JSON harnesses. MCP `gsv_xtask` + `gsv_disk` + `gsv://docs/rust-dev`. Compared 10 Rust projects (cargo-xtask / rust-analyzer / cargo / helix / clap / tokio / ripgrep / wgpu / zellij / rustc bootstrap).
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2169** | Canon | `GSV_RUST_DEV.md` + `gsv-rust-dev.mdc` + `cargo xtask` alias — **✅** |
+| **PH-S2170** | Box + bins | `boxes/xtask.rs` · `gsv-xtask` · `gsv-live` — **✅** |
+| **PH-S2171** | Port scripts | products/disk/live/watchdog/push/mirrors/bump/fingerprint/record/sync — **✅** |
+| **PH-S2172** | MCP | `gsv_xtask` + `gsv_disk` + resource rust-dev (34 tools / 9 URIs) — **✅** |
+| **PH-S2173** | SLI / terminal / ratio | catalog `src/bin` + xtask; `cargo xtask` allowlist; ops_shell note — **✅** |
+| **PH-S2174** | Delete `.sh` | product `scripts/*.sh` / `bin/*.sh` gone — **✅** |
+| **PH-S2175** | Benches | `benches/gsv_dev.rs` (`cargo bench --bench gsv_dev`) — **✅** |
+| **PH-S2176** | Contracts | `gsv_xtask_contracts` + fingerprint/watchdog/update tests — **✅** |
+| **PH-S2177** | Docs / skills | AGENTS / HANDOFF / NEXT / abracadabra / MCP_OPENBOT — **✅** |
+| **PH-S2178** | Band close | tests green; `--band 153` + fingerprint; one commit + push — **✅** |
+
+## Спринти (band 154) — watchdog ops card (queued)
 
 Owner pick. Dedicated Galaxy ops card `watchdog`; optional fingerprint `model` from Cursor session. Still **no** MCP `products/open`, **no** `update/apply`, **no** Grok Bot tunnel.
 
 | Sprint | Фокус | Acceptance (ключ) |
 |--------|-------|-------------------|
-| **PH-S2169** | Scope + queue | this band; `active_sprint` = `PH-S2169` when code starts |
-| **PH-S2170** | Watchdog ops card | `render_watchdog` + `CARD_NAMES` + Galaxy ops |
-| **PH-S2171** | Fingerprint model | session vs env (default `unknown` stays valid) |
-| **PH-S2172** | (reserve) | — |
-| **PH-S2173** | (reserve) | — |
-| **PH-S2174** | (reserve) | — |
-| **PH-S2175** | (reserve) | — |
-| **PH-S2176** | Contracts | card + health row |
-| **PH-S2177** | Docs | HANDOFF / NEXT / BOXES |
-| **PH-S2178** | Band close | tests green; `--band 153` + fingerprint; one commit + push |
+| **PH-S2179** | Scope + queue | this band |
+| **PH-S2180** | Watchdog ops card | `render_watchdog` + `CARD_NAMES` + Galaxy ops |
+| **PH-S2181** | Fingerprint model | session vs env (default `unknown` stays valid) |
+| **PH-S2182** | (reserve) | — |
+| **PH-S2183** | (reserve) | — |
+| **PH-S2184** | (reserve) | — |
+| **PH-S2185** | (reserve) | — |
+| **PH-S2186** | Contracts | card + health row |
+| **PH-S2187** | Docs | HANDOFF / NEXT / BOXES |
+| **PH-S2188** | Band close | tests green; `--band 154` + fingerprint; one commit + push |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

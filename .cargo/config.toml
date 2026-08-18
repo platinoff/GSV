@@ -2,6 +2,9 @@
 #
 # An explicit CARGO_TARGET_DIR env var overrides this; when building GSV
 # leave it unset or set CARGO_TARGET_DIR=/s/rust/GSV/target.
+[alias]
+xtask = "run --quiet --bin gsv-xtask --"
+
 [build]
 target-dir = "target"
 

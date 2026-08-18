@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-18 · band 153 ✅)
+
+- **Band 153:** rust-first tests/benches/scripts — `cargo xtask` (`src/boxes/xtask.rs` + `gsv-xtask` / `gsv-live` bins). Deleted product `scripts/*.sh` / `bin/*.sh`. MCP `gsv_xtask` + `gsv_disk` + resource `gsv://docs/rust-dev`. **34** tools · **9** resources.
+- **Canon:** [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md) · [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+- **Next drain:** band **154** (`PH-S2179…S2188`) — watchdog ops card + fingerprint model (owner pick).
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.10%** (rust 20561 / product 20748) · **420** tests · clippy 0. Vision rev **515**.
+
 ## Стан (2026-08-18 · band 152 ✅)
 
 - **Band 152:** MCP `gsv_products_select` `{id}` (same allowlist as HTTP select; unknown → tool error); `gsv_products_scan` may omit `id` when `AppState` has a selection; `gsv_drain` names select then scan. **32** tools · **8** resources.
@@ -635,7 +643,7 @@
 1. **GSV — окремий Rust-проєкт** у `S:\rust\poolAI\GSV` (own workspace, own `target/`).
 2. **Ratio аудит іде по git-tracked файлах** репо poolAI під префіксом `GSV/` (не `GSV/target/`, не `data/`).
    git-топ має MSYS-стиль `/s/rust/poolAI` — нормалізуємо в `S:/rust/poolAI` (`normalize_git_root`).
-3. **Canon listener is `target/live/gsv-server.exe`** (`bash scripts/gsv-live.sh`). `cargo test`/`build` may overwrite `target/debug/`. Do **not** kill the live copy. Only stop `target/debug/gsv-server.exe` if *that* file is the listener (os error 5).
+3. **Canon listener is `target/live/gsv-server.exe`** (`cargo xtask live`). `cargo test`/`build` may overwrite `target/debug/`. Do **not** kill the live copy. Only stop `target/debug/gsv-server.exe` if *that* file is the listener (os error 5).
 4. **Data dir:** `GSV/data/*` gitignored (омні-конфіг, rust_ratio.json, трекер). Запуск:
    `--repo-root S:/rust/poolAI --data-dir S:/rust/poolAI/GSV/data --port 8891`.
 5. **Збірка:** terminal MSYS2 bash; PATH префікс `C:\Users\plati\.cargo\bin`.

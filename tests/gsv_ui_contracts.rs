@@ -472,6 +472,30 @@ async fn ui_index_readme_density_tokens() {
     );
 }
 
+/// Auto-resync must not toast, not rewrite identical HTML, and not refresh
+/// hidden groups (those probes spawn git/rustc and flash consoles on Windows).
+#[tokio::test]
+async fn ui_auto_resync_is_silent_skips_identical_and_visible_only() {
+    let (app, _state) = app();
+    let html = get_index_html(&app).await;
+    assert!(
+        html.contains("resync({silent:true})"),
+        "60s Auto must silent-resync: {html}"
+    );
+    assert!(
+        html.contains("el.innerHTML===d.html") || html.contains("el.innerHTML === d.html"),
+        "getText must skip identical HTML (box blink): {html}"
+    );
+    assert!(
+        html.contains("function visibleRustCards"),
+        "silent auto refreshes the visible group only"
+    );
+    assert!(
+        html.contains("sseOpened"),
+        "first SSE onopen must not double-resync all boxes"
+    );
+}
+
 /// Band 144: Update badge POSTs apply and stays offline until SSE reconnects.
 #[tokio::test]
 async fn ui_index_do_update_posts_apply() {

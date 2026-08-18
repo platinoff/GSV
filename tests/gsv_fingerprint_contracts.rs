@@ -20,15 +20,6 @@ fn kit_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
-fn msys_bash() -> std::process::Command {
-    let msys = PathBuf::from("C:/msys64/usr/bin/bash.exe");
-    if msys.is_file() {
-        std::process::Command::new(msys)
-    } else {
-        std::process::Command::new("bash")
-    }
-}
-
 fn tmp_jsonl() -> PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -234,10 +225,12 @@ fn card_names_include_fingerprints() {
 }
 
 #[test]
-fn bump_and_fingerprint_scripts_exist() {
+fn bump_and_fingerprint_are_rust() {
     let root = kit_root();
-    assert!(root.join("scripts/gsv-bump-version.sh").is_file());
-    assert!(root.join("scripts/gsv-fingerprint.sh").is_file());
+    assert!(root.join("src/boxes/fingerprint.rs").is_file());
+    assert!(root.join("src/boxes/xtask.rs").is_file());
+    assert!(!root.join("scripts/gsv-bump-version.sh").is_file());
+    assert!(!root.join("scripts/gsv-fingerprint.sh").is_file());
 }
 
 fn write_pkg_toml(dir: &Path, version: &str) -> PathBuf {
@@ -254,18 +247,11 @@ fn write_pkg_toml(dir: &Path, version: &str) -> PathBuf {
 }
 
 #[test]
-fn bump_version_script_sets_minor_to_band() {
+fn bump_version_sets_minor_to_band() {
     let dir = std::env::temp_dir().join(format!("gsv-bump-band-{}", std::process::id()));
     let toml = write_pkg_toml(&dir, "0.1.3");
-    let script = kit_root().join("scripts/gsv-bump-version.sh");
-    let st = msys_bash()
-        .arg(&script)
-        .arg("--band")
-        .arg("149")
-        .arg(&toml)
-        .status()
-        .expect("bash");
-    assert!(st.success(), "bump script exit");
+    let ver = fingerprint::bump_package_version(&toml, 149).expect("bump");
+    assert_eq!(ver, "0.149.0");
     let text = std::fs::read_to_string(&toml).expect("read toml");
     assert!(
         text.contains("version = \"0.149.0\""),
@@ -275,18 +261,11 @@ fn bump_version_script_sets_minor_to_band() {
 }
 
 #[test]
-fn bump_version_script_patches_within_same_band() {
+fn bump_version_patches_within_same_band() {
     let dir = std::env::temp_dir().join(format!("gsv-bump-patch-{}", std::process::id()));
     let toml = write_pkg_toml(&dir, "0.149.0");
-    let script = kit_root().join("scripts/gsv-bump-version.sh");
-    let st = msys_bash()
-        .arg(&script)
-        .arg("--band")
-        .arg("149")
-        .arg(&toml)
-        .status()
-        .expect("bash");
-    assert!(st.success(), "bump script exit");
+    let ver = fingerprint::bump_package_version(&toml, 149).expect("bump");
+    assert_eq!(ver, "0.149.1");
     let text = std::fs::read_to_string(&toml).expect("read toml");
     assert!(
         text.contains("version = \"0.149.1\""),
@@ -295,46 +274,34 @@ fn bump_version_script_patches_within_same_band() {
 }
 
 #[test]
-fn bump_version_script_requires_band() {
+fn bump_version_rejects_missing_package() {
     let dir = std::env::temp_dir().join(format!("gsv-bump-noband-{}", std::process::id()));
-    let toml = write_pkg_toml(&dir, "0.1.3");
-    let script = kit_root().join("scripts/gsv-bump-version.sh");
-    let st = msys_bash()
-        .arg(&script)
-        .arg(&toml)
-        .env_remove("GSV_BAND")
-        .status()
-        .expect("bash");
-    assert!(!st.success(), "bump without --band / GSV_BAND must fail");
+    std::fs::create_dir_all(&dir).expect("tmpdir");
+    let toml = dir.join("Cargo.toml");
+    std::fs::write(&toml, "[workspace]\nresolver = \"2\"\n").expect("write");
+    assert!(fingerprint::bump_package_version(&toml, 149).is_err());
 }
 
 #[test]
-fn fingerprint_script_appends_jsonl_and_prints_trailers() {
+fn fingerprint_record_appends_jsonl_and_prints_trailers() {
     let path = tmp_jsonl();
     let _ = std::fs::remove_file(&path);
-    let script = kit_root().join("scripts/gsv-fingerprint.sh");
-    let out = msys_bash()
-        .arg(&script)
-        .env("GSV_FINGERPRINT_FILE", &path)
-        .env("GSV_ACTOR", "agent")
-        .env("GSV_IDE", "cursor")
-        .env("GSV_MODEL", "grok-4.6")
-        .env("GSV_AGENT", "orchestrator")
-        .env("GSV_BAND", "146")
-        .env("GSV_SUMMARY", "contract")
-        .output()
-        .expect("bash");
-    assert!(
-        out.status.success(),
-        "stderr={}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    let stdout = String::from_utf8_lossy(&out.stdout);
+    let (fp, stdout) = fingerprint::record(fingerprint::RecordOpts {
+        kit_root: &kit_root(),
+        jsonl: Some(&path),
+        product_root: &kit_root(),
+        actor: "agent",
+        ide: "cursor",
+        model: "grok-4.6",
+        agent: "orchestrator",
+        band: Some("146"),
+        summary: "contract",
+        product: "gsv",
+    })
+    .expect("record");
     assert!(stdout.contains("Gsv-Actor: agent"), "{stdout}");
     assert!(stdout.contains("Gsv-Ide: cursor"), "{stdout}");
     assert!(stdout.contains("Gsv-Model: grok-4.6"), "{stdout}");
-    let text = std::fs::read_to_string(&path).expect("jsonl");
-    let fp: Fingerprint = serde_json::from_str(text.trim()).expect("parse");
     assert_eq!(fp.ide, "cursor");
     assert_eq!(fp.summary, "contract");
     assert_eq!(fp.version, env!("CARGO_PKG_VERSION"));
@@ -343,7 +310,7 @@ fn fingerprint_script_appends_jsonl_and_prints_trailers() {
 }
 
 #[test]
-fn fingerprint_script_uses_selected_product_pkg_version() {
+fn fingerprint_record_uses_selected_product_pkg_version() {
     let path = tmp_jsonl();
     let _ = std::fs::remove_file(&path);
     let prod = std::env::temp_dir().join(format!("gsv-fp-omni-{}", std::process::id()));
@@ -353,27 +320,20 @@ fn fingerprint_script_uses_selected_product_pkg_version() {
         r#"{"name":"omniroute","version":"3.8.50"}"#,
     )
     .expect("json");
-    let script = kit_root().join("scripts/gsv-fingerprint.sh");
-    let out = msys_bash()
-        .arg(&script)
-        .env("GSV_FINGERPRINT_FILE", &path)
-        .env("GSV_PRODUCT", "omniroute")
-        .env("GSV_PRODUCT_ROOT", &prod)
-        .env("GSV_ACTOR", "agent")
-        .env("GSV_IDE", "cursor")
-        .env("GSV_MODEL", "grok-4.6")
-        .env("GSV_SUMMARY", "omni drain")
-        .output()
-        .expect("bash");
-    assert!(
-        out.status.success(),
-        "stderr={}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    let stdout = String::from_utf8_lossy(&out.stdout);
+    let (fp, stdout) = fingerprint::record(fingerprint::RecordOpts {
+        kit_root: &kit_root(),
+        jsonl: Some(&path),
+        product_root: &prod,
+        actor: "agent",
+        ide: "cursor",
+        model: "grok-4.6",
+        agent: "orchestrator",
+        band: None,
+        summary: "omni drain",
+        product: "omniroute",
+    })
+    .expect("record");
     assert!(stdout.contains("Gsv-Product: omniroute"), "{stdout}");
-    let text = std::fs::read_to_string(&path).expect("jsonl");
-    let fp: Fingerprint = serde_json::from_str(text.trim()).expect("parse");
     assert_eq!(fp.product, "omniroute");
     assert_eq!(fp.version, "3.8.50");
     assert_ne!(fp.version, env!("CARGO_PKG_VERSION"));

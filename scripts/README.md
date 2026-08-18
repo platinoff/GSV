@@ -1,15 +1,20 @@
-# GSV kit scripts
+# GSV kit scripts → `cargo xtask`
 
-MSYS2 bash only (`C:\msys64\usr\bin\bash.exe`). No PowerShell. No `.ps1`.
+Product tests, benches, and scripts are **Rust**. There are no kit `.sh` / `.ps1` wrappers.
 
-| Script | Role |
-|--------|------|
-| `list-vdt-products.sh` | Discover workspace + sibling git repos for `абракадабра` / `abrakadabra` Step 0 |
-| `gsv-live.sh` | Always-on supervisor: copy `target/debug/gsv-server.exe` → `target/live/`, loop restart on :9999 |
-| `gsv-watchdog.sh` | Detach `gsv-watchdog` (health probe + respawn if :9999 dies) |
-| `gsv-watchdog-install.sh` | Persist watchdog: schtasks ONLOGON, or HKCU Run if schtasks is denied |
-| `check_target_disk.sh` | S0 disk guard (`GSV_MIN_FREE_DISK_GB` / `GSV_MAX_TARGET_DIR_GB`) |
-| `git-push-only.sh` | `git push origin main` after a sprint commit |
-| `sync-vdt-skill-mirrors.sh` | copy `.agents/skills/` → `.cursor/skills/` + `.opencode/skills/` |
+| Task | Command |
+|------|---------|
+| Discover VDT products | `cargo xtask products` |
+| Always-on live copy | `cargo xtask live` |
+| Detach watchdog | `cargo xtask watchdog` |
+| Persist watchdog | `cargo xtask watchdog-install` |
+| S0 disk | `cargo xtask disk` (`--enforce`) |
+| git push only | `cargo xtask push` |
+| Skill mirrors | `cargo xtask mirrors` |
+| Band bump | `cargo xtask bump --band N` |
+| Fingerprint | `cargo xtask fingerprint` |
+| Speed index | `cargo xtask record-speed` |
+| Rust diagnostics | `cargo xtask record-rust` |
+| Vision sync | `cargo xtask sync` (`--check`) |
 
-Product wrappers live in `bin/` (timing / clippy JSON / vision-sync). Rust bins stay in `src/bin/`.
+Implementation: `src/boxes/xtask.rs`. MCP: `gsv_xtask` / `gsv_disk`. Canon: [`docs/gsv/GSV_RUST_DEV.md`](../docs/gsv/GSV_RUST_DEV.md).

@@ -1,17 +1,17 @@
 //! VDT products picker — environment discovery, select, confined open, scan.
 //!
-//! Mirrors `scripts/list-vdt-products.sh` (workspace folders ∪ sibling git ∪ kit).
-//! Does **not** shell out to that script. Open path is an id in the discovered set.
+//! Same merge as `cargo xtask products` (workspace folders ∪ sibling git ∪ kit).
+//! Open path is an id in the discovered set.
 
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-/// One discovered environment project (same columns as `list-vdt-products.sh`).
+/// One discovered environment project (same columns as `cargo xtask products`).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ProductRow {
     pub id: String,
@@ -177,7 +177,7 @@ pub fn lookup<'a>(rows: &'a [ProductRow], id: &str) -> Option<&'a ProductRow> {
 }
 
 fn git_capture(cwd: &Path, args: &[&str]) -> String {
-    Command::new("git")
+    crate::vision::command("git")
         .current_dir(cwd)
         .args(args)
         .output()
@@ -278,9 +278,9 @@ pub fn open_folder(kit_root: &Path, id: &str) -> Result<String, String> {
         return Ok(how.to_string());
     }
     let mut cmd = if how == "cursor" {
-        Command::new("cursor")
+        crate::vision::command("cursor")
     } else {
-        Command::new("explorer.exe")
+        crate::vision::command("explorer.exe")
     };
     cmd.arg(&row.path)
         .stdin(Stdio::null())

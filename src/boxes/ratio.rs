@@ -11,7 +11,6 @@
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use serde::{Deserialize, Serialize};
 
@@ -157,7 +156,7 @@ fn normalize_git_root(root: &str) -> String {
 
 /// Git-tracked product paths in this GSV repo: `(absolute, git-relative)`.
 fn git_tracked_gsv_files(root: &Path) -> Result<Vec<(PathBuf, String)>, String> {
-    let top = Command::new("git")
+    let top = crate::vision::command("git")
         .args(["rev-parse", "--show-toplevel"])
         .current_dir(root)
         .output()
@@ -168,7 +167,7 @@ fn git_tracked_gsv_files(root: &Path) -> Result<Vec<(PathBuf, String)>, String> 
     let top = PathBuf::from(normalize_git_root(
         String::from_utf8_lossy(&top.stdout).trim(),
     ));
-    let output = Command::new("git")
+    let output = crate::vision::command("git")
         .args(["ls-files", "-z", "--full-name"])
         .current_dir(root)
         .output()
@@ -205,6 +204,9 @@ pub fn audit(root: &Path) -> Result<RustRatioReport, String> {
         if category == ProductCategory::Ignored {
             continue;
         }
+        if !path.is_file() {
+            continue;
+        }
         let text =
             std::fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
         let loc = count_loc(&text);
@@ -235,6 +237,12 @@ pub fn audit(root: &Path) -> Result<RustRatioReport, String> {
     let mut notes = Vec::new();
     if product_loc_total == 0 {
         notes.push("no product files found".to_string());
+    }
+    if by_category.get("ops_shell").is_some_and(|c| c.loc > 0) {
+        notes.push(
+            "ops_shell: product tests/benches/scripts belong in tests/, benches/, src/bin (cargo xtask), not .sh"
+                .into(),
+        );
     }
 
     Ok(RustRatioReport {
@@ -316,6 +324,10 @@ mod tests {
         assert_eq!(
             classify_product_path("GSV/scripts/tool.sh"),
             ProductCategory::OpsShell
+        );
+        assert_eq!(
+            classify_product_path("GSV/benches/gsv_dev.rs"),
+            ProductCategory::RustBenches
         );
         assert_eq!(
             classify_product_path("GSV/README.md"),
