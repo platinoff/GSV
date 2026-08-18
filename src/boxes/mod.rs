@@ -18,6 +18,7 @@
 //! | Fingerprints | `fingerprint` | `/api/fingerprints` | `docs/gsv/fingerprints.jsonl` |
 //! | Service Worker | `sw` | `/sw.js` · `/api/sw` | Rust-rendered shell cache |
 //! | Watchdog | `watchdog` | `/api/watchdog` | `target/live/watchdog.json` heartbeat + respawn live copy |
+//! | Usage | `usage` | `/api/usage` | per-session token counts (OmniRouter + MCP + OmniRoute) |
 //! | Xtask | `xtask` | `/api/xtask` · `/api/disk` | `cargo xtask` product automation (no `.sh`) |
 
 pub mod fingerprint;
@@ -33,6 +34,7 @@ pub mod terminal;
 pub mod toolchain;
 pub mod ui;
 pub mod update;
+pub mod usage;
 pub mod vision;
 pub mod watchdog;
 pub mod xtask;

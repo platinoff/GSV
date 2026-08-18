@@ -39,6 +39,7 @@
 | `products/` | VDT environment picker (discover / select / confined open / scan) |
 | `sw/` | Service Worker shell cache (`GET /sw.js` Rust-rendered; `GET /api/sw`) |
 | `watchdog/` | live watchdog heartbeat (`GET /api/watchdog`) + bin `gsv-watchdog` + Galaxy ops card `watchdog` (band **154 ✅**) |
+| `usage/` | session token usage (`GET /api/usage`) — OmniRouter + MCP bot + OmniRoute; Galaxy studio card `usage` (band **155 ✅**) |
 | `update/` | перевірка оновлення бінарника; сигнал «Update»; offline resync |
 | `mcp/` | `gsv_mcp_openbot` JSON-RPC (stdio `gsv-mcp` + `POST /mcp`); **32** tools + **8** `gsv://` (band **152 ✅** `products_select` + scan-without-id; **151 ✅** wraps products / scan / watchdog / sw / fingerprints) |
 
@@ -66,6 +67,7 @@
 | Toolchain-інвентар | `gsv_toolchain.json` | `GSV/data/` |
 | Сесії чатів (opencode/cursor) | read-only | `~/.local/share/opencode/`, `.cursor/` |
 | Метрики (speed, rust diagnostics) | `speed_index.json`, `rust_diagnostics.json` | `docs/vision/` (сирці) → `GSV/data/gsv_*.json` |
+| Session token usage | `gsv_usage.json` | `GSV/data/` (OmniRouter + MCP + OmniRoute pull) |
 
 ## Порядок реалізації (коротко)
 

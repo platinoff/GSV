@@ -40,13 +40,14 @@
 | POST | `/api/omni/config` | тюнінг провайдерів (base_url/api_key/enabled/priority/routing) |
 | GET | `/api/omni/v1/models` | OpenAI-сумісний список моделей |
 | POST | `/api/omni/v1/chat/completions` | OpenAI-сумісний proxy (dry-run через `X-Omni-Dry-Run: 1`) |
-| POST | `/api/omni/test` | connectivity check провайдера (`GET {base}/models`) |
+| GET | `/api/omni/test` | connectivity check провайдера (`GET {base}/models`) |
+| GET | `/api/usage` | per-session token totals (OmniRouter + MCP + OmniRoute pull; `data/gsv_usage.json`) |
 | GET | `/api/health` | health-чек |
-| GET | `/mcp` | MCP discovery (`gsv_mcp_openbot` name + 34 tools + 9 resources + 3 prompts + `stdio`/`http`/`tool_count`/`resource_count`/`prompt_count`/`logging`/`completions`/`log_level`/`subscribe`/`subscription_count`/`sse`/`streamable`/`sessions`/`session_count`); `Accept: text/event-stream` flushes pending notifications as SSE; unknown `Mcp-Session-Id` → 404 |
+| GET | `/mcp` | MCP discovery (`gsv_mcp_openbot` name + 35 tools + 9 resources + 3 prompts + `stdio`/`http`/`tool_count`/`resource_count`/`prompt_count`/`logging`/`completions`/`log_level`/`subscribe`/`subscription_count`/`sse`/`streamable`/`sessions`/`session_count`); `Accept: text/event-stream` flushes pending notifications as SSE; unknown `Mcp-Session-Id` → 404 |
 | POST | `/mcp` | MCP JSON-RPC (initialize / tools/* / resources/* including subscribe/unsubscribe / prompts/* / logging/setLevel / completion/complete); `initialize` issues `Mcp-Session-Id`; unknown id → 404; `Accept: text/event-stream` → SSE notifications then result; stdio twin is `gsv-mcp` |
 | DELETE | `/mcp` | End HTTP MCP session (`Mcp-Session-Id` required; missing → 400; unknown → 404) |
 | GET | `/api/ui/layout` | grouped IA (ops/vision/sprint/studio) + `chrome` (8) + `html` (sidebar nav) + `header` (GPU/Auto/Power) |
-| GET | `/api/ui/card/:name` | Rust-rendered card body HTML (`CARD_NAMES` 36, incl. `watchdog` + `sw` + `products` + `fingerprints`) |
+| GET | `/api/ui/card/:name` | Rust-rendered card body HTML (`CARD_NAMES` 37, incl. `usage` + `watchdog` + `sw` + `products` + `fingerprints`) |
 | GET | `/api/ui/load-palette` | live Galaxy `:root` CSS (`GalaxyPalette::as_css_root`) |
 | GET | `/api/ui/load-theme` | live sprint `:root` CSS (`SprintThemeReport::as_css_root`) |
 | GET | `/data/{file}` | allowlisted JSON snapshot under `data/` (no `omni.toml`) |
@@ -113,7 +114,7 @@ cargo run --manifest-path GSV/Cargo.toml --bin gsv-http-stand-smoke -- --base-ur
 - UI показує кнопку/бейдж **Update** замість auto-reload; `doUpdate()` POSTs `/api/update/apply`.
 - Клієнтський JS тримає стан offline; при SSE `onopen` робить full-resync (Tracker/SLI/toolchain/speed/rust diagnostics).
 
-**Horizon (band 154 queued):** watchdog ops card + fingerprint model. Band **153 ✅** rust-first `cargo xtask` (**34** tools, **9** resources). Band **152 ✅** MCP `products_select`. Spec: [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md) · [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md).
+**Horizon:** band **155 ✅** session token usage (`GET /api/usage`, MCP `gsv_usage`, **35** tools, `CARD_NAMES` 37). Band **154 ✅** watchdog ops card + fingerprint model. Band **153 ✅** rust-first `cargo xtask`. Next drain = scan / owner pick. Spec: [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md) · [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md).
 
 ## Live copy + apply (band 144)
 

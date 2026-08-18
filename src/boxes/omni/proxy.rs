@@ -17,6 +17,8 @@ use axum::response::Response;
 use serde_json::{json, Value};
 
 use crate::app_error::AppError;
+use crate::boxes::usage;
+use crate::AppState;
 
 use super::catalog;
 use super::config::OmniConfig;
@@ -83,10 +85,11 @@ pub fn select_provider(
 
 /// OpenAI-compatible `POST /chat/completions`.
 pub async fn chat_completions(
-    omni: &OmniRouter,
+    state: &AppState,
     headers: &HeaderMap,
     raw: &[u8],
 ) -> Result<Response, AppError> {
+    let omni = &state.omni;
     let body: Value = serde_json::from_slice(raw)
         .map_err(|e| AppError::new(format!("invalid JSON body: {e}")))?;
     let model = body
@@ -137,7 +140,7 @@ pub async fn chat_completions(
     if streaming {
         stream_response(upstream).await
     } else {
-        json_response(upstream).await
+        json_response(upstream, state, headers, &model, &provider_id).await
     }
 }
 
@@ -209,13 +212,32 @@ fn explicit_provider(headers: &HeaderMap, body: &Value) -> Option<String> {
 }
 
 /// Non-streaming JSON response with the upstream status code.
-async fn json_response(upstream: reqwest::Response) -> Result<Response, AppError> {
+async fn json_response(
+    upstream: reqwest::Response,
+    state: &AppState,
+    headers: &HeaderMap,
+    model: &str,
+    provider_id: &str,
+) -> Result<Response, AppError> {
     let status = upstream.status();
     let bytes = upstream
         .bytes()
         .await
         .map_err(|e| AppError::new(format!("upstream body: {e}")))?;
     let value: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+    if let Some(counts) = usage::parse_usage(&value) {
+        usage::record_into(
+            state,
+            usage::event_now(
+                &usage::session_from_headers(headers),
+                &usage::source_from_headers(headers),
+                provider_id,
+                model,
+                counts,
+            ),
+        )
+        .await;
+    }
     let payload = serde_json::to_vec(&value).unwrap_or_else(|_| b"null".to_vec());
     let mut builder = Response::builder().status(status);
     builder = builder.header(header::CONTENT_TYPE, "application/json");

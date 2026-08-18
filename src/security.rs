@@ -15,6 +15,7 @@ pub const DATA_FILES: &[&str] = &[
     "gsv_extensions.json",
     "gsv_speed_index.json",
     "gsv_rust_diagnostics.json",
+    "gsv_usage.json",
     "rust_ratio.json",
 ];
 

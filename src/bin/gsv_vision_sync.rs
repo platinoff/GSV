@@ -82,6 +82,9 @@ fn main() -> ExitCode {
                 if !report.rust_diagnostics_target.is_empty() {
                     println!("  -> {}", report.rust_diagnostics_target);
                 }
+                if !report.usage_target.is_empty() {
+                    println!("  -> {}", report.usage_target);
+                }
                 ExitCode::SUCCESS
             }
             Err(e) => {

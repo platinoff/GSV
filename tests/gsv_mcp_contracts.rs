@@ -144,6 +144,7 @@ async fn post_initialize_and_tools_list() {
     assert!(names.contains(&"gsv_fingerprints"));
     assert!(names.contains(&"gsv_xtask"));
     assert!(names.contains(&"gsv_disk"));
+    assert!(names.contains(&"gsv_usage"));
     assert_eq!(names.len(), mcp::tool_names().len());
 }
 
@@ -935,6 +936,7 @@ async fn drain_prompt_names_always_on_tools() {
     assert!(text.contains("gsv_products_scan"), "{text}");
     assert!(text.contains("gsv_products_select"), "{text}");
     assert!(text.contains("gsv_watchdog"), "{text}");
+    assert!(text.contains("gsv_usage"), "{text}");
     assert!(text.contains("gsv://docs/next"), "{text}");
     assert!(text.contains("mid-drain"), "{text}");
 }

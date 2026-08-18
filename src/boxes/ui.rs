@@ -144,7 +144,14 @@ pub const UI_GROUPS: [UiGroup; 4] = [
     UiGroup {
         id: "studio",
         label: "Studio",
-        cards: &["ide", "omni", "ratio", "speed-index", "rust-diagnostics"],
+        cards: &[
+            "ide",
+            "omni",
+            "usage",
+            "ratio",
+            "speed-index",
+            "rust-diagnostics",
+        ],
     },
 ];
 
@@ -1088,6 +1095,58 @@ pub fn render_fingerprints(d: &Value) -> String {
     out
 }
 
+/// Session token usage (`/api/usage`) — OmniRouter + MCP + OmniRoute.
+pub fn render_usage(d: &Value) -> String {
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let sessions = arr(&d["sessions"]);
+    let prompt = u(&d["process"]["prompt_tokens"]);
+    let completion = u(&d["process"]["completion_tokens"]);
+    let total = u(&d["process"]["total_tokens"]);
+    let requests = u(&d["process"]["requests"]);
+    let or_ok = b(&d["omniroute"]["ok"]);
+    if sessions.is_empty() && total == 0 && !or_ok {
+        return empty_html("usage");
+    }
+    let mut out = format!(
+        "<div class='dim'>session tokens · requests <kbd>{}</kbd> · prompt <kbd>{}</kbd> · completion <kbd>{}</kbd> · total <kbd>{}</kbd></div>",
+        format_number(requests),
+        format_number(prompt),
+        format_number(completion),
+        format_number(total)
+    );
+    if !sessions.is_empty() {
+        let rows: Vec<Vec<String>> = sessions
+            .iter()
+            .map(|row| {
+                vec![
+                    esc(&s(&row["session"])),
+                    esc(&s(&row["source"])),
+                    format_number(u(&row["requests"])),
+                    format_number(u(&row["prompt_tokens"])),
+                    format_number(u(&row["completion_tokens"])),
+                    format_number(u(&row["total_tokens"])),
+                ]
+            })
+            .collect();
+        out.push_str(&tab(
+            &["session", "source", "req", "prompt", "completion", "total"],
+            rows,
+        ));
+    }
+    let or = &d["omniroute"];
+    if or_ok || !s(&or["error"]).is_empty() || u(&or["total_tokens"]) > 0 {
+        out.push_str(&format!(
+            "<div class='dim'>omniroute <kbd>{}</kbd> · req <kbd>{}</kbd> · tokens <kbd>{}</kbd></div>",
+            esc(&s(&or["base_url"])),
+            format_number(u(&or["requests"])),
+            format_number(u(&or["total_tokens"]))
+        ));
+    }
+    out
+}
+
 /// Live watchdog ops card (`/api/watchdog`).
 pub fn render_watchdog(d: &Value) -> String {
     if let Some(msg) = not_ok(d) {
@@ -1518,6 +1577,7 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
         "fingerprints" => Some(render_fingerprints(d)),
         "sw" => Some(render_sw(d)),
         "watchdog" => Some(render_watchdog(d)),
+        "usage" => Some(render_usage(d)),
         "mcp" => Some(render_mcp(d)),
         "update" => Some(render_update(d)),
         "ide" => Some(render_ide(d)),
@@ -1541,7 +1601,7 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
 }
 
 /// Server-rendered card names (stable contract for `/api/ui/card/:name`).
-pub const CARD_NAMES: [&str; 36] = [
+pub const CARD_NAMES: [&str; 37] = [
     "tracker",
     "sli",
     "toolchain",
@@ -1560,6 +1620,7 @@ pub const CARD_NAMES: [&str; 36] = [
     "fingerprints",
     "sw",
     "watchdog",
+    "usage",
     "mcp",
     "update",
     "ide",
@@ -1955,7 +2016,8 @@ mod tests {
         assert!(render_card("products", &d).is_some());
         assert!(render_card("fingerprints", &d).is_some());
         assert!(render_card("nope", &d).is_none());
-        assert_eq!(CARD_NAMES.len(), 36);
+        assert_eq!(CARD_NAMES.len(), 37);
+        assert!(render_card("usage", &d).is_some());
         assert!(render_card("sw", &d).is_some());
         assert!(render_card("watchdog", &d).is_some());
         assert!(render_card("health", &d).is_some());

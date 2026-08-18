@@ -1,6 +1,6 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-08-18 (band 154 ✅ · watchdog ops card + fingerprint model)
+**Оновлено:** 2026-08-18 (band 155 ✅ · session token usage)
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
 **`абракадабра` / `abrakadabra`** → `cargo xtask products` → **AskQuestion на проєкти з environment**
@@ -11,14 +11,15 @@ Speeds + Rust panel → vision-sync → **один commit** → **`git push` + �
 Якщо вибір **gsv:** scan [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) first
 (always-on [`gsv/GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md) **143–150 ✅**;
 MCP catch-up **151 ✅**; MCP products select **152 ✅**; rust-first xtask **153 ✅**;
-watchdog card **154 ✅**). MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+watchdog card **154 ✅**; session token usage **155 ✅**). MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
 Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 Канон ролей: [`GSV_ROLES.md`](GSV_ROLES.md). Реєстр: [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
 
 ## Стан зараз
 
-- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–153 · **154 ✅**.
-- **Next drain (gsv):** scan / owner pick. Band **154** watchdog ops card `CARD_NAMES` **36** + fingerprint `model` (env then Cursor session; default `unknown`). Band **153** rust-first `cargo xtask` (**34** tools, **9** resources).
+- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–154 · **155 ✅**.
+- **Next drain (gsv):** scan / owner pick. Band **155** session token usage (`GET /api/usage`, MCP `gsv_usage`, OmniRoute pull, vision-sync snapshot; `CARD_NAMES` **37**, **35** tools). Band **154** watchdog ops card + fingerprint `model`. Band **153** rust-first `cargo xtask` (**34** tools, **9** resources).
+- **Band 155:** automatic per-session token spend — OmniRouter completions + MCP bot (`Mcp-Session-Id` / stdio) + fail-open OmniRoute `/api/usage/history`; persist `data/gsv_usage.json`; Galaxy studio card `usage`. Streaming completions not recorded (P1 leftover).
 - **Band 154:** Galaxy ops card `watchdog` (`render_watchdog` + `/api/ui/card/watchdog`); fingerprint `resolve_model` (`GSV_MODEL` > `CURSOR_MODEL` / `GSV_SESSION_FILE` > `unknown`). Health row `watchdog_alive` kept.
 - **Band 152:** MCP `gsv_products_select` `{id}` (same allowlist as `POST /api/products/select`; unknown → tool error); `gsv_products_scan` may omit `id` when selected; `gsv_drain` names select then scan.
 - **Band 151:** MCP catch-up — `gsv_products` / `gsv_products_scan` / `gsv_watchdog` / `gsv_sw` / `gsv_fingerprints`; resources `gsv://docs/fingerprints` + `gsv://docs/post-always-on`; `gsv_drain` prompt names the new tools.
@@ -46,9 +47,9 @@ Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 - **Band 134:** HTTP response hardening — CSP / nosniff / DENY / no-store / COOP+CORP; POST 256 KiB cap → 413 `{ok:false}`.
 - **VDT kit (band 127):** shared `.agents/skills/` + generic `.cursor/rules/` + `gsv.code-workspace` + `PRODUCTS.md`.
   Discover: `cargo xtask products` (не hardcoded `gsv | poolai`).
-- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.14%** (rust 21660 / product 21848) · **428** green · clippy 0 · fmt clean.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.14%** (rust 21800 / product 21989) · **445** green · clippy 0 · fmt clean.
 - **Сервер:** canon порт **9999** (`DEFAULT_PORT`; 8765 — Hyper-V reserved range).
-- **Vision rev:** **516** (band 154 `cargo xtask sync`; next `PH-S2189`).
+- **Vision rev:** **516** (band 155 `cargo xtask sync`; next `PH-S2199`).
 - **Live UI** — `gsv-server` → `http://127.0.0.1:9999/`. MCP stdio — `cargo run --quiet --bin gsv-mcp`.
 - **Band 133:** localhost security — `--allow-lan`; CSRF POST gate; terminal cargo/git allowlists; `/data/{file}` allowlist; preview canonicalize.
 - **FM:** band 127 = PoolAI FM §5.108 (PH-S1909…S1918 ✅). Master horizon poolAI: band 128.

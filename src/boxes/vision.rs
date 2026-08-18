@@ -163,6 +163,8 @@ pub struct SyncReport {
     pub speed_index_target: String,
     #[serde(default)]
     pub rust_diagnostics_target: String,
+    #[serde(default)]
+    pub usage_target: String,
     pub synced_at: String,
 }
 
@@ -1224,6 +1226,7 @@ pub fn sync(repo_root: &Path, data_dir: &Path) -> Result<SyncReport, String> {
         extensions_target: extensions_target(data_dir).to_string_lossy().to_string(),
         speed_index_target: speed_target,
         rust_diagnostics_target: rust_diag_target,
+        usage_target: crate::boxes::usage::touch_snapshot(data_dir),
         synced_at: crate::vision::rfc3339_now(),
     })
 }
@@ -1278,6 +1281,7 @@ pub fn wire_sync(repo_root: &Path, data_dir: &Path) -> Value {
             "manifest_target": r.manifest_target,
             "feed_target": r.feed_target,
             "extensions_target": r.extensions_target,
+            "usage_target": r.usage_target,
             "synced_at": r.synced_at,
         }),
         Err(e) => json!({ "ok": false, "drift": drift, "error": e }),

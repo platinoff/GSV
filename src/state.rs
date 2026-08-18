@@ -17,6 +17,7 @@ use serde_json::Value;
 use tokio::sync::{broadcast, RwLock};
 
 use crate::boxes::omni::OmniRouter;
+use crate::boxes::usage::UsageStore;
 use crate::tracker::TrackerStore;
 
 /// Shared application state for the GSV server.
@@ -34,6 +35,8 @@ pub struct AppState {
     pub tracker: Arc<RwLock<TrackerStore>>,
     /// OmniRouter box (provider/model catalog, config, OpenAI-compatible proxy).
     pub omni: Arc<OmniRouter>,
+    /// Per-session token usage (OmniRouter + MCP + OmniRoute snapshot).
+    pub usage: Arc<RwLock<UsageStore>>,
     /// Currently selected IDE session (in-memory selection).
     pub ide_selection: Arc<RwLock<Option<crate::boxes::ide::IdeSelection>>>,
     /// Currently selected VDT product id (in-memory; from `/api/products/select`).
@@ -69,6 +72,7 @@ impl AppState {
         let data = data_dir.unwrap_or_else(|| root.join("data"));
         let tracker = TrackerStore::load(&root, &data).unwrap_or_default();
         let omni = OmniRouter::new(&data);
+        let usage = crate::boxes::usage::load(&data);
         Self {
             repo_root: Arc::new(root),
             data_dir: Arc::new(data),
@@ -76,6 +80,7 @@ impl AppState {
             started_at: SystemTime::now(),
             tracker: Arc::new(RwLock::new(tracker)),
             omni: Arc::new(omni),
+            usage: Arc::new(RwLock::new(usage)),
             ide_selection: Arc::new(RwLock::new(None)),
             product_selected: Arc::new(Mutex::new(None)),
             update_flag: Arc::new(AtomicBool::new(false)),

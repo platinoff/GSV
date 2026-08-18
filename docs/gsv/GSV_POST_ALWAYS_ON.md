@@ -1,9 +1,9 @@
 # GSV after always-on — MCP catch-up (conception)
 
-**Status:** Landed (band **154** ✅ · watchdog ops card + fingerprint model)  
+**Status:** Landed (band **155** ✅ · session token usage · band **154** ✅ watchdog ops card + fingerprint model)  
 **Date:** 2026-08-18  
 **Owner ask:** update needed docs/plans; put what the next `абракадабра` / `abrakadabra` on **gsv** must drain.  
-**Scan (same day):** clippy 0 · roadmap 102–154 all ✅ · no `TODO` in `src/` · always-on P2 leftovers closed except Grok Bot tunnel (owner opt-in).
+**Scan (same day):** clippy 0 · roadmap 102–155 all ✅ · no `TODO` in `src/` · always-on P2 leftovers closed except Grok Bot tunnel (owner opt-in). Streaming token record remains P1.
 
 **Plan:** [`docs/superpowers/plans/2026-08-18-mcp-always-on-catchup.md`](../superpowers/plans/2026-08-18-mcp-always-on-catchup.md)  
 **Roadmap:** band **152** (then 153) in [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md)  
@@ -13,7 +13,7 @@
 
 Always-on Galaxy is the live product: `:9999` stays up across `cargo test` (live copy + watchdog), the page goes offline only during binary swap, and ops cards exist for **products**, **fingerprints**, **sw**, and **watchdog** (health row).
 
-`gsv_mcp_openbot` wraps those boxes as of band **153**: **34 tools**, **9 `gsv://` resources**, **3 prompts**. An agent that starts from `абракадабра` or from Cursor/OpenCode MCP can list environment products (`gsv_xtask` / `gsv_products`), select one, scan a HANDOFF, check disk (`gsv_disk`), see whether the watchdog is alive, and read drain fingerprints. Product tests/benches/scripts are `cargo xtask` — [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md).
+`gsv_mcp_openbot` wraps those boxes as of band **155**: **35 tools**, **9 `gsv://` resources**, **3 prompts**. Session token usage is `gsv_usage` / `GET /api/usage` (OmniRouter + MCP + OmniRoute, mirrored on vision-sync). Product tests/benches/scripts are `cargo xtask` — [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md).
 
 Cost of leaving it: the next drain session invents work, or the agent repeats a warnings-first scan with no queued band. This spec is the queued band.
 

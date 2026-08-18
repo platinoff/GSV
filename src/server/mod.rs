@@ -94,6 +94,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/omni/", get(api_omni_index))
         .route("/api/health", get(api_health))
         .route("/api/watchdog", get(api_watchdog))
+        .route("/api/usage", get(api_usage))
         .route("/api/xtask", get(api_xtask))
         .route("/api/disk", get(api_disk))
         .route("/api/tracker", get(api_tracker))
@@ -295,6 +296,11 @@ async fn api_watchdog(State(state): State<AppState>) -> Json<Value> {
     Json(crate::boxes::watchdog::wire(&state.repo_root))
 }
 
+async fn api_usage(State(state): State<AppState>) -> Json<Value> {
+    crate::boxes::usage::merge_omniroute_pull(&state).await;
+    Json(crate::boxes::usage::wire_state(&state).await)
+}
+
 #[derive(serde::Deserialize)]
 struct XtaskQuery {
     task: Option<String>,
@@ -380,7 +386,8 @@ async fn api_mcp_post(State(state): State<AppState>, headers: HeaderMap, body: B
             } else {
                 None
             };
-            match crate::mcp::handle_value(&state, v).await {
+            let session = crate::mcp::mcp_session_id_from_headers(&headers);
+            match crate::mcp::handle_value_in(&state, v, session.as_deref()).await {
                 Some(out) => {
                     let notes = state.drain_mcp_notifications();
                     let mut res = if sse {
@@ -427,7 +434,7 @@ async fn api_index() -> Json<Value> {
         "categories": [
             "/api/vision/", "/api/ui/", "/api/ratio/", "/api/toolchain/",
             "/api/ide/", "/api/omni/", "/api/sli", "/api/tracker", "/api/products",
-            "/api/fingerprints", "/api/sw", "/api/watchdog", "/api/xtask", "/api/disk", "/sw.js",
+            "/api/fingerprints", "/api/sw", "/api/watchdog", "/api/usage", "/api/xtask", "/api/disk", "/sw.js",
             "/api/hooks/", "/api/preview", "/api/terminal", "/data/", "/mcp"
         ],
         "example": "/api/vision",
@@ -826,6 +833,10 @@ async fn card_wire(state: &AppState, name: &str, q: &CardQuery) -> Result<Value,
         }
         "sw" => crate::boxes::sw::wire(),
         "watchdog" => crate::boxes::watchdog::wire(&state.repo_root),
+        "usage" => {
+            crate::boxes::usage::merge_omniroute_pull(state).await;
+            crate::boxes::usage::wire_state(state).await
+        }
         "mcp" => crate::mcp::http_info(state),
         "update" => json!(crate::boxes::update::wire(state)),
         "ide" => {
@@ -981,6 +992,7 @@ async fn api_vision_doc_preview(
 }
 
 async fn api_vision_sync(State(state): State<AppState>) -> Json<Value> {
+    crate::boxes::usage::merge_omniroute_pull(&state).await;
     Json(crate::boxes::vision::wire_sync(
         &state.repo_root,
         &state.data_dir,
@@ -1414,7 +1426,7 @@ async fn api_omni_v1_models(State(state): State<AppState>) -> Response {
 }
 
 async fn api_omni_chat(State(state): State<AppState>, headers: HeaderMap, body: Bytes) -> Response {
-    crate::boxes::omni::proxy::chat_completions(&state.omni, &headers, &body)
+    crate::boxes::omni::proxy::chat_completions(&state, &headers, &body)
         .await
         .unwrap_or_else(api_error_response)
 }

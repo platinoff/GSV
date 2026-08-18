@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-18 · band 155 ✅)
+
+- **Band 155:** session token usage — `boxes/usage.rs` aggregates OmniRouter completions + MCP bot (`gsv_omni_chat` / `Mcp-Session-Id`) + fail-open OmniRoute `/api/usage/history`; persist `data/gsv_usage.json`; `GET /api/usage` + Galaxy studio card `usage` (`CARD_NAMES` **37**); MCP tool `gsv_usage` (**35** tools); vision-sync snapshot. Dry-run / zero usage not counted. Streaming not recorded (P1).
+- **Canon:** [`gsv/GSV_POST_ALWAYS_ON.md`](gsv/GSV_POST_ALWAYS_ON.md) · [`gsv/GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md) · [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+- **Next drain:** scan / owner pick (Grok Bot tunnel stays opt-in).
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.14%** (rust 21800 / product 21989) · **445** tests · clippy 0. Vision rev **516**.
+
 ## Стан (2026-08-18 · band 154 ✅)
 
 - **Band 154:** watchdog ops card (`render_watchdog`, `CARD_NAMES` **36**, Galaxy ops) + fingerprint `model` from `GSV_MODEL` else Cursor session (`CURSOR_MODEL` / `GSV_SESSION_FILE`); default `unknown` stays valid. Health row `watchdog_alive` kept.

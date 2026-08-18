@@ -1,6 +1,6 @@
 # gsv_mcp_openbot — GSV as an MCP server
 
-**Status:** Implemented (band **153**, rust-first xtask · band **152**, `PH-S2159…S2168` ✅ · band **151**, `PH-S2149…S2158` ✅ · band 142 `PH-S2059…S2068` ✅ · band 141 `PH-S2049…S2058` ✅ · band 140 `PH-S2039…S2048` ✅ · band 139 `PH-S2029…S2038` ✅ · band 138 `PH-S2019…S2028` ✅ · band 137 `PH-S2009…S2018` ✅ · band 136 `PH-S1999…S2008` ✅ · band 135 `PH-S1989…S1998` ✅) · **Horizon band 154 queued** (watchdog ops card) · **Date:** 2026-08-18
+**Status:** Implemented (band **155**, session token usage · band **154**, watchdog ops card · band **153**, rust-first xtask · band **152**, `PH-S2159…S2168` ✅ · band **151**, `PH-S2149…S2158` ✅ · band 142 `PH-S2059…S2068` ✅ · band 141 `PH-S2049…S2058` ✅ · band 140 `PH-S2039…S2048` ✅ · band 139 `PH-S2029…S2038` ✅ · band 138 `PH-S2019…S2028` ✅ · band 137 `PH-S2009…S2018` ✅ · band 136 `PH-S1999…S2008` ✅ · band 135 `PH-S1989…S1998` ✅) · **Date:** 2026-08-18
 **Deciders:** owner
 
 GSV exposes one MCP server named **`gsv_mcp_openbot`**. OpenCode, Cursor, Grok CLI, and Grok Bot consume the **same** tools. Those products stay **clients** — they are not embedded inside `gsv-server`.
@@ -13,7 +13,7 @@ GSV exposes one MCP server named **`gsv_mcp_openbot`**. OpenCode, Cursor, Grok C
 | HTTP | `GET /mcp` (discovery JSON unless `Accept: text/event-stream`) · `POST /mcp` JSON-RPC; SSE flushes notifications when Accept lists `text/event-stream`; `initialize` issues `Mcp-Session-Id`; `DELETE /mcp` ends the session; loopback unless `--allow-lan` |
 | Auto-register | `.mcp.json` · `.cursor/mcp.json` · `opencode.json` `mcp.gsv_mcp_openbot` · `.grok/config.toml` |
 | Galaxy card | `GET /api/ui/card/mcp` (`render_mcp`, ops group, `CARD_NAMES` 32) |
-| Tools (34) | health / tracker / ratio / sli / toolchain / vision (summary) / vision_{manifest,feed,queue,map,board,progress,speeds,rust,sprint_map,doc_preview,node_search,sync,extensions} / omni_chat (dry-run default) / ide_sessions / terminal (HTTP allowlist) / hooks_{tests,bench} / update / preview (repo-relative, same confine as HTTP) / products / products_scan / products_select / watchdog / sw / fingerprints / **xtask** / **disk** |
+| Tools (35) | health / tracker / ratio / sli / toolchain / vision (summary) / vision_{manifest,feed,queue,map,board,progress,speeds,rust,sprint_map,doc_preview,node_search,sync,extensions} / omni_chat (dry-run default) / ide_sessions / terminal (HTTP allowlist) / hooks_{tests,bench} / update / preview (repo-relative, same confine as HTTP) / products / products_scan / products_select / watchdog / sw / fingerprints / xtask / disk / **usage** |
 | Resources (9) | `gsv://vision/{manifest,feed,extensions}` · `gsv://docs/{mcp-openbot,handoff,next,fingerprints,post-always-on,rust-dev}` — allowlist + `preview::resolve`; unknown / `file://` / `..` → JSON-RPC `-32602` |
 | Subscribe | `resources/subscribe` + `resources/unsubscribe` (same allowlist); `initialize` `resources.subscribe: true` |
 | Prompts (3) | `gsv_status` · `gsv_vision_brief` · `gsv_drain` |
@@ -98,7 +98,8 @@ Prefer a built `target/debug/gsv-mcp.exe` in docs once the bin exists (faster co
 | `gsv_preview` | Box preview (`file` repo-relative; same confine as `GET /api/preview`) |
 | `gsv_hooks_*` | tests + bench hooks (read `target/`, no rebuild) |
 | `gsv_update` | Update box (binary vs source mtime) |
-| `gsv_omni_chat` | OmniRouter `POST /api/omni/v1/chat/completions` |
+| `gsv_omni_chat` | OmniRouter `POST /api/omni/v1/chat/completions` (live completions increment `/api/usage`) |
+| `gsv_usage` | Session token totals (`GET /api/usage`) — OmniRouter + MCP session + OmniRoute pull |
 | `gsv_ide_sessions` | IDE box (OpenCode + Cursor sessions, read) |
 | `gsv_terminal` | SLI terminal **same allowlist** as HTTP (no extra shell) |
 
@@ -173,14 +174,14 @@ No secrets in tool output (`omni.toml` keys stay redacted). POST body cap and CS
 - Auto-generating a second Galaxy UI for OpenCode.
 - Python MCP adapters.
 
-## Horizon (band 153 queued)
+## Horizon (band 156+)
 
-Band **152** added MCP `gsv_products_select` and optional scan id after select (**32** tools, **8** `gsv://` resources). Next gsv drain: watchdog ops card + fingerprint model (owner pick). Still **not** on MCP: `products/open`, `update/apply`, Grok Bot tunnel.
+Band **155** added `gsv_usage` (**35** tools, **9** `gsv://` resources). Still **not** on MCP: `products/open`, `update/apply`, Grok Bot tunnel.
 
 Spec: [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md). Plan: [`docs/superpowers/plans/2026-08-18-mcp-always-on-catchup.md`](../superpowers/plans/2026-08-18-mcp-always-on-catchup.md).
 
 ## See also
 
-- Roadmap sprints: [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) band 135–142 ✅ · **151 ✅** · **152 ✅** · **153 queued**
+- Roadmap sprints: [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) band 135–142 ✅ · **151 ✅** · **152 ✅** · **153 ✅** · **154 ✅** · **155 ✅**
 - Server: [`GSV_SERVER.md`](./GSV_SERVER.md)
 - Boxes: [`GSV_BOXES.md`](./GSV_BOXES.md)

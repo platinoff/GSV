@@ -273,10 +273,7 @@ pub fn tools_list() -> Vec<Value> {
                 }
             }),
         ),
-        tool(
-            "gsv_disk",
-            "S0 disk guard (free GiB on the repo volume + target/ size).",
-            json!({
+        tool("gsv_disk", "S0 disk guard (free GiB on the repo volume + target/ size).", json!({
                 "type": "object",
                 "properties": {
                     "enforce": {
@@ -284,7 +281,11 @@ pub fn tools_list() -> Vec<Value> {
                         "description": "If true, ok=false when limits trip (same as cargo xtask disk --enforce)."
                     }
                 }
-            }),
+            })),
+        tool(
+            "gsv_usage",
+            "Session token usage (OmniRouter + MCP bot + OmniRoute pull).",
+            object_schema(),
         ),
     ]
 }
@@ -397,7 +398,7 @@ const PROMPTS: &[PromptSpec] = &[
     PromptSpec {
         name: "gsv_drain",
         description: "Start a VDT drain: next PH-S* band after the last closed sprint.",
-        text: "Start a GSV VDT drain. Read gsv://docs/next, gsv://docs/rust-dev, and gsv://docs/post-always-on. Call gsv_xtask (task=products) or gsv_products, then gsv_products_select with the owner pick, then gsv_products_scan (id optional after select), gsv_disk, and gsv_watchdog. Product tests/benches/scripts are cargo xtask / tests/*.rs / benches/*.rs — do not add .sh/.ps1/JSON harnesses. Propose the next ≤10 PH-S* after the last closed band. Do not push mid-drain. Invoke cargo via MSYS2 bash.",
+        text: "Start a GSV VDT drain. Read gsv://docs/next, gsv://docs/rust-dev, and gsv://docs/post-always-on. Call gsv_xtask (task=products) or gsv_products, then gsv_products_select with the owner pick, then gsv_products_scan (id optional after select), gsv_disk, gsv_watchdog, and gsv_usage. Product tests/benches/scripts are cargo xtask / tests/*.rs / benches/*.rs — do not add .sh/.ps1/JSON harnesses. Propose the next ≤10 PH-S* after the last closed band. Do not push mid-drain. Invoke cargo via MSYS2 bash.",
     },
 ];
 
@@ -446,6 +447,7 @@ const TOOL_NAMES: &[&str] = &[
     "gsv_fingerprints",
     "gsv_xtask",
     "gsv_disk",
+    "gsv_usage",
 ];
 
 /// Stable tool name list (tests / GET /mcp).
@@ -464,7 +466,7 @@ pub async fn handle_line(state: &AppState, line: &str) -> Option<String> {
         return None;
     }
     let response = match serde_json::from_str::<Value>(line) {
-        Ok(v) => handle_value(state, v).await,
+        Ok(v) => handle_value_in(state, v, Some("stdio")).await,
         Err(e) => Some(rpc_error(None, -32700, format!("parse: {e}"))),
     };
     let mut lines: Vec<String> = state
@@ -484,11 +486,20 @@ pub async fn handle_line(state: &AppState, line: &str) -> Option<String> {
 
 /// Handle a JSON-RPC value (object or batch array).
 pub async fn handle_value(state: &AppState, value: Value) -> Option<Value> {
+    handle_value_in(state, value, None).await
+}
+
+/// Same as [`handle_value`], with an optional MCP/HTTP session id for token usage.
+pub async fn handle_value_in(
+    state: &AppState,
+    value: Value,
+    session: Option<&str>,
+) -> Option<Value> {
     match value {
         Value::Array(items) => {
             let mut out = Vec::new();
             for item in items {
-                if let Some(r) = handle_one(state, item).await {
+                if let Some(r) = handle_one(state, item, session).await {
                     out.push(r);
                 }
             }
@@ -498,7 +509,7 @@ pub async fn handle_value(state: &AppState, value: Value) -> Option<Value> {
                 Some(Value::Array(out))
             }
         }
-        other => handle_one(state, other).await,
+        other => handle_one(state, other, session).await,
     }
 }
 
@@ -605,7 +616,7 @@ fn rpc_result(id: Option<Value>, result: Value) -> Value {
     })
 }
 
-async fn handle_one(state: &AppState, value: Value) -> Option<Value> {
+async fn handle_one(state: &AppState, value: Value, session: Option<&str>) -> Option<Value> {
     let obj = match value.as_object() {
         Some(o) => o,
         None => return Some(rpc_error(None, -32600, "invalid request")),
@@ -620,7 +631,7 @@ async fn handle_one(state: &AppState, value: Value) -> Option<Value> {
         "initialize" => Some(rpc_result(id, initialize_result(state))),
         "ping" => Some(rpc_result(id, json!({}))),
         "tools/list" => Some(rpc_result(id, json!({ "tools": tools_list() }))),
-        "tools/call" => Some(rpc_result(id, call_tool(state, &params).await)),
+        "tools/call" => Some(rpc_result(id, call_tool(state, &params, session).await)),
         "resources/list" => Some(rpc_result(id, json!({ "resources": resources_list() }))),
         "resources/read" => match resources_read(state, &params) {
             Ok(result) => Some(rpc_result(id, result)),
@@ -880,7 +891,7 @@ fn completion_complete(params: &Value) -> Result<Value, String> {
     }))
 }
 
-async fn call_tool(state: &AppState, params: &Value) -> Value {
+async fn call_tool(state: &AppState, params: &Value, session: Option<&str>) -> Value {
     let name = params.get("name").and_then(Value::as_str).unwrap_or("");
     let args = params
         .get("arguments")
@@ -909,7 +920,7 @@ async fn call_tool(state: &AppState, params: &Value) -> Value {
             tool_ok(to_json(ide::wire(sel.as_deref().and_then(|s| s.as_ref()))))
         }
         "gsv_terminal" => tool_terminal(state, &args),
-        "gsv_omni_chat" => tool_omni(state, &args).await,
+        "gsv_omni_chat" => tool_omni(state, &args, session).await,
         "gsv_vision_map" => tool_ok(crate::boxes::vision::wire_map(
             &state.repo_root,
             &state.data_dir,
@@ -968,6 +979,7 @@ async fn call_tool(state: &AppState, params: &Value) -> Value {
             ))
         }
         "gsv_vision_sync" => {
+            crate::boxes::usage::merge_omniroute_pull(state).await;
             let out = tool_ok(crate::boxes::vision::wire_sync(
                 &state.repo_root,
                 &state.data_dir,
@@ -1041,6 +1053,7 @@ async fn call_tool(state: &AppState, params: &Value) -> Value {
                 .unwrap_or(false);
             tool_ok(crate::boxes::xtask::disk_wire(&state.repo_root, enforce))
         }
+        "gsv_usage" => tool_ok(crate::boxes::usage::wire_state(state).await),
         "" => tool_err("missing tool name"),
         other => tool_err(format!("unknown tool: {other}")),
     }
@@ -1116,7 +1129,7 @@ fn tool_terminal(state: &AppState, args: &Value) -> Value {
     tool_result(to_json(resp), is_error)
 }
 
-async fn tool_omni(state: &AppState, args: &Value) -> Value {
+async fn tool_omni(state: &AppState, args: &Value, session: Option<&str>) -> Value {
     let live = args.get("live").and_then(Value::as_bool).unwrap_or(false);
     let mut body = args.clone();
     if let Value::Object(map) = &mut body {
@@ -1131,12 +1144,17 @@ async fn tool_omni(state: &AppState, args: &Value) -> Value {
     if !live {
         headers.insert("x-omni-dry-run", HeaderValue::from_static("1"));
     }
+    headers.insert("x-gsv-source", HeaderValue::from_static("mcp"));
+    let sid = session.unwrap_or("stdio");
+    if let Ok(v) = HeaderValue::from_str(sid) {
+        headers.insert("x-gsv-session", v);
+    }
     if let Some(p) = args.get("provider").and_then(Value::as_str) {
         if let Ok(v) = HeaderValue::from_str(p) {
             headers.insert("x-omni-provider", v);
         }
     }
-    match chat_completions(&state.omni, &headers, &raw).await {
+    match chat_completions(state, &headers, &raw).await {
         Ok(res) => {
             let bytes = to_bytes(res.into_body(), crate::security::MAX_BODY_BYTES)
                 .await
@@ -1175,7 +1193,9 @@ fn redact_secrets(value: Value) -> Value {
             let mut out = serde_json::Map::new();
             for (k, v) in map {
                 let key_l = k.to_ascii_lowercase();
-                if SECRET_KEYS.iter().any(|s| key_l.contains(s)) {
+                if key_l.contains("tokens") {
+                    out.insert(k, redact_secrets(v));
+                } else if SECRET_KEYS.iter().any(|s| key_l.contains(s)) {
                     out.insert(k, json!("[redacted]"));
                 } else {
                     out.insert(k, redact_secrets(v));
@@ -1256,6 +1276,7 @@ mod tests {
             "gsv_fingerprints",
             "gsv_xtask",
             "gsv_disk",
+            "gsv_usage",
         ] {
             assert!(names.contains(&n), "missing {n}");
         }
@@ -1966,6 +1987,7 @@ mod tests {
         assert!(text.contains("gsv_watchdog"), "{text}");
         assert!(text.contains("gsv_xtask"), "{text}");
         assert!(text.contains("gsv_disk"), "{text}");
+        assert!(text.contains("gsv_usage"), "{text}");
         assert!(text.contains("gsv://docs/next"), "{text}");
         assert!(text.contains("gsv://docs/rust-dev"), "{text}");
         assert!(text.contains("mid-drain"), "{text}");

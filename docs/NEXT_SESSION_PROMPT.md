@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-18 (**band 154 ✅ · next gsv drain = scan / owner pick**)
+**Оновлено:** 2026-08-18 (**band 155 ✅ · next gsv drain = scan / owner pick**)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -20,7 +20,7 @@ abrakadabra
 project scan (**warnings first**) → drain наступного band (**без** mid-push) →
 Speeds · Rust panel → vision-sync → **один** commit → **`git push` + самарі**.
 
-Якщо **gsv:** always-on Galaxy (**bands 143–147 ✅**) + SW cache (**band 148 ✅**) + omniroute/semver (**band 149 ✅**) + live watchdog (**band 150 ✅**) + MCP catch-up (**band 151 ✅**) + MCP products select (**band 152 ✅**) + rust-first xtask (**band 153 ✅**) + watchdog ops card (**band 154 ✅**) are closed.
+Якщо **gsv:** always-on Galaxy (**bands 143–147 ✅**) + SW cache (**band 148 ✅**) + omniroute/semver (**band 149 ✅**) + live watchdog (**band 150 ✅**) + MCP catch-up (**band 151 ✅**) + MCP products select (**band 152 ✅**) + rust-first xtask (**band 153 ✅**) + watchdog ops card (**band 154 ✅**) + session token usage (**band 155 ✅**) are closed.
 **Next drain = scan / owner pick** (Grok Bot tunnel stays opt-in).
 Spec [`GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md) · [`GSV_POST_ALWAYS_ON.md`](gsv/GSV_POST_ALWAYS_ON.md).
 Always-on canon stays [`GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md).
@@ -206,6 +206,7 @@ Close: `cargo xtask bump --band N` then `cargo xtask fingerprint` in the same co
   **band 152** (PH-S2159…S2168) ✅ — MCP `gsv_products_select` + scan-without-id (**32** tools).
   **band 153** (PH-S2169…S2178) ✅ — rust-first `cargo xtask` (**34** tools · **9** resources).
   **band 154** (PH-S2179…S2188) ✅ — watchdog ops card (`CARD_NAMES` 36) + fingerprint `model` (env then Cursor session).
+  **band 155** (PH-S2189…S2198) ✅ — session token usage (OmniRouter + MCP bot + OmniRoute + vision-sync; `CARD_NAMES` 37, **35** tools).
   **Наступний drain:** scan / owner pick.
 
 ## Канон GSV
@@ -254,6 +255,7 @@ band 151 ✅ (MCP catch-up — products/watchdog/sw/fingerprints tools) ·
 band 152 ✅ (MCP products select + scan-without-id) ·
 band 153 ✅ (rust-first cargo xtask) ·
 band 154 ✅ (watchdog ops card + fingerprint model) ·
+band 155 ✅ (session token usage — MCP + OmniRoute + sync) ·
 не комітити kit-only в PoolAI як «замість» GSV drain ·
 staging `GSV/data/*` / `certs/*.pem` /
 `.env` · mid-push · `cargo test` while `target/debug/gsv-server.exe` is the listener · обхід ratio-смуги Rust-кодом замість compact UI ·

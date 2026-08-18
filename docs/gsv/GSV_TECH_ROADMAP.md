@@ -39,6 +39,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 152** (MCP products select) **✅** ·
 **band 153** (rust-first cargo xtask) **✅** ·
 **band 154** (watchdog ops card + fingerprint model) **✅** ·
+**band 155** (session token usage — MCP + OmniRoute + sync) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -820,6 +821,23 @@ Owner pick. Dedicated Galaxy ops card `watchdog`; fingerprint `model` from Curso
 | **PH-S2186** | Contracts | card + health row + `resolve_model_from` — **✅** |
 | **PH-S2187** | Docs | HANDOFF / NEXT / BOXES — **✅** |
 | **PH-S2188** | Band close | tests **428** green; `--stretch-96` **99.14%**; `--band 154` + fingerprint; one commit + push — **✅** |
+
+## Спринти (band 155) — session token usage (MCP + OmniRoute + sync)
+
+Owner ask: automatic per-session token spend, aligned with `gsv_mcp_openbot`, OmniRoute, and vision-sync.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2189** | Usage box | `boxes/usage.rs` parse OpenAI/OmniRoute/Gemini usage; session keys (`mcp:` / `stdio` / `process`); persist `data/gsv_usage.json` — **✅** |
+| **PH-S2190** | Auto-count | OmniRouter `json_response` records live completions; dry-run stays 0 — **✅** |
+| **PH-S2191** | MCP bot | `gsv_omni_chat` tags `x-gsv-source=mcp` + HTTP/`stdio` session; tool `gsv_usage` (**35** tools) — **✅** |
+| **PH-S2192** | OmniRoute | fail-open `GET {base}/api/usage/history` (default `127.0.0.1:20128`); skip under cargo-test — **✅** |
+| **PH-S2193** | Sync | vision-sync writes usage snapshot (`usage_target`); `/api/vision/sync` + `gsv_vision_sync` refresh OmniRoute pull — **✅** |
+| **PH-S2194** | Galaxy | `GET /api/usage` + studio card `usage`; `CARD_NAMES` **37** — **✅** |
+| **PH-S2195** | Contracts | `tests/gsv_usage_contracts.rs` — **✅** |
+| **PH-S2196** | Stand-smoke / DATA | `/api/usage` + `gsv_usage.json` allowlist — **✅** |
+| **PH-S2197** | Docs | BOXES / SERVER / MCP_OPENBOT / HANDOFF / NEXT / MEMORY — **✅** |
+| **PH-S2198** | Band close | tests **445** green; `--stretch-96` **99.14%**; `--band 155` + fingerprint; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
