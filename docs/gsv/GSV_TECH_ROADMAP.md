@@ -61,6 +61,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 174** (solo Telegram tickets) **✅** ·
 **band 175** (MDS scenario band + solo walk + Telegram sync) **✅** ·
 **band 176** (visible MCP session walk) **✅** ·
+**band 177** (roadmap/plan hook-up) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -1212,6 +1213,23 @@ Owner pick (`абракадабра` gsv): watch Godfather while the MCP bot wal
 | **PH-S2406** | Galaxy | scenario add+walk; `CARD_NAMES` **40** — **✅** |
 | **PH-S2407** | Tests | dry-run contracts for copy + squad + bench stub; `--stretch-96` — **✅** |
 | **PH-S2408** | Band close | live demo on `@GSV_OFFICIAL` if token set; `--band 176` + fingerprint; one commit + push — **✅** |
+
+## Спринти (band 177) — roadmap/plan hook-up ✅
+
+Owner pick (`абракадабра` gsv / Telegram messages): keep Godfather sync correct, then **hook** MCP bots to scenarios and tickets parsed from the project roadmap and superpowers plans. Phrase: `run mcp bot hook up scenario <id|band N|plan stem> [walk]`. Spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md).
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2409** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2409`; `last_sprint_closed` = `PH-S2408` — **✅** |
+| **PH-S2410** | Phrase | `run mcp bot hook up scenario` / `/hook` / `{kind:hook}` — **✅** |
+| **PH-S2411** | Roadmap | parse `GSV_TECH_ROADMAP.md` `PH-S*` tables; open first else replay; cap 10 — **✅** |
+| **PH-S2412** | Plan | parse `docs/superpowers/plans/*.md` `- [ ]`; stem confine — **✅** |
+| **PH-S2413** | MCP / HTTP | `gsv_tickets_hook` · `POST /api/tickets/hook` → **51** tools — **✅** |
+| **PH-S2414** | Telegram | ingest phrase on `gsv_telegram_ticket`; `kind:sync` `hook … n=` — **✅** |
+| **PH-S2415** | Solo/squad | existing walk after `walk:true`; idempotent re-hook — **✅** |
+| **PH-S2416** | Galaxy | hook button + phrase field; `CARD_NAMES` **40** — **✅** |
+| **PH-S2417** | Tests / bench | contracts + `gsv_dev` `hook_parse_phrase` / `hook_roadmap_band`; `--stretch-96` — **✅** |
+| **PH-S2418** | Band close | `--band 177` + fingerprint; recopy live; one commit + push; next = bench **or** hook from plans — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

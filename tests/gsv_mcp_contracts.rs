@@ -1136,6 +1136,7 @@ async fn drain_prompt_names_always_on_tools() {
     assert!(text.contains("gsv_tickets_presence"), "{text}");
     assert!(text.contains("gsv_tickets_reclaim"), "{text}");
     assert!(text.contains("gsv_tickets_walk"), "{text}");
+    assert!(text.contains("gsv_tickets_hook"), "{text}");
     assert!(text.contains("gsv_mds"), "{text}");
     assert!(text.contains("Band 175"), "{text}");
     assert!(text.contains("gsv://docs/settings-telegram"), "{text}");

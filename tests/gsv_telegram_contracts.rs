@@ -240,7 +240,7 @@ async fn mcp_telegram_is_read_only_status() {
     assert!(mcp::tool_names().contains(&"gsv_telegram_bus_poll"));
     assert!(mcp::tool_names().contains(&"gsv_telegram_ticket"));
     assert!(!mcp::tool_names().contains(&"gsv_telegram_create_ticket"));
-    assert_eq!(mcp::tool_names().len(), 50);
+    assert_eq!(mcp::tool_names().len(), 51);
 }
 
 async fn bus_guard() -> tokio::sync::MutexGuard<'static, ()> {
@@ -865,4 +865,45 @@ async fn enqueue_sync_is_kind_sync_no_token() {
     assert_eq!(env.body, "solo claimed t-mds");
     let raw = serde_json::to_string(&env).expect("json");
     assert!(!raw.contains("bot_token"), "{raw}");
+}
+
+#[tokio::test]
+async fn hook_phrase_ingests_catalog_band() {
+    let _g = bus_guard().await;
+    telegram::bus_reset();
+    let kit = temp_kit("hook");
+    let data = kit.join("data");
+    save_solo_relay(&data, "-100hook", "123:hook-secret", &[]);
+    std::fs::write(
+        tickets::scenarios_path(&kit),
+        r#"{
+          "scenarios": [{
+            "id": "memory-disk-speed",
+            "title": "MDS",
+            "body": "band",
+            "workflow": "ticket-claim",
+            "product": "gsv",
+            "tickets": [
+              {"title": "MDS: scaffold", "body": "a"},
+              {"title": "MDS: memory", "body": "b"}
+            ]
+          }]
+        }"#,
+    )
+    .expect("scenarios");
+    let v = telegram::ingest_channel_body(
+        &kit,
+        &data,
+        true,
+        &json!({
+            "from": "42",
+            "body": "run mcp bot hook up scenario memory-disk-speed"
+        }),
+        None,
+    )
+    .await;
+    assert_eq!(v["ok"], true, "{v}");
+    assert_eq!(v["source"], "scenario", "{v}");
+    assert_eq!(v["tickets"].as_array().expect("t").len(), 2, "{v}");
+    assert_no_secret(&v, "123:hook-secret");
 }

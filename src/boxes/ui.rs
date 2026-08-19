@@ -1184,6 +1184,9 @@ pub fn render_tickets(d: &Value) -> String {
     let scenarios = arr(&d["scenarios"]);
     let mut out = String::from("<div class='dim'>open tickets are the board</div>");
     out.push_str("<div class='dim'>walk posts session lines · solo / squad / bench</div>");
+    out.push_str(
+        "<div class='dim'>hook · <kbd>run mcp bot hook up scenario</kbd> · band / plan</div>",
+    );
     out.push_str(&format!(
         "<div class='dim'>mode <kbd>{}</kbd> · online <kbd>{}</kbd></div>",
         esc(mode_bit),
@@ -1243,7 +1246,9 @@ pub fn render_tickets(d: &Value) -> String {
                 } else {
                     format!(
                         "<button type='button' data-action='tickets-from-scenario' data-scenario-id='{}'>add</button> \
-<button type='button' data-action='tickets-walk' data-scenario-id='{}'>walk</button>",
+<button type='button' data-action='tickets-walk' data-scenario-id='{}'>walk</button> \
+<button type='button' data-action='tickets-hook' data-scenario-id='{}'>hook</button>",
+                        esc(&sid),
                         esc(&sid),
                         esc(&sid)
                     )
@@ -1260,7 +1265,9 @@ pub fn render_tickets(d: &Value) -> String {
 <input id='tixProduct' type='text' value='gsv' placeholder='product' aria-label='product'>\
 <button type='button' data-action='tickets-create'>Create</button>\
 <button type='button' data-action='tickets-presence'>I'm online</button>\
-<button type='button' data-action='tickets-walk'>solo walk</button>",
+<button type='button' data-action='tickets-walk'>solo walk</button>\
+<input id='tixHook' type='text' value='run mcp bot hook up scenario band 177' placeholder='hook phrase' aria-label='hook phrase'>\
+<button type='button' data-action='tickets-hook'>hook phrase</button>",
     );
     out
 }
@@ -2555,6 +2562,7 @@ mod tests {
         assert!(tickets.contains("tickets — no data"), "{tickets}");
         assert!(tickets.contains("open tickets are the board"), "{tickets}");
         assert!(tickets.contains("session lines"), "{tickets}");
+        assert!(tickets.contains("data-action='tickets-hook'"), "{tickets}");
         assert!(
             tickets.contains("data-action='tickets-create'"),
             "{tickets}"

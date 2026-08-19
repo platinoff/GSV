@@ -1,6 +1,6 @@
 # GSV settings, Telegram Godfather, tickets, MCP bot bus
 
-**Status:** Landed band **176** (visible MCP session walk — solo / squad / bench on Godfather) · **band 175 ✅** MDS scenario band + solo walk + Telegram `kind:sync` · **band 174 ✅** solo Telegram tickets · **band 173 ✅** vision queue close-lockstep · **band 172 ✅** live crate lockstep · bands **166–171 ✅** · **next drain = owner pick** (do not invent band 177)  
+**Status:** Landed band **177** (roadmap/plan MCP hook-up — `run mcp bot hook up scenario`) · **band 176 ✅** visible MCP session walk · **band 175 ✅** MDS scenario band + solo walk + Telegram `kind:sync` · **band 174 ✅** solo Telegram tickets · **band 173 ✅** vision queue close-lockstep · **band 172 ✅** live crate lockstep · bands **166–171 ✅** · **next drain:** propose **scenario benchmark** (`gsv_dev` / `abrakadabra-session` walk) **or hook from plans**  
 **Date:** 2026-08-19  
 **Deciders:** owner  
 **Owner ask:** GSV settings; Telegram channels; MCP bots talk to each other through a Telegram tunnel; a ticket board for people who want to join; MCP claims tickets and marks `in_progress` the same way fingerprints sync; server settings hold **Godfather** data (which channel, how secrets are stored, co-workflows). Next session starts with `абракадабра`.
@@ -19,7 +19,7 @@ Cost of leaving it: the next drain invents a one-off Telegram script, leaks a bo
 1. Owner configures GSV on the live Galaxy **Settings** card (Godfather channel, co-workflows, secret policy) without putting tokens in git.
 2. Joiners see a **ticket board**; MCP bots **claim** a ticket, mark `in_progress`, and leave a fingerprint-class row (actor / IDE / model / time).
 3. Two (or more) `gsv_mcp_openbot` clients can exchange short control messages over a **Telegram channel bus** once Godfather is bound — not a public Cloudflare hop.
-4. Band **176** is landed: the MCP bot walks an `абракадабра`-shaped scenario (**solo**, **squad**, **benchmark**) with a plain-text line per step. Bands **166–176** are landed. Next drain is an owner pick.
+4. Band **177** is landed: MCP parses `run mcp bot hook up scenario` and places tickets from the catalog, a roadmap band, or a superpowers plan. Bands **166–177** are landed. Next drain: propose scenario benchmark or hook from plans.
 5. Ratio stays `gsv-loc-audit --stretch-96` ≥ 96%. No Python. Secrets never in MCP/HTTP JSON.
 
 ## Non-goals
@@ -52,6 +52,7 @@ Cost of leaving it: the next drain invents a one-off Telegram script, leaks a bo
 
 - As an MCP bot, I list tickets, claim one, and the board + a fingerprint-class row show `in_progress` with my ide/model.
 - As two MCP bots (Cursor + OpenCode), I send a short bus message through the Godfather channel and the other client sees it without a public HTTP tunnel.
+- As owner, I type `run mcp bot hook up scenario band 177` (Godfather or MCP) and the board fills from `GSV_TECH_ROADMAP.md` PH-S* rows (open first; replay closed if none).
 - As owner, I type `абракадабра`, pick **GSV**, and watch Godfather: the MCP bot posts what it is doing for **solo**, **squad**, and **bench** — same shape as the drain session.
 - As a squad of MCP clients, I heartbeat `gsv_tickets_presence`; a new development ticket from a scenario is assigned to one random online bot. Solo mode always uses the single MCP.
 - As an MCP bot, I mark a ticket `done` or `blocked` (error) and the event JSONL + board stay in lockstep with fingerprints.
@@ -160,6 +161,23 @@ Owner pick (`абракадабра` gsv / watch the bot): the next drain is a *
 | Bench | After walk, one sync line with `gsv_dev` medians (band create / solo walk / mds / enqueue) — from recorded bench JSON or a dry-run stub in tests. |
 | Tools | Keep `CARD_NAMES` **40**. New MCP only if a dedicated `gsv_tickets_walk` mode arg is cleaner than extra tools. |
 
+### P2 — Should (band 177) — roadmap/plan hook-up ✅
+
+Owner pick (`абракадабра` gsv / Telegram bot messages / “run mcp bot hook up scenario”): continue Godfather sync, then **parse** project plans into scenarios and tickets so solo/squad MCP can pick them up. Cargo tests stay dry-run (no sockets).
+
+Research (agents turning specs into a shared board): GitHub and Linear import markdown checklists as issues; production MCP orchestrators keep a **durable board** plus a **hook** that binds a worker to a named scenario. GSV v1 parses in-tree markdown (no extra SQLite): `GSV_TECH_ROADMAP.md` `PH-S*` tables and `docs/superpowers/plans/*.md` `- [ ]` items. Phrase grammar is stable: `run mcp bot hook up scenario <id|band N|plan stem> [walk]`.
+
+| Piece | Acceptance |
+|-------|------------|
+| Phrase | `run mcp bot hook up scenario …`, `/hook …`, JSON `{kind:hook,source,id,walk?}`. Catalog id · `band N` · `plan <stem>`. Trailing `walk` optional. |
+| Roadmap | `parse_roadmap_bands`: `## … band N` + `PH-S*` rows. Open = no ✅. Hook uses open rows, else replay all (cap **10**). Scenario id `roadmap-band-N`. |
+| Plan | `parse_plan_open_items`: `- [ ]` / `* [ ]` only (skip `[x]`). Stem `[A-Za-z0-9._-]`, no `..`. Scenario id `plan-<stem>`. |
+| Catalog | Same as `create_band_from_scenario`, but **idempotent**: skip titles already `open`/`in_progress`. |
+| HTTP / MCP | `POST /api/tickets/hook`. MCP `gsv_tickets_hook` → **51** tools. Telegram ingest of the phrase uses the same path. |
+| Sync | One `kind:sync` line `hook {source} {id} n={n}`. `walk:true` then `gsv_tickets_walk` (solo/squad). |
+| Galaxy | Hook button per scenario + phrase field. `CARD_NAMES` stays **40**. |
+| Bench | `gsv_dev` `hook_parse_phrase` + `hook_roadmap_band`. |
+
 ## Security (how we store)
 
 | Layer | Rule |
@@ -169,7 +187,7 @@ Owner pick (`абракадабра` gsv / watch the bot): the next drain is a *
 | Env | `GSV_TELEGRAM_BOT_TOKEN` overrides file; process env is not dumped to `/api/*`. |
 | API / MCP / logs | Redact. `token_set` only. Preview confine still cannot read `../` or `file://`. |
 | Telegram | v1 poll from the server process; no public webhook URL. Godfather channel is private/invite. |
-| MCP write | Band 166: settings **read**. Band 168: ticket **claim**. Band 170: ticket **create/done/error/presence**. Band 171: ticket **reclaim**. Band 175: ticket **walk** (claim/done + Telegram sync). Never `update/apply` / tunnel start. |
+| MCP write | Band 166: settings **read**. Band 168: ticket **claim**. Band 170: ticket **create/done/error/presence**. Band 171: ticket **reclaim**. Band 175: ticket **walk**. Band 177: ticket **hook** (catalog / roadmap / plan). Never `update/apply` / tunnel start. |
 
 ## Co-workflows (v1 ids)
 
@@ -177,7 +195,7 @@ Owner pick (`абракадабра` gsv / watch the bot): the next drain is a *
 |----|-----|--------|
 | `drain` | VDT `абракадабра` | Unchanged drain; settings card may show it as enabled. |
 | `ticket-claim` | MCP / Galaxy | Allows `gsv_tickets_claim` / done / error / reclaim (band 168–171). |
-| `telegram-relay` | MCP / poller | Allows bus send/poll (band 169), ticket ingest (174), solo-walk `kind:sync` (175), and live session lines (176). |
+| `telegram-relay` | MCP / poller | Allows bus send/poll (band 169), ticket ingest (174), solo-walk `kind:sync` (175), live session lines (176), and hook Godfather lines (177). |
 | `ticket-squad` | MCP / Galaxy | Allows `tickets.mode=squad` random assign among online MCP (band 170). |
 
 Unknown ids in the file are kept but ignored (forward compatible).
@@ -191,6 +209,7 @@ Unknown ids in the file are kept but ignored (forward compatible).
 - Band 174: `/ticket` ingest creates a row; one online MCP in solo mode claims it; MCP `gsv_telegram_ticket`; `--stretch-96` ≥ 96%.
 - Band 175: scenario `memory-disk-speed` places 6 tickets; solo walk claims/dones them and enqueues `kind:sync`; `gsv-mds` reports memory/disk/speed; `--stretch-96` ≥ 96%.
 - Band 176: Godfather (live) or bus queue (dry-run) shows session lines for solo, squad, and bench; scenario `abrakadabra-session`; `--stretch-96` ≥ 96%.
+- Band 177: phrase `run mcp bot hook up scenario band 177` places ≤10 tickets from the roadmap; catalog/plan sources work; idempotent re-hook; MCP `gsv_tickets_hook`; `--stretch-96` ≥ 96%.
 
 ## Open questions (non-blocking)
 
@@ -210,8 +229,9 @@ Unknown ids in the file are kept but ignored (forward compatible).
 | **174** | S2379–S2388 | Solo bot tickets from Telegram (`gsv_telegram_ticket`) | **✅ landed** |
 | **175** | S2389–S2398 | MDS scenario band + solo walk + Telegram `kind:sync` + `gsv-mds` | **✅ this drain** |
 | **176** | S2399–S2408 | Visible MCP session walk (solo / squad / bench on Godfather) | **✅ this drain** |
+| **177** | S2409–S2418 | Roadmap/plan hook-up (`run mcp bot hook up scenario`) | **✅ this drain** |
 
-Do **not** invent band 177. Next drain after 176 is an owner pick.
+Next drain: propose **scenario benchmark** (`cargo bench --bench gsv_dev` / walk `abrakadabra-session`) **or hook from plans**. Do not invent band 178 until that pick.
 
 ## Constraints
 

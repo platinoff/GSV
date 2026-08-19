@@ -736,11 +736,12 @@ fn mcp_tools_include_tickets_not_bus() {
     assert!(mcp::tool_names().contains(&"gsv_tickets_presence"));
     assert!(mcp::tool_names().contains(&"gsv_tickets_reclaim"));
     assert!(mcp::tool_names().contains(&"gsv_tickets_walk"));
+    assert!(mcp::tool_names().contains(&"gsv_tickets_hook"));
     assert!(mcp::tool_names().contains(&"gsv_mds"));
     assert!(mcp::tool_names().contains(&"gsv_telegram_bus_send"));
     assert!(mcp::tool_names().contains(&"gsv_telegram_ticket"));
     assert!(!mcp::tool_names().contains(&"gsv_telegram_create_ticket"));
-    assert_eq!(mcp::tool_names().len(), 50);
+    assert_eq!(mcp::tool_names().len(), 51);
 }
 
 fn write_stale_wip(kit: &Path, id: &str, actor: &str, lease_until: u64) {
@@ -1094,5 +1095,108 @@ fn squad_walk_assigns_among_two_online() {
     assert!(
         actors.contains(&"agent") && actors.contains(&"opencode"),
         "{actors:?}"
+    );
+}
+
+fn write_roadmap_and_plan(kit: &Path) {
+    let _ = std::fs::create_dir_all(kit.join("docs/gsv"));
+    let _ = std::fs::create_dir_all(kit.join("docs/superpowers/plans"));
+    std::fs::write(
+        tickets::roadmap_path(kit),
+        r#"## Спринти (band 177) — hook up
+
+| Sprint | Фокус | Acceptance |
+| **PH-S2409** | Scope | owner pick — **[ ]** |
+| **PH-S2410** | Parse | phrase grammar — **[ ]** |
+| **PH-S2411** | Roadmap | PH-S* rows — **[ ]** |
+"#,
+    )
+    .expect("roadmap");
+    std::fs::write(
+        tickets::plans_dir(kit).join("hook-demo.md"),
+        "- [x] already done\n- [ ] Plan: place tickets\n- [ ] Plan: Telegram sync\n",
+    )
+    .expect("plan");
+}
+
+#[test]
+fn hook_up_catalog_is_idempotent() {
+    let kit = temp_kit("hook-catalog");
+    enable_claim(&kit.join("data"));
+    write_mds_band(&kit);
+    let first =
+        tickets::hook_up(&kit, &kit.join("data"), "scenario", "memory-disk-speed").expect("hook");
+    assert_eq!(first.tickets.len(), 3);
+    assert_eq!(first.scenario, "memory-disk-speed");
+    let second =
+        tickets::hook_up(&kit, &kit.join("data"), "scenario", "memory-disk-speed").expect("again");
+    assert_eq!(second.tickets.len(), 3);
+    assert!(second.skipped >= 3, "{}", second.skipped);
+}
+
+#[test]
+fn hook_up_band_from_roadmap() {
+    let kit = temp_kit("hook-band");
+    enable_claim(&kit.join("data"));
+    write_roadmap_and_plan(&kit);
+    let report = tickets::hook_up(&kit, &kit.join("data"), "band", "177").expect("band");
+    assert_eq!(report.source, "band");
+    assert_eq!(report.scenario, "roadmap-band-177");
+    assert_eq!(report.tickets.len(), 3);
+    assert!(report.tickets[0].title.starts_with("PH-S2409"));
+}
+
+#[test]
+fn hook_up_plan_open_checkboxes_only() {
+    let kit = temp_kit("hook-plan");
+    enable_claim(&kit.join("data"));
+    write_roadmap_and_plan(&kit);
+    let report = tickets::hook_up(&kit, &kit.join("data"), "plan", "hook-demo").expect("plan");
+    assert_eq!(report.tickets.len(), 2, "{:?}", report.tickets);
+    assert!(report
+        .tickets
+        .iter()
+        .any(|t| t.title.contains("place tickets")));
+}
+
+#[test]
+fn parse_owner_phrase() {
+    let p = tickets::parse_hook_phrase("run mcp bot hook up scenario band 177 walk").expect("p");
+    assert_eq!(p.source, "band");
+    assert_eq!(p.id, "177");
+    assert!(p.walk);
+}
+
+#[tokio::test]
+async fn http_hook_phrase_places_catalog_and_syncs() {
+    let kit = temp_kit("http-hook");
+    enable_claim_relay(&kit.join("data"));
+    write_mds_band(&kit);
+    let app = app_kit(kit);
+    gsv::boxes::telegram::bus_reset();
+    let (status, json) = post_json(
+        &app,
+        "/api/tickets/hook",
+        json!({
+            "phrase": "run mcp bot hook up scenario memory-disk-speed",
+            "from": "solo-bot"
+        }),
+        Some("http://127.0.0.1:9999"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{json}");
+    assert_eq!(json["ok"], true, "{json}");
+    assert_eq!(json["tickets"].as_array().expect("t").len(), 3, "{json}");
+    assert_eq!(json["source"], "scenario");
+    let (pstatus, pjson) = get_json(&app, "/api/telegram/bus?limit=32").await;
+    assert_eq!(pstatus, StatusCode::OK, "{pjson}");
+    let msgs = pjson["messages"].as_array().cloned().unwrap_or_default();
+    assert!(
+        msgs.iter().any(|m| m["body"]
+            .as_str()
+            .unwrap_or("")
+            .starts_with("hook scenario")),
+        "{pjson}"
     );
 }

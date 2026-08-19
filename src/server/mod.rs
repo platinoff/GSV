@@ -111,6 +111,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/tickets/presence", post(api_tickets_presence))
         .route("/api/tickets/reclaim", post(api_tickets_reclaim))
         .route("/api/tickets/walk", post(api_tickets_walk))
+        .route("/api/tickets/hook", post(api_tickets_hook))
         .route("/api/mds", get(api_mds))
         .route("/api/xtask", get(api_xtask))
         .route("/api/disk", get(api_disk))
@@ -364,13 +365,16 @@ async fn api_telegram_ticket(
     Json(body): Json<Value>,
 ) -> Json<Value> {
     let dry = crate::boxes::telegram::header_dry_run(&headers);
-    Json(crate::boxes::telegram::ticket_from_message(
-        &state.repo_root,
-        &state.data_dir,
-        dry,
-        &body,
-        Some(&state.ticket_presence),
-    ))
+    Json(
+        crate::boxes::telegram::ingest_channel_body(
+            &state.repo_root,
+            &state.data_dir,
+            dry,
+            &body,
+            Some(&state.ticket_presence),
+        )
+        .await,
+    )
 }
 
 async fn api_tickets(State(state): State<AppState>) -> Json<Value> {
@@ -452,6 +456,25 @@ async fn api_tickets_walk(
     Json(body): Json<Value>,
 ) -> Response {
     match crate::boxes::telegram::sync_walk(
+        &state.repo_root,
+        &state.data_dir,
+        &body,
+        Some(&state.ticket_presence),
+        crate::boxes::telegram::header_dry_run(&headers),
+    )
+    .await
+    {
+        Ok(v) => Json(v).into_response(),
+        Err(e) => err_json(ticket_http_status(&e), e.to_string()),
+    }
+}
+
+async fn api_tickets_hook(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(body): Json<Value>,
+) -> Response {
+    match crate::boxes::telegram::sync_hook(
         &state.repo_root,
         &state.data_dir,
         &body,

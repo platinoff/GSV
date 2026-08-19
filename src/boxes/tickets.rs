@@ -10,6 +10,8 @@
 //! Band 171: `lease_until` on `in_progress`; stale reclaim → `open` + `kind:reclaimed`.
 //! Band 174: Telegram `/ticket` ingest → board row; solo MCP auto-claims.
 //! Band 176: walk posts session lines (solo claimed / squad assigned / bench).
+//! Band 177: `run mcp bot hook up scenario` parses catalog / roadmap band /
+//! superpowers plan into tickets (cap 10). Optional walk stays Telegram-sync.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -34,6 +36,9 @@ pub const PRESENCE_TTL_SECS: u64 = 120;
 /// Default `in_progress` lease (seconds). Settings `tickets.lease_secs` may override.
 pub const DEFAULT_LEASE_SECS: u64 = settings::DEFAULT_TICKET_LEASE_SECS;
 
+/// Max tickets a roadmap/plan hook may place (one VDT band).
+pub const MAX_HOOK_TICKETS: usize = 10;
+
 /// Canonical tickets JSONL (kit repo, not `data/`).
 pub fn tickets_path(repo_root: &Path) -> PathBuf {
     repo_root.join("docs/gsv/tickets.jsonl")
@@ -47,6 +52,16 @@ pub fn claims_path(repo_root: &Path) -> PathBuf {
 /// Named ticket templates (placement on the Galaxy board).
 pub fn scenarios_path(repo_root: &Path) -> PathBuf {
     repo_root.join("docs/gsv/ticket_scenarios.json")
+}
+
+/// GSV PH-S* band tables (source for `hook band N`).
+pub fn roadmap_path(repo_root: &Path) -> PathBuf {
+    repo_root.join("docs/gsv/GSV_TECH_ROADMAP.md")
+}
+
+/// Superpowers plan markdown (source for `hook plan <stem>`).
+pub fn plans_dir(repo_root: &Path) -> PathBuf {
+    repo_root.join("docs/superpowers/plans")
 }
 
 /// Who claimed a ticket (fingerprint-class fields).
@@ -204,6 +219,35 @@ pub struct WalkReport {
     /// Band 176: `gsv_dev` median session line (empty until Telegram sync).
     #[serde(default)]
     pub bench: String,
+}
+
+/// Parsed `run mcp bot hook up scenario …` (catalog id, `band N`, or `plan stem`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HookPhrase {
+    pub source: String,
+    pub id: String,
+    pub walk: bool,
+}
+
+/// One `## Спринти (band N)` table from `GSV_TECH_ROADMAP.md`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RoadmapBand {
+    pub band: u32,
+    pub title: String,
+    pub open: Vec<ScenarioStep>,
+    pub all: Vec<ScenarioStep>,
+}
+
+/// Result of placing tickets from a catalog / roadmap / plan hook.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HookReport {
+    pub ok: bool,
+    pub source: String,
+    pub id: String,
+    pub scenario: String,
+    pub tickets: Vec<Ticket>,
+    #[serde(default)]
+    pub skipped: usize,
 }
 
 /// Load / claim failures (HTTP maps these to 404/403/400).
@@ -678,6 +722,389 @@ pub fn create_from_scenario(
     let mut tickets =
         create_band_from_scenario(repo_root, data_dir, scenario_id, product_override)?;
     Ok(tickets.remove(0))
+}
+
+fn title_chars(s: &str, n: usize) -> String {
+    s.chars().take(n).collect()
+}
+
+fn parse_band_heading(line: &str) -> Option<(u32, String)> {
+    let t = line.trim();
+    if !t.starts_with('#') {
+        return None;
+    }
+    let lower = t.to_ascii_lowercase();
+    let i = lower.find("band ")?;
+    let rest = t.get(i + 5..)?.trim();
+    let num: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+    let band = num.parse::<u32>().ok()?;
+    if band < 102 {
+        return None;
+    }
+    Some((band, t.trim_start_matches('#').trim().to_string()))
+}
+
+fn parse_phs_row(line: &str) -> Option<(String, String, String, bool)> {
+    if !line.contains("PH-S") {
+        return None;
+    }
+    let cells: Vec<&str> = line
+        .split('|')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect();
+    if cells.len() < 2 {
+        return None;
+    }
+    let id = cells[0].replace('*', "");
+    let id = id.trim();
+    if !id.starts_with("PH-S") {
+        return None;
+    }
+    let title = cells[1].replace('*', "");
+    let title = title.trim();
+    let body = cells.get(2).copied().unwrap_or("").trim();
+    let closed = line.contains("✅");
+    let open = !closed;
+    Some((id.to_string(), title.to_string(), body.to_string(), open))
+}
+
+/// Parse `GSV_TECH_ROADMAP.md` band tables (`## … band N` + `PH-S*` rows).
+pub fn parse_roadmap_bands(md: &str) -> Vec<RoadmapBand> {
+    let mut bands = Vec::new();
+    let mut cur: Option<RoadmapBand> = None;
+    for line in md.lines() {
+        if let Some((n, title)) = parse_band_heading(line) {
+            if let Some(b) = cur.take() {
+                bands.push(b);
+            }
+            cur = Some(RoadmapBand {
+                band: n,
+                title,
+                open: Vec::new(),
+                all: Vec::new(),
+            });
+            continue;
+        }
+        if line.starts_with("## ") {
+            if let Some(b) = cur.take() {
+                bands.push(b);
+            }
+            continue;
+        }
+        let Some((id, title, body, open)) = parse_phs_row(line) else {
+            continue;
+        };
+        let Some(b) = cur.as_mut() else {
+            continue;
+        };
+        let step = ScenarioStep {
+            title: format!("{id} {title}"),
+            body,
+        };
+        if open {
+            b.open.push(step.clone());
+        }
+        b.all.push(step);
+    }
+    if let Some(b) = cur {
+        bands.push(b);
+    }
+    bands
+}
+
+/// Open markdown checkboxes (`- [ ]` / `* [ ]`). Cap [`MAX_HOOK_TICKETS`].
+pub fn parse_plan_open_items(md: &str) -> Vec<ScenarioStep> {
+    let mut out = Vec::new();
+    for line in md.lines() {
+        let t = line.trim();
+        let rest = t
+            .strip_prefix("- [ ]")
+            .or_else(|| t.strip_prefix("* [ ]"))
+            .or_else(|| t.strip_prefix("+ [ ]"));
+        let Some(rest) = rest else {
+            continue;
+        };
+        let title = rest.trim();
+        if title.is_empty() {
+            continue;
+        }
+        out.push(ScenarioStep {
+            title: title_chars(title, 80),
+            body: title.to_string(),
+        });
+        if out.len() >= MAX_HOOK_TICKETS {
+            break;
+        }
+    }
+    out
+}
+
+fn strip_walk_flag(rest: &str) -> (String, bool) {
+    let t = rest.trim();
+    let lower = t.to_ascii_lowercase();
+    for suffix in [" and walk", " walk"] {
+        if let Some(stripped) = lower.strip_suffix(suffix) {
+            return (t[..stripped.len()].trim().to_string(), true);
+        }
+    }
+    (t.to_string(), false)
+}
+
+fn parse_hook_target(rest: &str) -> Option<HookPhrase> {
+    let (target, walk) = strip_walk_flag(rest);
+    if target.is_empty() {
+        return None;
+    }
+    let lower = target.to_ascii_lowercase();
+    if let Some(num) = lower.strip_prefix("band ") {
+        let id = num.trim();
+        if id.is_empty() {
+            return None;
+        }
+        return Some(HookPhrase {
+            source: "band".into(),
+            id: id.to_string(),
+            walk,
+        });
+    }
+    if let Some(stem) = lower.strip_prefix("plan ") {
+        let id = target.get(5..).unwrap_or(stem).trim();
+        if id.is_empty() {
+            return None;
+        }
+        return Some(HookPhrase {
+            source: "plan".into(),
+            id: id.to_string(),
+            walk,
+        });
+    }
+    let id = target.split_whitespace().next()?.to_string();
+    Some(HookPhrase {
+        source: "scenario".into(),
+        id,
+        walk,
+    })
+}
+
+/// Parse `run mcp bot hook up scenario <id|band N|plan stem> [walk]`.
+pub fn parse_hook_phrase(text: &str) -> Option<HookPhrase> {
+    let t = text.trim();
+    if t.is_empty() {
+        return None;
+    }
+    if let Ok(v) = serde_json::from_str::<Value>(t) {
+        if v.get("kind").and_then(Value::as_str) != Some("hook") {
+            return None;
+        }
+        let source = v
+            .get("source")
+            .and_then(Value::as_str)
+            .unwrap_or("scenario")
+            .trim();
+        let id = v.get("id").and_then(Value::as_str).unwrap_or("").trim();
+        if id.is_empty() {
+            return None;
+        }
+        let walk = v.get("walk").and_then(Value::as_bool).unwrap_or(false);
+        return Some(HookPhrase {
+            source: source.to_ascii_lowercase(),
+            id: id.to_string(),
+            walk,
+        });
+    }
+    let lower = t.to_ascii_lowercase();
+    let rest = if let Some(i) = lower.find("hook up scenario") {
+        t.get(i + "hook up scenario".len()..)?.trim()
+    } else if let Some(i) = lower.find("hookup scenario") {
+        t.get(i + "hookup scenario".len()..)?.trim()
+    } else if lower.starts_with("/hook ") || lower.starts_with("hook ") {
+        t.split_once(' ').map(|(_, r)| r.trim()).unwrap_or("")
+    } else {
+        return None;
+    };
+    parse_hook_target(rest)
+}
+
+fn sanitize_plan_stem(raw: &str) -> Result<String, TicketError> {
+    let s = raw.trim().trim_end_matches(".md");
+    if s.is_empty() || s.contains("..") || s.contains('/') || s.contains('\\') {
+        return Err(TicketError::BadRequest("invalid plan id".into()));
+    }
+    if !s
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
+    {
+        return Err(TicketError::BadRequest("invalid plan id".into()));
+    }
+    Ok(s.to_string())
+}
+
+fn steps_for_band(md: &str, band: u32) -> Result<(String, Vec<ScenarioStep>), TicketError> {
+    let found = parse_roadmap_bands(md)
+        .into_iter()
+        .find(|b| b.band == band)
+        .ok_or(TicketError::NotFound)?;
+    let scenario = format!("roadmap-band-{band}");
+    let steps = if found.open.is_empty() {
+        found.all
+    } else {
+        found.open
+    };
+    if steps.is_empty() {
+        return Err(TicketError::BadRequest("band has no PH-S* rows".into()));
+    }
+    Ok((scenario, steps.into_iter().take(MAX_HOOK_TICKETS).collect()))
+}
+
+fn create_from_steps(
+    repo_root: &Path,
+    scenario: &str,
+    workflow: &str,
+    product: &str,
+    steps: Vec<ScenarioStep>,
+) -> Result<(Vec<Ticket>, usize), TicketError> {
+    if steps.is_empty() {
+        return Err(TicketError::BadRequest("hook has no tickets".into()));
+    }
+    let existing = read_tickets(&tickets_path(repo_root))?;
+    let mut out = Vec::new();
+    let mut skipped = 0usize;
+    for step in steps.into_iter().take(MAX_HOOK_TICKETS) {
+        let dup = existing.iter().any(|t| {
+            t.scenario == scenario
+                && t.title == step.title
+                && (t.status == "open" || t.status == "in_progress")
+        }) || out.iter().any(|t: &Ticket| t.title == step.title);
+        if dup {
+            skipped += 1;
+            continue;
+        }
+        out.push(create_with_workflow(
+            repo_root,
+            &step.title,
+            &step.body,
+            product,
+            workflow,
+            scenario,
+        )?);
+    }
+    if out.is_empty() {
+        let reuse: Vec<Ticket> = existing
+            .into_iter()
+            .filter(|t| t.scenario == scenario && t.status == "open")
+            .collect();
+        if reuse.is_empty() {
+            return Err(TicketError::BadRequest("hook has no new tickets".into()));
+        }
+        return Ok((reuse, skipped));
+    }
+    Ok((out, skipped))
+}
+
+/// Place tickets from a catalog scenario, roadmap band, or superpowers plan.
+pub fn hook_up(
+    repo_root: &Path,
+    data_dir: &Path,
+    source: &str,
+    id: &str,
+) -> Result<HookReport, TicketError> {
+    let file = settings::load_result(data_dir).map_err(TicketError::Io)?;
+    if !settings::ticket_claim_enabled(&file) {
+        return Err(TicketError::Forbidden);
+    }
+    let source = source.trim().to_ascii_lowercase();
+    let id = id.trim();
+    if id.is_empty() {
+        return Err(TicketError::BadRequest("hook id required".into()));
+    }
+    let (scenario, tickets, skipped) = match source.as_str() {
+        "scenario" | "catalog" => {
+            let sc = load_scenario_gated(repo_root, data_dir, id)?;
+            let steps: Vec<ScenarioStep> = scenario_steps(&sc)
+                .into_iter()
+                .map(|(title, body)| ScenarioStep { title, body })
+                .collect();
+            let (tickets, skipped) =
+                create_from_steps(repo_root, &sc.id, &sc.workflow, &sc.product, steps)?;
+            (sc.id, tickets, skipped)
+        }
+        "band" => {
+            let band: u32 = id
+                .parse()
+                .map_err(|_| TicketError::BadRequest("band must be a number".into()))?;
+            let md = fs::read_to_string(roadmap_path(repo_root))
+                .map_err(|_| TicketError::Io("roadmap read failed".into()))?;
+            let (scenario, steps) = steps_for_band(&md, band)?;
+            let (tickets, skipped) =
+                create_from_steps(repo_root, &scenario, "ticket-claim", "gsv", steps)?;
+            (scenario, tickets, skipped)
+        }
+        "plan" => {
+            let stem = sanitize_plan_stem(id)?;
+            let path = plans_dir(repo_root).join(format!("{stem}.md"));
+            let md = fs::read_to_string(&path).map_err(|_| TicketError::NotFound)?;
+            let steps = parse_plan_open_items(&md);
+            let scenario = format!("plan-{stem}");
+            let scenario = title_chars(&scenario, 40);
+            let (tickets, skipped) =
+                create_from_steps(repo_root, &scenario, "ticket-claim", "gsv", steps)?;
+            (scenario, tickets, skipped)
+        }
+        _ => {
+            return Err(TicketError::BadRequest(
+                "source must be scenario, band, or plan".into(),
+            ))
+        }
+    };
+    Ok(HookReport {
+        ok: true,
+        source,
+        id: id.to_string(),
+        scenario,
+        tickets,
+        skipped,
+    })
+}
+
+/// HTTP/MCP hook wire. `phrase` wins over `source`+`id`.
+pub fn wire_hook(
+    repo_root: &Path,
+    data_dir: &Path,
+    body: &Value,
+) -> Result<(HookReport, bool), TicketError> {
+    let phrase = body
+        .get("phrase")
+        .and_then(Value::as_str)
+        .or_else(|| body.get("body").and_then(Value::as_str))
+        .unwrap_or("")
+        .trim();
+    let parsed = if !phrase.is_empty() {
+        parse_hook_phrase(phrase)
+    } else {
+        None
+    };
+    let (source, id, walk) = if let Some(p) = parsed {
+        (p.source, p.id, p.walk)
+    } else {
+        let source = body
+            .get("source")
+            .and_then(Value::as_str)
+            .unwrap_or("scenario")
+            .trim()
+            .to_string();
+        let id = body
+            .get("id")
+            .and_then(Value::as_str)
+            .or_else(|| body.get("scenario_id").and_then(Value::as_str))
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        let walk = body.get("walk").and_then(Value::as_bool).unwrap_or(false);
+        (source, id, walk)
+    };
+    let report = hook_up(repo_root, data_dir, &source, &id)?;
+    Ok((report, walk))
 }
 
 fn append_event(
@@ -1236,5 +1663,64 @@ mod unit {
         assert!(!lease_is_expired(&t, 100));
         t.status = "open".into();
         assert!(!lease_is_expired(&t, 100));
+    }
+
+    #[test]
+    fn parse_hook_phrase_catalog_band_plan_and_json() {
+        let p = parse_hook_phrase("run mcp bot hook up scenario abrakadabra-session").expect("p");
+        assert_eq!(p.source, "scenario");
+        assert_eq!(p.id, "abrakadabra-session");
+        assert!(!p.walk);
+        let b = parse_hook_phrase("run mcp bot hook up scenario band 176 walk").expect("b");
+        assert_eq!(b.source, "band");
+        assert_eq!(b.id, "176");
+        assert!(b.walk);
+        let plan =
+            parse_hook_phrase("/hook plan 2026-08-19-gsv-settings-telegram-tickets").expect("plan");
+        assert_eq!(plan.source, "plan");
+        assert_eq!(plan.id, "2026-08-19-gsv-settings-telegram-tickets");
+        let json =
+            parse_hook_phrase(r#"{"v":1,"kind":"hook","source":"band","id":"177","walk":true}"#)
+                .expect("json");
+        assert_eq!(json.source, "band");
+        assert_eq!(json.id, "177");
+        assert!(json.walk);
+        assert!(parse_hook_phrase("/ticket hi").is_none());
+        assert!(parse_hook_phrase(r#"{"v":1,"kind":"ticket","body":"x"}"#).is_none());
+    }
+
+    #[test]
+    fn parse_roadmap_open_and_closed_rows() {
+        let md = r#"
+## Спринти (band 176) — session walk
+
+| Sprint | Фокус | Acceptance |
+| **PH-S2399** | Scope | this band — **✅** |
+| **PH-S2400** | Catalog | tickets[] — **✅** |
+
+## Спринти (band 177) — hook up
+
+| Sprint | Фокус | Acceptance |
+| **PH-S2409** | Scope | owner pick — **[ ]** |
+| **PH-S2410** | Parse | phrase grammar — **[ ]** |
+
+## Ключові UX
+"#;
+        let bands = parse_roadmap_bands(md);
+        assert_eq!(bands.len(), 2, "{bands:?}");
+        assert_eq!(bands[0].band, 176);
+        assert_eq!(bands[0].all.len(), 2);
+        assert!(bands[0].open.is_empty());
+        assert_eq!(bands[1].band, 177);
+        assert_eq!(bands[1].open.len(), 2);
+        assert!(bands[1].open[0].title.starts_with("PH-S2409"));
+    }
+
+    #[test]
+    fn parse_plan_skips_done_checkboxes() {
+        let md = "- [x] done already\n- [ ] Place hook tickets\n* [ ] Second open\n";
+        let items = parse_plan_open_items(md);
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].title, "Place hook tickets");
     }
 }

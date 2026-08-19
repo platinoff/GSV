@@ -93,6 +93,8 @@ fn main() {
         ("solo_walk_mds", 8usize),
         ("mds_report", 8usize),
         ("telegram_enqueue_sync", 1_000usize),
+        ("hook_parse_phrase", 10_000usize),
+        ("hook_roadmap_band", 16usize),
     ] {
         let start = Instant::now();
         for i in 0..n {
@@ -148,6 +150,14 @@ fn main() {
                 }
                 "telegram_enqueue_sync" => {
                     let _ = telegram::enqueue_sync("solo", "t-bench", "claimed");
+                }
+                "hook_parse_phrase" => {
+                    let _ =
+                        tickets::parse_hook_phrase("run mcp bot hook up scenario band 177 walk");
+                }
+                "hook_roadmap_band" => {
+                    let md = "## Спринти (band 177)\n\n| **PH-S2409** | Scope | x — **[ ]** |\n";
+                    let _ = tickets::parse_roadmap_bands(md);
                 }
                 "disk_report" => {
                     let _ = xtask::disk_report(&root, false);

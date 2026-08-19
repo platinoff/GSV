@@ -10,6 +10,7 @@
 //! Band 175: `kind:sync` envelopes on claim/done during a solo scenario walk.
 //! Band 176: session lines (`solo claimed …` / `squad assigned …` / `bench gsv_dev … ns`);
 //! live `sendMessage` 1/s when the token is set; cargo tests stay dry-run.
+//! Band 177: `run mcp bot hook up scenario` (catalog / roadmap band / plan).
 
 use std::collections::VecDeque;
 use std::path::Path;
@@ -444,6 +445,13 @@ pub fn session_line(kind: &str, phase: &str, title: &str, worker: &str) -> Strin
                 format!("bench gsv_dev {title}")
             }
         }
+        ("hook", _) => {
+            if title.starts_with("hook ") {
+                title.to_string()
+            } else {
+                format!("hook {title}")
+            }
+        }
         (_, "done") => format!("solo done {title}"),
         _ => format!("solo claimed {title}"),
     }
@@ -578,6 +586,126 @@ pub async fn sync_walk(
             }
             v
         })
+}
+
+/// Place tickets from a hook phrase/source, enqueue a Godfather line, optional walk.
+pub async fn sync_hook(
+    repo_root: &Path,
+    data_dir: &Path,
+    body: &Value,
+    presence: Option<&tickets::PresenceStore>,
+    explicit_dry: bool,
+) -> Result<Value, tickets::TicketError> {
+    let (report, walk) = tickets::wire_hook(repo_root, data_dir, body)?;
+    let from = body
+        .get("from")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("solo");
+    let file = settings::load_result(data_dir).map_err(tickets::TicketError::Io)?;
+    let hook_line = format!(
+        "hook {} {} n={}",
+        report.source,
+        report.id,
+        report.tickets.len()
+    );
+    let mut telegram = 0usize;
+    let mut lines: Vec<String> = Vec::new();
+    if settings::telegram_relay_enabled(&file) {
+        let tid = report
+            .tickets
+            .first()
+            .map(|t| t.id.as_str())
+            .unwrap_or("hook");
+        if enqueue_session(from, tid, &session_line("hook", "placed", &hook_line, "")).is_ok() {
+            telegram += 1;
+            lines.push(hook_line.clone());
+        }
+        if !use_stub(explicit_dry) {
+            live_send_session_lines(&file, &lines).await;
+        }
+    }
+    let mut walked = json!([]);
+    let mut bench = String::new();
+    if walk {
+        if !settings::telegram_relay_enabled(&file) {
+            return Err(tickets::TicketError::BadRequest(
+                "telegram-relay workflow is off".into(),
+            ));
+        }
+        let walk_body = json!({
+            "scenario_id": report.scenario,
+            "create": false,
+            "from": from,
+        });
+        let v = sync_walk(repo_root, data_dir, &walk_body, presence, explicit_dry).await?;
+        walked = v.get("walked").cloned().unwrap_or(json!([]));
+        telegram += v.get("telegram").and_then(Value::as_u64).unwrap_or(0) as usize;
+        bench = v
+            .get("bench")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+    }
+    Ok(json!({
+        "ok": true,
+        "source": report.source,
+        "id": report.id,
+        "scenario": report.scenario,
+        "tickets": report.tickets,
+        "skipped": report.skipped,
+        "walk": walk,
+        "walked": walked,
+        "telegram": telegram,
+        "bench": bench,
+        "dry_run": use_stub(explicit_dry),
+    }))
+}
+
+/// Telegram `/ticket` or `run mcp bot hook up scenario …`.
+pub async fn ingest_channel_body(
+    repo_root: &Path,
+    data_dir: &Path,
+    explicit_dry: bool,
+    args: &Value,
+    presence: Option<&tickets::PresenceStore>,
+) -> Value {
+    let raw = args.get("body").and_then(Value::as_str).unwrap_or("");
+    if tickets::parse_hook_phrase(raw).is_some() {
+        let file = match settings::load_result(data_dir) {
+            Ok(f) => f,
+            Err(e) => {
+                record_last(false, &e);
+                return bus_fail(&e, "");
+            }
+        };
+        let token = resolved_token(&file).unwrap_or_default();
+        if !settings::telegram_relay_enabled(&file) {
+            let err = "telegram-relay workflow is off";
+            record_last(false, err);
+            return bus_fail(err, &token);
+        }
+        let from = opt_arg(args, "from").unwrap_or_default();
+        if from.is_empty() {
+            let err = "from required";
+            record_last(false, err);
+            return bus_fail(err, &token);
+        }
+        if !allowlisted(&file, &from) {
+            let err = "from is not allowlisted";
+            record_last(false, err);
+            return bus_fail(err, &token);
+        }
+        return match sync_hook(repo_root, data_dir, args, presence, explicit_dry).await {
+            Ok(v) => v,
+            Err(e) => {
+                record_last(false, &e.to_string());
+                bus_fail(&e.to_string(), &token)
+            }
+        };
+    }
+    ticket_from_message(repo_root, data_dir, explicit_dry, args, presence)
 }
 
 async fn live_send_session_lines(file: &SettingsFile, lines: &[String]) {
@@ -1139,6 +1267,10 @@ mod tests {
         assert_eq!(
             session_line("bench", "bench", "create=1 walk=2 mds=3 enqueue=4 ns", ""),
             "bench gsv_dev create=1 walk=2 mds=3 enqueue=4 ns"
+        );
+        assert_eq!(
+            session_line("hook", "placed", "hook band 177 n=10", ""),
+            "hook band 177 n=10"
         );
         let stub = bench_session_line(std::path::Path::new("/no/such/gsv-speed-index"));
         assert_eq!(stub, "bench gsv_dev create=0 walk=0 mds=0 enqueue=0 ns");

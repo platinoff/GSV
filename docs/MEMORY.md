@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-19 · band 177 ✅)
+
+- **Band 177:** Roadmap/plan hook-up. Phrase `run mcp bot hook up scenario <id|band N|plan stem> [walk]` · parse `GSV_TECH_ROADMAP.md` PH-S* + superpowers `- [ ]` · `POST /api/tickets/hook` · MCP `gsv_tickets_hook` (**51** tools) · idempotent re-hook · Godfather `hook … n=` · Galaxy hook button + phrase · `gsv_dev` `hook_parse_phrase` / `hook_roadmap_band`. `CARD_NAMES` **40**.
+- **Canon:** [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md).
+- **Next drain:** propose **scenario benchmark** (`gsv_dev` / `abrakadabra-session` walk) **or hook from plans**.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.39%** (rust 32987 / product 33189) · **605** tests · clippy 0
+
 ## Стан (2026-08-19 · band 176 ✅)
 
 - **Band 176:** Visible MCP session walk. Scenario `abrakadabra-session` (6) · session lines (`solo claimed` / `squad assigned … to {worker}` / `bench gsv_dev … ns`) · live `sendMessage` 1/s · dry-run queue · Galaxy walk · `CARD_NAMES` **40**.

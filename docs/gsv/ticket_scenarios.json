@@ -101,6 +101,13 @@
           "body": "solo: fmt/clippy/test/loc-audit line, then bump+fingerprint in the real drain close."
         }
       ]
+    },
+    {
+      "id": "roadmap-hook",
+      "title": "Hook tickets from roadmap or plan",
+      "body": "run mcp bot hook up scenario <id|band N|plan stem> [walk]. Parses GSV_TECH_ROADMAP.md PH-S* rows or superpowers plan checkboxes into ≤10 board rows. MCP gsv_tickets_hook.",
+      "workflow": "ticket-claim",
+      "product": "gsv"
     }
   ]
 }
