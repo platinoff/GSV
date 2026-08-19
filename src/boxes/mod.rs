@@ -20,6 +20,7 @@
 //! | Watchdog | `watchdog` | `/api/watchdog` | `target/live/watchdog.json` heartbeat + respawn live copy |
 //! | Usage | `usage` | `/api/usage` | per-session token counts (OmniRouter + MCP + OmniRoute) |
 //! | Settings | `settings` | `/api/settings` | Godfather channel + redacted token + co-workflows |
+//! | Telegram | `telegram` | `/api/telegram` | Godfather bind (getMe+getChat; dry-run stub in tests) |
 //! | Xtask | `xtask` | `/api/xtask` · `/api/disk` | `cargo xtask` product automation (no `.sh`) |
 
 pub mod fingerprint;
@@ -33,6 +34,7 @@ pub mod ratio;
 pub mod settings;
 pub mod sli;
 pub mod sw;
+pub mod telegram;
 pub mod terminal;
 pub mod toolchain;
 pub mod ui;

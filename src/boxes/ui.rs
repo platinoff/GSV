@@ -116,6 +116,7 @@ pub const UI_GROUPS: [UiGroup; 4] = [
             "watchdog",
             "mcp",
             "settings",
+            "telegram",
             "update",
             "tracker",
             "sli",
@@ -1073,6 +1074,76 @@ pub fn render_settings(d: &Value) -> String {
     out
 }
 
+/// Telegram Godfather bind card (`/api/telegram`) — never echoes the bot token.
+pub fn render_telegram(d: &Value) -> String {
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let channel = s(&d["channel_id"]);
+    let token_set = b(&d["token_set"]);
+    let empty = !token_set && channel.is_empty();
+    let mut out = String::new();
+    if empty {
+        out.push_str(&empty_html("telegram"));
+    }
+    let dry = b(&d["dry_run"]);
+    let polling = b(&d["polling"]);
+    let bot = s(&d["bot_username"]);
+    let title = s(&d["chat_title"]);
+    let probe = s(&d["last_probe"]);
+    out.push_str(&format!(
+        "<div class='dim'>Godfather bind · token <kbd>{}</kbd> · dry-run <kbd>{}</kbd></div>",
+        if token_set { "set" } else { "unset" },
+        if dry { "yes" } else { "no" }
+    ));
+    out.push_str(&tab(
+        &["field", "value"],
+        vec![
+            vec![
+                "channel".into(),
+                if channel.is_empty() {
+                    "<span class='dim'>—</span>".into()
+                } else {
+                    format!("<kbd>{}</kbd>", esc(&channel))
+                },
+            ],
+            vec![
+                "bot".into(),
+                if bot.is_empty() {
+                    "<span class='dim'>—</span>".into()
+                } else {
+                    format!("<kbd>{}</kbd>", esc(&bot))
+                },
+            ],
+            vec![
+                "chat".into(),
+                if title.is_empty() {
+                    "<span class='dim'>—</span>".into()
+                } else {
+                    esc(&title)
+                },
+            ],
+            vec![
+                "last probe".into(),
+                if probe.is_empty() {
+                    "<span class='dim'>—</span>".into()
+                } else {
+                    esc(&probe)
+                },
+            ],
+            vec![
+                "polling".into(),
+                format!(
+                    "<span class='{}'>{}</span>",
+                    if polling { "ok" } else { "dim" },
+                    if polling { "on" } else { "off" }
+                ),
+            ],
+        ],
+    ));
+    out
+}
+
 /// Health card (`/api/health`).
 pub fn render_health(d: &Value) -> String {
     if let Some(msg) = not_ok(d) {
@@ -1790,6 +1861,7 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
         "usage" => Some(render_usage(d)),
         "mcp" => Some(render_mcp(d)),
         "settings" => Some(render_settings(d)),
+        "telegram" => Some(render_telegram(d)),
         "update" => Some(render_update(d)),
         "ide" => Some(render_ide(d)),
         "vision" => Some(render_vision(d)),
@@ -1812,7 +1884,7 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
 }
 
 /// Server-rendered card names (stable contract for `/api/ui/card/:name`).
-pub const CARD_NAMES: [&str; 38] = [
+pub const CARD_NAMES: [&str; 39] = [
     "tracker",
     "sli",
     "toolchain",
@@ -1834,6 +1906,7 @@ pub const CARD_NAMES: [&str; 38] = [
     "usage",
     "mcp",
     "settings",
+    "telegram",
     "update",
     "ide",
     "vision",
@@ -2226,10 +2299,11 @@ mod tests {
         assert!(render_card("node-search", &d).is_some());
         assert!(render_card("mcp", &d).is_some());
         assert!(render_card("settings", &d).is_some());
+        assert!(render_card("telegram", &d).is_some());
         assert!(render_card("products", &d).is_some());
         assert!(render_card("fingerprints", &d).is_some());
         assert!(render_card("nope", &d).is_none());
-        assert_eq!(CARD_NAMES.len(), 38);
+        assert_eq!(CARD_NAMES.len(), 39);
         assert!(render_card("usage", &d).is_some());
         assert!(render_card("sw", &d).is_some());
         assert!(render_card("watchdog", &d).is_some());
@@ -2308,6 +2382,16 @@ mod tests {
         );
         assert!(!settings.contains("bot_token"), "{settings}");
         assert!(render_settings(&serde_json::json!({ "ok": false, "error": "io" })).contains("io"));
+        let telegram = render_telegram(&serde_json::json!({
+            "ok": true,
+            "token_set": false,
+            "channel_id": "",
+            "polling": false,
+            "dry_run": true
+        }));
+        assert!(telegram.contains("telegram — no data"), "{telegram}");
+        assert!(!telegram.contains("bot_token"), "{telegram}");
+        assert!(render_telegram(&serde_json::json!({ "ok": false, "error": "io" })).contains("io"));
     }
 
     #[test]

@@ -51,6 +51,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (tx, _rx) = broadcast::channel(32);
     let state = AppState::new(repo_root, data_dir, tx);
 
+    gsv::boxes::telegram::enable_live_api();
+
     tracing::info!(
         server = mcp::SERVER_ID,
         protocol = mcp::PROTOCOL_VERSION,

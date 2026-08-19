@@ -375,5 +375,5 @@ fn render_watchdog_empty_and_error() {
 #[test]
 fn card_names_include_watchdog() {
     assert!(CARD_NAMES.contains(&"watchdog"));
-    assert_eq!(CARD_NAMES.len(), 38);
+    assert_eq!(CARD_NAMES.len(), 39);
 }

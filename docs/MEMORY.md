@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-19 · band 167 ✅)
+
+- **Band 167:** Godfather Telegram channel bind. `boxes/telegram.rs` · `GET /api/telegram` (getMe+getChat; never `bot_token`) · dry-run stub under cargo test / `X-Telegram-Dry-Run: 1` · poller default off (`godfather.poll` or `telegram-relay`) · Galaxy ops card `telegram` (`CARD_NAMES` **39**) · MCP `gsv_telegram` read-only (**38** tools · **11** resources). No bus, no `tickets.jsonl`.
+- **Canon:** [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md) · plan [`superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md`](superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md).
+- **Next drain:** band **168** (`PH-S2319…S2328`) ticket board + MCP claim. Then **169** bus. Do not invent 170.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.28%** (rust 26604 / product 26796) · **528** tests · clippy 0
+
 ## Стан (2026-08-19 · band 166 ✅)
 
 - **Band 166:** Settings + Godfather secret store. `boxes/settings.rs` · `data/gsv_settings.json` (gitignored) · env `GSV_TELEGRAM_BOT_TOKEN` wins without being written back · `GET`/`POST /api/settings` never contains `bot_token` · Galaxy ops card `settings` (`CARD_NAMES` **38**) · MCP `gsv_settings` read-only + resource `gsv://docs/settings-telegram` (**37** tools · **11** resources). No live Telegram.

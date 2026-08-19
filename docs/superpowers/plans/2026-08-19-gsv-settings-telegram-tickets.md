@@ -1,6 +1,6 @@
 # GSV settings / Telegram / tickets Implementation Plan
 
-> **For agentic workers:** Owner 2026-08-19: remaining work **167–169 is fully specified below**. Next `абракадабра` on **gsv** drains **band 167 only** (`PH-S2309…S2318`). Then **168**, then **169** from this file. ≤10 PH-S* per drain; one commit + push per band. Do not invent band 170. Spec travels with the plan: [`GSV_SETTINGS_TELEGRAM.md`](../gsv/GSV_SETTINGS_TELEGRAM.md).
+> **For agentic workers:** Owner 2026-08-19: remaining work **168–169 is fully specified below**. Next `абракадабра` on **gsv** drains **band 168 only** (`PH-S2319…S2328`). Then **169** from this file. ≤10 PH-S* per drain; one commit + push per band. Do not invent band 170. Spec travels with the plan: [`GSV_SETTINGS_TELEGRAM.md`](../gsv/GSV_SETTINGS_TELEGRAM.md).
 
 **Goal:** Queue owner-picked GSV settings (Godfather channel + secret store + co-workflows), then Telegram bind, ticket board with MCP claim, then MCP-to-MCP Telegram bus. Band **166** is settings only so secrets land correctly before any Bot API call.
 
@@ -90,7 +90,7 @@ Landed this `абракадабра` on **gsv**. Do not skip to 167.
 
 # Band 167 — Godfather channel bind (PH-S2309…S2318)
 
-**Next `абракадабра` on gsv.** Live Bot API only from the server process; tests use an in-process stub / `X-Telegram-Dry-Run: 1` (same idea as Omni `X-Omni-Dry-Run`). Never hit `api.telegram.org` under `cargo test`. Poller default **off**. No bus, no tickets.
+Landed this `абракадабра` on **gsv**. Do not skip to 168.
 
 ## File map (band 167)
 
@@ -109,59 +109,59 @@ Landed this `абракадабра` on **gsv**. Do not skip to 167.
 
 ### Task 1: Scope (PH-S2309)
 
-- [ ] Confirm spec P1 bind table. No `gsv_telegram_bus_*`. No `tickets.jsonl`.
-- [ ] `gsv_drain` / HANDOFF still say next-after-167 = **168**.
+- [x] Confirm spec P1 bind table. No `gsv_telegram_bus_*`. No `tickets.jsonl`.
+- [x] `gsv_drain` / HANDOFF still say next-after-167 = **168**.
 
 ### Task 2: Probe module (PH-S2310)
 
-- [ ] `telegram.rs`: `fn status(data_dir, repo_root) -> Value`. Missing channel or missing token → `{ok:false,error}` without secrets.
-- [ ] Dry-run / cargo-test stub returns fake `bot_username` + `chat_title`; sets `"dry_run": true`.
-- [ ] Live path: Bot API **getMe** then **getChat** for `godfather.channel_id`. Timeouts short. Map HTTP/API errors to `{ok:false,error}` with token stripped.
+- [x] `telegram.rs`: `fn status(data_dir, repo_root) -> Value`. Missing channel or missing token → `{ok:false,error}` without secrets.
+- [x] Dry-run / cargo-test stub returns fake `bot_username` + `chat_title`; sets `"dry_run": true`.
+- [x] Live path: Bot API **getMe** then **getChat** for `godfather.channel_id`. Timeouts short. Map HTTP/API errors to `{ok:false,error}` with token stripped.
 
 ### Task 3: HTTP GET (PH-S2311)
 
-- [ ] `GET /api/telegram` → redacted status: `ok`, `channel_id`, `token_set`, `bot_username`, `chat_title`, `last_probe`, `polling` (bool, default false), never `bot_token`.
-- [ ] Header `X-Telegram-Dry-Run: 1` forces stub even on live server (owner debug).
+- [x] `GET /api/telegram` → redacted status: `ok`, `channel_id`, `token_set`, `bot_username`, `chat_title`, `last_probe`, `polling` (bool, default false), never `bot_token`.
+- [x] Header `X-Telegram-Dry-Run: 1` forces stub even on live server (owner debug).
 
 ### Task 4: Poller default off (PH-S2312)
 
-- [ ] No background Telegram task unless `workflows.enabled` contains `telegram-relay` **or** settings gain `godfather.poll: true` (`#[serde(default)]`).
-- [ ] Always-on Galaxy must not probe Telegram on boot when poll is off. Status GET is on-demand.
+- [x] No background Telegram task unless `workflows.enabled` contains `telegram-relay` **or** settings gain `godfather.poll: true` (`#[serde(default)]`).
+- [x] Always-on Galaxy must not probe Telegram on boot when poll is off. Status GET is on-demand.
 
 ### Task 5: Galaxy card (PH-S2313)
 
-- [ ] `render_telegram`; empty + error HTML. Ops group next to `settings`.
-- [ ] Stand-smoke `CARDS` includes `telegram`.
+- [x] `render_telegram`; empty + error HTML. Ops group next to `settings`.
+- [x] Stand-smoke `CARDS` includes `telegram`.
 
 ### Task 6: MCP (PH-S2314)
 
-- [ ] `gsv_telegram` read-only (same JSON as GET). **No** MCP send/poll in 167.
-- [ ] Drain prompt: bind 167; tickets are 168.
+- [x] `gsv_telegram` read-only (same JSON as GET). **No** MCP send/poll in 167.
+- [x] Drain prompt: bind 167; tickets are 168.
 
 ### Task 7: Contracts (PH-S2315)
 
-- [ ] Stub path never performs UDP/TCP to Telegram.
-- [ ] Error strings and MCP output omit token substrings.
-- [ ] `gsv_mcp_contracts` tool list +1; UI `RUST_CARDS` / `CARD_NAMES` lockstep.
+- [x] Stub path never performs UDP/TCP to Telegram.
+- [x] Error strings and MCP output omit token substrings.
+- [x] `gsv_mcp_contracts` tool list +1; UI `RUST_CARDS` / `CARD_NAMES` lockstep.
 
 ### Task 8: Docs (PH-S2316)
 
-- [ ] BOXES Telegram row **✅**; spec P1 167 Landed; HANDOFF next = **168**.
+- [x] BOXES Telegram row **✅**; spec P1 167 Landed; HANDOFF next = **168**.
 
 ### Task 9: Ratio + tests (PH-S2317)
 
-- [ ] fmt / clippy / `cargo test` (keep `target/live/`) / `--stretch-96` ≥ 96%.
+- [x] fmt / clippy / `cargo test` (keep `target/live/`) / `--stretch-96` ≥ 96%.
 
 ### Task 10: Band close (PH-S2318)
 
-- [ ] `cargo xtask bump --band 167` + fingerprint + one commit + push.
-- [ ] NEXT: next = **168** (tickets), not 169.
+- [x] `cargo xtask bump --band 167` + fingerprint + one commit + push.
+- [x] NEXT: next = **168** (tickets), not 169.
 
 ---
 
 # Band 168 — Ticket board + MCP claim (PH-S2319…S2328)
 
-After 167. Git-tracked JSONL like fingerprints. Claim **is** allowed on MCP. Co-workflow `ticket-claim` must be enabled or claim errors. Default claim log = sibling `docs/gsv/ticket_claims.jsonl` (do not mix into drain `fingerprints.jsonl`).
+**Next `абракадабра` on gsv.** After 167. Git-tracked JSONL like fingerprints. Claim **is** allowed on MCP. Co-workflow `ticket-claim` must be enabled or claim errors. Default claim log = sibling `docs/gsv/ticket_claims.jsonl` (do not mix into drain `fingerprints.jsonl`).
 
 ## File map (band 168)
 

@@ -82,6 +82,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (tx, _rx) = broadcast::channel(256);
     let state = AppState::new(repo_root.clone(), data_dir.clone(), tx);
 
+    gsv::boxes::telegram::enable_live_api();
+
     let addr: SocketAddr = format!("{host}:{port}").parse()?;
     let app = gsv::server::router(state.clone());
     let listener = tokio::net::TcpListener::bind(addr).await?;

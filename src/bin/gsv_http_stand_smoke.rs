@@ -25,7 +25,7 @@ const ENV_BASE: &str = "GSV_BASE_URL";
 
 /// Card names backed by the Rust UI fragment renderers (`boxes::ui::CARD_NAMES`).
 /// Kept in sync via the `cards` contract test in `tests/gsv_stand_smoke_contracts.rs`.
-const CARDS: [&str; 38] = [
+const CARDS: [&str; 39] = [
     "tracker",
     "sli",
     "toolchain",
@@ -46,6 +46,7 @@ const CARDS: [&str; 38] = [
     "watchdog",
     "usage",
     "settings",
+    "telegram",
     "mcp",
     "update",
     "ide",
@@ -276,6 +277,12 @@ async fn run_smokes(cli: &Cli) -> SmokeReport {
         &mut cases,
         "settings",
         check_ok(&client, &cli.base_url, "/api/settings"),
+    )
+    .await;
+    record(
+        &mut cases,
+        "telegram",
+        check_ok(&client, &cli.base_url, "/api/telegram"),
     )
     .await;
     record(&mut cases, "mcp", check_ok(&client, &cli.base_url, "/mcp")).await;
@@ -519,7 +526,7 @@ mod tests {
                 "card {card} missing from boxes/ui.rs CARD_NAMES"
             );
         }
-        assert_eq!(CARDS.len(), 38);
+        assert_eq!(CARDS.len(), 39);
     }
 
     #[test]

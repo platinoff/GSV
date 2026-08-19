@@ -3,7 +3,7 @@
 //! Public fields (channel id, co-workflows, `token_set`) vs secrets (`bot_token`).
 //! Disk: `data/gsv_settings.json` (gitignored). Env `GSV_TELEGRAM_BOT_TOKEN` wins
 //! over the file and is never written back unless the owner POSTs a token.
-//! HTTP/MCP wires omit `bot_token`. No Telegram Bot API in this band.
+//! HTTP/MCP wires omit `bot_token`. Telegram probe is `boxes/telegram` (band 167).
 
 use std::fmt;
 use std::fs;
@@ -30,6 +30,9 @@ pub struct Godfather {
     pub allowed_user_ids: Vec<String>,
     #[serde(default)]
     pub bot_token: String,
+    /// Opt-in channel poll (band 167). Default off — always-on Galaxy does not probe.
+    #[serde(default)]
+    pub poll: bool,
 }
 
 impl fmt::Debug for Godfather {
@@ -45,6 +48,7 @@ impl fmt::Debug for Godfather {
                     "[redacted]"
                 },
             )
+            .field("poll", &self.poll)
             .finish()
     }
 }
@@ -137,6 +141,9 @@ pub fn apply_patch(file: &mut SettingsFile, patch: &Value) {
                 file.godfather.bot_token = t.to_string();
             }
         }
+        if let Some(poll) = gf.get("poll").and_then(Value::as_bool) {
+            file.godfather.poll = poll;
+        }
     }
     if let Some(wf) = patch.get("workflows") {
         if let Some(enabled) = wf.get("enabled").and_then(Value::as_array) {
@@ -173,6 +180,7 @@ pub fn redacted_wire(file: &SettingsFile, env: Option<&str>) -> Value {
         "godfather": {
             "channel_id": file.godfather.channel_id,
             "allowed_user_ids": file.godfather.allowed_user_ids,
+            "poll": file.godfather.poll,
         },
         "workflows": { "enabled": file.workflows.enabled },
         "security": { "redact": file.security.redact },
@@ -312,6 +320,7 @@ mod tests {
             channel_id: "ch".into(),
             allowed_user_ids: vec![],
             bot_token: "super-secret-bot".into(),
+            poll: false,
         };
         let d = format!("{g:?}");
         assert!(d.contains("[redacted]"), "{d}");

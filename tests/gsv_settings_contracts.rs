@@ -164,6 +164,7 @@ async fn mcp_settings_has_no_bot_token() {
                 channel_id: "ch".into(),
                 allowed_user_ids: vec![],
                 bot_token: "mcp-secret-token".into(),
+                poll: false,
             },
             ..Default::default()
         },

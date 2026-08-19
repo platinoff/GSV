@@ -167,6 +167,7 @@ async fn post_initialize_and_tools_list() {
     assert!(names.contains(&"gsv_disk"));
     assert!(names.contains(&"gsv_usage"));
     assert!(names.contains(&"gsv_settings"));
+    assert!(names.contains(&"gsv_telegram"));
     assert_eq!(names.len(), mcp::tool_names().len());
 }
 
@@ -1123,8 +1124,9 @@ async fn drain_prompt_names_always_on_tools() {
     assert!(text.contains("gsv_watchdog"), "{text}");
     assert!(text.contains("gsv_usage"), "{text}");
     assert!(text.contains("gsv_settings"), "{text}");
+    assert!(text.contains("gsv_telegram"), "{text}");
     assert!(text.contains("gsv://docs/settings-telegram"), "{text}");
-    assert!(text.contains("Band 166"), "{text}");
+    assert!(text.contains("Band 167"), "{text}");
     assert!(text.contains("gsv://docs/next"), "{text}");
     assert!(text.contains("http://127.0.0.1:9999/mcp"), "{text}");
     assert!(text.contains("S:/rust/GSV"), "{text}");

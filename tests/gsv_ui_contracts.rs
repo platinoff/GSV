@@ -126,7 +126,7 @@ fn ui_helpers_match_js_semantics() {
     assert!(tab(&["a"], Vec::new()).contains("<span class='dim'>—</span>"));
     assert!(bar(50.0).contains("width:50%"));
     assert!(bar(120.0).contains("width:100%"));
-    assert_eq!(CARD_NAMES.len(), 38);
+    assert_eq!(CARD_NAMES.len(), 39);
 }
 
 #[tokio::test]
@@ -183,7 +183,7 @@ async fn ui_card_mcp_renders_openbot_tools() {
 
 /// The rustCards the thin JS glue fetches via `getText` (mirror of
 /// `rustCards` in `GSV/ui/index.html`).
-const RUST_CARDS: [&str; 30] = [
+const RUST_CARDS: [&str; 31] = [
     "health",
     "products",
     "fingerprints",
@@ -191,6 +191,7 @@ const RUST_CARDS: [&str; 30] = [
     "watchdog",
     "usage",
     "settings",
+    "telegram",
     "mcp",
     "update",
     "tracker",
@@ -301,6 +302,19 @@ fn card_renderers_empty_state_contract() {
     )
     .expect("settings");
     assert!(settings.contains("settings — no data"), "{settings}");
+
+    let telegram = render_card(
+        "telegram",
+        &serde_json::json!({
+            "ok": true,
+            "token_set": false,
+            "channel_id": "",
+            "polling": false,
+            "dry_run": true
+        }),
+    )
+    .expect("telegram");
+    assert!(telegram.contains("telegram — no data"), "{telegram}");
 }
 
 /// A11y contract: the served UI HTML carries axe-friendly markers — lang,
@@ -382,7 +396,8 @@ async fn ui_index_cards_are_offline_stable() {
             && html.contains("\"mcp\"")
             && html.contains("\"sw\"")
             && html.contains("\"watchdog\"")
-            && html.contains("\"settings\""),
+            && html.contains("\"settings\"")
+            && html.contains("\"telegram\""),
         "rustCards includes layout ops/sprint cards"
     );
     assert!(
