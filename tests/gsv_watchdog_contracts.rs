@@ -474,6 +474,17 @@ async fn api_watchdog_and_health_expose_alive() {
     assert!(json["watchdog_alive"].is_boolean(), "{json}");
     assert!(json["crate_version"].is_string(), "{json}");
     assert!(json["version_lag"].is_boolean(), "{json}");
+    assert!(
+        json["disk_ok"].is_boolean(),
+        "health must surface S0 disk_ok: {json}"
+    );
+    assert!(json["disk_violation"].is_boolean(), "{json}");
+    assert!(json.get("disk_free_gb").is_some(), "{json}");
+    assert!(json.get("disk_target_gb").is_some(), "{json}");
+    assert_eq!(
+        json["ok"], true,
+        "process health stays ok when disk is only a S0 note"
+    );
 }
 
 #[test]
@@ -488,13 +499,19 @@ fn health_card_lists_watchdog() {
             "version_lag": true,
             "uptime_secs": 1,
             "update_available": false,
-            "watchdog_alive": true
+            "watchdog_alive": true,
+            "disk_ok": false,
+            "disk_violation": true,
+            "disk_free_gb": 7,
+            "disk_target_gb": 21
         }),
     )
     .expect("health card");
     assert!(html.contains("watchdog"), "{html}");
     assert!(html.contains("crate_version"), "{html}");
     assert!(html.contains("version_lag"), "{html}");
+    assert!(html.contains("disk_ok"), "{html}");
+    assert!(html.contains("disk_free_gb"), "{html}");
 }
 
 #[test]

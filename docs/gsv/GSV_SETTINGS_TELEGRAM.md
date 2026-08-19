@@ -1,6 +1,6 @@
 # GSV settings, Telegram Godfather, tickets, MCP bot bus
 
-**Status:** Landed band **179** (Godfather inbound poller — `getUpdates` loop in `gsv-server`) · **band 178 ✅** scenario benchmark — `abrakadabra-session` Instant timings · **band 177 ✅** roadmap/plan MCP hook-up — `run mcp bot hook up scenario` · **band 176 ✅** visible MCP session walk · **band 175 ✅** MDS scenario band + solo walk + Telegram `kind:sync` · **band 174 ✅** solo Telegram tickets · **band 173 ✅** vision queue close-lockstep · **band 172 ✅** live crate lockstep · bands **166–171 ✅** · **next drain:** owner pick after a warnings-first scan  
+**Status:** Landed band **181** (Galaxy glue + S0 disk on health) · **band 179** (Godfather inbound poller — `getUpdates` loop in `gsv-server`) · **band 178 ✅** scenario benchmark — `abrakadabra-session` Instant timings · **band 177 ✅** roadmap/plan MCP hook-up — `run mcp bot hook up scenario` · **band 176 ✅** visible MCP session walk · **band 175 ✅** MDS scenario band + solo walk + Telegram `kind:sync` · **band 174 ✅** solo Telegram tickets · **band 173 ✅** vision queue close-lockstep · **band 172 ✅** live crate lockstep · bands **166–171 ✅** · **next drain:** owner pick after a warnings-first scan  
 **Date:** 2026-08-19  
 **Deciders:** owner  
 **Owner ask:** GSV settings; Telegram channels; MCP bots talk to each other through a Telegram tunnel; a ticket board for people who want to join; MCP claims tickets and marks `in_progress` the same way fingerprints sync; server settings hold **Godfather** data (which channel, how secrets are stored, co-workflows). Next session starts with `абракадабра`.
@@ -19,7 +19,7 @@ Cost of leaving it: the next drain invents a one-off Telegram script, leaks a bo
 1. Owner configures GSV on the live Galaxy **Settings** card (Godfather channel, co-workflows, secret policy) without putting tokens in git.
 2. Joiners see a **ticket board**; MCP bots **claim** a ticket, mark `in_progress`, and leave a fingerprint-class row (actor / IDE / model / time).
 3. Two (or more) `gsv_mcp_openbot` clients can exchange short control messages over a **Telegram channel bus** once Godfather is bound — not a public Cloudflare hop.
-4. Band **179** is landed: `gsv-server` polls Godfather inbound (`/ticket` / hook / bus JSON) when `telegram-relay` or `godfather.poll` is on. Bands **166–179** are landed. Next drain: owner pick after a warnings-first scan.
+4. Band **181** is landed: Galaxy `selectProduct` / `reclaimTicket` glue; `/api/health` `disk_ok` (watchdog still keys off process `ok`). Bands **166–181** are landed. Next drain: owner pick after a warnings-first scan.
 5. Ratio stays `gsv-loc-audit --stretch-96` ≥ 96%. No Python. Secrets never in MCP/HTTP JSON.
 
 ## Non-goals
@@ -259,6 +259,7 @@ Unknown ids in the file are kept but ignored (forward compatible).
 | **177** | S2409–S2418 | Roadmap/plan hook-up (`run mcp bot hook up scenario`) | **✅ this drain** |
 | **178** | S2419–S2428 | Scenario benchmark (`abrakadabra-session` Instant timings) | **✅ this drain** |
 | **179** | S2429–S2438 | Godfather inbound poller (`getUpdates` loop + `gsv_telegram_poll`) | **✅ this drain** |
+| **181** | S2449–S2458 | Galaxy glue (`selectProduct` / `reclaimTicket`) + S0 `disk_ok` on `/api/health` | **✅ this drain** |
 
 Next drain: **owner pick** after a warnings-first scan.
 

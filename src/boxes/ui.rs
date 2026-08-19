@@ -1371,6 +1371,22 @@ pub fn render_health(d: &Value) -> String {
                     b(&d["watchdog_alive"])
                 ),
             ],
+            vec![
+                "disk_ok".into(),
+                format!(
+                    "<span class='{}'>{}</span>",
+                    if b(&d["disk_ok"]) { "ok" } else { "warn" },
+                    b(&d["disk_ok"])
+                ),
+            ],
+            vec!["disk_free_gb".into(), {
+                if d["disk_free_gb"].is_null() {
+                    "—".into()
+                } else {
+                    u(&d["disk_free_gb"]).to_string()
+                }
+            }],
+            vec!["disk_target_gb".into(), u(&d["disk_target_gb"]).to_string()],
         ],
     )
 }

@@ -48,27 +48,30 @@ fn health(state: &AppState) -> Value {
         crate::boxes::products::lookup(&rows, id)
             .and_then(|row| crate::boxes::fingerprint::pkg_version(std::path::Path::new(&row.path)))
     });
-    json!({
-        "name": crate::GSV_SERVER_NAME,
-        "version": *state.version,
-        "product": "gsv",
-        "ok": true,
-        "uptime_secs": state.started_at.elapsed().map(|d| d.as_secs()).unwrap_or(0),
-        "update_available": crate::boxes::update::effective_available(state),
-        "crate_version": crate::boxes::update::crate_version(&state.repo_root),
-        "version_lag": crate::boxes::update::version_lag(&state.repo_root, state.version.as_ref()),
-        "watchdog_alive": crate::boxes::watchdog::wire(&state.repo_root)
-            .get("alive")
-            .and_then(Value::as_bool)
-            .unwrap_or(false),
-        "selected_product": selected,
-        "selected_version": selected_version,
-        "fingerprint_actor": latest.map(|f| f.actor.as_str()),
-        "fingerprint_ide": latest.map(|f| f.ide.as_str()),
-        "fingerprint_model": latest.map(|f| f.model.as_str()),
-        "fingerprint_product": latest.map(|f| f.product.as_str()),
-        "fingerprint_version": latest.map(|f| f.version.as_str()),
-    })
+    crate::boxes::xtask::with_health_disk(
+        json!({
+            "name": crate::GSV_SERVER_NAME,
+            "version": *state.version,
+            "product": "gsv",
+            "ok": true,
+            "uptime_secs": state.started_at.elapsed().map(|d| d.as_secs()).unwrap_or(0),
+            "update_available": crate::boxes::update::effective_available(state),
+            "crate_version": crate::boxes::update::crate_version(&state.repo_root),
+            "version_lag": crate::boxes::update::version_lag(&state.repo_root, state.version.as_ref()),
+            "watchdog_alive": crate::boxes::watchdog::wire(&state.repo_root)
+                .get("alive")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+            "selected_product": selected,
+            "selected_version": selected_version,
+            "fingerprint_actor": latest.map(|f| f.actor.as_str()),
+            "fingerprint_ide": latest.map(|f| f.ide.as_str()),
+            "fingerprint_model": latest.map(|f| f.model.as_str()),
+            "fingerprint_product": latest.map(|f| f.product.as_str()),
+            "fingerprint_version": latest.map(|f| f.version.as_str()),
+        }),
+        &state.repo_root,
+    )
 }
 
 /// Tracker wire.

@@ -62,7 +62,7 @@
 | GET | `/api/tickets/bench` | Last `abrakadabra-session` Instant timings (`docs/gsv/scenario_bench.json`; missing → `recorded:false` zeros) |
 | POST | `/api/tickets/bench` | `{run:true}` times a throwaway session walk and persists JSON. CSRF. Default `{run:false}` is a read. |
 | GET | `/api/mds` | Light memory / disk / speed report (`gsv-mds`) |
-| GET | `/api/health` | health-чек (`crate_version`, `version_lag`, `update_available` matches Update box) |
+| GET | `/api/health` | health-чек (`crate_version`, `version_lag`, `watchdog_alive`, `disk_ok` / `disk_violation` — process `ok` stays true on S0 disk trip; `update_available` matches Update box) |
 | GET | `/mcp` | MCP discovery (`gsv_mcp_openbot` + `sandbox` GSV crate path + 53 tools + 11 resources + 3 prompts + `stdio`/`stdio_live`/`http`/`http_url`/`version`/`http_csrf`/`tool_count`/`resource_count`/`prompt_count`/`logging`/`completions`/`log_level`/`subscribe`/`subscription_count`/`sse`/`streamable`/`sessions`/`session_count`); sessionless `Accept: text/event-stream` flushes pending notifications as finite SSE; **GET with `Mcp-Session-Id` holds** the stream; unknown `Mcp-Session-Id` → 404 |
 | POST | `/mcp` | MCP JSON-RPC (initialize / tools/* / resources/* including subscribe/unsubscribe / prompts/* / logging/setLevel / completion/complete); skips browser CSRF (bots); `initialize` issues `Mcp-Session-Id`; unknown id → 404; `Accept: text/event-stream` → SSE notifications then result; stdio twin is `target/live/gsv-mcp.exe` |
 | DELETE | `/mcp` | End HTTP MCP session (`Mcp-Session-Id` required; missing → 400; unknown → 404) |
@@ -134,7 +134,7 @@ cargo run --manifest-path GSV/Cargo.toml --bin gsv-http-stand-smoke -- --base-ur
 - UI показує кнопку/бейдж **Update** замість auto-reload; `doUpdate()` POSTs `/api/update/apply`.
 - Клієнтський JS тримає стан offline; при SSE `onopen` робить full-resync (Tracker/SLI/toolchain/speed/rust diagnostics).
 
-**Horizon:** band **180** watchdog process lockstep (`hop_successor` each tick). Band **179** Godfather inbound poller. Band **174** solo Telegram tickets (`gsv_telegram_ticket` · `/ticket` ingest). Band **173** vision queue close-lockstep (`bump --band N` = last of N / first of N+1). Band **172** live crate lockstep. Settings/Telegram/tickets **166–171 ✅**. Next drain = **owner pick**. Spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md) · [`GSV_OMNI_CATALOG.md`](./GSV_OMNI_CATALOG.md) · [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md).
+**Horizon:** band **181** Galaxy glue + S0 disk on health. Band **180** watchdog process lockstep (`hop_successor` each tick). Band **179** Godfather inbound poller. Band **174** solo Telegram tickets (`gsv_telegram_ticket` · `/ticket` ingest). Band **173** vision queue close-lockstep (`bump --band N` = last of N / first of N+1). Band **172** live crate lockstep. Settings/Telegram/tickets **166–171 ✅**. Next drain = **owner pick**. Spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md) · [`GSV_OMNI_CATALOG.md`](./GSV_OMNI_CATALOG.md) · [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md).
 
 ## Live copy + apply (band 144)
 

@@ -218,6 +218,14 @@ fn render_products_has_select_and_open_actions() {
 }
 
 #[test]
+fn galaxy_glue_defines_select_product() {
+    assert!(
+        gsv::server::INDEX_HTML.contains("async function selectProduct"),
+        "product-select button must have glue"
+    );
+}
+
+#[test]
 fn card_names_include_products() {
     assert!(CARD_NAMES.contains(&"products"));
 }

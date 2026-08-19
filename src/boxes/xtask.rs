@@ -256,6 +256,28 @@ pub fn disk_report(repo_root: &Path, enforce: bool) -> DiskReport {
     }
 }
 
+/// S0 disk snapshot for `/api/health` / `gsv_health`. Process `ok` stays true
+/// even when `disk_violation` is true (watchdog must not treat low disk as down).
+pub fn health_disk(repo_root: &Path) -> Value {
+    let r = disk_report(repo_root, false);
+    json!({
+        "disk_ok": !r.violation,
+        "disk_violation": r.violation,
+        "disk_free_gb": r.free_gb,
+        "disk_free_mb": r.free_mb,
+        "disk_target_gb": r.target_gb,
+        "disk_notes": r.notes,
+    })
+}
+
+/// Merge S0 disk fields into a health JSON object.
+pub fn with_health_disk(mut health: Value, repo_root: &Path) -> Value {
+    if let (Some(map), Value::Object(disk)) = (health.as_object_mut(), health_disk(repo_root)) {
+        map.extend(disk);
+    }
+    health
+}
+
 /// JSON wire for `GET /api/disk` and MCP `gsv_disk`.
 pub fn disk_wire(repo_root: &Path, enforce: bool) -> Value {
     json!(disk_report(repo_root, enforce))
@@ -744,6 +766,16 @@ mod tests {
             "{:?}",
             r.notes
         );
+    }
+
+    #[test]
+    fn with_health_disk_keeps_process_ok() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let v = with_health_disk(json!({ "ok": true, "name": "t" }), &root);
+        assert_eq!(v["ok"], true);
+        assert!(v["disk_ok"].is_boolean(), "{v}");
+        assert!(v["disk_violation"].is_boolean(), "{v}");
+        assert_eq!(v["disk_ok"], !v["disk_violation"].as_bool().unwrap());
     }
 
     #[test]

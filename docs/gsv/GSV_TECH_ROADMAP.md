@@ -65,6 +65,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 178** (scenario benchmark) **✅** ·
 **band 179** (Godfather inbound poller) **✅** ·
 **band 180** (watchdog process lockstep) **✅** ·
+**band 181** (Galaxy glue + S0 disk on health) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -1284,6 +1285,23 @@ Owner pick (`абракадабра` gsv / continue): live `gsv-server` was **0.
 | **PH-S2446** | Contracts | `gsv_watchdog_contracts` hop / server-only / stop-peer — **✅** |
 | **PH-S2447** | Docs / MCP | BOXES / SERVER / drain prompt names band 180 — **✅** |
 | **PH-S2448** | Band close | `--band 180` + fingerprint; recopy live; one commit + push — **✅** |
+
+## Спринти (band 181) — Galaxy glue + S0 disk on health ✅
+
+Owner pick (`абракадабра` gsv / продовжуй): S0 disk was **7 GiB** (below 12) while Galaxy **select** / **reclaim** buttons had `data-action` but no JS (`selectProduct` / `reclaimTicket` missing). Health `ok` stays true on disk violation so the watchdog does not treat low disk as `:9999` down.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2449** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2449`; `last_sprint_closed` = `PH-S2448` — **✅** |
+| **PH-S2450** | Glue select | `async function selectProduct` POSTs `/api/products/select` — **✅** |
+| **PH-S2451** | Glue reclaim | `async function reclaimTicket` POSTs `/api/tickets/reclaim` — **✅** |
+| **PH-S2452** | Disk helper | `health_disk` / `with_health_disk`; `disk_ok = !violation` — **✅** |
+| **PH-S2453** | Health wire | `GET /api/health` + `gsv_health` disk_* fields; process `ok` stays true — **✅** |
+| **PH-S2454** | Galaxy | health card `disk_ok` / `disk_free_gb` / `disk_target_gb`; `CARD_NAMES` **40** — **✅** |
+| **PH-S2455** | Contracts | INDEX_HTML glue + health disk + `with_health_disk_keeps_process_ok` — **✅** |
+| **PH-S2456** | S0 | `cargo xtask disk --clean` keeps live when free < 12 GiB — **✅** |
+| **PH-S2457** | Docs / MCP | BOXES / SERVER / drain prompt names band 181 — **✅** |
+| **PH-S2458** | Band close | `--band 181` + fingerprint; recopy live; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

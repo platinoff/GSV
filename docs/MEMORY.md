@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-19 · band 181 ✅)
+
+- **Band 181:** Galaxy glue + S0 disk on health. `selectProduct` / `reclaimTicket` · `GET /api/health` `disk_ok` (watchdog still uses process `ok`) · `CARD_NAMES` **40**.
+- **Canon:** [`gsv/GSV_SERVER.md`](gsv/GSV_SERVER.md) health · [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md) S0 disk.
+- **Next drain:** **owner pick** after a warnings-first scan.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.41%** (rust 34265 / product 34470) · **619** tests · clippy 0
+
 ## Стан (2026-08-19 · band 180 ✅)
 
 - **Band 180:** Watchdog process lockstep. `debug_newer_server` (apply only on **gsv-server**) · `hop_successor` each tick · `stop_peer_watchdog` on stale `bin_version` · wire `server_debug_newer` / `watchdog_debug_newer`. `CARD_NAMES` **40**.

@@ -933,6 +933,14 @@ fn card_shows_lease_and_reclaim() {
     assert!(board.contains("data-action='tickets-reclaim'"), "{board}");
 }
 
+#[test]
+fn galaxy_glue_defines_reclaim_ticket() {
+    assert!(
+        gsv::server::INDEX_HTML.contains("async function reclaimTicket"),
+        "tickets-reclaim button must have glue"
+    );
+}
+
 fn enable_claim_relay(data: &Path) {
     settings::save(
         data,
