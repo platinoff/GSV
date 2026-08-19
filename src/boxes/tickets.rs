@@ -8,6 +8,7 @@
 //! Band 170: scenario catalog, registered-product create, solo vs squad
 //! assignment among online MCP presence, and claimed/done/error events.
 //! Band 171: `lease_until` on `in_progress`; stale reclaim → `open` + `kind:reclaimed`.
+//! Band 174: Telegram `/ticket` ingest → board row; solo MCP auto-claims.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -489,6 +490,36 @@ pub fn create(
     product: &str,
 ) -> Result<Ticket, TicketError> {
     create_with_workflow(repo_root, title, body, product, "")
+}
+
+/// Board row from a Godfather Telegram message (workflow `telegram`).
+pub fn create_from_telegram(
+    repo_root: &Path,
+    title: &str,
+    body: &str,
+    product: &str,
+) -> Result<Ticket, TicketError> {
+    create_with_workflow(repo_root, title, body, product, "telegram")
+}
+
+/// Fingerprint-class event that the row came from Telegram (`kind: telegram`).
+pub fn append_telegram_event(
+    repo_root: &Path,
+    ticket_id: &str,
+    from: &str,
+) -> Result<(), TicketError> {
+    append_event(
+        repo_root,
+        ticket_id,
+        &ClaimedBy {
+            actor: "telegram".into(),
+            ide: "telegram".into(),
+            model: "godfather".into(),
+            agent: from.trim().to_string(),
+        },
+        "telegram",
+        from,
+    )
 }
 
 fn create_with_workflow(

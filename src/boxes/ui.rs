@@ -1158,8 +1158,17 @@ pub fn render_telegram(d: &Value) -> String {
                     format!("<span class='err'>{}</span>", esc(&bus_err))
                 },
             ],
+            vec!["last ticket".into(), {
+                let id = s(&d["last_ticket_id"]);
+                if id.is_empty() {
+                    "<span class='dim'>—</span>".into()
+                } else {
+                    format!("<kbd>{}</kbd>", esc(&id))
+                }
+            }],
         ],
     ));
+    out.push_str("<div class='dim'>solo bot · MCP <kbd>gsv_telegram_ticket</kbd> · <kbd>/ticket</kbd> title</div>");
     out
 }
 
@@ -2527,6 +2536,16 @@ mod tests {
         }));
         assert!(telegram.contains("telegram — no data"), "{telegram}");
         assert!(!telegram.contains("bot_token"), "{telegram}");
+        let tg_ok = render_telegram(&serde_json::json!({
+            "ok": true,
+            "token_set": true,
+            "channel_id": "-100",
+            "polling": false,
+            "dry_run": true,
+            "last_ticket_id": "t-174"
+        }));
+        assert!(tg_ok.contains("t-174"), "{tg_ok}");
+        assert!(tg_ok.contains("gsv_telegram_ticket"), "{tg_ok}");
         assert!(render_telegram(&serde_json::json!({ "ok": false, "error": "io" })).contains("io"));
         let tickets = render_tickets(&serde_json::json!({ "ok": true, "tickets": [] }));
         assert!(tickets.contains("tickets — no data"), "{tickets}");

@@ -1129,6 +1129,7 @@ async fn drain_prompt_names_always_on_tools() {
     assert!(text.contains("gsv_telegram"), "{text}");
     assert!(text.contains("gsv_telegram_bus_send"), "{text}");
     assert!(text.contains("gsv_telegram_bus_poll"), "{text}");
+    assert!(text.contains("gsv_telegram_ticket"), "{text}");
     assert!(text.contains("gsv_tickets"), "{text}");
     assert!(text.contains("gsv_tickets_claim"), "{text}");
     assert!(text.contains("gsv_tickets_create"), "{text}");
@@ -1138,6 +1139,7 @@ async fn drain_prompt_names_always_on_tools() {
     assert!(text.contains("Band 171"), "{text}");
     assert!(text.contains("Band 172"), "{text}");
     assert!(text.contains("Band 173"), "{text}");
+    assert!(text.contains("Band 174"), "{text}");
     assert!(text.contains("lockstep-wait"), "{text}");
     assert!(text.contains("gsv://docs/next"), "{text}");
     assert!(text.contains("http://127.0.0.1:9999/mcp"), "{text}");

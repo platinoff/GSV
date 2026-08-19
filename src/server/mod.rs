@@ -103,6 +103,7 @@ pub fn router(state: AppState) -> Router {
             "/api/telegram/bus",
             get(api_telegram_bus).post(api_telegram_bus_post),
         )
+        .route("/api/telegram/ticket", post(api_telegram_ticket))
         .route("/api/tickets", get(api_tickets).post(api_tickets_post))
         .route("/api/tickets/claim", post(api_tickets_claim))
         .route("/api/tickets/done", post(api_tickets_done))
@@ -353,6 +354,21 @@ async fn api_telegram_bus_post(
 ) -> Json<Value> {
     let dry = crate::boxes::telegram::header_dry_run(&headers);
     Json(crate::boxes::telegram::bus_send(&state.data_dir, dry, &body).await)
+}
+
+async fn api_telegram_ticket(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(body): Json<Value>,
+) -> Json<Value> {
+    let dry = crate::boxes::telegram::header_dry_run(&headers);
+    Json(crate::boxes::telegram::ticket_from_message(
+        &state.repo_root,
+        &state.data_dir,
+        dry,
+        &body,
+        Some(&state.ticket_presence),
+    ))
 }
 
 async fn api_tickets(State(state): State<AppState>) -> Json<Value> {
@@ -614,7 +630,7 @@ async fn api_index() -> Json<Value> {
         "categories": [
             "/api/vision/", "/api/ui/", "/api/ratio/", "/api/toolchain/",
             "/api/ide/", "/api/omni/", "/api/sli", "/api/tracker", "/api/products",
-            "/api/fingerprints", "/api/sw", "/api/watchdog", "/api/usage", "/api/settings", "/api/telegram", "/api/telegram/bus", "/api/tickets", "/api/xtask", "/api/disk", "/sw.js",
+            "/api/fingerprints", "/api/sw", "/api/watchdog", "/api/usage", "/api/settings", "/api/telegram", "/api/telegram/bus", "/api/telegram/ticket", "/api/tickets", "/api/xtask", "/api/disk", "/sw.js",
             "/api/hooks/", "/api/preview", "/api/terminal", "/data/", "/mcp"
         ],
         "example": "/api/vision",

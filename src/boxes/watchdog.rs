@@ -279,7 +279,7 @@ pub fn spawn_watchdog_process(exe: &Path, repo_root: &Path) -> Result<(), String
 /// Watchdog heartbeat version vs on-disk crate (empty heartbeat version = lag).
 pub fn watchdog_version_lag(crate_ver: Option<&str>, bin_version: &str) -> bool {
     match crate_ver {
-        Some(c) if bin_version.is_empty() => true,
+        Some(_) if bin_version.is_empty() => true,
         Some(c) => c != bin_version,
         None => false,
     }

@@ -4,6 +4,7 @@
 
 use std::time::Instant;
 
+use gsv::boxes::telegram;
 use gsv::boxes::tickets::{self, ClaimedBy, Presence, TicketMode};
 use gsv::boxes::xtask;
 
@@ -64,6 +65,7 @@ fn main() {
         ("pick_assignee_squad", 10_000usize),
         ("tickets_create_claim_done", 64usize),
         ("tickets_list", 64usize),
+        ("telegram_parse_ticket", 10_000usize),
     ] {
         let start = Instant::now();
         for i in 0..n {
@@ -87,6 +89,9 @@ fn main() {
                 }
                 "tickets_list" => {
                     let _ = tickets::list(&kit);
+                }
+                "telegram_parse_ticket" => {
+                    let _ = telegram::parse_ticket_body("/ticket bench title");
                 }
                 "disk_report" => {
                     let _ = xtask::disk_report(&root, false);

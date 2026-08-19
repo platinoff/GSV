@@ -1,6 +1,6 @@
 # GSV settings, Telegram Godfather, tickets, MCP bot bus
 
-**Status:** Landed band **171** (owner pick 2026-08-19: ticket lease + stale reclaim) · bands **166–170 ✅** · **band 172 ✅** live crate lockstep · **band 173 ✅** vision queue close-lockstep · **next drain = owner pick** after a warnings-first scan  
+**Status:** Landed band **174** (owner pick 2026-08-19: solo bot tickets from Telegram messages) · **band 173 ✅** vision queue close-lockstep · **band 172 ✅** live crate lockstep · bands **166–171 ✅** · **next drain = owner pick** after a warnings-first scan  
 **Date:** 2026-08-19  
 **Deciders:** owner  
 **Owner ask:** GSV settings; Telegram channels; MCP bots talk to each other through a Telegram tunnel; a ticket board for people who want to join; MCP claims tickets and marks `in_progress` the same way fingerprints sync; server settings hold **Godfather** data (which channel, how secrets are stored, co-workflows). Next session starts with `абракадабра`.
@@ -19,7 +19,7 @@ Cost of leaving it: the next drain invents a one-off Telegram script, leaks a bo
 1. Owner configures GSV on the live Galaxy **Settings** card (Godfather channel, co-workflows, secret policy) without putting tokens in git.
 2. Joiners see a **ticket board**; MCP bots **claim** a ticket, mark `in_progress`, and leave a fingerprint-class row (actor / IDE / model / time).
 3. Two (or more) `gsv_mcp_openbot` clients can exchange short control messages over a **Telegram channel bus** once Godfather is bound — not a public Cloudflare hop.
-4. Next `абракадабра` on **gsv** is an **owner pick** after a warnings-first scan. Bands **166–171** are landed.
+4. Next `абракадабра` on **gsv** is an **owner pick** after a warnings-first scan. Bands **166–174** are landed.
 5. Ratio stays `gsv-loc-audit --stretch-96` ≥ 96%. No Python. Secrets never in MCP/HTTP JSON.
 
 ## Non-goals
@@ -48,7 +48,8 @@ Cost of leaving it: the next drain invents a one-off Telegram script, leaks a bo
 
 - As owner, I open Settings on `http://127.0.0.1:9999/`, paste a Godfather channel id and a bot token, and the UI never echoes the token again (`token_set: true`).
 - As owner, I enable co-workflows `drain` and `ticket-claim` so MCP agents know which collaboration modes are allowed.
-- As a joiner, I see open tickets on a Galaxy board and understand what is already `in_progress`.
+- As a solo MCP bot, I ingest a Godfather `/ticket` message (`gsv_telegram_ticket`) and claim the board row when I am the only online worker.
+
 - As an MCP bot, I list tickets, claim one, and the board + a fingerprint-class row show `in_progress` with my ide/model.
 - As two MCP bots (Cursor + OpenCode), I send a short bus message through the Godfather channel and the other client sees it without a public HTTP tunnel.
 - As owner, I type `абракадабра`, pick **GSV**, and the agent asks for the next drain (bands 166–171 landed).
@@ -120,6 +121,20 @@ Band 170 research named **atomic claim/lease**. v1 claim had no timeout, so a de
 | Explicit | `POST /api/tickets/reclaim` `{id?}` (CSRF). Empty id = all stale. Id = that `in_progress` row. MCP `gsv_tickets_reclaim`. Requires `ticket-claim`. |
 | Tools | **47** MCP tools. `CARD_NAMES` stays **40**. Galaxy WIP row shows lease + reclaim. |
 
+### P2 — Should (band 174) — solo bot tickets from Telegram ✅
+
+Owner pick (`абракадабра` gsv / Telegram messages): a **solo** MCP bot turns a Godfather channel message into a board row and claims it when it is the only online worker. Cargo tests use the dry-run stub (no sockets).
+
+| Piece | Acceptance |
+|-------|------------|
+| Parse | `/ticket title` or JSON `{v:1,kind:ticket,body}`. Plain body allowed on the explicit API. Bus JSON is rejected. |
+| Gates | `telegram-relay` **and** `ticket-claim`. Allowlist `from`. Body cap 2 KiB. |
+| Solo | Presence heartbeat → `try_dispatch` claims as the one MCP. Nobody online → ticket stays `open`. |
+| HTTP / MCP | `POST /api/telegram/ticket` (CSRF). `gsv_telegram_ticket` → **48** tools. Never `bot_token`. |
+| Events | `kind:telegram` then `kind:claimed` when dispatched. Workflow `telegram`. |
+| Galaxy | Telegram card shows `last_ticket_id` + MCP hint. Scenario `telegram-solo`. `CARD_NAMES` stays **40**. |
+
+
 ## Security (how we store)
 
 | Layer | Rule |
@@ -148,7 +163,7 @@ Unknown ids in the file are kept but ignored (forward compatible).
 - Band 168: claim from MCP flips `open` → `in_progress` and appends a claim row with ide/model.
 - Band 169: two dry-run bus messages round-trip in tests without network.
 - Band 170: scenario create gated by workflow; unregistered product rejected; solo picks one MCP; squad pick is `seed % n`; done/error append `kind` events; `gsv_dev` bench prints pick_assignee + create/claim/done.
-- Band 171: claim sets `lease_until`; expired WIP reclaims to `open` + `kind:reclaimed`; presence renews the holder's lease; MCP `gsv_tickets_reclaim`; `--stretch-96` ≥ 96%.
+- Band 174: `/ticket` ingest creates a row; one online MCP in solo mode claims it; MCP `gsv_telegram_ticket`; `--stretch-96` ≥ 96%.
 
 ## Open questions (non-blocking)
 
@@ -165,6 +180,7 @@ Unknown ids in the file are kept but ignored (forward compatible).
 | **168** | S2319–S2328 | Ticket board + MCP claim + claim JSONL | **✅ this drain** |
 | **170** | S2339–S2348 | Ticket scenarios + solo/squad MCP + registered-product create + done/error events | **✅ this drain** |
 | **171** | S2349–S2358 | Ticket lease + stale reclaim + `gsv_tickets_reclaim` | **✅ this drain** |
+| **174** | S2379–S2388 | Solo bot tickets from Telegram (`gsv_telegram_ticket`) | **✅ this drain** |
 
 Do **not** invent the next band. Next drain is an owner pick.
 

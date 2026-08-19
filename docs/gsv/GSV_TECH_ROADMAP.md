@@ -58,6 +58,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 171** (ticket lease + stale reclaim) **✅** ·
 **band 172** (live crate lockstep) **✅** ·
 **band 173** (vision queue close-lockstep) **✅** ·
+**band 174** (solo Telegram tickets) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -1158,6 +1159,23 @@ Owner pick (`абракадабра` gsv / queue-close): after band **172** clos
 | **PH-S2376** | Ratio + tests | fmt/clippy/`cargo test`/`--stretch-96`; keep live — **✅** |
 | **PH-S2377** | Sync | `cargo xtask sync` remirrors snapshots to last `PH-S2368` / next `PH-S2369` — **✅** |
 | **PH-S2378** | Band close | `--band 173` + fingerprint; recopy live; one commit + push; next = owner pick — **✅** |
+
+## Спринти (band 174) — solo bot tickets from Telegram ✅
+
+Owner pick (`абракадабра` gsv / Telegram messages): test a **solo** MCP bot that turns Godfather channel messages into board tickets and claims them. Clippy unused `c` in `watchdog_version_lag` at the top of the band. Spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md).
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2379** | Scope + clippy | this band; unused `_c` in `watchdog_version_lag`; `active_sprint` / `next_sprint` = `PH-S2379`; `last_sprint_closed` = `PH-S2378` — **✅** |
+| **PH-S2380** | Parse | `/ticket title` · JSON `{kind:ticket,body}` · bus JSON rejected — **✅** |
+| **PH-S2381** | Ingest | `ticket_from_message`; `telegram-relay` + `ticket-claim`; allowlist; 2 KiB cap — **✅** |
+| **PH-S2382** | Solo | one online MCP → `in_progress`; nobody online → `open`; events `telegram` then `claimed` — **✅** |
+| **PH-S2383** | HTTP | `POST /api/telegram/ticket`; CSRF; never `bot_token` — **✅** |
+| **PH-S2384** | MCP | `gsv_telegram_ticket` → **48** tools; `gsv_drain` names 174 — **✅** |
+| **PH-S2385** | Galaxy | last ticket row; scenario `telegram-solo`; `CARD_NAMES` **40** — **✅** |
+| **PH-S2386** | Contracts | dry-run solo/open/gates/allowlist/HTTP/MCP; no sockets — **✅** |
+| **PH-S2387** | Docs | BOXES / SERVER / MCP / SETTINGS / HANDOFF / NEXT / MEMORY / roadmap — **✅** |
+| **PH-S2388** | Band close | tests green; `--stretch-96`; `--band 174` + fingerprint; recopy live; one commit + push; next = owner pick — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

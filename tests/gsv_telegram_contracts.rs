@@ -1,15 +1,20 @@
-//! Godfather Telegram bind + MCP bus contracts (bands 167 · 169).
+//! Godfather Telegram bind + MCP bus contracts (bands 167 · 169 · 174).
 //!
 //! Dry-run / `X-Telegram-Dry-Run: 1` never opens sockets. Missing channel or
 //! token → `{ok:false}` without secrets. Band 169: in-memory bus queue, no
-//! webhook, no Cloudflare. Telegram create-ticket stays out.
+//! webhook, no Cloudflare. Band 174: `/ticket` ingest → board row; solo MCP
+//! auto-claims. `gsv_telegram_create_ticket` stays unused (name is `gsv_telegram_ticket`).
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::body::Body;
 use axum::http::{header, Method, Request, StatusCode};
 use gsv::boxes::settings;
 use gsv::boxes::telegram;
+use gsv::boxes::tickets::{self, ClaimedBy};
 use gsv::boxes::ui::{render_card, CARD_NAMES};
 use gsv::mcp;
 use gsv::server::router;
@@ -233,8 +238,9 @@ async fn mcp_telegram_is_read_only_status() {
     assert!(mcp::tool_names().contains(&"gsv_telegram"));
     assert!(mcp::tool_names().contains(&"gsv_telegram_bus_send"));
     assert!(mcp::tool_names().contains(&"gsv_telegram_bus_poll"));
+    assert!(mcp::tool_names().contains(&"gsv_telegram_ticket"));
     assert!(!mcp::tool_names().contains(&"gsv_telegram_create_ticket"));
-    assert_eq!(mcp::tool_names().len(), 47);
+    assert_eq!(mcp::tool_names().len(), 48);
 }
 
 async fn bus_guard() -> tokio::sync::MutexGuard<'static, ()> {
@@ -445,13 +451,16 @@ fn card_telegram_shows_last_bus() {
             "polling": true,
             "dry_run": true,
             "last_bus_ts": "2026-08-19T00:00:00Z",
-            "last_bus_error": "rate limited"
+            "last_bus_error": "rate limited",
+            "last_ticket_id": "t-174"
         }),
     )
     .expect("card");
     assert!(html.contains("polling"), "{html}");
     assert!(html.contains("2026-08-19T00:00:00Z"), "{html}");
     assert!(html.contains("rate limited"), "{html}");
+    assert!(html.contains("t-174"), "{html}");
+    assert!(html.contains("gsv_telegram_ticket"), "{html}");
     assert!(!html.contains("bot_token"), "{html}");
 }
 
@@ -567,4 +576,272 @@ async fn mcp_bus_send_and_poll() {
     let ptext = pj["result"]["content"][0]["text"].as_str().unwrap_or("");
     assert!(ptext.contains("mcp-hi"), "{ptext}");
     assert!(!ptext.contains("mcp-bus-secret-token"), "{ptext}");
+}
+
+fn nanos() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0)
+}
+
+fn temp_kit(tag: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!(
+        "gsv-tg-ticket-{tag}-{}-{}",
+        std::process::id(),
+        nanos()
+    ));
+    let _ = std::fs::create_dir_all(dir.join("docs/gsv"));
+    let _ = std::fs::create_dir_all(dir.join("data"));
+    dir
+}
+
+fn app_kit(kit: PathBuf) -> axum::Router {
+    let data = kit.join("data");
+    let (tx, _rx) = broadcast::channel(32);
+    let state = AppState::new(Some(kit), Some(data), tx);
+    router(state)
+}
+
+fn save_solo_relay(data: &Path, channel: &str, token: &str, allowed: &[&str]) {
+    settings::save(
+        data,
+        &settings::SettingsFile {
+            godfather: settings::Godfather {
+                channel_id: channel.into(),
+                allowed_user_ids: allowed.iter().map(|s| (*s).to_string()).collect(),
+                bot_token: token.into(),
+                poll: false,
+            },
+            workflows: settings::Workflows {
+                enabled: vec!["telegram-relay".into(), "ticket-claim".into()],
+            },
+            tickets: settings::TicketsSettings {
+                mode: "solo".into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    )
+    .expect("save solo relay");
+}
+
+fn solo_who() -> ClaimedBy {
+    ClaimedBy {
+        actor: "agent".into(),
+        ide: "cursor".into(),
+        model: "grok-4.6".into(),
+        agent: "orchestrator".into(),
+    }
+}
+
+#[tokio::test]
+async fn slash_ticket_solo_bot_claims() {
+    let _g = bus_guard().await;
+    telegram::bus_reset();
+    let kit = temp_kit("solo");
+    let data = kit.join("data");
+    save_solo_relay(&data, "-100solo", "123:solo-secret", &[]);
+    let store = Mutex::new(HashMap::new());
+    tickets::heartbeat(&store, &solo_who());
+    let v = telegram::ticket_from_message(
+        &kit,
+        &data,
+        true,
+        &json!({ "from": "42", "body": "/ticket Fix live copy" }),
+        Some(&store),
+    );
+    assert_eq!(v["ok"], true, "{v}");
+    assert_eq!(v["dry_run"], true, "{v}");
+    assert_eq!(v["ticket"]["status"], "in_progress", "{v}");
+    assert_eq!(v["ticket"]["title"], "Fix live copy", "{v}");
+    assert_eq!(v["ticket"]["workflow"], "telegram", "{v}");
+    assert_eq!(v["ticket"]["claimed_by"]["actor"], "agent", "{v}");
+    assert_eq!(v["envelope"]["kind"], "ticket", "{v}");
+    assert_no_secret(&v, "123:solo-secret");
+    let claims = std::fs::read_to_string(tickets::claims_path(&kit)).expect("claims");
+    assert!(claims.contains("\"kind\":\"telegram\""), "{claims}");
+    assert!(claims.contains("\"kind\":\"claimed\""), "{claims}");
+}
+
+#[tokio::test]
+async fn telegram_ticket_stays_open_without_presence() {
+    let _g = bus_guard().await;
+    telegram::bus_reset();
+    let kit = temp_kit("open");
+    let data = kit.join("data");
+    save_solo_relay(&data, "-100open", "123:open-secret", &[]);
+    let store = Mutex::new(HashMap::new());
+    let v = telegram::ticket_from_message(
+        &kit,
+        &data,
+        true,
+        &json!({ "from": "42", "body": "/ticket Nobody home" }),
+        Some(&store),
+    );
+    assert_eq!(v["ok"], true, "{v}");
+    assert_eq!(v["ticket"]["status"], "open", "{v}");
+    assert!(v["ticket"]["claimed_by"].is_null(), "{v}");
+    assert_no_secret(&v, "123:open-secret");
+}
+
+#[tokio::test]
+async fn telegram_ticket_requires_relay_and_claim() {
+    let _g = bus_guard().await;
+    telegram::bus_reset();
+    let kit = temp_kit("gate");
+    let data = kit.join("data");
+    save_godfather(&data, "-100g", "123:gate-secret");
+    let v = telegram::ticket_from_message(
+        &kit,
+        &data,
+        true,
+        &json!({ "from": "42", "body": "/ticket gated" }),
+        None,
+    );
+    assert_eq!(v["ok"], false, "{v}");
+    assert!(
+        v["error"].as_str().unwrap_or("").contains("telegram-relay"),
+        "{v}"
+    );
+    save_relay(&data, "-100g", "123:gate-secret", &[]);
+    let v2 = telegram::ticket_from_message(
+        &kit,
+        &data,
+        true,
+        &json!({ "from": "42", "body": "/ticket gated" }),
+        None,
+    );
+    assert_eq!(v2["ok"], false, "{v2}");
+    assert!(
+        v2["error"].as_str().unwrap_or("").contains("ticket-claim"),
+        "{v2}"
+    );
+    assert_no_secret(&v2, "123:gate-secret");
+}
+
+#[tokio::test]
+async fn telegram_ticket_allowlist_and_bus_json() {
+    let _g = bus_guard().await;
+    telegram::bus_reset();
+    let kit = temp_kit("allow");
+    let data = kit.join("data");
+    save_solo_relay(&data, "-100a", "123:alw-secret", &["42"]);
+    let bad = telegram::ticket_from_message(
+        &kit,
+        &data,
+        true,
+        &json!({ "from": "99", "body": "/ticket nope" }),
+        None,
+    );
+    assert_eq!(bad["ok"], false, "{bad}");
+    let bus = telegram::ticket_from_message(
+        &kit,
+        &data,
+        true,
+        &json!({
+            "from": "42",
+            "body": r#"{"v":1,"kind":"bus","from":"42","body":"x"}"#
+        }),
+        None,
+    );
+    assert_eq!(bus["ok"], false, "{bus}");
+    assert!(
+        bus["error"].as_str().unwrap_or("").contains("not a ticket"),
+        "{bus}"
+    );
+    assert_no_secret(&bus, "123:alw-secret");
+}
+
+#[tokio::test]
+async fn http_telegram_ticket_csrf_and_solo() {
+    let _g = bus_guard().await;
+    telegram::bus_reset();
+    let kit = temp_kit("http-tix");
+    save_solo_relay(&kit.join("data"), "-100ht", "123:http-tix-secret", &[]);
+    let app = app_kit(kit);
+    let (cross, cjson) = post_json(
+        &app,
+        "/api/telegram/ticket",
+        json!({ "from": "42", "body": "/ticket csrf" }),
+        Some("https://example.com"),
+        Some("cross-site"),
+    )
+    .await;
+    assert_eq!(cross, StatusCode::FORBIDDEN, "{cjson}");
+    let (_, pres) = post_json(
+        &app,
+        "/api/tickets/presence",
+        json!({ "actor": "agent", "ide": "cursor", "agent": "orchestrator" }),
+        Some("http://127.0.0.1:9999"),
+        None,
+    )
+    .await;
+    assert_eq!(pres["ok"], true, "{pres}");
+    let (status, sent) = post_json(
+        &app,
+        "/api/telegram/ticket",
+        json!({ "from": "42", "body": "/ticket HTTP solo" }),
+        Some("http://127.0.0.1:9999"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{sent}");
+    assert_eq!(sent["ok"], true, "{sent}");
+    assert_eq!(sent["ticket"]["status"], "in_progress", "{sent}");
+    assert_no_secret(&sent, "123:http-tix-secret");
+}
+
+#[tokio::test]
+async fn mcp_telegram_ticket_solo() {
+    let _g = bus_guard().await;
+    telegram::bus_reset();
+    let kit = temp_kit("mcp-tix");
+    save_solo_relay(&kit.join("data"), "-100mcp", "mcp-tix-secret-token", &[]);
+    let app = app_kit(kit);
+    let _ = post_json(
+        &app,
+        "/api/tickets/presence",
+        json!({ "actor": "agent", "ide": "cursor", "agent": "orchestrator" }),
+        Some("http://127.0.0.1:9999"),
+        None,
+    )
+    .await;
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::POST)
+                .header(header::CONTENT_TYPE, "application/json")
+                .header("x-telegram-dry-run", "1")
+                .body(Body::from(
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": 7,
+                        "method": "tools/call",
+                        "params": {
+                            "name": "gsv_telegram_ticket",
+                            "arguments": { "from": "42", "body": "/ticket MCP solo" }
+                        }
+                    })
+                    .to_string(),
+                ))
+                .expect("req"),
+        )
+        .await
+        .expect("resp");
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .expect("body");
+    let json: Value = serde_json::from_slice(&bytes).expect("json");
+    assert_eq!(json["result"]["isError"], false, "{json}");
+    let text = json["result"]["content"][0]["text"].as_str().unwrap_or("");
+    assert!(
+        text.contains("MCP solo") || text.contains("in_progress"),
+        "{text}"
+    );
+    assert!(!text.contains("bot_token"), "{text}");
+    assert!(!text.contains("mcp-tix-secret-token"), "{text}");
 }

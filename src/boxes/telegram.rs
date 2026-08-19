@@ -1,4 +1,5 @@
-//! Godfather Telegram channel bind (band 167) + MCP bus (band 169).
+//! Godfather Telegram channel bind (band 167) + MCP bus (band 169) +
+//! ticket ingest (band 174).
 //!
 //! On-demand `getMe` + `getChat`. Tests and `X-Telegram-Dry-Run: 1` use an
 //! in-process stub (no sockets). Live Bot API is enabled only from `gsv-server`
@@ -6,6 +7,8 @@
 //!
 //! Band 169 bus: JSON envelopes on the Godfather channel. No public webhook,
 //! no Cloudflare. Dry-run uses a process-local queue.
+//! Band 174: `/ticket` or `{kind:ticket}` messages become board rows; solo MCP
+//! auto-claims when one worker is online. Requires `telegram-relay` + `ticket-claim`.
 
 use std::collections::VecDeque;
 use std::path::Path;
@@ -18,6 +21,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use super::settings::{self, SettingsFile};
+use super::tickets::{self, PresenceStore};
 
 /// Header that forces the dry-run stub even on a live server.
 pub const DRY_RUN_HEADER: &str = "x-telegram-dry-run";
@@ -312,6 +316,7 @@ struct BusInner {
     last_bus_ts: String,
     last_bus_error: String,
     last_bus_ok: bool,
+    last_ticket_id: String,
     update_offset: i64,
 }
 
@@ -323,6 +328,7 @@ impl BusInner {
             last_bus_ts: String::new(),
             last_bus_error: String::new(),
             last_bus_ok: false,
+            last_ticket_id: String::new(),
             update_offset: 0,
         }
     }
@@ -345,18 +351,20 @@ pub fn bus_clear_rate_limit() {
 }
 
 fn merge_last_bus(v: &mut Value) {
-    let (ok, ts, err) = {
+    let (ok, ts, err, ticket) = {
         let g = bus();
         (
             g.last_bus_ok,
             g.last_bus_ts.clone(),
             g.last_bus_error.clone(),
+            g.last_ticket_id.clone(),
         )
     };
     if let Some(obj) = v.as_object_mut() {
         obj.insert("last_bus_ok".into(), json!(ok));
         obj.insert("last_bus_ts".into(), json!(ts));
         obj.insert("last_bus_error".into(), json!(err));
+        obj.insert("last_ticket_id".into(), json!(ticket));
     }
 }
 
@@ -413,6 +421,161 @@ pub fn parse_envelope(v: &Value) -> Result<BusEnvelope, String> {
         return Err("body exceeds 2 KiB".into());
     }
     Ok(env)
+}
+
+fn title_body(s: &str) -> (String, String) {
+    let first = s.lines().next().unwrap_or(s).trim();
+    let title: String = first.chars().take(80).collect();
+    (title, s.to_string())
+}
+
+/// Channel-post ingest: `/ticket …` or JSON `{kind:ticket,body}`.
+pub fn parse_channel_ticket(text: &str) -> Option<(String, String)> {
+    let t = text.trim();
+    if t.is_empty() {
+        return None;
+    }
+    if let Ok(v) = serde_json::from_str::<Value>(t) {
+        if v.get("kind").and_then(Value::as_str) != Some("ticket") {
+            return None;
+        }
+        let body = v.get("body").and_then(Value::as_str).unwrap_or("").trim();
+        if body.is_empty() {
+            return None;
+        }
+        return Some(title_body(body));
+    }
+    t.strip_prefix("/ticket")
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(title_body)
+}
+
+/// Explicit ticket body: channel forms plus any non-empty plain text.
+pub fn parse_ticket_body(text: &str) -> Result<(String, String), String> {
+    let t = text.trim();
+    if t.is_empty() {
+        return Err("body required".into());
+    }
+    if let Ok(v) = serde_json::from_str::<Value>(t) {
+        return match v.get("kind").and_then(Value::as_str) {
+            Some("ticket") => {
+                let body = v.get("body").and_then(Value::as_str).unwrap_or("").trim();
+                if body.is_empty() {
+                    Err("body required".into())
+                } else {
+                    Ok(title_body(body))
+                }
+            }
+            Some("bus") => Err("bus envelope is not a ticket".into()),
+            _ => Err("kind must be ticket".into()),
+        };
+    }
+    if let Some(pair) = parse_channel_ticket(t) {
+        return Ok(pair);
+    }
+    Ok(title_body(t))
+}
+
+/// Ingest a Godfather message as a ticket. Solo MCP auto-claims when online.
+///
+/// Requires `telegram-relay` and `ticket-claim`. Never returns `bot_token`.
+/// Cargo tests / dry-run write JSONL but open no sockets.
+pub fn ticket_from_message(
+    repo_root: &Path,
+    data_dir: &Path,
+    explicit_dry: bool,
+    args: &Value,
+    presence: Option<&PresenceStore>,
+) -> Value {
+    let dry = use_stub(explicit_dry);
+    let file = match settings::load_result(data_dir) {
+        Ok(f) => f,
+        Err(e) => {
+            record_last(false, &e);
+            return bus_fail(&e, "");
+        }
+    };
+    let token = resolved_token(&file).unwrap_or_default();
+    if !settings::telegram_relay_enabled(&file) {
+        let err = "telegram-relay workflow is off";
+        record_last(false, err);
+        return bus_fail(err, &token);
+    }
+    if !settings::ticket_claim_enabled(&file) {
+        let err = "ticket-claim workflow is off";
+        record_last(false, err);
+        return bus_fail(err, &token);
+    }
+    let from = opt_arg(args, "from").unwrap_or_default();
+    if from.is_empty() {
+        let err = "from required";
+        record_last(false, err);
+        return bus_fail(err, &token);
+    }
+    if !allowlisted(&file, &from) {
+        let err = "from is not allowlisted";
+        record_last(false, err);
+        return bus_fail(err, &token);
+    }
+    let raw = args.get("body").and_then(Value::as_str).unwrap_or("");
+    let (title, body) = match parse_ticket_body(raw) {
+        Ok(p) => p,
+        Err(e) => {
+            record_last(false, &e);
+            return bus_fail(&e, &token);
+        }
+    };
+    if title.len() + body.len() > BODY_CAP {
+        let err = "body exceeds 2 KiB";
+        record_last(false, err);
+        return bus_fail(err, &token);
+    }
+    let product = opt_arg(args, "product").unwrap_or_else(|| "gsv".into());
+    let ticket = match tickets::create_from_telegram(repo_root, &title, &body, &product) {
+        Ok(t) => t,
+        Err(e) => {
+            let err = e.to_string();
+            record_last(false, &err);
+            return bus_fail(&err, &token);
+        }
+    };
+    let _ = tickets::append_telegram_event(repo_root, &ticket.id, &from);
+    let ticket = match presence {
+        Some(store) => match tickets::try_dispatch(repo_root, data_dir, &ticket.id, store, 1) {
+            Ok(Some(claimed)) => claimed,
+            Ok(None) => ticket,
+            Err(e) => {
+                let err = e.to_string();
+                record_last(false, &err);
+                return bus_fail(&err, &token);
+            }
+        },
+        None => ticket,
+    };
+    let envelope = BusEnvelope {
+        v: 1,
+        kind: "ticket".into(),
+        from: from.clone(),
+        to: None,
+        ticket_id: Some(ticket.id.clone()),
+        body,
+    };
+    {
+        let mut g = bus();
+        g.queue.push_back(envelope.clone());
+        g.last_send = Some(Instant::now());
+        g.last_bus_ok = true;
+        g.last_bus_ts = now_rfc3339();
+        g.last_bus_error.clear();
+        g.last_ticket_id = ticket.id.clone();
+    }
+    json!({
+        "ok": true,
+        "dry_run": dry,
+        "ticket": ticket,
+        "envelope": envelope,
+    })
 }
 
 fn clamp_limit(limit: Option<usize>) -> usize {
@@ -727,5 +890,22 @@ mod tests {
         assert!(chat_is_godfather("-1001", "-1001", ""));
         assert!(!chat_is_godfather("@GSV_OFFICIAL", "-1001", "other"));
         assert!(!chat_is_godfather("@GSV_OFFICIAL", "", ""));
+    }
+
+    #[test]
+    fn parse_ticket_body_slash_json_and_plain() {
+        let slash = parse_ticket_body("/ticket Fix live copy").expect("slash");
+        assert_eq!(slash.0, "Fix live copy");
+        assert_eq!(slash.1, "Fix live copy");
+        let json =
+            parse_ticket_body(r#"{"v":1,"kind":"ticket","from":"cursor","body":"Join board"}"#)
+                .expect("json");
+        assert_eq!(json.0, "Join board");
+        let plain = parse_ticket_body("plain title").expect("plain");
+        assert_eq!(plain.0, "plain title");
+        assert!(parse_ticket_body("").is_err());
+        assert!(parse_ticket_body(r#"{"v":1,"kind":"bus","from":"a","body":"x"}"#).is_err());
+        assert!(parse_channel_ticket("hello").is_none());
+        assert!(parse_channel_ticket("/ticket hi").is_some());
     }
 }

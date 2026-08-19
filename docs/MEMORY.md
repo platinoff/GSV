@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-19 · band 174 ✅)
+
+- **Band 174:** Solo bot tickets from Telegram. `/ticket` or `{kind:ticket}` → board row · solo MCP auto-claims when one worker is online · `POST /api/telegram/ticket` · MCP `gsv_telegram_ticket` (**48** tools) · events `telegram` then `claimed` · scenario `telegram-solo` · clippy unused `_c` in `watchdog_version_lag`. `CARD_NAMES` **40**.
+- **Canon:** [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md).
+- **Next drain:** owner pick after warnings-first scan.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.36%** (rust 31107 / product 31307) · **584** tests · clippy 0
+
 ## Стан (2026-08-19 · band 173 ✅)
 
 - **Band 173:** Vision queue close-lockstep. After 172 close, Galaxy still showed `PH-S2359` / last `PH-S2358`. `queue_ids_for_band(N)` is now last sprint of N / first of N+1 so `cargo xtask bump --band N` does not reopen N. Close of 173: last `PH-S2378` · next/active `PH-S2379`.

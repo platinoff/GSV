@@ -721,8 +721,9 @@ fn mcp_tools_include_tickets_not_bus() {
     assert!(mcp::tool_names().contains(&"gsv_tickets_presence"));
     assert!(mcp::tool_names().contains(&"gsv_tickets_reclaim"));
     assert!(mcp::tool_names().contains(&"gsv_telegram_bus_send"));
+    assert!(mcp::tool_names().contains(&"gsv_telegram_ticket"));
     assert!(!mcp::tool_names().contains(&"gsv_telegram_create_ticket"));
-    assert_eq!(mcp::tool_names().len(), 47);
+    assert_eq!(mcp::tool_names().len(), 48);
 }
 
 fn write_stale_wip(kit: &Path, id: &str, actor: &str, lease_until: u64) {

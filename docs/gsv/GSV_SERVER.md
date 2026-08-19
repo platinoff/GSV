@@ -48,6 +48,7 @@
 | GET | `/api/telegram` | Godfather bind status (`ok`, `channel_id`, `token_set`, `bot_username`, `chat_title`, `last_probe`, `polling`, `last_bus_ts`, `last_bus_error`; never `bot_token`). `X-Telegram-Dry-Run: 1` forces the in-process stub. |
 | GET | `/api/telegram/bus` | Poll bus envelopes (`messages`; requires `telegram-relay`; dry-run queue in tests). |
 | POST | `/api/telegram/bus` | Send a bus envelope `{from,to?,ticket_id?,body}` (CSRF; body cap 2 KiB; never `bot_token`). |
+| POST | `/api/telegram/ticket` | Ingest a Godfather message as a ticket (`{from,body,product?}`; `/ticket` or `{kind:ticket}`). Solo MCP auto-claims when online. Requires `telegram-relay` + `ticket-claim`. CSRF; never `bot_token`. |
 | GET | `/api/tickets` | Ticket board (`ok`, `tickets[]`, `mode`, `lease_secs`, `online`, `scenarios`, `events`; missing JSONL empty-ok; expired WIP auto-reclaimed) |
 | POST | `/api/tickets` | create `{title,body?,product?}` or `{scenario_id}` (loopback CSRF); registered product only; may auto-assign |
 | POST | `/api/tickets/claim` | `{id}` → `open`→`in_progress` + `claimed_by` + append `docs/gsv/ticket_claims.jsonl`; unknown id → 404; `ticket-claim` off → 403 |
@@ -127,7 +128,7 @@ cargo run --manifest-path GSV/Cargo.toml --bin gsv-http-stand-smoke -- --base-ur
 - UI показує кнопку/бейдж **Update** замість auto-reload; `doUpdate()` POSTs `/api/update/apply`.
 - Клієнтський JS тримає стан offline; при SSE `onopen` робить full-resync (Tracker/SLI/toolchain/speed/rust diagnostics).
 
-**Horizon:** band **173** vision queue close-lockstep (`bump --band N` = last of N / first of N+1). Band **172** live crate lockstep. Settings/Telegram/tickets **166–171 ✅**. Next drain = **owner pick**. Spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md) · [`GSV_OMNI_CATALOG.md`](./GSV_OMNI_CATALOG.md) · [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md).
+**Horizon:** band **174** solo Telegram tickets (`gsv_telegram_ticket` · `/ticket` ingest). Band **173** vision queue close-lockstep (`bump --band N` = last of N / first of N+1). Band **172** live crate lockstep. Settings/Telegram/tickets **166–171 ✅**. Next drain = **owner pick**. Spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md) · [`GSV_OMNI_CATALOG.md`](./GSV_OMNI_CATALOG.md) · [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md).
 
 ## Live copy + apply (band 144)
 

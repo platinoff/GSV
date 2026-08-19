@@ -23,6 +23,13 @@
       "product": "gsv"
     },
     {
+      "id": "telegram-solo",
+      "title": "Solo bot: Telegram ticket",
+      "body": "Ingest a Godfather /ticket message as a board row. The one online MCP claims it (tickets.mode=solo).",
+      "workflow": "ticket-claim",
+      "product": "gsv"
+    },
+    {
       "id": "poolai-ci",
       "title": "PoolAI cargo test-ci",
       "body": "Registered product poolai: run cargo test-ci with CARGO_TARGET_DIR=/s/rust/poolAI/target.",
