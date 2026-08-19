@@ -1,6 +1,6 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-08-19 (band 175 ✅ · next = **owner pick**)
+**Оновлено:** 2026-08-19 (band 176 ✅ · next = **owner pick**)
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
 **`абракадабра` / `abrakadabra`** → `cargo xtask products` → **AskQuestion на проєкти з environment**
@@ -9,8 +9,9 @@
 + **band 172 ✅** live crate lockstep (watchdog successor + dead-peer takeover + `lockstep-wait`)
 + **band 173 ✅** vision queue close-lockstep (`bump --band N` = last of N / first of N+1)
 + **band 174 ✅** solo Telegram tickets (`gsv_telegram_ticket` · `/ticket` ingest)
-+ **band 175 ✅** MDS scenario band + solo walk + Telegram `kind:sync` (`gsv-mds` · `gsv_tickets_walk`).
-Owner pick after warnings-first scan. Speeds + Rust panel →
++ **band 175 ✅** MDS scenario band + solo walk + Telegram `kind:sync` (`gsv-mds` · `gsv_tickets_walk`)
++ **band 176 ✅** visible MCP session walk (solo / squad / `gsv_dev` bench on Godfather).
+**Next = owner pick** (do not invent band 177). Speeds + Rust panel →
 vision-sync → **один commit** → **`git push` + самарі**.
 
 Якщо вибір **gsv:** scan [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) first
@@ -26,15 +27,16 @@ vision queue lockstep + bump auto-advance **163 ✅**;
 Cursor 3.16.29 kit lockstep **164 ✅**;
 watchdog live copy + lockstep observability **165 ✅**;
 **band 166 ✅** settings / Godfather — [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md);
-**band 167 ✅** Telegram bind · **band 168 ✅** ticket board + MCP claim · **band 170 ✅** ticket scenarios + solo/squad MCP · **band 171 ✅** ticket lease + stale reclaim in the same spec. **band 172 ✅** live crate lockstep. **band 173 ✅** vision queue close-lockstep. **band 174 ✅** solo Telegram tickets. **band 175 ✅** MDS scenario band + solo walk + Telegram sync. MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+**band 175 ✅** MDS scenario band + solo walk + Telegram sync. **band 176 ✅** visible MCP session walk (solo / squad / bench on Godfather). **Next = owner pick**. MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
 Omni catalog: [`gsv/GSV_OMNI_CATALOG.md`](gsv/GSV_OMNI_CATALOG.md).
 Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 Канон ролей: [`GSV_ROLES.md`](GSV_ROLES.md). Реєстр: [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
 
 ## Стан зараз
 
-- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–175 **✅**.
-- **Next drain (gsv):** **owner pick** after warnings-first scan. `cargo xtask bump --band N` locksteps last/next/active to the **close** of N.
+- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–176 **✅**.
+- **Next drain (gsv):** **owner pick** (do not invent band 177). Band 176 session walk is closed. Spec [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md). `cargo xtask bump --band N` locksteps last/next/active to the **close** of N.
+- **Band 176:** Visible MCP session walk — scenario `abrakadabra-session` (6) · session lines (`solo claimed` / `squad assigned … to {worker}` / `bench gsv_dev … ns`) · live `sendMessage` 1/s · dry-run queue · `CARD_NAMES` **40**.
 - **Band 175:** MDS scenario band + solo walk + Telegram sync — `tickets[]` on scenarios · `memory-disk-speed` (6) · `gsv-mds` memory/disk/speed · `GET /api/mds` · `POST /api/tickets/walk` · MCP `gsv_tickets_walk` + `gsv_mds` (**50** tools) · `kind:sync` envelopes · `CARD_NAMES` **40**.
 - **Band 173:** Vision queue close-lockstep — `queue_ids_for_band(N)` is last sprint of N / first of N+1 so Galaxy does not reopen N's first PH-S* after bump.
 - **Band 172:** Live crate lockstep — heartbeat `bin_version`; `GET /api/watchdog` crate/`version_lag`; oneshot apply on debug-newer **or** health lag; yield only if peer pid is alive; `lockstep-wait` during cooldown; stale watchdog exe hops debug → live. Recopy live after bump so MCP catalog matches the crate.
@@ -79,9 +81,9 @@ Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 - **Band 134:** HTTP response hardening — CSP / nosniff / DENY / no-store / COOP+CORP; POST 256 KiB cap → 413 `{ok:false}`.
 - **VDT kit (band 127):** shared `.agents/skills/` + generic `.cursor/rules/` + `gsv.code-workspace` + `PRODUCTS.md`.
   Discover: `cargo xtask products` (не hardcoded `gsv | poolai`).
-- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.37%** (rust 31587 / product 31788) · **594** tests · clippy 0 · fmt clean.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.38%** (rust 32185 / product 32386) · **596** tests · clippy 0 · fmt clean.
 - **Сервер:** canon порт **9999** (`DEFAULT_PORT`; 8765 — Hyper-V reserved range).
-- **Vision rev:** **516** (band 175 `cargo xtask sync`; last `PH-S2398` · next `PH-S2399`).
+- **Vision rev:** **516** (band 176 `cargo xtask sync`; last `PH-S2408` · next `PH-S2409`).
 - **Live UI** — `gsv-server` → `http://127.0.0.1:9999/`. MCP stdio — `target/live/gsv-mcp.exe` (`cargo xtask live`).
 - **Band 133:** localhost security — `--allow-lan`; CSRF POST gate; terminal cargo/git allowlists; `/data/{file}` allowlist; preview canonicalize.
 - **FM:** band 127 = PoolAI FM §5.108 (PH-S1909…S1918 ✅). Master horizon poolAI: band 128.

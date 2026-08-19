@@ -521,6 +521,11 @@ fn seed_scenarios_have_no_secrets() {
             .any(|s| s.id == "memory-disk-speed" && s.tickets.len() >= 6),
         "mds scenario band missing"
     );
+    assert!(
+        list.iter()
+            .any(|s| s.id == "abrakadabra-session" && s.tickets.len() >= 6),
+        "abrakadabra session scenario band missing"
+    );
 }
 
 fn enable_squad(data: &Path) {
@@ -1017,5 +1022,77 @@ async fn http_walk_enqueues_telegram_sync() {
     assert_eq!(status, StatusCode::OK, "{json}");
     assert_eq!(json["ok"], true, "{json}");
     assert_eq!(json["walked"].as_array().expect("w").len(), 6, "{json}");
-    assert_eq!(json["telegram"], 6, "{json}");
+    assert_eq!(json["telegram"], 7, "6 steps + bench {json}");
+    assert!(
+        json["bench"]
+            .as_str()
+            .unwrap_or("")
+            .starts_with("bench gsv_dev "),
+        "{json}"
+    );
+    let (pstatus, pjson) = get_json(&app, "/api/telegram/bus?limit=32").await;
+    assert_eq!(pstatus, StatusCode::OK, "{pjson}");
+    let msgs = pjson["messages"].as_array().cloned().unwrap_or_default();
+    assert!(
+        msgs.iter().any(|m| m["body"]
+            .as_str()
+            .unwrap_or("")
+            .starts_with("solo claimed ")),
+        "{pjson}"
+    );
+    assert!(
+        msgs.iter()
+            .any(|m| m["body"].as_str().unwrap_or("").starts_with("solo done ")),
+        "{pjson}"
+    );
+    assert!(
+        msgs.iter()
+            .any(|m| m["body"].as_str().unwrap_or("").contains("bench gsv_dev")),
+        "{pjson}"
+    );
+}
+
+fn who_b() -> ClaimedBy {
+    ClaimedBy {
+        actor: "opencode".into(),
+        ide: "opencode".into(),
+        model: "grok-4.6".into(),
+        agent: "worker".into(),
+    }
+}
+
+#[test]
+fn squad_walk_assigns_among_two_online() {
+    let kit = temp_kit("squad-walk");
+    enable_squad(&kit.join("data"));
+    write_mds_band(&kit);
+    let _ = tickets::create_band_from_scenario(&kit, &kit.join("data"), "memory-disk-speed", "")
+        .expect("band");
+    let store = tickets::new_presence_store();
+    let _ = tickets::heartbeat(&store, &who());
+    let _ = tickets::heartbeat(&store, &who_b());
+    let report = tickets::solo_walk(
+        &kit,
+        &kit.join("data"),
+        Some(&store),
+        who(),
+        "memory-disk-speed",
+    )
+    .expect("walk");
+    assert!(
+        report.walked.iter().any(|s| s.phase == "assigned"),
+        "{:?}",
+        report.walked
+    );
+    assert!(report.walked.iter().any(|s| s.kind == "squad"));
+    let actors: Vec<&str> = report
+        .walked
+        .iter()
+        .filter(|s| s.phase == "assigned")
+        .map(|s| s.actor.as_str())
+        .collect();
+    assert!(
+        actors.contains(&"agent") && actors.contains(&"opencode"),
+        "{actors:?}"
+    );
 }

@@ -60,6 +60,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 173** (vision queue close-lockstep) **✅** ·
 **band 174** (solo Telegram tickets) **✅** ·
 **band 175** (MDS scenario band + solo walk + Telegram sync) **✅** ·
+**band 176** (visible MCP session walk) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -1194,6 +1195,23 @@ Owner pick (`gsv` / benchmark scenario): a **band of tickets** for a light Rust 
 | **PH-S2396** | Bench | `gsv_dev` `scenario_band_create` / `solo_walk_mds` / `mds_report` / `telegram_enqueue_sync` — **✅** |
 | **PH-S2397** | Tests | `gsv_mds_contracts` + band/walk/sync contracts; `--stretch-96` — **✅** |
 | **PH-S2398** | Band close | `--band 175` + fingerprint; recopy live; one commit + push; next = owner pick — **✅** |
+
+## Спринти (band 176) — visible MCP session walk (solo / squad / bench)
+
+Owner pick (`абракадабра` gsv): watch Godfather while the MCP bot walks an `абракадабра`-shaped scenario and posts **what it is doing** — solo claim/done, squad assign, `gsv_dev` bench. Spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md). Catalog: `abrakadabra-session`.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2399** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2399`; `last_sprint_closed` = `PH-S2398` — **✅** |
+| **PH-S2400** | Catalog | scenario `abrakadabra-session` `tickets[]` (S0, scan, solo MDS, squad, bench, close) — **✅** |
+| **PH-S2401** | Session copy | `kind:sync` body is a plain session line (claimed / assigned / done / bench ns) — **✅** |
+| **PH-S2402** | Live send | walk `sendMessage` to Godfather when token set; 1/s; dry-run still queue-only — **✅** |
+| **PH-S2403** | Solo | `solo_walk` / `gsv_tickets_walk` posts solo lines — **✅** |
+| **PH-S2404** | Squad | mode=squad + presence posts assigned lines (two workers in tests; one online is a valid live demo) — **✅** |
+| **PH-S2405** | Bench | one sync line with `gsv_dev` medians (create / walk / mds / enqueue) — **✅** |
+| **PH-S2406** | Galaxy | scenario add+walk; `CARD_NAMES` **40** — **✅** |
+| **PH-S2407** | Tests | dry-run contracts for copy + squad + bench stub; `--stretch-96` — **✅** |
+| **PH-S2408** | Band close | live demo on `@GSV_OFFICIAL` if token set; `--band 176` + fingerprint; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

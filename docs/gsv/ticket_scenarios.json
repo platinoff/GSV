@@ -68,6 +68,39 @@
           "body": "Claim/done each row; enqueue kind:sync envelopes. POST /api/tickets/walk."
         }
       ]
+    },
+    {
+      "id": "abrakadabra-session",
+      "title": "Abrakadabra session walk",
+      "body": "MCP bot narrates an abrakadabra-shaped drain on Godfather: S0, warnings-first, solo MDS, squad assign, gsv_dev bench, close. Live sendMessage 1/s; tests dry-run.",
+      "workflow": "ticket-claim",
+      "product": "gsv",
+      "tickets": [
+        {
+          "title": "Session: S0 disk",
+          "body": "solo: df /s and cargo xtask disk. Post free GiB on Godfather."
+        },
+        {
+          "title": "Session: warnings-first",
+          "body": "solo: cargo clippy --all-targets. Post warning count (0 is ok)."
+        },
+        {
+          "title": "Session: solo MDS walk",
+          "body": "solo: create memory-disk-speed band if needed; walk claim/done; post each step."
+        },
+        {
+          "title": "Session: squad assign",
+          "body": "squad: heartbeat two workers in tests; live may be one MCP. Post assigned to {worker}."
+        },
+        {
+          "title": "Session: gsv_dev bench",
+          "body": "bench: scenario_band_create / solo_walk_mds / mds_report / telegram_enqueue_sync. Post medians."
+        },
+        {
+          "title": "Session: close",
+          "body": "solo: fmt/clippy/test/loc-audit line, then bump+fingerprint in the real drain close."
+        }
+      ]
     }
   ]
 }

@@ -446,13 +446,20 @@ async fn api_tickets_reclaim(State(state): State<AppState>, Json(body): Json<Val
     }
 }
 
-async fn api_tickets_walk(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
+async fn api_tickets_walk(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(body): Json<Value>,
+) -> Response {
     match crate::boxes::telegram::sync_walk(
         &state.repo_root,
         &state.data_dir,
         &body,
         Some(&state.ticket_presence),
-    ) {
+        crate::boxes::telegram::header_dry_run(&headers),
+    )
+    .await
+    {
         Ok(v) => Json(v).into_response(),
         Err(e) => err_json(ticket_http_status(&e), e.to_string()),
     }

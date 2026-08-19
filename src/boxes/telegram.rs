@@ -8,6 +8,8 @@
 //! Band 169 bus: JSON envelopes on the Godfather channel. No public webhook,
 //! no Cloudflare. Dry-run uses a process-local queue.
 //! Band 175: `kind:sync` envelopes on claim/done during a solo scenario walk.
+//! Band 176: session lines (`solo claimed …` / `squad assigned …` / `bench gsv_dev … ns`);
+//! live `sendMessage` 1/s when the token is set; cargo tests stay dry-run.
 
 use std::collections::VecDeque;
 use std::path::Path;
@@ -422,9 +424,70 @@ pub fn parse_envelope(v: &Value) -> Result<BusEnvelope, String> {
     Ok(env)
 }
 
-/// Queue a fingerprint-class sync envelope (claim/done). No 1/s rate limit —
-/// a solo walk posts two envelopes per ticket. Live Bot API is HTTP/MCP.
+/// Plain Godfather session line (band 176). Not `{phase} {id}`.
+pub fn session_line(kind: &str, phase: &str, title: &str, worker: &str) -> String {
+    let title = title.trim();
+    let worker = worker.trim();
+    match (kind, phase) {
+        ("squad", "assigned") | ("squad", "claimed") => {
+            if worker.is_empty() {
+                format!("squad assigned {title}")
+            } else {
+                format!("squad assigned {title} to {worker}")
+            }
+        }
+        ("squad", "done") => format!("squad done {title}"),
+        ("bench", _) => {
+            if title.starts_with("bench ") {
+                title.to_string()
+            } else {
+                format!("bench gsv_dev {title}")
+            }
+        }
+        (_, "done") => format!("solo done {title}"),
+        _ => format!("solo claimed {title}"),
+    }
+}
+
+/// `gsv_dev` medians as a session line. Missing speed-index → zeros (dry-run stub).
+pub fn bench_session_line(repo_root: &Path) -> String {
+    let (create, walk, mds, enqueue) = gsv_dev_medians(repo_root);
+    format!("bench gsv_dev create={create} walk={walk} mds={mds} enqueue={enqueue} ns")
+}
+
+fn gsv_dev_medians(repo_root: &Path) -> (u64, u64, u64, u64) {
+    let Ok(idx) = crate::boxes::vision::read_speed_index(repo_root) else {
+        return (0, 0, 0, 0);
+    };
+    let find = |needles: &[&str]| {
+        idx.bench_history
+            .iter()
+            .rev()
+            .find(|b| {
+                let hay = format!("{} {} {}", b.bench, b.group, b.kind);
+                needles.iter().any(|n| hay.contains(n))
+            })
+            .map(|b| b.median_ns)
+            .unwrap_or(0)
+    };
+    (
+        find(&["scenario_band_create"]),
+        find(&["solo_walk_mds"]),
+        find(&["mds_report"]),
+        find(&["telegram_enqueue_sync"]),
+    )
+}
+
+/// Queue a fingerprint-class sync envelope (claim/done). Dry-run has no 1/s
+/// cap — a walk posts two envelopes per ticket plus a bench line. Live Bot API
+/// is 1 message/s ([`sync_walk`]).
 pub fn enqueue_sync(from: &str, ticket_id: &str, phase: &str) -> Result<BusEnvelope, String> {
+    let body = session_line("solo", phase, ticket_id, "");
+    enqueue_session(from, ticket_id, &body)
+}
+
+/// Queue a `kind:sync` envelope with an explicit session-line body.
+pub fn enqueue_session(from: &str, ticket_id: &str, body: &str) -> Result<BusEnvelope, String> {
     let from = from.trim();
     if from.is_empty() {
         return Err("from required".into());
@@ -433,7 +496,10 @@ pub fn enqueue_sync(from: &str, ticket_id: &str, phase: &str) -> Result<BusEnvel
     if ticket_id.is_empty() {
         return Err("ticket_id required".into());
     }
-    let body = format!("{phase} {ticket_id}");
+    let body = body.trim();
+    if body.is_empty() {
+        return Err("body required".into());
+    }
     if body.len() > BODY_CAP {
         return Err("body exceeds 2 KiB".into());
     }
@@ -443,7 +509,7 @@ pub fn enqueue_sync(from: &str, ticket_id: &str, phase: &str) -> Result<BusEnvel
         from: from.to_string(),
         to: None,
         ticket_id: Some(ticket_id.to_string()),
-        body,
+        body: body.to_string(),
     };
     {
         let mut g = bus();
@@ -457,12 +523,16 @@ pub fn enqueue_sync(from: &str, ticket_id: &str, phase: &str) -> Result<BusEnvel
     Ok(envelope)
 }
 
-/// Solo-walk open tickets and enqueue `kind:sync` on each claimed/done step.
-pub fn sync_walk(
+/// Walk open tickets, enqueue session lines, optionally live-send 1/s.
+///
+/// Cargo tests stay dry-run (queue only, no sockets). Live `sendMessage` runs
+/// when the Bot API is enabled, a token is set, and `explicit_dry` is false.
+pub async fn sync_walk(
     repo_root: &Path,
     data_dir: &Path,
     body: &Value,
     presence: Option<&tickets::PresenceStore>,
+    explicit_dry: bool,
 ) -> Result<Value, tickets::TicketError> {
     let file = settings::load_result(data_dir).map_err(tickets::TicketError::Io)?;
     if !settings::telegram_relay_enabled(&file) {
@@ -478,10 +548,27 @@ pub fn sync_walk(
         .filter(|s| !s.is_empty())
         .unwrap_or("solo");
     report.telegram = 0;
+    let mut lines: Vec<String> = Vec::new();
     for step in &report.walked {
-        if enqueue_sync(from, &step.ticket_id, &step.phase).is_ok() {
+        let kind = if step.kind.is_empty() {
+            "solo"
+        } else {
+            step.kind.as_str()
+        };
+        let line = session_line(kind, &step.phase, &step.title, &step.actor);
+        if enqueue_session(from, &step.ticket_id, &line).is_ok() {
             report.telegram += 1;
+            lines.push(line);
         }
+    }
+    let bench = bench_session_line(repo_root);
+    if enqueue_session(from, "gsv_dev", &bench).is_ok() {
+        report.telegram += 1;
+        report.bench = bench.clone();
+        lines.push(bench);
+    }
+    if !use_stub(explicit_dry) {
+        live_send_session_lines(&file, &lines).await;
     }
     serde_json::to_value(&report)
         .map_err(|_| tickets::TicketError::Io("walk encode failed".into()))
@@ -491,6 +578,62 @@ pub fn sync_walk(
             }
             v
         })
+}
+
+async fn live_send_session_lines(file: &SettingsFile, lines: &[String]) {
+    let token = resolved_token(file).unwrap_or_default();
+    let channel = file.godfather.channel_id.trim().to_string();
+    if token.is_empty() || channel.is_empty() || lines.is_empty() {
+        return;
+    }
+    for (i, line) in lines.iter().enumerate() {
+        if i > 0 {
+            let wait = {
+                let g = bus();
+                g.last_send
+                    .map(|prev| RATE_LIMIT.saturating_sub(prev.elapsed()))
+                    .unwrap_or(Duration::ZERO)
+            };
+            if !wait.is_zero() {
+                tokio::time::sleep(wait).await;
+            }
+        }
+        let _ = send_plain_live(&token, &channel, line).await;
+        let mut g = bus();
+        g.last_send = Some(Instant::now());
+    }
+}
+
+async fn send_plain_live(token: &str, channel: &str, text: &str) -> Value {
+    let client = match reqwest::Client::builder()
+        .timeout(Duration::from_secs(3))
+        .build()
+    {
+        Ok(c) => c,
+        Err(e) => return bus_fail(&format!("telegram client: {e}"), token),
+    };
+    let url = format!("{API_ROOT}/bot{token}/sendMessage");
+    let sent = match client
+        .post(&url)
+        .json(&json!({ "chat_id": channel, "text": text }))
+        .send()
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => return bus_fail(&format!("sendMessage: {e}"), token),
+    };
+    let body = match sent.json::<Value>().await {
+        Ok(v) => v,
+        Err(e) => return bus_fail(&format!("sendMessage body: {e}"), token),
+    };
+    if body.get("ok").and_then(Value::as_bool) != Some(true) {
+        let desc = body
+            .get("description")
+            .and_then(Value::as_str)
+            .unwrap_or("sendMessage failed");
+        return bus_fail(desc, token);
+    }
+    json!({ "ok": true, "dry_run": false })
 }
 
 fn title_body(s: &str) -> (String, String) {
@@ -977,5 +1120,27 @@ mod tests {
         assert!(parse_ticket_body(r#"{"v":1,"kind":"bus","from":"a","body":"x"}"#).is_err());
         assert!(parse_channel_ticket("hello").is_none());
         assert!(parse_channel_ticket("/ticket hi").is_some());
+    }
+
+    #[test]
+    fn session_line_is_plain_copy() {
+        assert_eq!(
+            session_line("solo", "claimed", "Session: S0 disk", ""),
+            "solo claimed Session: S0 disk"
+        );
+        assert_eq!(
+            session_line("solo", "done", "Session: close", "agent"),
+            "solo done Session: close"
+        );
+        assert_eq!(
+            session_line("squad", "assigned", "Session: squad assign", "opencode"),
+            "squad assigned Session: squad assign to opencode"
+        );
+        assert_eq!(
+            session_line("bench", "bench", "create=1 walk=2 mds=3 enqueue=4 ns", ""),
+            "bench gsv_dev create=1 walk=2 mds=3 enqueue=4 ns"
+        );
+        let stub = bench_session_line(std::path::Path::new("/no/such/gsv-speed-index"));
+        assert_eq!(stub, "bench gsv_dev create=0 walk=0 mds=0 enqueue=0 ns");
     }
 }

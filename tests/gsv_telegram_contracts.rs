@@ -862,7 +862,7 @@ async fn enqueue_sync_is_kind_sync_no_token() {
     let env = telegram::enqueue_sync("solo", "t-mds", "claimed").expect("sync");
     assert_eq!(env.kind, "sync");
     assert_eq!(env.ticket_id.as_deref(), Some("t-mds"));
-    assert!(env.body.contains("claimed"), "{}", env.body);
+    assert_eq!(env.body, "solo claimed t-mds");
     let raw = serde_json::to_string(&env).expect("json");
     assert!(!raw.contains("bot_token"), "{raw}");
 }

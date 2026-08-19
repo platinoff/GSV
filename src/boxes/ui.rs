@@ -1183,6 +1183,7 @@ pub fn render_tickets(d: &Value) -> String {
     let online = arr(&d["online"]);
     let scenarios = arr(&d["scenarios"]);
     let mut out = String::from("<div class='dim'>open tickets are the board</div>");
+    out.push_str("<div class='dim'>walk posts session lines · solo / squad / bench</div>");
     out.push_str(&format!(
         "<div class='dim'>mode <kbd>{}</kbd> · online <kbd>{}</kbd></div>",
         esc(mode_bit),
@@ -2553,6 +2554,7 @@ mod tests {
         let tickets = render_tickets(&serde_json::json!({ "ok": true, "tickets": [] }));
         assert!(tickets.contains("tickets — no data"), "{tickets}");
         assert!(tickets.contains("open tickets are the board"), "{tickets}");
+        assert!(tickets.contains("session lines"), "{tickets}");
         assert!(
             tickets.contains("data-action='tickets-create'"),
             "{tickets}"

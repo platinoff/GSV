@@ -9,6 +9,7 @@
 //! assignment among online MCP presence, and claimed/done/error events.
 //! Band 171: `lease_until` on `in_progress`; stale reclaim → `open` + `kind:reclaimed`.
 //! Band 174: Telegram `/ticket` ingest → board row; solo MCP auto-claims.
+//! Band 176: walk posts session lines (solo claimed / squad assigned / bench).
 
 use std::collections::HashMap;
 use std::fmt;
@@ -186,6 +187,11 @@ pub struct WalkStep {
     pub ticket_id: String,
     pub title: String,
     pub phase: String,
+    /// `solo` or `squad` (empty → treat as solo).
+    #[serde(default)]
+    pub kind: String,
+    #[serde(default)]
+    pub actor: String,
 }
 
 /// Solo-bot walk of open tickets (optional scenario filter).
@@ -195,6 +201,9 @@ pub struct WalkReport {
     pub scenario: String,
     pub walked: Vec<WalkStep>,
     pub telegram: usize,
+    /// Band 176: `gsv_dev` median session line (empty until Telegram sync).
+    #[serde(default)]
+    pub bench: String,
 }
 
 /// Load / claim failures (HTTP maps these to 404/403/400).
@@ -1040,6 +1049,9 @@ fn ticket_sort_key(t: &Ticket) -> (String, String) {
 }
 
 /// Claim then done every `open` row (optional `scenario` filter). Telegram notify is separate.
+///
+/// Squad mode (`tickets.mode=squad` + `ticket-squad`) assigns via [`try_dispatch`]
+/// (`seed % n` among online MCP). One online worker is a valid live demo.
 pub fn solo_walk(
     repo_root: &Path,
     data_dir: &Path,
@@ -1056,6 +1068,7 @@ pub fn solo_walk(
         let _ = renew_leases(repo_root, data_dir, &who);
     }
     let _ = reclaim_stale(repo_root, data_dir);
+    let mode = resolve_mode(&file);
     let filter = scenario.trim();
     let mut open: Vec<Ticket> = read_tickets(&tickets_path(repo_root))?
         .into_iter()
@@ -1064,25 +1077,59 @@ pub fn solo_walk(
         .collect();
     open.sort_by_key(ticket_sort_key);
     let mut walked = Vec::new();
-    for t in open {
-        let claimed = claim_with(repo_root, data_dir, &t.id, who.clone(), presence)?;
+    for (i, t) in open.into_iter().enumerate() {
+        let (claimed, phase) = match mode {
+            TicketMode::Squad => match presence {
+                Some(store) => match try_dispatch(repo_root, data_dir, &t.id, store, i as u64)? {
+                    Some(c) => (c, "assigned"),
+                    None => (
+                        claim_with(repo_root, data_dir, &t.id, who.clone(), presence)?,
+                        "claimed",
+                    ),
+                },
+                None => (
+                    claim_with(repo_root, data_dir, &t.id, who.clone(), presence)?,
+                    "claimed",
+                ),
+            },
+            TicketMode::Solo => (
+                claim_with(repo_root, data_dir, &t.id, who.clone(), presence)?,
+                "claimed",
+            ),
+        };
+        let kind = if phase == "assigned" { "squad" } else { "solo" };
+        let actor = claimed
+            .claimed_by
+            .as_ref()
+            .map(|c| c.actor.clone())
+            .unwrap_or_default();
         walked.push(WalkStep {
             ticket_id: claimed.id.clone(),
             title: claimed.title.clone(),
-            phase: "claimed".into(),
+            phase: phase.into(),
+            kind: kind.into(),
+            actor: actor.clone(),
         });
+        let finisher = claimed.claimed_by.clone().unwrap_or_else(|| who.clone());
+        let note = if kind == "squad" {
+            "squad walk"
+        } else {
+            "solo walk"
+        };
         let finished = done(
             repo_root,
             data_dir,
             &claimed.id,
-            who.clone(),
-            "solo walk",
+            finisher.clone(),
+            note,
             presence,
         )?;
         walked.push(WalkStep {
             ticket_id: finished.id,
             title: finished.title,
             phase: "done".into(),
+            kind: kind.into(),
+            actor: finisher.actor,
         });
     }
     Ok(WalkReport {
@@ -1090,6 +1137,7 @@ pub fn solo_walk(
         scenario: filter.to_string(),
         walked,
         telegram: 0,
+        bench: String::new(),
     })
 }
 

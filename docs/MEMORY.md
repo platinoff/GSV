@@ -4,13 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
-## Стан (2026-08-19 · band 175 ✅)
+## Стан (2026-08-19 · band 176 ✅)
 
+- **Band 176:** Visible MCP session walk. Scenario `abrakadabra-session` (6) · session lines (`solo claimed` / `squad assigned … to {worker}` / `bench gsv_dev … ns`) · live `sendMessage` 1/s · dry-run queue · Galaxy walk · `CARD_NAMES` **40**.
 - **Band 175:** MDS scenario band + solo walk + Telegram sync. Scenario `tickets[]` · catalog `memory-disk-speed` (6) · `gsv-mds` (1 MiB alloc + OS phys / `disk_report` / xor-fold) · `GET /api/mds` · `POST /api/tickets/walk` · MCP `gsv_tickets_walk` + `gsv_mds` (**50** tools) · `kind:sync` on claim/done · Galaxy add+walk · `gsv_dev` band/walk/mds benches. `CARD_NAMES` **40**.
 - **Canon:** [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md).
-- **Next drain:** owner pick after warnings-first scan.
+- **Next drain:** **owner pick** (do not invent band 177).
 - **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
-- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.37%** (rust 31587 / product 31788) · **594** tests · clippy 0
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.38%** (rust 32185 / product 32386) · **596** tests · clippy 0
 
 ## Стан (2026-08-19 · band 174 ✅)
 

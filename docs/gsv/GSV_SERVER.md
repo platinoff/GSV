@@ -56,7 +56,7 @@
 | POST | `/api/tickets/error` | `{id,note?}` → `in_progress`→`blocked` + event `kind:error` |
 | POST | `/api/tickets/presence` | heartbeat `{actor?,ide?,model?,agent?}` → `{ok,online}` + renew this worker's WIP leases |
 | POST | `/api/tickets/reclaim` | `{id?}` stale/explicit `in_progress` → `open` + event `kind:reclaimed`; empty id = all expired; CSRF; `ticket-claim` off → 403 |
-| POST | `/api/tickets/walk` | Solo walk `{scenario_id?,create?,from?}`: claim→done open rows + Telegram `kind:sync`. Requires `ticket-claim` + `telegram-relay`. CSRF. |
+| POST | `/api/tickets/walk` | Walk `{scenario_id?,create?,from?}`: claim/assign→done + Godfather session lines (`solo claimed` / `squad assigned` / `bench gsv_dev`). Live `sendMessage` 1/s; tests dry-run. Requires `ticket-claim` + `telegram-relay`. CSRF. |
 | GET | `/api/mds` | Light memory / disk / speed report (`gsv-mds`) |
 | GET | `/api/health` | health-чек (`crate_version`, `version_lag`, `update_available` matches Update box) |
 | GET | `/mcp` | MCP discovery (`gsv_mcp_openbot` + `sandbox` GSV crate path + 50 tools + 11 resources + 3 prompts + `stdio`/`stdio_live`/`http`/`http_url`/`version`/`http_csrf`/`tool_count`/`resource_count`/`prompt_count`/`logging`/`completions`/`log_level`/`subscribe`/`subscription_count`/`sse`/`streamable`/`sessions`/`session_count`); sessionless `Accept: text/event-stream` flushes pending notifications as finite SSE; **GET with `Mcp-Session-Id` holds** the stream; unknown `Mcp-Session-Id` → 404 |

@@ -428,11 +428,11 @@ pub fn tools_list() -> Vec<Value> {
         ),
         tool(
             "gsv_tickets_walk",
-            "Solo-walk open tickets (optional scenario_id creates the band first). Claim → Telegram kind:sync → done → kind:sync. Requires ticket-claim + telegram-relay. Dry-run: in-memory queue, no sockets.",
+            "Walk open tickets (optional scenario_id creates the band first). Posts Godfather session lines: solo claimed/done, squad assigned to {worker}, bench gsv_dev ns. Live sendMessage 1/s when token is set; dry-run queues only. Requires ticket-claim + telegram-relay.",
             json!({
                 "type": "object",
                 "properties": {
-                    "scenario_id": { "type": "string", "description": "Named scenario (memory-disk-speed). Creates the band when set." },
+                    "scenario_id": { "type": "string", "description": "Named scenario (abrakadabra-session / memory-disk-speed). Creates the band when set." },
                     "create": { "type": "boolean", "description": "Create the scenario band first (default true when scenario_id is set)." },
                     "from": { "type": "string", "description": "Telegram sync from (default solo)." }
                 }
@@ -1387,7 +1387,10 @@ async fn call_tool(state: &AppState, params: &Value, session: Option<&str>) -> V
                 &state.data_dir,
                 &args,
                 Some(&state.ticket_presence),
-            ) {
+                crate::boxes::telegram::env_dry_run(),
+            )
+            .await
+            {
                 Ok(v) => tool_ok(v),
                 Err(e) => tool_err(e.to_string()),
             }

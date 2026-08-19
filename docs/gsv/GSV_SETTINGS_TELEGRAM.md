@@ -1,6 +1,6 @@
 # GSV settings, Telegram Godfather, tickets, MCP bot bus
 
-**Status:** Landed band **175** (owner pick 2026-08-19: MDS scenario band + solo walk + Telegram `kind:sync`) · **band 174 ✅** solo Telegram tickets · **band 173 ✅** vision queue close-lockstep · **band 172 ✅** live crate lockstep · bands **166–171 ✅** · **next drain = owner pick** after a warnings-first scan  
+**Status:** Landed band **176** (visible MCP session walk — solo / squad / bench on Godfather) · **band 175 ✅** MDS scenario band + solo walk + Telegram `kind:sync` · **band 174 ✅** solo Telegram tickets · **band 173 ✅** vision queue close-lockstep · **band 172 ✅** live crate lockstep · bands **166–171 ✅** · **next drain = owner pick** (do not invent band 177)  
 **Date:** 2026-08-19  
 **Deciders:** owner  
 **Owner ask:** GSV settings; Telegram channels; MCP bots talk to each other through a Telegram tunnel; a ticket board for people who want to join; MCP claims tickets and marks `in_progress` the same way fingerprints sync; server settings hold **Godfather** data (which channel, how secrets are stored, co-workflows). Next session starts with `абракадабра`.
@@ -19,7 +19,7 @@ Cost of leaving it: the next drain invents a one-off Telegram script, leaks a bo
 1. Owner configures GSV on the live Galaxy **Settings** card (Godfather channel, co-workflows, secret policy) without putting tokens in git.
 2. Joiners see a **ticket board**; MCP bots **claim** a ticket, mark `in_progress`, and leave a fingerprint-class row (actor / IDE / model / time).
 3. Two (or more) `gsv_mcp_openbot` clients can exchange short control messages over a **Telegram channel bus** once Godfather is bound — not a public Cloudflare hop.
-4. Next `абракадабра` on **gsv** is an **owner pick** after a warnings-first scan. Bands **166–175** are landed.
+4. Band **176** is landed: the MCP bot walks an `абракадабра`-shaped scenario (**solo**, **squad**, **benchmark**) with a plain-text line per step. Bands **166–176** are landed. Next drain is an owner pick.
 5. Ratio stays `gsv-loc-audit --stretch-96` ≥ 96%. No Python. Secrets never in MCP/HTTP JSON.
 
 ## Non-goals
@@ -52,7 +52,7 @@ Cost of leaving it: the next drain invents a one-off Telegram script, leaks a bo
 
 - As an MCP bot, I list tickets, claim one, and the board + a fingerprint-class row show `in_progress` with my ide/model.
 - As two MCP bots (Cursor + OpenCode), I send a short bus message through the Godfather channel and the other client sees it without a public HTTP tunnel.
-- As owner, I type `абракадабра`, pick **GSV**, and the agent asks for the next drain (bands 166–171 landed).
+- As owner, I type `абракадабра`, pick **GSV**, and watch Godfather: the MCP bot posts what it is doing for **solo**, **squad**, and **bench** — same shape as the drain session.
 - As a squad of MCP clients, I heartbeat `gsv_tickets_presence`; a new development ticket from a scenario is assigned to one random online bot. Solo mode always uses the single MCP.
 - As an MCP bot, I mark a ticket `done` or `blocked` (error) and the event JSONL + board stay in lockstep with fingerprints.
 - As an MCP bot, my `in_progress` lease expires if I stop heartbeating; the ticket returns to `open` with `kind:reclaimed` so another worker can claim it.
@@ -146,6 +146,19 @@ Owner pick: place a **band of tickets** that build a light Rust memory/disk/spee
 | Sync | Each claimed/done step enqueues `{v:1,kind:sync,ticket_id,body}`. Requires `telegram-relay` + `ticket-claim`. |
 | Tools | **50** MCP tools. `CARD_NAMES` stays **40**. Bench `gsv_dev` times band create + walk + mds_report. |
 
+### P2 — Should (band 176) — visible MCP session walk (solo / squad / bench) ✅
+
+Owner pick (`абракадабра` gsv / watch the bot): the next drain is a **session you can read** on Godfather. The MCP bot walks a catalog scenario that looks like `абракадабра` (S0 → scan → solo work → squad assign → bench → close) and posts a **plain-text** line for each step. Cargo tests stay dry-run (no sockets). Live Bot API is 1 message/s.
+
+| Piece | Acceptance |
+|-------|------------|
+| Catalog | Scenario `abrakadabra-session` with `tickets[]` (S0, warnings-first, solo MDS, squad claim, `gsv_dev` bench, close). |
+| Copy | `kind:sync` body is a session line (`solo claimed …`, `squad assigned … to {worker}`, `bench gsv_dev … ns`), not only `{phase} {id}`. |
+| Live | When token is set and not dry-run, walk **sendMessage**s those lines to the Godfather chat (1/s). Dry-run still only enqueues. |
+| Solo | Existing `solo_walk` / `gsv_tickets_walk` remains the one-worker path. |
+| Squad | Walk (or dispatch) with `tickets.mode=squad` + two presence rows posts **assigned** lines; one online worker is still a valid demo (`seed % 1`). |
+| Bench | After walk, one sync line with `gsv_dev` medians (band create / solo walk / mds / enqueue) — from recorded bench JSON or a dry-run stub in tests. |
+| Tools | Keep `CARD_NAMES` **40**. New MCP only if a dedicated `gsv_tickets_walk` mode arg is cleaner than extra tools. |
 
 ## Security (how we store)
 
@@ -164,7 +177,7 @@ Owner pick: place a **band of tickets** that build a light Rust memory/disk/spee
 |----|-----|--------|
 | `drain` | VDT `абракадабра` | Unchanged drain; settings card may show it as enabled. |
 | `ticket-claim` | MCP / Galaxy | Allows `gsv_tickets_claim` / done / error / reclaim (band 168–171). |
-| `telegram-relay` | MCP / poller | Allows bus send/poll (band 169), ticket ingest (174), and solo-walk `kind:sync` (175). |
+| `telegram-relay` | MCP / poller | Allows bus send/poll (band 169), ticket ingest (174), solo-walk `kind:sync` (175), and live session lines (176). |
 | `ticket-squad` | MCP / Galaxy | Allows `tickets.mode=squad` random assign among online MCP (band 170). |
 
 Unknown ids in the file are kept but ignored (forward compatible).
@@ -177,6 +190,7 @@ Unknown ids in the file are kept but ignored (forward compatible).
 - Band 170: scenario create gated by workflow; unregistered product rejected; solo picks one MCP; squad pick is `seed % n`; done/error append `kind` events; `gsv_dev` bench prints pick_assignee + create/claim/done.
 - Band 174: `/ticket` ingest creates a row; one online MCP in solo mode claims it; MCP `gsv_telegram_ticket`; `--stretch-96` ≥ 96%.
 - Band 175: scenario `memory-disk-speed` places 6 tickets; solo walk claims/dones them and enqueues `kind:sync`; `gsv-mds` reports memory/disk/speed; `--stretch-96` ≥ 96%.
+- Band 176: Godfather (live) or bus queue (dry-run) shows session lines for solo, squad, and bench; scenario `abrakadabra-session`; `--stretch-96` ≥ 96%.
 
 ## Open questions (non-blocking)
 
@@ -195,8 +209,9 @@ Unknown ids in the file are kept but ignored (forward compatible).
 | **171** | S2349–S2358 | Ticket lease + stale reclaim + `gsv_tickets_reclaim` | **✅ this drain** |
 | **174** | S2379–S2388 | Solo bot tickets from Telegram (`gsv_telegram_ticket`) | **✅ landed** |
 | **175** | S2389–S2398 | MDS scenario band + solo walk + Telegram `kind:sync` + `gsv-mds` | **✅ this drain** |
+| **176** | S2399–S2408 | Visible MCP session walk (solo / squad / bench on Godfather) | **✅ this drain** |
 
-Do **not** invent the next band. Next drain is an owner pick.
+Do **not** invent band 177. Next drain after 176 is an owner pick.
 
 ## Constraints
 
