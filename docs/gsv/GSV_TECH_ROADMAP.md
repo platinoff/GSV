@@ -45,6 +45,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 158** (live MCP stdio + sync check) **✅** ·
 **band 159** (Cursor HTTP MCP + session SSE hold) **✅** ·
 **band 160** (GSV sandbox MCP · no User leak into PoolAI) **✅** ·
+**band 161** (vision lockstep PH-S2249 + disk MiB + `--clean` keep-live) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -928,6 +929,23 @@ Owner: User MCP overlay made `gsv_mcp_openbot` appear in PoolAI windows. GSV san
 | **PH-S2246** | Contracts | mcp/ui sandbox + omit-mutating — **✅** |
 | **PH-S2247** | Docs | MCP_OPENBOT / HANDOFF / NEXT / MEMORY — **✅** |
 | **PH-S2248** | Band close | tests **475** green; `--stretch-96` **99.23%**; `--band 160` + fingerprint; one commit + push — **✅** |
+
+## Спринти (band 161) — vision lockstep + S0 disk ✅
+
+Owner pick (`абракадабра` gsv / lockstep): Galaxy queue stuck on PH-S2229 after bands 159–160; `gsv_disk` showed `0 GiB` when 503 MiB remained; no keep-live `cargo xtask disk --clean`.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2249** | Scope + queue | this band; `active_sprint` / `next_sprint` = `PH-S2249` — **✅** |
+| **PH-S2250** | Disk MiB | `free_mb` / `target_mb`; sub-GiB notes say MiB not `0 GiB` — **✅** |
+| **PH-S2251** | `disk --clean` | drop `debug/deps`+incremental; **never** `target/live` — **✅** |
+| **PH-S2252** | Vision lockstep | `last_sprint_closed` = `PH-S2248` — **✅** |
+| **PH-S2253** | Contracts | xtask unit + `/api/disk` `free_mb` + vision PH-S2249 — **✅** |
+| **PH-S2254** | MCP | `gsv_disk` stays read-only; `clean` is not an MCP task — **✅** |
+| **PH-S2255** | Docs | RUST_DEV / HANDOFF / NEXT / MEMORY / MCP_OPENBOT — **✅** |
+| **PH-S2256** | (reserve) | — **✅** |
+| **PH-S2257** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy — **✅** |
+| **PH-S2258** | Band close | tests **481** green; `--stretch-96` **99.25%**; `--band 161` + fingerprint; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

@@ -43,15 +43,32 @@ fn main() -> ExitCode {
         "disk" => {
             let enforce = args.iter().any(|a| a == "--enforce")
                 || env::var("GSV_ENFORCE_DISK_LIMIT").as_deref() == Ok("1");
+            let do_clean = args.iter().any(|a| a == "--clean");
+            let target_dir = std::env::var("CARGO_TARGET_DIR")
+                .map(PathBuf::from)
+                .unwrap_or_else(|_| root.join("target"));
+            if do_clean {
+                let c = xtask::clean_debug_cache(&target_dir);
+                eprintln!(
+                    "check_target_disk: clean removed [{}] kept_live={}",
+                    c.removed.join(", "),
+                    c.kept_live
+                );
+            }
             let r = xtask::disk_report(&root, enforce);
+            let free = match (r.free_gb, r.free_mb) {
+                (Some(0), Some(mb)) => format!("{mb} MiB"),
+                (Some(gb), Some(mb)) if gb < 2 => format!("{mb} MiB"),
+                (Some(gb), _) => format!("{gb} GiB"),
+                _ => "?".into(),
+            };
             eprintln!(
-                "check_target_disk: repo={} target_dir={} (size ~{} GiB) free ~{} GiB (min {})",
+                "check_target_disk: repo={} target_dir={} (size ~{} GiB / {} MiB) free ~{} (min {} GiB)",
                 r.repo,
                 r.target_dir,
                 r.target_gb,
-                r.free_gb
-                    .map(|n| n.to_string())
-                    .unwrap_or_else(|| "?".into()),
+                r.target_mb,
+                free,
                 r.min_free_gb
             );
             for n in &r.notes {

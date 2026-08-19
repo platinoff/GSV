@@ -289,7 +289,7 @@ pub fn tools_list() -> Vec<Value> {
                 }
             }),
         ),
-        tool("gsv_disk", "S0 disk guard (free GiB on the repo volume + target/ size).", json!({
+        tool("gsv_disk", "S0 disk guard (free GiB/MiB on the repo volume + target/ size; --clean is CLI only).", json!({
                 "type": "object",
                 "properties": {
                     "enforce": {

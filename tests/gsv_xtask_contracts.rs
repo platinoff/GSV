@@ -56,6 +56,8 @@ async fn api_xtask_catalog_and_disk() {
     assert_eq!(status, StatusCode::OK);
     assert!(disk["ok"].is_boolean(), "{disk}");
     assert!(disk["target_dir"].as_str().is_some(), "{disk}");
+    assert!(disk.get("free_mb").is_some(), "free_mb: {disk}");
+    assert!(disk.get("target_mb").is_some(), "target_mb: {disk}");
     let (status, bad) = get_json(&app, "/api/xtask?task=push").await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_eq!(bad["ok"], false);
@@ -106,6 +108,12 @@ fn mcp_readonly_tasks_include_sync_check() {
         }
     }
     assert!(xtask::mcp_run(&kit_root(), "bump").is_err());
+    let disk = xtask::mcp_run(&kit_root(), "disk").expect("disk readonly");
+    assert!(disk.get("free_mb").is_some(), "{disk}");
+    assert!(
+        xtask::mcp_run(&kit_root(), "clean").is_err(),
+        "clean must stay CLI-only"
+    );
 }
 
 #[test]

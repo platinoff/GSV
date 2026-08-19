@@ -144,6 +144,15 @@ fn vision_extensions_reads_real_workspace() {
 }
 
 #[test]
+fn vision_queue_lockstep_ph_s2249() {
+    let m = vision::read_manifest(&repo_root()).expect("manifest");
+    let e = vision::read_extensions(&repo_root()).expect("extensions");
+    assert_eq!(m.next_sprint, "PH-S2249", "manifest next_sprint");
+    assert_eq!(e.active_sprint, "PH-S2249", "extensions active_sprint");
+    assert_eq!(m.last_sprint_closed, "PH-S2248", "last closed is band 160");
+}
+
+#[test]
 fn vision_drift_green_on_real_workspace() {
     let dir = temp_data_dir("drift");
     let issues = collect_drift(&repo_root(), &dir);

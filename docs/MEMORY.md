@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-18 · band 161 ✅)
+
+- **Band 161:** vision lockstep (`next_sprint` / `active_sprint` = `PH-S2249`, `last_sprint_closed` = `PH-S2248`) + S0 disk `free_mb` (sub-GiB is not `0 GiB`) + `cargo xtask disk --clean` keeps `target/live` (not on MCP).
+- **Canon:** [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md) · [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+- **Next drain:** scan / owner pick.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.25%** (rust 24989 / product 25179) · **481** tests · clippy 0.
+
 ## Стан (2026-08-18 · band 160 ✅)
 
 - **Band 160:** Cursor User MCP overlay removed (it showed `gsv_mcp_openbot` in PoolAI). Folder scope is **GSV** (`.cursor/mcp.json`). `GET /mcp` `sandbox` is `S:/rust/GSV`. Preview/terminal stay in that crate; VDT products only via `gsv_products_*` (no open/apply/tunnel tools).
