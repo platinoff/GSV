@@ -203,7 +203,7 @@ No secrets in tool output (`omni.toml` keys stay redacted). POST body cap and CS
 
 ## Horizon (band 160+)
 
-Band **166+** (queued): Settings / Godfather / tickets / Telegram bus — [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md). Band **166** adds read-only MCP `gsv_settings` (redacted) + `gsv://docs/settings-telegram`. Ticket **claim** lands on MCP in **168**. Telegram bus send/poll in **169**. Still **not** on MCP: `products/open`, `update/apply`, starting Cloudflare tunnel.
+Band **166 ✅** settings; **167–169** fully specified (next drain **167** `gsv_telegram` status; **168** `gsv_tickets` / `gsv_tickets_claim`; **169** `gsv_telegram_bus_*`) — [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md). Still **not** on MCP: `products/open`, `update/apply`, starting Cloudflare tunnel.
 
 Band **164** lockstepped the kit to Cursor desktop **3.16.29**: folder `.cursor/mcp.json` stays Streamable HTTP `type: http` + loopback `url`; toolchain inventories `cursor` from `package.json`; never User MCP; do not Origin-host this kit. Tools/sync unchanged (`gsv_xtask` `{task:sync}` is `--check`; remirror is `gsv_vision_sync`).
 
@@ -215,6 +215,6 @@ Spec: [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md). Plan: [`docs/superpowe
 
 ## See also
 
-- Roadmap sprints: [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) band 135–142 ✅ · **151–165 ✅** · **166 queued** ([`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md))
+- Roadmap sprints: [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) band 135–142 ✅ · **151–166 ✅** · **167–169 queued** (full PH-S in the plan; next **167**)
 - Server: [`GSV_SERVER.md`](./GSV_SERVER.md)
 - Boxes: [`GSV_BOXES.md`](./GSV_BOXES.md)

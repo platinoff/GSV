@@ -8,7 +8,7 @@
 
 - **Band 166:** Settings + Godfather secret store. `boxes/settings.rs` · `data/gsv_settings.json` (gitignored) · env `GSV_TELEGRAM_BOT_TOKEN` wins without being written back · `GET`/`POST /api/settings` never contains `bot_token` · Galaxy ops card `settings` (`CARD_NAMES` **38**) · MCP `gsv_settings` read-only + resource `gsv://docs/settings-telegram` (**37** tools · **11** resources). No live Telegram.
 - **Canon:** [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md) · plan [`superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md`](superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md).
-- **Next drain:** band **167** (`PH-S2309…S2318`) Godfather channel bind. Not 168 tickets.
+- **Next drain:** band **167** (`PH-S2309…S2318`) Godfather channel bind. Owner 2026-08-19: **167–169 fully specified** in the plan (one band per drain; then 168 tickets, then 169 bus). Do not invent 170.
 - **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
 - **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.27%** (rust 25931 / product 26122) · **517** tests · clippy 0
 

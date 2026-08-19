@@ -5,9 +5,10 @@
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
 **`абракадабра` / `abrakadabra`** → `cargo xtask products` → **AskQuestion на проєкти з environment**
 (не `gsv | poolai` з голови) → S0 диск/git → project scan (warnings first) →
-якщо **gsv:** drain **band 167** from [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md)
-(план [`superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md`](superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md)).
-Do **not** skip to 168 (tickets) / 169 (bus).
+якщо **gsv:** drain **band 167** (`PH-S2309…S2318`) from the **full** tables in
+[`superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md`](superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md)
+(spec [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md)).
+Owner 2026-08-19: **167–169 are fully specified** — one band per drain (≤10 PH-S*); then 168, then 169. Do **not** invent 170.
 Speeds + Rust panel → vision-sync → **один commit** → **`git push` + самарі**.
 
 Якщо вибір **gsv:** scan [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) first
@@ -23,7 +24,7 @@ vision queue lockstep + bump auto-advance **163 ✅**;
 Cursor 3.16.29 kit lockstep **164 ✅**;
 watchdog live copy + lockstep observability **165 ✅**;
 **band 166 ✅** settings / Godfather — [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md);
-**band 167 queued** Telegram bind. MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+**band 167 queued (next)** Telegram bind · **168–169** full PH-S in the same plan. MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
 Omni catalog: [`gsv/GSV_OMNI_CATALOG.md`](gsv/GSV_OMNI_CATALOG.md).
 Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 Канон ролей: [`GSV_ROLES.md`](GSV_ROLES.md). Реєстр: [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -31,7 +32,7 @@ Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 ## Стан зараз
 
 - **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–165 · **166 ✅**.
-- **Next drain (gsv):** **band 167** (`PH-S2309…S2318`) — Telegram Godfather channel bind (dry-run tests). Spec [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md). Then **168** ticket board + MCP claim · **169** Telegram bus. `cargo xtask bump --band N` locksteps last/next/active.
+- **Next drain (gsv):** **band 167** (`PH-S2309…S2318`) — Telegram Godfather channel bind (dry-run tests). Full tasks in the plan file (167–169). Then **168** tickets · **169** bus. `cargo xtask bump --band N` locksteps last/next/active.
 - **Band 166:** Settings box + Godfather secret store — `data/gsv_settings.json` (gitignored); `GET`/`POST /api/settings` redacts `bot_token`; env `GSV_TELEGRAM_BOT_TOKEN` wins; Galaxy ops card `settings`; MCP `gsv_settings` read-only + `gsv://docs/settings-telegram`.
 - **Band 165:** watchdog live copy (`target/live/gsv-watchdog.exe`) + lockstep observability (`lockstep-fail`, `last_apply_status`, oneshot apply, health `version_lag`).
 - **Band 164:** Cursor desktop **3.16.29** kit lockstep — rules pin, toolchain `cursor` probe, folder MCP `type:http` stays, never User MCP, no Origin-host.

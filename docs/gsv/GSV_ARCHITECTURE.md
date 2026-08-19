@@ -70,7 +70,7 @@
 | Метрики (speed, rust diagnostics) | `speed_index.json`, `rust_diagnostics.json` | `docs/vision/` (сирці) → `GSV/data/gsv_*.json` |
 | Session token usage | `gsv_usage.json` | `GSV/data/` (OmniRouter + MCP + OmniRoute pull) |
 | Settings / Godfather token | `gsv_settings.json` | `GSV/data/` (gitignored; **band 166 ✅**; API/MCP redact `bot_token`; env `GSV_TELEGRAM_BOT_TOKEN` wins) |
-| Tickets / claims | `tickets.jsonl` / `ticket_claims.jsonl` | `docs/gsv/` git-tracked (**band 168 queued**; no secrets) |
+| Tickets / claims | `tickets.jsonl` / `ticket_claims.jsonl` | `docs/gsv/` git-tracked (**band 168** in plan; no secrets) |
 
 ## Порядок реалізації (коротко)
 

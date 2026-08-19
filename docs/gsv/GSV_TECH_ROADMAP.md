@@ -1025,7 +1025,7 @@ Owner pick (`абракадабра` gsv / scan): live crate **0.164.0** vs runn
 
 ## Спринти (band 166) — GSV settings + Godfather store ✅
 
-Owner pick 2026-08-19: Settings card; Godfather channel + token store; co-workflows; later Telegram + ticket board + MCP bus. Spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md). Plan: [`docs/superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md`](../superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md). **Next `абракадабра` gsv = band 167.** Do not skip to 168 (tickets).
+Owner pick 2026-08-19: Settings card; Godfather channel + token store; co-workflows; later Telegram + ticket board + MCP bus. Spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md). Plan: [`docs/superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md`](../superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md). **Next `абракадабра` gsv = band 167.** Remaining **167–169** have full PH-S tables (one band per drain).
 
 | Sprint | Фокус | Acceptance (ключ) |
 |--------|-------|-------------------|
@@ -1040,17 +1040,52 @@ Owner pick 2026-08-19: Settings card; Godfather channel + token store; co-workfl
 | **PH-S2307** | Tests | `cargo test` green; live copy stays — **✅** |
 | **PH-S2308** | Band close | bump `--band 166` + fingerprint; one commit + push; next = **167** — **✅** |
 
-## Спринти (band 167) — Telegram Godfather channel bind · queued
+## Спринти (band 167) — Telegram Godfather channel bind · queued (next drain)
 
-`PH-S2309…S2318`. Bot API getMe/getChat; dry-run in tests; poller default off; card `telegram`; MCP `gsv_telegram` status. No bus.
+Owner 2026-08-19: remaining plan **167–169 fully specified**. Next `абракадабра` gsv = **167 only**. Plan: [`docs/superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md`](../superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md). Dry-run / `X-Telegram-Dry-Run`; poller default off; no bus.
 
-## Спринти (band 168) — ticket board + MCP claim · queued
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2309** | Scope | bind only; no `gsv_telegram_bus_*`; no `tickets.jsonl` |
+| **PH-S2310** | Probe | `boxes/telegram.rs` getMe+getChat; cargo-test stub; token stripped from errors |
+| **PH-S2311** | HTTP | `GET /api/telegram` redacted status; `X-Telegram-Dry-Run: 1` |
+| **PH-S2312** | Poller | default off; `telegram-relay` or `godfather.poll` only |
+| **PH-S2313** | Galaxy | card `telegram`; `CARD_NAMES` 39; empty/error HTML |
+| **PH-S2314** | MCP | `gsv_telegram` read; drain prompt names 167 |
+| **PH-S2315** | Contracts | no sockets in tests; mcp/ui lockstep |
+| **PH-S2316** | Docs | BOXES / SERVER / MCP / HANDOFF / NEXT / spec Landed 167 |
+| **PH-S2317** | Ratio + tests | fmt/clippy/`cargo test`/`--stretch-96`; keep live |
+| **PH-S2318** | Band close | `--band 167` + fingerprint; next = **168** |
 
-`PH-S2319…S2328`. `docs/gsv/tickets.jsonl` + `ticket_claims.jsonl`; HTTP + MCP claim; card `tickets`; fingerprint-class claim rows.
+## Спринти (band 168) — ticket board + MCP claim · queued (after 167)
 
-## Спринти (band 169) — Telegram bus between MCP bots · queued
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2319** | Scope | sibling `ticket_claims.jsonl`; no Telegram create-ticket |
+| **PH-S2320** | JSONL | `docs/gsv/tickets.jsonl` + claims; missing file empty-ok |
+| **PH-S2321** | HTTP | GET list; POST create; POST claim; CSRF; workflow `ticket-claim` |
+| **PH-S2322** | Galaxy | card `tickets`; `CARD_NAMES` 40 |
+| **PH-S2323** | MCP | `gsv_tickets` + `gsv_tickets_claim`; unknown id → tool error |
+| **PH-S2324** | Claim row | append claims JSONL; `open`→`in_progress` + `claimed_by` |
+| **PH-S2325** | Contracts | claim round-trip; CSRF; no secrets |
+| **PH-S2326** | Docs | BOXES / spec Landed 168; next = **169** |
+| **PH-S2327** | Ratio + tests | fmt/clippy/`cargo test`/`--stretch-96` |
+| **PH-S2328** | Band close | `--band 168` + fingerprint + push |
 
-`PH-S2329…S2338`. Channel envelopes; `gsv_telegram_bus_send` / `_poll`; co-workflow `telegram-relay`. Not Cloudflare.
+## Спринти (band 169) — Telegram bus between MCP bots · queued (after 168)
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2329** | Scope | no webhook; no Cloudflare; no invent 170 |
+| **PH-S2330** | Envelope | `{v:1,kind:bus,…}`; dry-run in-memory queue |
+| **PH-S2331** | Gates | `telegram-relay`; allowlist; body cap; rate-limit |
+| **PH-S2332** | MCP | `gsv_telegram_bus_send` / `gsv_telegram_bus_poll` |
+| **PH-S2333** | HTTP | optional `/api/telegram/bus`; CSRF on POST |
+| **PH-S2334** | Card + tests | two dry-run messages; token redact |
+| **PH-S2335** | Docs | spec P2 Landed; this plan complete |
+| **PH-S2336** | Ratio | `--stretch-96` ≥96%; fmt/clippy |
+| **PH-S2337** | Tests | `cargo test`; keep live |
+| **PH-S2338** | Band close | `--band 169` + fingerprint; NEXT = owner pick |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

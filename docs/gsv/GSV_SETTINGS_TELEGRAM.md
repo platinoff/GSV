@@ -1,6 +1,6 @@
 # GSV settings, Telegram Godfather, tickets, MCP bot bus
 
-**Status:** Landed band **166** (owner pick 2026-08-19) · **next drain = band 167** Godfather bind · bands **168–169** sequenced, not this session  
+**Status:** Landed band **166** (owner pick 2026-08-19) · remaining **167–169 fully specified** in the plan · **next drain = band 167** Godfather bind (then 168, then 169; one band per `абракадабра`)  
 **Date:** 2026-08-19  
 **Deciders:** owner  
 **Owner ask:** GSV settings; Telegram channels; MCP bots talk to each other through a Telegram tunnel; a ticket board for people who want to join; MCP claims tickets and marks `in_progress` the same way fingerprints sync; server settings hold **Godfather** data (which channel, how secrets are stored, co-workflows). Next session starts with `абракадабра`.
@@ -19,7 +19,7 @@ Cost of leaving it: the next drain invents a one-off Telegram script, leaks a bo
 1. Owner configures GSV on the live Galaxy **Settings** card (Godfather channel, co-workflows, secret policy) without putting tokens in git.
 2. Joiners see a **ticket board**; MCP bots **claim** a ticket, mark `in_progress`, and leave a fingerprint-class row (actor / IDE / model / time).
 3. Two (or more) `gsv_mcp_openbot` clients can exchange short control messages over a **Telegram channel bus** once Godfather is bound — not a public Cloudflare hop.
-4. Next `абракадабра` on **gsv** drains **band 167** (Godfather bind) after S0 + warnings-first scan. Do **not** skip to the ticket board (168) or the bus (169).
+4. Next `абракадабра` on **gsv** drains **band 167** from the full PH-S table in the plan (then 168, then 169 in later drains). Do **not** collapse 167–169 into one drain (≤10 PH-S*). Do **not** invent 170.
 5. Ratio stays `gsv-loc-audit --stretch-96` ≥ 96%. No Python. Secrets never in MCP/HTTP JSON.
 
 ## Non-goals
@@ -50,7 +50,7 @@ Cost of leaving it: the next drain invents a one-off Telegram script, leaks a bo
 - As a joiner, I see open tickets on a Galaxy board and understand what is already `in_progress`.
 - As an MCP bot, I list tickets, claim one, and the board + a fingerprint-class row show `in_progress` with my ide/model.
 - As two MCP bots (Cursor + OpenCode), I send a short bus message through the Godfather channel and the other client sees it without a public HTTP tunnel.
-- As owner, I type `абракадабра`, pick **GSV**, and the agent drains **band 167** from this spec — not 168–169.
+- As owner, I type `абракадабра`, pick **GSV**, and the agent drains **band 167** from the plan’s PH-S2309…S2318 table — then 168 / 169 in the following drains.
 
 ## Requirements
 
@@ -129,18 +129,18 @@ Unknown ids in the file are kept but ignored (forward compatible).
 | Band | PH-S* | Focus | When |
 |------|-------|--------|------|
 | **166** | S2299–S2308 | Settings box + secret store + redacted MCP/UI | **✅ this drain** |
-| **167** | S2309–S2318 | Godfather channel bind (dry-run tests + optional poll) | after 166 |
+| **167** | S2309–S2318 | Godfather channel bind (dry-run tests + optional poll) | **next drain** (plan fully written) |
 | **168** | S2319–S2328 | Ticket board + MCP claim + claim JSONL | after 167 |
 | **169** | S2329–S2338 | Telegram bus between MCP bots | after 168 |
 
-Do **not** invent band 170 in the 166 drain.
+Do **not** invent band 170. Owner 2026-08-19: all remaining tasks are in the plan file.
 
 ## Constraints
 
 - MSYS2 bash; Rust 95–100% / wasm 0–5%; thin `ui/index.html` glue.
 - CSRF + loopback POSTs (band 133); CSP / no-store (band 134).
 - Do not kill `target/live/` before `cargo test`.
-- One commit per drain; push last. Close: `cargo xtask bump --band 166` then `cargo xtask fingerprint`.
+- One commit per drain; push last. Close: `cargo xtask bump --band N` then `cargo xtask fingerprint`.
 
 ## See also
 

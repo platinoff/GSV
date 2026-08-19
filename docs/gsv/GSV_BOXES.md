@@ -143,6 +143,6 @@ Rust модуль: `omni/` (catalog.rs, config.rs, proxy.rs, quota.rs) → `GSV/
 | Stand smoke | `src/bin/gsv_http_stand_smoke.rs` | live HTTP перевірка | всі boxes + `/api/vision*` + SVG + `/api/ui/card/:name` |
 | **gsv_mcp_openbot** | `mcp.rs` + `gsv-mcp` bin | stdio live copy + `GET`/`POST`/`DELETE /mcp` + Galaxy card `/api/ui/card/mcp` | 37 box tools + 11 `gsv://` resources (band **166** `gsv_settings` + `gsv://docs/settings-telegram` · **164** Cursor 3.16.29 kit lockstep · **160** GSV sandbox + no User MCP · **159** Cursor HTTP url + session SSE hold · **158** live stdio + sync check · **157** omni route) — [`GSV_OMNI_CATALOG.md`](./GSV_OMNI_CATALOG.md) · [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) |
 | Settings | `settings/` (`boxes/settings.rs`) | `GET`/`POST /api/settings` | Godfather channel + redacted token + co-workflows; `data/gsv_settings.json` (gitignored; env `GSV_TELEGRAM_BOT_TOKEN` wins) — [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md) **band 166 ✅** |
-| Telegram | `telegram/` (**band 167 queued**) | `/api/telegram` | Godfather channel bind; poller default off; no Cloudflare |
-| Tickets | `tickets/` (**band 168 queued**) | `/api/tickets` · `/api/tickets/claim` | git JSONL board; MCP claim → `in_progress` + `ticket_claims.jsonl` |
-| Telegram bus | same telegram box (**band 169 queued**) | MCP `gsv_telegram_bus_*` | MCP bots talk via Godfather channel envelopes |
+| Telegram | `telegram/` (**band 167 next** — full PH-S in plan) | `/api/telegram` | Godfather channel bind; poller default off; no Cloudflare |
+| Tickets | `tickets/` (**band 168** — full PH-S in plan) | `/api/tickets` · `/api/tickets/claim` | git JSONL board; MCP claim → `in_progress` + `ticket_claims.jsonl` |
+| Telegram bus | same telegram box (**band 169** — full PH-S in plan) | MCP `gsv_telegram_bus_*` | MCP bots talk via Godfather channel envelopes |
