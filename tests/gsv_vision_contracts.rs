@@ -155,7 +155,17 @@ fn vision_queue_lockstep_matches_crate_band() {
     let e = vision::read_extensions(&repo_root()).expect("extensions");
     assert_eq!(m.next_sprint, next, "manifest next_sprint");
     assert_eq!(e.active_sprint, next, "extensions active_sprint");
-    assert_eq!(m.last_sprint_closed, last, "last closed is previous band");
+    assert_eq!(
+        m.last_sprint_closed, last,
+        "last closed is this crate band's last sprint"
+    );
+}
+
+#[test]
+fn vision_queue_ids_for_band_are_close_of_n() {
+    let (last, next) = vision::queue_ids_for_band(172).expect("172 close");
+    assert_eq!(last, "PH-S2368", "close of 172 is last sprint of 172");
+    assert_eq!(next, "PH-S2369", "next drain starts at first sprint of 173");
 }
 
 #[test]

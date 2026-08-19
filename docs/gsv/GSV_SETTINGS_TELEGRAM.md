@@ -1,6 +1,6 @@
 # GSV settings, Telegram Godfather, tickets, MCP bot bus
 
-**Status:** Landed band **171** (owner pick 2026-08-19: ticket lease + stale reclaim) · bands **166–170 ✅** · **band 172 ✅** live crate lockstep · **next drain = owner pick** after a warnings-first scan  
+**Status:** Landed band **171** (owner pick 2026-08-19: ticket lease + stale reclaim) · bands **166–170 ✅** · **band 172 ✅** live crate lockstep · **band 173 ✅** vision queue close-lockstep · **next drain = owner pick** after a warnings-first scan  
 **Date:** 2026-08-19  
 **Deciders:** owner  
 **Owner ask:** GSV settings; Telegram channels; MCP bots talk to each other through a Telegram tunnel; a ticket board for people who want to join; MCP claims tickets and marks `in_progress` the same way fingerprints sync; server settings hold **Godfather** data (which channel, how secrets are stored, co-workflows). Next session starts with `абракадабра`.

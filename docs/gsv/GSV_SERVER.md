@@ -127,7 +127,7 @@ cargo run --manifest-path GSV/Cargo.toml --bin gsv-http-stand-smoke -- --base-ur
 - UI показує кнопку/бейдж **Update** замість auto-reload; `doUpdate()` POSTs `/api/update/apply`.
 - Клієнтський JS тримає стан offline; при SSE `onopen` робить full-resync (Tracker/SLI/toolchain/speed/rust diagnostics).
 
-**Horizon:** band **172** live crate lockstep (watchdog successor + dead-peer takeover + `lockstep-wait`). Settings/Telegram/tickets **166–171 ✅**. Next drain = **owner pick**. Spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md) · [`GSV_OMNI_CATALOG.md`](./GSV_OMNI_CATALOG.md) · [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md).
+**Horizon:** band **173** vision queue close-lockstep (`bump --band N` = last of N / first of N+1). Band **172** live crate lockstep. Settings/Telegram/tickets **166–171 ✅**. Next drain = **owner pick**. Spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md) · [`GSV_OMNI_CATALOG.md`](./GSV_OMNI_CATALOG.md) · [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md).
 
 ## Live copy + apply (band 144)
 

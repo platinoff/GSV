@@ -57,6 +57,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 170** (ticket scenarios + solo/squad MCP) **✅** ·
 **band 171** (ticket lease + stale reclaim) **✅** ·
 **band 172** (live crate lockstep) **✅** ·
+**band 173** (vision queue close-lockstep) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -1140,6 +1141,23 @@ Owner pick (`абракадабра` gsv / live-lockstep): crate **0.171.0** vs 
 | **PH-S2366** | Docs | BOXES / SERVER / RUST_DEV / MCP / HANDOFF / NEXT / MEMORY / roadmap — **✅** |
 | **PH-S2367** | Ratio + tests | fmt/clippy/`cargo test`/`--stretch-96`; keep live — **✅** |
 | **PH-S2368** | Band close | `--band 172` + fingerprint; recopy live; one commit + push; next = owner pick — **✅** |
+
+## Спринти (band 173) — vision queue close-lockstep ✅
+
+Owner pick (`абракадабра` gsv / queue-close): after band **172** closed `PH-S2368`, Galaxy still showed `active_sprint` / `next_sprint` = `PH-S2359` and `last_sprint_closed` = `PH-S2358`. `cargo xtask bump --band N` lockstepped the **start** of N. Close of N must set last = last sprint of N / next+active = first of N+1.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2369** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2369`; `last_sprint_closed` = `PH-S2368` — **✅** |
+| **PH-S2370** | Band math | `queue_ids_for_band(N)` = last of N / first of N+1 (close, not start) — **✅** |
+| **PH-S2371** | Vision JSON | `docs/vision/manifest.json` + `extensions.json` patched; `lockstep_queue_for_band` — **✅** |
+| **PH-S2372** | `cargo xtask bump` | catalog help names `close of N`; bump still patches last/next/active — **✅** |
+| **PH-S2373** | MCP | `gsv_drain` names band 173 close-lockstep (`close of N`) — **✅** |
+| **PH-S2374** | Contracts | fingerprint 172/173 close ids · workspace queue match · xtask help — **✅** |
+| **PH-S2375** | Docs | BOXES / SERVER / RUST_DEV / MCP / HANDOFF / NEXT / MEMORY / roadmap — **✅** |
+| **PH-S2376** | Ratio + tests | fmt/clippy/`cargo test`/`--stretch-96`; keep live — **✅** |
+| **PH-S2377** | Sync | `cargo xtask sync` remirrors snapshots to last `PH-S2368` / next `PH-S2369` — **✅** |
+| **PH-S2378** | Band close | `--band 173` + fingerprint; recopy live; one commit + push; next = owner pick — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

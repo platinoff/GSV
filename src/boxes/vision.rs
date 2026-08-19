@@ -257,18 +257,15 @@ fn ph_s(n: u32) -> String {
     format!("PH-S{n}")
 }
 
-/// `(last_sprint_closed, next_sprint)` for drain band `band`.
-/// Last closed is the previous band's last sprint; next is this band's first.
+/// `(last_sprint_closed, next_sprint)` after drain band `band` closes.
+/// Last is this band's last sprint; next/active is the following band's first.
+/// `cargo xtask bump --band N` uses this so Galaxy does not reopen N's first sprint.
 pub fn queue_ids_for_band(band: u32) -> Result<(String, String), String> {
-    let next = band_first_sprint(band).ok_or_else(|| {
+    let last_n = band_last_sprint(band).ok_or_else(|| {
         format!("band {band} is below GSV origin {BAND_ORIGIN} (PH-S{BAND_ORIGIN_FIRST})")
     })?;
-    let last = if band == BAND_ORIGIN {
-        next.saturating_sub(1)
-    } else {
-        band_last_sprint(band - 1).ok_or_else(|| format!("no previous band for {band}"))?
-    };
-    Ok((ph_s(last), ph_s(next)))
+    let next_n = band_first_sprint(band + 1).unwrap_or(last_n + 1);
+    Ok((ph_s(last_n), ph_s(next_n)))
 }
 
 /// Replace the first `"key": "…"` string value. Keeps surrounding whitespace.
@@ -3788,11 +3785,14 @@ mod tests {
         assert_eq!(band_last_sprint(164), Some(2288));
         assert_eq!(band_first_sprint(101), None);
         let (last, next) = queue_ids_for_band(163).expect("163");
-        assert_eq!(last, "PH-S2268");
-        assert_eq!(next, "PH-S2269");
-        let (last, next) = queue_ids_for_band(164).expect("164");
         assert_eq!(last, "PH-S2278");
         assert_eq!(next, "PH-S2279");
+        let (last, next) = queue_ids_for_band(164).expect("164");
+        assert_eq!(last, "PH-S2288");
+        assert_eq!(next, "PH-S2289");
+        let (last, next) = queue_ids_for_band(172).expect("172");
+        assert_eq!(last, "PH-S2368");
+        assert_eq!(next, "PH-S2369");
     }
 
     #[test]
@@ -3828,19 +3828,19 @@ mod tests {
         )
         .unwrap();
         let (last, next) = lockstep_queue_for_band(&tmp, 163).expect("lockstep");
-        assert_eq!(last, "PH-S2268");
-        assert_eq!(next, "PH-S2269");
+        assert_eq!(last, "PH-S2278");
+        assert_eq!(next, "PH-S2279");
         let manifest = std::fs::read_to_string(vis.join("manifest.json")).unwrap();
         assert!(
-            manifest.contains("\"last_sprint_closed\": \"PH-S2268\""),
+            manifest.contains("\"last_sprint_closed\": \"PH-S2278\""),
             "{manifest}"
         );
         assert!(
-            manifest.contains("\"next_sprint\": \"PH-S2269\""),
+            manifest.contains("\"next_sprint\": \"PH-S2279\""),
             "{manifest}"
         );
         let ext = std::fs::read_to_string(vis.join("extensions.json")).unwrap();
-        assert!(ext.contains("\"active_sprint\": \"PH-S2269\""), "{ext}");
+        assert!(ext.contains("\"active_sprint\": \"PH-S2279\""), "{ext}");
         let _ = std::fs::remove_dir_all(&tmp);
     }
 }

@@ -59,7 +59,7 @@ pub const TASKS: &[(&str, &str)] = &[
     ),
     (
         "bump",
-        "Set Cargo.toml semver minor = band (`--band N`); lockstep vision queue",
+        "Set Cargo.toml semver minor = band (`--band N`); lockstep queue to close of N",
     ),
     (
         "fingerprint",

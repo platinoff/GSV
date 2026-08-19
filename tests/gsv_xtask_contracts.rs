@@ -136,8 +136,8 @@ fn catalog_lists_git_and_tunnel() {
         .expect("bump row");
     let help = bump["description"].as_str().unwrap_or("");
     assert!(
-        help.contains("queue") || help.contains("lockstep"),
-        "bump must lockstep vision queue: {help}"
+        help.contains("close of N"),
+        "bump must close-lockstep vision queue: {help}"
     );
 }
 

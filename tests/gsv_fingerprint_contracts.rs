@@ -351,22 +351,29 @@ fn write_pkg_toml(dir: &Path, version: &str) -> PathBuf {
 #[test]
 fn bump_lockstep_queue_ids_for_band_163() {
     let (last, next) = gsv::boxes::vision::queue_ids_for_band(163).expect("163");
-    assert_eq!(last, "PH-S2268");
-    assert_eq!(next, "PH-S2269");
-}
-
-#[test]
-fn bump_lockstep_queue_ids_for_band_164() {
-    let (last, next) = gsv::boxes::vision::queue_ids_for_band(164).expect("164");
     assert_eq!(last, "PH-S2278");
     assert_eq!(next, "PH-S2279");
 }
 
 #[test]
+fn bump_lockstep_queue_ids_for_band_164() {
+    let (last, next) = gsv::boxes::vision::queue_ids_for_band(164).expect("164");
+    assert_eq!(last, "PH-S2288");
+    assert_eq!(next, "PH-S2289");
+}
+
+#[test]
 fn bump_lockstep_queue_ids_for_band_172() {
     let (last, next) = gsv::boxes::vision::queue_ids_for_band(172).expect("172");
-    assert_eq!(last, "PH-S2358");
-    assert_eq!(next, "PH-S2359");
+    assert_eq!(last, "PH-S2368");
+    assert_eq!(next, "PH-S2369");
+}
+
+#[test]
+fn bump_lockstep_queue_ids_for_band_173_is_close_not_start() {
+    let (last, next) = gsv::boxes::vision::queue_ids_for_band(173).expect("173");
+    assert_eq!(last, "PH-S2378");
+    assert_eq!(next, "PH-S2379");
 }
 
 #[test]

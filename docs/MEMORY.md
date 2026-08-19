@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-19 · band 173 ✅)
+
+- **Band 173:** Vision queue close-lockstep. After 172 close, Galaxy still showed `PH-S2359` / last `PH-S2358`. `queue_ids_for_band(N)` is now last sprint of N / first of N+1 so `cargo xtask bump --band N` does not reopen N. Close of 173: last `PH-S2378` · next/active `PH-S2379`.
+- **Canon:** [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md) · [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+- **Next drain:** owner pick after warnings-first scan.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.35%** (rust 30559 / product 30759) · **577** tests · clippy 0
+
 ## Стан (2026-08-19 · band 172 ✅)
 
 - **Band 172:** Live crate lockstep. Heartbeat `bin_version` · `GET /api/watchdog` crate/`version_lag` · oneshot apply on debug-newer **or** health lag · yield only if peer pid is alive · `lockstep-wait` during cooldown · stale watchdog exe hops debug → live. Recopy live after bump so MCP catalog matches the crate.
