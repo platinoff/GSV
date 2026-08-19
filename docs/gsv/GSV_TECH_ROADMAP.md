@@ -54,6 +54,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 167** (Telegram Godfather channel bind) **✅** ·
 **band 168** (ticket board + MCP claim) **✅** ·
 **band 169** (Telegram bus between MCP bots) **✅** ·
+**band 170** (ticket scenarios + solo/squad MCP) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -1025,7 +1026,7 @@ Owner pick (`абракадабра` gsv / scan): live crate **0.164.0** vs runn
 
 ## Спринти (band 166) — GSV settings + Godfather store ✅
 
-Owner pick 2026-08-19: Settings card; Godfather channel + token store; co-workflows; later Telegram + ticket board + MCP bus. Spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md). Plan: [`docs/superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md`](../superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md). **This spec is complete (166–169 ✅).** Next drain = owner pick. Do not invent 170.
+Owner pick 2026-08-19: Settings card; Godfather channel + token store; co-workflows; later Telegram + ticket board + MCP bus. Spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md). Plan: [`docs/superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md`](../superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md). **This spec is complete (166–169 ✅).** Band **170** (owner pick) is in the same spec. Next drain = owner pick.
 
 | Sprint | Фокус | Acceptance (ключ) |
 |--------|-------|-------------------|
@@ -1086,6 +1087,23 @@ Owner 2026-08-19: remaining plan **168–169 fully specified**. Next `абрак
 | **PH-S2336** | Ratio | `--stretch-96` ≥96%; fmt/clippy — **✅** |
 | **PH-S2337** | Tests | `cargo test`; keep live — **✅** |
 | **PH-S2338** | Band close | `--band 169` + fingerprint; NEXT = owner pick — **✅** |
+
+## Спринти (band 170) — ticket scenarios + solo/squad MCP ✅
+
+Owner pick 2026-08-19: place ticket scenarios on the Galaxy board; MCP works solo (one agent) or in a squad (random among online); create tickets for **registered** products according to workflows; claimed/done/error events follow fingerprint-class sync. Research: shared board + heartbeat + atomic claim (Delegator / Reactive Multi-Agent MCP). Spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md).
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2339** | Scope | owner pick; scenarios + solo/squad; do not reopen 166–169 — **✅** |
+| **PH-S2340** | Scenarios | `docs/gsv/ticket_scenarios.json`; Galaxy add buttons — **✅** |
+| **PH-S2341** | Product gate | create requires `PRODUCTS.md` id; temp kit allows `gsv` — **✅** |
+| **PH-S2342** | Presence | process-local heartbeat TTL 120s; `POST /api/tickets/presence` — **✅** |
+| **PH-S2343** | Solo/squad | `tickets.mode` + `ticket-squad`; `pick_assignee` — **✅** |
+| **PH-S2344** | Events | `kind` claimed/assigned/done/error; HTTP done/error — **✅** |
+| **PH-S2345** | MCP | `gsv_tickets_{create,done,error,presence}` → **46** tools — **✅** |
+| **PH-S2346** | Bench | `benches/gsv_dev.rs` pick_assignee + create/claim/done — **✅** |
+| **PH-S2347** | Tests | `gsv_tickets_contracts` solo/squad/scenario/done/error — **✅** |
+| **PH-S2348** | Band close | `--band 170` + fingerprint; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

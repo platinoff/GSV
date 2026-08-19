@@ -51,6 +51,8 @@ pub struct AppState {
     pub mcp_notifications: Arc<Mutex<Vec<Value>>>,
     /// HTTP Streamable MCP sessions (`Mcp-Session-Id` → issue seq). Process-local.
     pub mcp_sessions: Arc<std::sync::RwLock<BTreeMap<String, u64>>>,
+    /// Ticket MCP presence (heartbeat). Isolated per process/`AppState`.
+    pub ticket_presence: Arc<crate::boxes::tickets::PresenceStore>,
     /// Monotonic sequence for new HTTP MCP session ids.
     pub mcp_session_seq: Arc<AtomicU64>,
     /// SSE event broadcast channel (string payloads, JSON).
@@ -89,6 +91,7 @@ impl AppState {
             mcp_notifications: Arc::new(Mutex::new(Vec::new())),
             mcp_sessions: Arc::new(std::sync::RwLock::new(BTreeMap::new())),
             mcp_session_seq: Arc::new(AtomicU64::new(1)),
+            ticket_presence: Arc::new(crate::boxes::tickets::new_presence_store()),
             events,
         }
     }

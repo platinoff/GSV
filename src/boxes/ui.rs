@@ -1169,11 +1169,20 @@ pub fn render_tickets(d: &Value) -> String {
         return err_html(&msg);
     }
     let tickets = arr(&d["tickets"]);
+    let mode = s(&d["mode"]);
+    let mode_bit = if mode.is_empty() { "solo" } else { &mode };
+    let online = arr(&d["online"]);
+    let scenarios = arr(&d["scenarios"]);
     let mut out = String::from("<div class='dim'>open tickets are the board</div>");
+    out.push_str(&format!(
+        "<div class='dim'>mode <kbd>{}</kbd> · online <kbd>{}</kbd></div>",
+        esc(mode_bit),
+        online.len()
+    ));
     if tickets.is_empty() {
         out.push_str(&empty_html("tickets"));
     }
-    for col in ["open", "in_progress", "done"] {
+    for col in ["open", "in_progress", "done", "blocked"] {
         let rows: Vec<Vec<String>> = tickets
             .iter()
             .filter(|t| s(&t["status"]) == col)
@@ -1185,6 +1194,13 @@ pub fn render_tickets(d: &Value) -> String {
                         "<button type='button' data-action='tickets-claim' data-ticket-id='{}'>claim</button>",
                         esc(&id)
                     )
+                } else if col == "in_progress" && !id.is_empty() {
+                    format!(
+                        "<button type='button' data-action='tickets-done' data-ticket-id='{}'>done</button> \
+<button type='button' data-action='tickets-error' data-ticket-id='{}'>error</button>",
+                        esc(&id),
+                        esc(&id)
+                    )
                 } else {
                     format!("<kbd>{}</kbd>", esc(&id))
                 };
@@ -1194,11 +1210,34 @@ pub fn render_tickets(d: &Value) -> String {
         out.push_str(&format!("<div class='dim'>{col}</div>"));
         out.push_str(&tab(&["title", "id"], rows));
     }
+    if !scenarios.is_empty() {
+        out.push_str("<div class='dim'>scenarios</div>");
+        let rows: Vec<Vec<String>> = scenarios
+            .iter()
+            .map(|sc| {
+                let sid = s(&sc["id"]);
+                let title = s(&sc["title"]);
+                let wf = s(&sc["workflow"]);
+                let btn = if sid.is_empty() {
+                    "—".into()
+                } else {
+                    format!(
+                        "<button type='button' data-action='tickets-from-scenario' data-scenario-id='{}'>add</button>",
+                        esc(&sid)
+                    )
+                };
+                vec![esc(&sid), esc(&title), esc(&wf), btn]
+            })
+            .collect();
+        out.push_str(&tab(&["id", "title", "workflow", "add"], rows));
+    }
     out.push_str(
         "<div class='dim'>create</div>\
 <input id='tixTitle' type='text' value='' placeholder='ticket title' aria-label='ticket title'>\
 <input id='tixBody' type='text' value='' placeholder='body' aria-label='ticket body'>\
-<button type='button' data-action='tickets-create'>Create</button>",
+<input id='tixProduct' type='text' value='gsv' placeholder='product' aria-label='product'>\
+<button type='button' data-action='tickets-create'>Create</button>\
+<button type='button' data-action='tickets-presence'>I'm online</button>",
     );
     out
 }

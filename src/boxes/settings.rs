@@ -19,7 +19,7 @@ pub const STORE_FILE: &str = "gsv_settings.json";
 pub const TOKEN_ENV: &str = "GSV_TELEGRAM_BOT_TOKEN";
 
 /// Known co-workflow ids (unknown values are kept, ignored by later bands).
-pub const WORKFLOW_IDS: &[&str] = &["drain", "ticket-claim", "telegram-relay"];
+pub const WORKFLOW_IDS: &[&str] = &["drain", "ticket-claim", "telegram-relay", "ticket-squad"];
 
 /// Owner control identity: channel + optional allowlist + bot token (secret).
 #[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -73,6 +73,39 @@ pub fn telegram_relay_enabled(file: &SettingsFile) -> bool {
         .any(|id| id == "telegram-relay")
 }
 
+/// Band 170: squad random-assign is allowed only when `ticket-squad` is enabled.
+pub fn ticket_squad_enabled(file: &SettingsFile) -> bool {
+    file.workflows.enabled.iter().any(|id| id == "ticket-squad")
+}
+
+fn default_ticket_mode() -> String {
+    "solo".to_string()
+}
+
+/// Ticket collaboration mode (`solo` | `squad`). Default solo.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TicketsSettings {
+    #[serde(default = "default_ticket_mode")]
+    pub mode: String,
+}
+
+impl Default for TicketsSettings {
+    fn default() -> Self {
+        Self {
+            mode: default_ticket_mode(),
+        }
+    }
+}
+
+/// Effective mode: `squad` only when stored mode is squad **and** workflow is on.
+pub fn ticket_mode(file: &SettingsFile) -> &'static str {
+    if file.tickets.mode.trim().eq_ignore_ascii_case("squad") && ticket_squad_enabled(file) {
+        "squad"
+    } else {
+        "solo"
+    }
+}
+
 fn default_redact() -> bool {
     true
 }
@@ -99,6 +132,8 @@ pub struct SettingsFile {
     pub workflows: Workflows,
     #[serde(default)]
     pub security: Security,
+    #[serde(default)]
+    pub tickets: TicketsSettings,
 }
 
 /// `{data_dir}/gsv_settings.json`.
@@ -173,6 +208,14 @@ pub fn apply_patch(file: &mut SettingsFile, patch: &Value) {
             file.security.redact = redact;
         }
     }
+    if let Some(tix) = patch.get("tickets") {
+        if let Some(mode) = tix.get("mode").and_then(Value::as_str) {
+            let m = mode.trim().to_ascii_lowercase();
+            if m == "solo" || m == "squad" {
+                file.tickets.mode = m;
+            }
+        }
+    }
 }
 
 /// Redacted JSON: `token_set` + public Godfather fields, never `bot_token`.
@@ -197,6 +240,7 @@ pub fn redacted_wire(file: &SettingsFile, env: Option<&str>) -> Value {
         },
         "workflows": { "enabled": file.workflows.enabled },
         "security": { "redact": file.security.redact },
+        "tickets": { "mode": file.tickets.mode },
     })
 }
 
@@ -345,6 +389,20 @@ mod tests {
         let raw: SettingsFile = serde_json::from_str("{}").expect("empty");
         assert!(raw.security.redact);
         assert!(WORKFLOW_IDS.contains(&"drain"));
+        assert!(WORKFLOW_IDS.contains(&"ticket-squad"));
+        assert_eq!(ticket_mode(&raw), "solo");
+    }
+
+    #[test]
+    fn squad_mode_requires_workflow() {
+        let mut file = SettingsFile::default();
+        file.tickets.mode = "squad".into();
+        assert_eq!(ticket_mode(&file), "solo");
+        file.workflows.enabled = vec!["ticket-squad".into()];
+        assert_eq!(ticket_mode(&file), "squad");
+        apply_patch(&mut file, &json!({ "tickets": { "mode": "solo" } }));
+        assert_eq!(file.tickets.mode, "solo");
+        assert_eq!(ticket_mode(&file), "solo");
     }
 
     #[test]

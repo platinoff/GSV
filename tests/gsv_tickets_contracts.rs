@@ -340,10 +340,14 @@ fn card_tickets_in_registry() {
         "tickets",
         &json!({
             "ok": true,
+            "mode": "squad",
+            "online": [{"actor":"a"}],
+            "scenarios": [{"id":"join-board","title":"Join","workflow":"ticket-claim"}],
             "tickets": [
                 {"id":"t-open","title":"Join","status":"open"},
                 {"id":"t-wip","title":"WIP","status":"in_progress"},
-                {"id":"t-done","title":"Done","status":"done"}
+                {"id":"t-done","title":"Done","status":"done"},
+                {"id":"t-err","title":"Err","status":"blocked"}
             ]
         }),
     )
@@ -351,8 +355,17 @@ fn card_tickets_in_registry() {
     assert!(board.contains("open"), "{board}");
     assert!(board.contains("in_progress"), "{board}");
     assert!(board.contains("done"), "{board}");
+    assert!(board.contains("blocked"), "{board}");
     assert!(board.contains("data-action='tickets-create'"), "{board}");
     assert!(board.contains("data-action='tickets-claim'"), "{board}");
+    assert!(board.contains("data-action='tickets-done'"), "{board}");
+    assert!(board.contains("data-action='tickets-error'"), "{board}");
+    assert!(
+        board.contains("data-action='tickets-from-scenario'"),
+        "{board}"
+    );
+    assert!(board.contains("data-action='tickets-presence'"), "{board}");
+    assert!(board.contains("squad"), "{board}");
 }
 
 #[tokio::test]
@@ -483,10 +496,229 @@ async fn mcp_claim_unknown_and_gate_are_tool_errors() {
 }
 
 #[test]
+fn unregistered_product_is_rejected() {
+    let kit = temp_kit("unreg");
+    let err = tickets::create(&kit, "nope", "", "nonesuch").expect_err("unreg");
+    assert!(err.to_string().contains("unregistered"), "{err}");
+}
+
+#[test]
+fn seed_scenarios_have_no_secrets() {
+    let kit = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let list = tickets::load_scenarios(&kit);
+    assert!(list.len() >= 3, "{}", list.len());
+    for sc in &list {
+        assert!(!sc.title.contains("bot_token"), "{}", sc.title);
+        assert!(!sc.body.contains("bot_token"), "{}", sc.body);
+    }
+}
+
+fn enable_squad(data: &Path) {
+    settings::save(
+        data,
+        &settings::SettingsFile {
+            workflows: settings::Workflows {
+                enabled: vec!["ticket-claim".into(), "ticket-squad".into(), "drain".into()],
+            },
+            tickets: settings::TicketsSettings {
+                mode: "squad".into(),
+            },
+            ..Default::default()
+        },
+    )
+    .expect("save squad");
+}
+
+fn write_scenarios(kit: &Path) {
+    let raw = r#"{
+      "scenarios": [
+        {"id":"join-board","title":"Join board","body":"join","workflow":"ticket-claim","product":"gsv"},
+        {"id":"squad-dev","title":"Squad dev","body":"squad","workflow":"ticket-squad","product":"gsv"}
+      ]
+    }"#;
+    std::fs::write(tickets::scenarios_path(kit), raw).expect("scenarios");
+}
+
+fn who_named(actor: &str) -> ClaimedBy {
+    ClaimedBy {
+        actor: actor.into(),
+        ide: "cursor".into(),
+        model: "grok-4.6".into(),
+        agent: "worker".into(),
+    }
+}
+
+#[test]
+fn scenario_create_requires_workflow() {
+    let kit = temp_kit("sc-off");
+    write_scenarios(&kit);
+    let err =
+        tickets::create_from_scenario(&kit, &kit.join("data"), "join-board", "").expect_err("off");
+    assert!(err.to_string().contains("ticket-claim"), "{err}");
+}
+
+#[test]
+fn scenario_create_then_done_and_error_events() {
+    let kit = temp_kit("sc-ok");
+    enable_claim(&kit.join("data"));
+    write_scenarios(&kit);
+    let created =
+        tickets::create_from_scenario(&kit, &kit.join("data"), "join-board", "").expect("sc");
+    assert_eq!(created.workflow, "ticket-claim");
+    assert_eq!(created.status, "open");
+    let claimed = tickets::claim(&kit, &kit.join("data"), &created.id, who()).expect("claim");
+    assert_eq!(claimed.status, "in_progress");
+    let finished = tickets::done(
+        &kit,
+        &kit.join("data"),
+        &created.id,
+        who(),
+        "all good",
+        None,
+    )
+    .expect("done");
+    assert_eq!(finished.status, "done");
+    let claims_raw = std::fs::read_to_string(tickets::claims_path(&kit)).expect("claims");
+    assert!(claims_raw.contains("\"kind\":\"claimed\""), "{claims_raw}");
+    assert!(claims_raw.contains("\"kind\":\"done\""), "{claims_raw}");
+    assert!(claims_raw.contains("all good"), "{claims_raw}");
+
+    let other = tickets::create(&kit, "will fail", "", "gsv").expect("other");
+    tickets::claim(&kit, &kit.join("data"), &other.id, who()).expect("c2");
+    let blocked = tickets::error_ticket(&kit, &kit.join("data"), &other.id, who(), "boom", None)
+        .expect("err");
+    assert_eq!(blocked.status, "blocked");
+    let claims_raw = std::fs::read_to_string(tickets::claims_path(&kit)).expect("claims2");
+    assert!(claims_raw.contains("\"kind\":\"error\""), "{claims_raw}");
+    assert!(claims_raw.contains("boom"), "{claims_raw}");
+}
+
+#[test]
+fn solo_picks_one_mcp_squad_picks_by_seed() {
+    let kit = temp_kit("mode");
+    enable_squad(&kit.join("data"));
+    let store = tickets::new_presence_store();
+    tickets::heartbeat(&store, &who_named("alpha"));
+    tickets::heartbeat(&store, &who_named("beta"));
+    let online = tickets::online_now(&store);
+    assert_eq!(online.len(), 2);
+    assert_eq!(online[0].actor, "alpha");
+    assert_eq!(online[1].actor, "beta");
+
+    let open = tickets::create(&kit, "squad me", "", "gsv").expect("create");
+    let assigned = tickets::try_dispatch(&kit, &kit.join("data"), &open.id, &store, 1)
+        .expect("dispatch")
+        .expect("someone");
+    assert_eq!(assigned.status, "in_progress");
+    let by = assigned.claimed_by.expect("who");
+    assert_eq!(by.actor, "beta");
+
+    let kit2 = temp_kit("solo");
+    enable_claim(&kit2.join("data"));
+    let store2 = tickets::new_presence_store();
+    tickets::heartbeat(&store2, &who_named("zeta"));
+    tickets::heartbeat(&store2, &who_named("alpha"));
+    let open2 = tickets::create(&kit2, "solo me", "", "gsv").expect("c2");
+    let assigned2 = tickets::try_dispatch(&kit2, &kit2.join("data"), &open2.id, &store2, 99)
+        .expect("d2")
+        .expect("one");
+    assert_eq!(assigned2.claimed_by.expect("who").actor, "alpha");
+}
+
+#[tokio::test]
+async fn http_presence_done_and_mcp_create() {
+    let kit = temp_kit("http-170");
+    enable_claim(&kit.join("data"));
+    write_scenarios(&kit);
+    let app = app_kit(kit);
+
+    let (pstatus, pjson) = post_json(
+        &app,
+        "/api/tickets/presence",
+        json!({ "actor": "cursor-bot" }),
+        Some("http://127.0.0.1:9999"),
+        None,
+    )
+    .await;
+    assert_eq!(pstatus, StatusCode::OK, "{pjson}");
+    assert_eq!(pjson["ok"], true);
+    assert!(!pjson["online"].as_array().expect("arr").is_empty());
+
+    let (cstatus, created) = post_json(
+        &app,
+        "/api/tickets",
+        json!({ "scenario_id": "join-board" }),
+        Some("http://127.0.0.1:9999"),
+        None,
+    )
+    .await;
+    assert_eq!(cstatus, StatusCode::OK, "{created}");
+    let id = created["ticket"]["id"].as_str().expect("id").to_string();
+    let st = created["ticket"]["status"].as_str().unwrap_or("");
+    assert!(st == "open" || st == "in_progress", "{created}");
+
+    if st == "open" {
+        let (kstatus, claimed) = post_json(
+            &app,
+            "/api/tickets/claim",
+            json!({ "id": id }),
+            Some("http://127.0.0.1:9999"),
+            None,
+        )
+        .await;
+        assert_eq!(kstatus, StatusCode::OK, "{claimed}");
+    }
+
+    let (dstatus, done) = post_json(
+        &app,
+        "/api/tickets/done",
+        json!({ "id": id, "note": "shipped" }),
+        Some("http://127.0.0.1:9999"),
+        None,
+    )
+    .await;
+    assert_eq!(dstatus, StatusCode::OK, "{done}");
+    assert_eq!(done["ticket"]["status"], "done");
+
+    let mcp_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::POST)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": 3,
+                        "method": "tools/call",
+                        "params": {
+                            "name": "gsv_tickets_create",
+                            "arguments": { "title": "mcp create", "product": "gsv" }
+                        }
+                    })
+                    .to_string(),
+                ))
+                .expect("req"),
+        )
+        .await
+        .expect("res");
+    let bytes = axum::body::to_bytes(mcp_res.into_body(), usize::MAX)
+        .await
+        .expect("body");
+    let mcp_json: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+    assert_eq!(mcp_json["result"]["isError"], false, "{mcp_json}");
+}
+
+#[test]
 fn mcp_tools_include_tickets_not_bus() {
     assert!(mcp::tool_names().contains(&"gsv_tickets"));
     assert!(mcp::tool_names().contains(&"gsv_tickets_claim"));
+    assert!(mcp::tool_names().contains(&"gsv_tickets_create"));
+    assert!(mcp::tool_names().contains(&"gsv_tickets_done"));
+    assert!(mcp::tool_names().contains(&"gsv_tickets_error"));
+    assert!(mcp::tool_names().contains(&"gsv_tickets_presence"));
     assert!(mcp::tool_names().contains(&"gsv_telegram_bus_send"));
     assert!(!mcp::tool_names().contains(&"gsv_telegram_create_ticket"));
-    assert_eq!(mcp::tool_names().len(), 42);
+    assert_eq!(mcp::tool_names().len(), 46);
 }

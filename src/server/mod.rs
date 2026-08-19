@@ -105,6 +105,9 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/tickets", get(api_tickets).post(api_tickets_post))
         .route("/api/tickets/claim", post(api_tickets_claim))
+        .route("/api/tickets/done", post(api_tickets_done))
+        .route("/api/tickets/error", post(api_tickets_error))
+        .route("/api/tickets/presence", post(api_tickets_presence))
         .route("/api/xtask", get(api_xtask))
         .route("/api/disk", get(api_disk))
         .route("/api/tracker", get(api_tracker))
@@ -352,21 +355,67 @@ async fn api_telegram_bus_post(
 }
 
 async fn api_tickets(State(state): State<AppState>) -> Json<Value> {
-    Json(crate::boxes::tickets::list(&state.repo_root))
+    Json(crate::boxes::tickets::wire_list(
+        &state.repo_root,
+        &state.data_dir,
+        &state.ticket_presence,
+    ))
 }
 
 async fn api_tickets_post(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
-    match crate::boxes::tickets::wire_create(&state.repo_root, &body) {
+    match crate::boxes::tickets::wire_create(
+        &state.repo_root,
+        &state.data_dir,
+        &body,
+        Some(&state.ticket_presence),
+    ) {
         Ok(v) => Json(v).into_response(),
         Err(e) => err_json(ticket_http_status(&e), e.to_string()),
     }
 }
 
 async fn api_tickets_claim(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
-    match crate::boxes::tickets::wire_claim(&state.repo_root, &state.data_dir, &body) {
+    match crate::boxes::tickets::wire_claim(
+        &state.repo_root,
+        &state.data_dir,
+        &body,
+        Some(&state.ticket_presence),
+    ) {
         Ok(v) => Json(v).into_response(),
         Err(e) => err_json(ticket_http_status(&e), e.to_string()),
     }
+}
+
+async fn api_tickets_done(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
+    match crate::boxes::tickets::wire_done(
+        &state.repo_root,
+        &state.data_dir,
+        &body,
+        Some(&state.ticket_presence),
+    ) {
+        Ok(v) => Json(v).into_response(),
+        Err(e) => err_json(ticket_http_status(&e), e.to_string()),
+    }
+}
+
+async fn api_tickets_error(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
+    match crate::boxes::tickets::wire_error(
+        &state.repo_root,
+        &state.data_dir,
+        &body,
+        Some(&state.ticket_presence),
+    ) {
+        Ok(v) => Json(v).into_response(),
+        Err(e) => err_json(ticket_http_status(&e), e.to_string()),
+    }
+}
+
+async fn api_tickets_presence(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
+    Json(crate::boxes::tickets::wire_presence(
+        &state.ticket_presence,
+        &body,
+    ))
+    .into_response()
 }
 
 fn ticket_http_status(err: &crate::boxes::tickets::TicketError) -> StatusCode {
@@ -964,7 +1013,11 @@ async fn card_wire(state: &AppState, name: &str, q: &CardQuery) -> Result<Value,
             crate::boxes::telegram::status(&state.data_dir, crate::boxes::telegram::env_dry_run())
                 .await
         }
-        "tickets" => crate::boxes::tickets::list(&state.repo_root),
+        "tickets" => crate::boxes::tickets::wire_list(
+            &state.repo_root,
+            &state.data_dir,
+            &state.ticket_presence,
+        ),
         "update" => json!(crate::boxes::update::wire(state)),
         "ide" => {
             let selection = state.ide_selection.try_read().ok().and_then(|s| s.clone());

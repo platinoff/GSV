@@ -1,0 +1,33 @@
+{
+  "v": 1,
+  "scenarios": [
+    {
+      "id": "join-board",
+      "title": "Join the GSV ticket board",
+      "body": "Open tickets are the board for people who want to join. Claim via Galaxy or MCP gsv_tickets_claim.",
+      "workflow": "ticket-claim",
+      "product": "gsv"
+    },
+    {
+      "id": "drain-next",
+      "title": "Drain next PH-S* band",
+      "body": "абракадабра / abrakadabra: products scan → S0 disk → warnings-first → one commit + push.",
+      "workflow": "drain",
+      "product": "gsv"
+    },
+    {
+      "id": "squad-dev",
+      "title": "Squad development ticket",
+      "body": "Assign to a random online MCP (squad). Solo mode uses the single MCP instead.",
+      "workflow": "ticket-squad",
+      "product": "gsv"
+    },
+    {
+      "id": "poolai-ci",
+      "title": "PoolAI cargo test-ci",
+      "body": "Registered product poolai: run cargo test-ci with CARGO_TARGET_DIR=/s/rust/poolAI/target.",
+      "workflow": "ticket-claim",
+      "product": "poolai"
+    }
+  ]
+}

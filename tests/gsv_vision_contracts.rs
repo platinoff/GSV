@@ -144,12 +144,18 @@ fn vision_extensions_reads_real_workspace() {
 }
 
 #[test]
-fn vision_queue_lockstep_ph_s2319() {
+fn vision_queue_lockstep_matches_crate_band() {
+    let minor: u32 = env!("CARGO_PKG_VERSION")
+        .split('.')
+        .nth(1)
+        .and_then(|s| s.parse().ok())
+        .expect("semver minor");
+    let (last, next) = vision::queue_ids_for_band(minor).expect("ids");
     let m = vision::read_manifest(&repo_root()).expect("manifest");
     let e = vision::read_extensions(&repo_root()).expect("extensions");
-    assert_eq!(m.next_sprint, "PH-S2319", "manifest next_sprint");
-    assert_eq!(e.active_sprint, "PH-S2319", "extensions active_sprint");
-    assert_eq!(m.last_sprint_closed, "PH-S2318", "last closed is band 167");
+    assert_eq!(m.next_sprint, next, "manifest next_sprint");
+    assert_eq!(e.active_sprint, next, "extensions active_sprint");
+    assert_eq!(m.last_sprint_closed, last, "last closed is previous band");
 }
 
 #[test]

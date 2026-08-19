@@ -21,7 +21,7 @@
 //! | Usage | `usage` | `/api/usage` | per-session token counts (OmniRouter + MCP + OmniRoute) |
 //! | Settings | `settings` | `/api/settings` | Godfather channel + redacted token + co-workflows |
 //! | Telegram | `telegram` | `/api/telegram` · `/api/telegram/bus` | Godfather bind + MCP bus (dry-run queue in tests) |
-//! | Tickets | `tickets` | `/api/tickets` · `/api/tickets/claim` | git JSONL board + MCP claim |
+//! | Tickets | `tickets` | `/api/tickets` · `/api/tickets/claim` · `/api/tickets/done` · `/api/tickets/error` · `/api/tickets/presence` | git JSONL board + MCP claim/solo-squad |
 //! | Xtask | `xtask` | `/api/xtask` · `/api/disk` | `cargo xtask` product automation (no `.sh`) |
 
 pub mod fingerprint;

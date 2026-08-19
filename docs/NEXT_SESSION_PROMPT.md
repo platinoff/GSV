@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-19 (**band 169 ✅ · next gsv drain = owner pick**)
+**Оновлено:** 2026-08-19 (**band 170 ✅ · next gsv drain = owner pick**)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -20,8 +20,8 @@ abrakadabra
 project scan (**warnings first**) → drain наступного band (**без** mid-push) →
 Speeds · Rust panel → vision-sync → **один** commit → **`git push` + самарі**.
 
-Якщо **gsv:** always-on Galaxy (**bands 143–147 ✅**) + SW cache (**band 148 ✅**) + omniroute/semver (**band 149 ✅**) + live watchdog (**band 150 ✅**) + MCP catch-up (**band 151 ✅**) + MCP products select (**band 152 ✅**) + rust-first xtask (**band 153 ✅**) + watchdog ops card (**band 154 ✅**) + session token usage (**band 155 ✅**) + streaming usage / VDT git / owner tunnel (**band 156 ✅**) + OmniRouter catalog / quota timers (**band 157 ✅**) + live MCP stdio / sync check (**band 158 ✅**) + Cursor HTTP MCP / session SSE hold (**band 159 ✅**) + GSV sandbox MCP / no User leak (**band 160 ✅**) + vision lockstep + disk MiB (**band 161 ✅**) + live crate/version lockstep (**band 162 ✅**) + vision queue lockstep + bump auto-advance (**band 163 ✅**) + Cursor 3.16.29 kit lockstep (**band 164 ✅**) + watchdog live copy + lockstep observability (**band 165 ✅**) + settings / Godfather (**band 166 ✅**) + Telegram bind (**band 167 ✅**) + ticket board + MCP claim (**band 168 ✅**) + Telegram bus (**band 169 ✅**) are closed.
-**Next drain = owner pick** after a warnings-first scan. Settings/Telegram/tickets spec [`GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md) is complete. Do **not** invent 170.
+Якщо **gsv:** always-on Galaxy (**bands 143–147 ✅**) + SW cache (**band 148 ✅**) + omniroute/semver (**band 149 ✅**) + live watchdog (**band 150 ✅**) + MCP catch-up (**band 151 ✅**) + MCP products select (**band 152 ✅**) + rust-first xtask (**band 153 ✅**) + watchdog ops card (**band 154 ✅**) + session token usage (**band 155 ✅**) + streaming usage / VDT git / owner tunnel (**band 156 ✅**) + OmniRouter catalog / quota timers (**band 157 ✅**) + live MCP stdio / sync check (**band 158 ✅**) + Cursor HTTP MCP / session SSE hold (**band 159 ✅**) + GSV sandbox MCP / no User leak (**band 160 ✅**) + vision lockstep + disk MiB (**band 161 ✅**) + live crate/version lockstep (**band 162 ✅**) + vision queue lockstep + bump auto-advance (**band 163 ✅**) + Cursor 3.16.29 kit lockstep (**band 164 ✅**) + watchdog live copy + lockstep observability (**band 165 ✅**) + settings / Godfather (**band 166 ✅**) + Telegram bind (**band 167 ✅**) + ticket board + MCP claim (**band 168 ✅**) + Telegram bus (**band 169 ✅**) + ticket scenarios / solo-squad (**band 170 ✅**) are closed.
+**Next drain = owner pick** after a warnings-first scan. Spec [`GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md).
 Canon [`GSV_OMNI_CATALOG.md`](gsv/GSV_OMNI_CATALOG.md) · [`GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md) · [`GSV_POST_ALWAYS_ON.md`](gsv/GSV_POST_ALWAYS_ON.md).
 `cargo xtask git commit --file comitmsg/<name>.md` then `cargo xtask git push`. Grok Bot tunnel: `cargo xtask tunnel` (not on by default).
 Always-on canon stays [`GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md).
@@ -222,7 +222,9 @@ Close: `cargo xtask bump --band N` (semver **and** vision queue last/next/active
   **band 167** (PH-S2309…S2318) ✅ — Telegram Godfather channel bind (dry-run). Spec [`GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md).
   **band 168** (PH-S2319…S2328) ✅ — ticket board + MCP claim. Spec [`GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md).
   **band 169** (PH-S2329…S2338) ✅ — Telegram bus between MCP bots (after 168).
-  **Наступний drain:** owner pick (do not invent 170).
+  **band 170** (PH-S2339…S2348) ✅ — ticket scenarios + solo/squad MCP
+  (registered product create, presence, done/error events, `gsv_dev` bench).
+  **Наступний drain:** owner pick.
 
 ## Канон GSV
 
@@ -284,8 +286,8 @@ band 165 ✅ (watchdog live copy + lockstep observability) ·
 band 166 ✅ (settings + Godfather secret store) ·
 band 167 ✅ (Telegram Godfather channel bind) ·
 band 168 ✅ (ticket board + MCP claim) ·
-band 169 ✅ (Telegram bus) ·
-не винаходити 170 ·
+band 170 ✅ (ticket scenarios + solo/squad MCP) ·
+не винаходити наступний band без owner pick ·
 не комітити `data/gsv_settings.json` / bot token ·
 не комітити kit-only в PoolAI як «замість» GSV drain ·
 staging `GSV/data/*` / `certs/*.pem` /

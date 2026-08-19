@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-19 · band 170 ✅)
+
+- **Band 170:** Ticket scenarios + solo/squad MCP. Catalog `docs/gsv/ticket_scenarios.json` · registered `PRODUCTS.md` product on create · `tickets.mode` solo (one MCP) / squad (random online, workflow `ticket-squad`) · presence TTL 120s · events `claimed`/`assigned`/`done`/`error` · HTTP `/api/tickets/{done,error,presence}` · MCP **46** tools · bench `gsv_dev`. `CARD_NAMES` **40**.
+- **Canon:** [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md).
+- **Next drain:** owner pick after warnings-first scan.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.34%** (rust 29843 / product 30042) · clippy 0
+
 ## Стан (2026-08-19 · band 169 ✅)
 
 - **Band 169:** Telegram bus between MCP bots. Envelope `{v:1,kind:bus,from,to?,ticket_id?,body}` · dry-run VecDeque · `GET`/`POST /api/telegram/bus` (CSRF) · MCP `gsv_telegram_bus_send` / `gsv_telegram_bus_poll` (**42** tools · **11** resources) · `telegram-relay` gate · allowlist · 2 KiB cap · 1/s rate-limit. Poll matches `@username` or numeric chat id. Owner live bind `@GSV_OFFICIAL` / `@GsvOfficialBot` (token gitignored). No webhook. No Cloudflare. No create-ticket. `CARD_NAMES` **40** (telegram card shows last bus).
