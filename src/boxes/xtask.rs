@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use serde_json::{json, Value};
 
-use crate::boxes::{products, vision, watchdog};
+use crate::boxes::{products, tickets, vision, watchdog};
 
 /// Read-only MCP / HTTP tasks. Mutating work stays on `cargo xtask`.
 /// `sync` here is `--check` only (drift gate); remirror is `gsv_vision_sync`.
@@ -67,6 +67,10 @@ pub const TASKS: &[(&str, &str)] = &[
     ),
     ("record-speed", "Time `cargo test` → gsv-speed-index"),
     ("record-rust", "Scan clippy via gsv-rust-diagnostics"),
+    (
+        "record-scenario-bench",
+        "Time abrakadabra-session walk → docs/gsv/scenario_bench.json",
+    ),
     ("sync", "Vision snapshot sync (`--check` = drift gate)"),
 ];
 
@@ -474,6 +478,17 @@ pub fn record_rust(repo_root: &Path, skip_run: bool, ci: bool) -> Result<i32, St
     Ok(st.code().unwrap_or(1))
 }
 
+/// Time a throwaway `abrakadabra-session` walk → `docs/gsv/scenario_bench.json`.
+pub fn record_scenario_bench(repo_root: &Path) -> Result<i32, String> {
+    match tickets::run_scenario_bench(repo_root) {
+        Ok(b) => {
+            println!("{}", tickets::scenario_bench_line(&b));
+            Ok(0)
+        }
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 /// Vision sync / drift (library, no extra cargo).
 pub fn vision_sync(repo_root: &Path, check_only: bool) -> Result<String, String> {
     let data = repo_root.join("data");
@@ -681,6 +696,8 @@ mod tests {
         assert!(names.contains(&"products"));
         assert!(names.contains(&"disk"));
         assert!(names.contains(&"live"));
+        assert!(names.contains(&"record-speed"));
+        assert!(names.contains(&"record-scenario-bench"));
         assert!(names.contains(&"git"));
         assert!(names.contains(&"tunnel"));
         assert!(MCP_TASKS.contains(&"catalog"));

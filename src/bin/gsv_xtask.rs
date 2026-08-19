@@ -262,6 +262,14 @@ fn main() -> ExitCode {
                 }
             }
         }
+        "record-scenario-bench" => match xtask::record_scenario_bench(&root) {
+            Ok(0) => ExitCode::SUCCESS,
+            Ok(_) => ExitCode::FAILURE,
+            Err(e) => {
+                eprintln!("record-scenario-bench: {e}");
+                ExitCode::FAILURE
+            }
+        },
         "sync" => {
             let check = args.iter().any(|a| a == "--check");
             match xtask::vision_sync(&root, check) {

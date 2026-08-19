@@ -112,6 +112,10 @@ pub fn router(state: AppState) -> Router {
         .route("/api/tickets/reclaim", post(api_tickets_reclaim))
         .route("/api/tickets/walk", post(api_tickets_walk))
         .route("/api/tickets/hook", post(api_tickets_hook))
+        .route(
+            "/api/tickets/bench",
+            get(api_tickets_bench).post(api_tickets_bench_post),
+        )
         .route("/api/mds", get(api_mds))
         .route("/api/xtask", get(api_xtask))
         .route("/api/disk", get(api_disk))
@@ -483,6 +487,20 @@ async fn api_tickets_hook(
     )
     .await
     {
+        Ok(v) => Json(v).into_response(),
+        Err(e) => err_json(ticket_http_status(&e), e.to_string()),
+    }
+}
+
+async fn api_tickets_bench(State(state): State<AppState>) -> Json<Value> {
+    Json(crate::boxes::tickets::wire_bench(&state.repo_root))
+}
+
+async fn api_tickets_bench_post(
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> Response {
+    match crate::boxes::tickets::wire_bench_post(&state.repo_root, &body) {
         Ok(v) => Json(v).into_response(),
         Err(e) => err_json(ticket_http_status(&e), e.to_string()),
     }

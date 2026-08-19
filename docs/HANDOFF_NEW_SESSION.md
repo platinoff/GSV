@@ -1,14 +1,13 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-08-19 (band 177 ✅ · next = **scenario bench or hook from plans**)
+**Оновлено:** 2026-08-19 (band 178 ✅ · next = **owner pick**)
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
 **`абракадабра` / `abrakadabra`** → `cargo xtask products` → **AskQuestion на проєкти з environment**
 (не `gsv | poolai` з голови) → S0 диск/git → project scan (warnings first) →
-якщо **gsv:** settings/Telegram/tickets spec bands **166–176 ✅**
-+ **band 177 ✅** roadmap/plan hook-up (`gsv_tickets_hook` · `run mcp bot hook up scenario`).
-**Next = propose scenario benchmark** (`cargo bench --bench gsv_dev` / walk `abrakadabra-session`)
-**or hook from plans** (`gsv_tickets_hook` / `hook plan <stem>`). Speeds + Rust panel →
+якщо **gsv:** settings/Telegram/tickets spec bands **166–177 ✅**
++ **band 178 ✅** scenario benchmark (`gsv_tickets_bench` · `GET`/`POST /api/tickets/bench` · `cargo xtask record-scenario-bench`).
+**Next = owner pick** after a warnings-first scan. Speeds + Rust panel →
 vision-sync → **один commit** → **`git push` + самарі**.
 
 Якщо вибір **gsv:** scan [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) first
@@ -24,16 +23,17 @@ vision queue lockstep + bump auto-advance **163 ✅**;
 Cursor 3.16.29 kit lockstep **164 ✅**;
 watchdog live copy + lockstep observability **165 ✅**;
 **band 166 ✅** settings / Godfather — [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md);
-**band 175 ✅** MDS scenario band + solo walk + Telegram sync. **band 176 ✅** visible MCP session walk (solo / squad / bench on Godfather). **band 177 ✅** roadmap/plan hook-up. **Next = scenario bench or hook from plans**. MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+**band 175 ✅** MDS scenario band + solo walk + Telegram sync. **band 176 ✅** visible MCP session walk (solo / squad / bench on Godfather). **band 177 ✅** roadmap/plan hook-up. **band 178 ✅** scenario benchmark. **Next = owner pick**. MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
 Omni catalog: [`gsv/GSV_OMNI_CATALOG.md`](gsv/GSV_OMNI_CATALOG.md).
 Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 Канон ролей: [`GSV_ROLES.md`](GSV_ROLES.md). Реєстр: [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
 
 ## Стан зараз
 
-- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–177 **✅**.
-- **Next drain (gsv):** propose **scenario benchmark** or **hook from plans**. Spec [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md). `cargo xtask bump --band N` locksteps last/next/active to the **close** of N.
-- **Band 177:** Roadmap/plan hook-up — phrase `run mcp bot hook up scenario <id|band N|plan stem> [walk]` · `POST /api/tickets/hook` · MCP `gsv_tickets_hook` (**51** tools) · parse `GSV_TECH_ROADMAP.md` + superpowers `- [ ]` · idempotent · Godfather `hook … n=` · Galaxy hook button · `CARD_NAMES` **40**.
+- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–178 **✅**.
+- **Next drain (gsv):** **owner pick** after a warnings-first scan. Spec [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md). `cargo xtask bump --band N` locksteps last/next/active to the **close** of N.
+- **Band 178:** Scenario benchmark — Instant `abrakadabra-session` create+walk → `docs/gsv/scenario_bench.json` · `GET`/`POST /api/tickets/bench` · MCP `gsv_tickets_bench` (**52** tools) · Godfather `session=` ns · Galaxy record button · `cargo xtask record-scenario-bench` · `gsv_dev` `session_walk_abrakadabra`. `CARD_NAMES` **40**.
+- **Band 177:** Roadmap/plan hook-up — phrase `run mcp bot hook up scenario <id|band N|plan stem> [walk]` · `POST /api/tickets/hook` · MCP `gsv_tickets_hook` · parse `GSV_TECH_ROADMAP.md` + superpowers `- [ ]` · idempotent · Godfather `hook … n=` · Galaxy hook button · `CARD_NAMES` **40**.
 - **Band 176:** Visible MCP session walk — scenario `abrakadabra-session` (6) · session lines (`solo claimed` / `squad assigned … to {worker}` / `bench gsv_dev … ns`) · live `sendMessage` 1/s · dry-run queue · `CARD_NAMES` **40**.
 - **Band 175:** MDS scenario band + solo walk + Telegram sync — `tickets[]` on scenarios · `memory-disk-speed` (6) · `gsv-mds` memory/disk/speed · `GET /api/mds` · `POST /api/tickets/walk` · MCP `gsv_tickets_walk` + `gsv_mds` (**50** tools) · `kind:sync` envelopes · `CARD_NAMES` **40**.
 - **Band 173:** Vision queue close-lockstep — `queue_ids_for_band(N)` is last sprint of N / first of N+1 so Galaxy does not reopen N's first PH-S* after bump.
@@ -79,9 +79,9 @@ Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 - **Band 134:** HTTP response hardening — CSP / nosniff / DENY / no-store / COOP+CORP; POST 256 KiB cap → 413 `{ok:false}`.
 - **VDT kit (band 127):** shared `.agents/skills/` + generic `.cursor/rules/` + `gsv.code-workspace` + `PRODUCTS.md`.
   Discover: `cargo xtask products` (не hardcoded `gsv | poolai`).
-- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.39%** (rust 32987 / product 33189) · **605** tests · clippy 0 · fmt clean.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.40%** (rust 33352 / product 33555) · **607** tests · clippy 0 · fmt clean.
 - **Сервер:** canon порт **9999** (`DEFAULT_PORT`; 8765 — Hyper-V reserved range).
-- **Vision rev:** **516** (band 177 `cargo xtask sync`; last `PH-S2418` · next `PH-S2419`).
+- **Vision rev:** **516** (band 178 `cargo xtask sync`; last `PH-S2428` · next `PH-S2429`).
 - **Live UI** — `gsv-server` → `http://127.0.0.1:9999/`. MCP stdio — `target/live/gsv-mcp.exe` (`cargo xtask live`).
 - **Band 133:** localhost security — `--allow-lan`; CSRF POST gate; terminal cargo/git allowlists; `/data/{file}` allowlist; preview canonicalize.
 - **FM:** band 127 = PoolAI FM §5.108 (PH-S1909…S1918 ✅). Master horizon poolAI: band 128.

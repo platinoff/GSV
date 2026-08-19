@@ -77,6 +77,17 @@ fn main() {
               {"title": "MDS: memory", "body": "b"},
               {"title": "MDS: disk", "body": "c"}
             ]
+          }, {
+            "id": "abrakadabra-session",
+            "title": "session",
+            "body": "bench",
+            "workflow": "ticket-claim",
+            "product": "gsv",
+            "tickets": [
+              {"title": "Session: S0 disk", "body": "a"},
+              {"title": "Session: warnings-first", "body": "b"},
+              {"title": "Session: close", "body": "c"}
+            ]
           }]
         }"#,
     )
@@ -95,6 +106,7 @@ fn main() {
         ("telegram_enqueue_sync", 1_000usize),
         ("hook_parse_phrase", 10_000usize),
         ("hook_roadmap_band", 16usize),
+        ("session_walk_abrakadabra", 4usize),
     ] {
         let start = Instant::now();
         for i in 0..n {
@@ -158,6 +170,9 @@ fn main() {
                 "hook_roadmap_band" => {
                     let md = "## Спринти (band 177)\n\n| **PH-S2409** | Scope | x — **[ ]** |\n";
                     let _ = tickets::parse_roadmap_bands(md);
+                }
+                "session_walk_abrakadabra" => {
+                    let _ = tickets::time_session_walk(&kit, &kit.join("data"));
                 }
                 "disk_report" => {
                     let _ = xtask::disk_report(&root, false);

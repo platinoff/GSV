@@ -12,6 +12,8 @@
 //! Band 176: walk posts session lines (solo claimed / squad assigned / bench).
 //! Band 177: `run mcp bot hook up scenario` parses catalog / roadmap band /
 //! superpowers plan into tickets (cap 10). Optional walk stays Telegram-sync.
+//! Band 178: scenario benchmark — time `abrakadabra-session` create+walk and
+//! persist `docs/gsv/scenario_bench.json` (Godfather line + Galaxy + MCP).
 
 use std::collections::HashMap;
 use std::fmt;
@@ -19,7 +21,7 @@ use std::fs::{self, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -38,6 +40,9 @@ pub const DEFAULT_LEASE_SECS: u64 = settings::DEFAULT_TICKET_LEASE_SECS;
 
 /// Max tickets a roadmap/plan hook may place (one VDT band).
 pub const MAX_HOOK_TICKETS: usize = 10;
+
+/// Catalog id timed by the scenario bench (`gsv_dev` / `GET /api/tickets/bench`).
+pub const SCENARIO_BENCH_ID: &str = "abrakadabra-session";
 
 /// Canonical tickets JSONL (kit repo, not `data/`).
 pub fn tickets_path(repo_root: &Path) -> PathBuf {
@@ -62,6 +67,11 @@ pub fn roadmap_path(repo_root: &Path) -> PathBuf {
 /// Superpowers plan markdown (source for `hook plan <stem>`).
 pub fn plans_dir(repo_root: &Path) -> PathBuf {
     repo_root.join("docs/superpowers/plans")
+}
+
+/// Last `abrakadabra-session` Instant timings (git-tracked, no secrets).
+pub fn scenario_bench_path(repo_root: &Path) -> PathBuf {
+    repo_root.join("docs/gsv/scenario_bench.json")
 }
 
 /// Who claimed a ticket (fingerprint-class fields).
@@ -236,6 +246,44 @@ pub struct RoadmapBand {
     pub title: String,
     pub open: Vec<ScenarioStep>,
     pub all: Vec<ScenarioStep>,
+}
+
+/// Instant timings for one `abrakadabra-session` create+walk (band 178).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScenarioBench {
+    pub ok: bool,
+    #[serde(default)]
+    pub scenario: String,
+    #[serde(default)]
+    pub create_ns: u64,
+    #[serde(default)]
+    pub walk_ns: u64,
+    #[serde(default)]
+    pub session_walk_ns: u64,
+    #[serde(default)]
+    pub mds_ns: u64,
+    #[serde(default)]
+    pub enqueue_ns: u64,
+    #[serde(default)]
+    pub walked: usize,
+    #[serde(default)]
+    pub recorded_at: String,
+}
+
+impl Default for ScenarioBench {
+    fn default() -> Self {
+        Self {
+            ok: false,
+            scenario: SCENARIO_BENCH_ID.into(),
+            create_ns: 0,
+            walk_ns: 0,
+            session_walk_ns: 0,
+            mds_ns: 0,
+            enqueue_ns: 0,
+            walked: 0,
+            recorded_at: String::new(),
+        }
+    }
 }
 
 /// Result of placing tickets from a catalog / roadmap / plan hook.
@@ -563,6 +611,7 @@ pub fn wire_list(repo_root: &Path, data_dir: &Path, presence: &PresenceStore) ->
     v["online"] = json!(online);
     v["scenarios"] = json!(load_scenarios(repo_root));
     v["events"] = json!(events);
+    v["bench"] = wire_bench(repo_root);
     v
 }
 
@@ -1596,6 +1645,165 @@ pub fn wire_walk(
     solo_walk(repo_root, data_dir, presence, who, scenario_id)
 }
 
+fn elapsed_ns(start: Instant) -> u64 {
+    start.elapsed().as_nanos().min(u64::MAX as u128) as u64
+}
+
+fn bench_who() -> ClaimedBy {
+    ClaimedBy {
+        actor: "bench".into(),
+        ide: "gsv_dev".into(),
+        model: "grok-4.6".into(),
+        agent: "bench".into(),
+    }
+}
+
+const DEFAULT_SESSION_CATALOG: &str = r#"{
+  "scenarios": [{
+    "id": "abrakadabra-session",
+    "title": "Abrakadabra session walk",
+    "body": "bench",
+    "workflow": "ticket-claim",
+    "product": "gsv",
+    "tickets": [
+      {"title": "Session: S0 disk", "body": "a"},
+      {"title": "Session: warnings-first", "body": "b"},
+      {"title": "Session: close", "body": "c"}
+    ]
+  }]
+}"#;
+
+fn ensure_session_catalog(kit: &Path) -> Result<(), TicketError> {
+    let path = scenarios_path(kit);
+    if path.is_file() {
+        let raw = fs::read_to_string(&path).unwrap_or_default();
+        if raw.contains(SCENARIO_BENCH_ID) {
+            return Ok(());
+        }
+    }
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| TicketError::Io(e.to_string()))?;
+    }
+    fs::write(path, DEFAULT_SESSION_CATALOG).map_err(|e| TicketError::Io(e.to_string()))
+}
+
+fn seed_bench_kit(kit: &Path, repo_root: &Path) -> Result<(), TicketError> {
+    fs::create_dir_all(kit.join("docs/gsv")).map_err(|e| TicketError::Io(e.to_string()))?;
+    fs::create_dir_all(kit.join("data")).map_err(|e| TicketError::Io(e.to_string()))?;
+    let src = scenarios_path(repo_root);
+    if src.is_file() {
+        let _ = fs::copy(&src, scenarios_path(kit));
+    }
+    ensure_session_catalog(kit)?;
+    settings::save(
+        &kit.join("data"),
+        &settings::SettingsFile {
+            workflows: settings::Workflows {
+                enabled: vec!["ticket-claim".into()],
+            },
+            ..Default::default()
+        },
+    )
+    .map_err(TicketError::Io)?;
+    Ok(())
+}
+
+/// Time `abrakadabra-session` create_band + solo_walk on `kit`.
+pub fn time_session_walk(kit: &Path, data_dir: &Path) -> Result<(u64, u64, usize), TicketError> {
+    let t0 = Instant::now();
+    let created = create_band_from_scenario(kit, data_dir, SCENARIO_BENCH_ID, "")?;
+    let create_ns = elapsed_ns(t0);
+    let t1 = Instant::now();
+    let _report = solo_walk(kit, data_dir, None, bench_who(), SCENARIO_BENCH_ID)?;
+    let walk_ns = elapsed_ns(t1);
+    Ok((create_ns, walk_ns, created.len()))
+}
+
+/// Godfather / Galaxy line from persisted (or zero) timings.
+pub fn scenario_bench_line(b: &ScenarioBench) -> String {
+    format!(
+        "bench gsv_dev create={} walk={} mds={} enqueue={} session={} ns",
+        b.create_ns, b.walk_ns, b.mds_ns, b.enqueue_ns, b.session_walk_ns
+    )
+}
+
+/// Load last scenario bench. Missing file → zeros (`ok:false`).
+pub fn load_scenario_bench(repo_root: &Path) -> ScenarioBench {
+    fs::read_to_string(scenario_bench_path(repo_root))
+        .ok()
+        .and_then(|raw| serde_json::from_str(&raw).ok())
+        .unwrap_or_default()
+}
+
+/// Persist scenario bench JSON under `docs/gsv/`.
+pub fn save_scenario_bench(repo_root: &Path, bench: &ScenarioBench) -> Result<(), TicketError> {
+    let path = scenario_bench_path(repo_root);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| TicketError::Io(e.to_string()))?;
+    }
+    let raw = serde_json::to_string_pretty(bench).map_err(|e| TicketError::Io(e.to_string()))?;
+    fs::write(path, format!("{raw}\n")).map_err(|e| TicketError::Io(e.to_string()))
+}
+
+/// Time a throwaway `abrakadabra-session` walk and write `scenario_bench.json`.
+pub fn run_scenario_bench(repo_root: &Path) -> Result<ScenarioBench, TicketError> {
+    let kit = std::env::temp_dir().join(format!(
+        "gsv-scenario-bench-{}-{}",
+        std::process::id(),
+        unix_now()
+    ));
+    seed_bench_kit(&kit, repo_root)?;
+    let data = kit.join("data");
+    let (create_ns, walk_ns, walked) = time_session_walk(&kit, &data)?;
+    let t_mds = Instant::now();
+    let _ = crate::boxes::mds::report(repo_root);
+    let mds_ns = elapsed_ns(t_mds);
+    let t_enq = Instant::now();
+    let _ = crate::boxes::telegram::session_line("bench", "bench", "session", "");
+    let enqueue_ns = elapsed_ns(t_enq);
+    let bench = ScenarioBench {
+        ok: true,
+        scenario: SCENARIO_BENCH_ID.into(),
+        create_ns,
+        walk_ns,
+        session_walk_ns: create_ns.saturating_add(walk_ns),
+        mds_ns,
+        enqueue_ns,
+        walked,
+        recorded_at: now_rfc3339(),
+    };
+    save_scenario_bench(repo_root, &bench)?;
+    Ok(bench)
+}
+
+/// `GET /api/tickets/bench` — last timings (empty-ok).
+pub fn wire_bench(repo_root: &Path) -> Value {
+    let b = load_scenario_bench(repo_root);
+    let recorded = scenario_bench_path(repo_root).is_file();
+    json!({
+        "ok": true,
+        "recorded": recorded,
+        "scenario": if b.scenario.is_empty() { SCENARIO_BENCH_ID } else { b.scenario.as_str() },
+        "create_ns": b.create_ns,
+        "walk_ns": b.walk_ns,
+        "session_walk_ns": b.session_walk_ns,
+        "mds_ns": b.mds_ns,
+        "enqueue_ns": b.enqueue_ns,
+        "walked": b.walked,
+        "recorded_at": b.recorded_at,
+        "line": scenario_bench_line(&b),
+    })
+}
+
+/// `POST /api/tickets/bench` `{run?:true}` — time + persist, or read last.
+pub fn wire_bench_post(repo_root: &Path, body: &Value) -> Result<Value, TicketError> {
+    let run = body.get("run").and_then(Value::as_bool).unwrap_or(false);
+    if run {
+        let _ = run_scenario_bench(repo_root)?;
+    }
+    Ok(wire_bench(repo_root))
+}
+
 #[cfg(test)]
 mod unit {
     use super::*;
@@ -1722,5 +1930,31 @@ mod unit {
         let items = parse_plan_open_items(md);
         assert_eq!(items.len(), 2);
         assert_eq!(items[0].title, "Place hook tickets");
+    }
+
+    #[test]
+    fn scenario_bench_round_trip_json() {
+        let kit = std::env::temp_dir().join(format!(
+            "gsv-bench-unit-{}-{}",
+            std::process::id(),
+            unix_now()
+        ));
+        let b = run_scenario_bench(&kit).expect("run");
+        assert!(b.ok);
+        assert_eq!(b.scenario, SCENARIO_BENCH_ID);
+        assert!(b.session_walk_ns > 0, "{b:?}");
+        assert!(b.walked >= 3, "{b:?}");
+        let loaded = load_scenario_bench(&kit);
+        assert_eq!(loaded.create_ns, b.create_ns);
+        let wire = wire_bench(&kit);
+        assert_eq!(wire["ok"], true);
+        assert_eq!(wire["recorded"], true);
+        assert!(
+            wire["line"].as_str().unwrap_or("").contains("session="),
+            "{wire}"
+        );
+        let empty = wire_bench(Path::new("/no/such/gsv-bench-kit"));
+        assert_eq!(empty["ok"], true);
+        assert_eq!(empty["recorded"], false);
     }
 }

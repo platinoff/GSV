@@ -1,0 +1,11 @@
+{
+  "ok": true,
+  "scenario": "abrakadabra-session",
+  "create_ns": 5437200,
+  "walk_ns": 23013300,
+  "session_walk_ns": 28450500,
+  "mds_ns": 294170500,
+  "enqueue_ns": 17200,
+  "walked": 6,
+  "recorded_at": "2026-08-19T20:32:58.567758+00:00"
+}

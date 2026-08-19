@@ -62,6 +62,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 175** (MDS scenario band + solo walk + Telegram sync) **✅** ·
 **band 176** (visible MCP session walk) **✅** ·
 **band 177** (roadmap/plan hook-up) **✅** ·
+**band 178** (scenario benchmark) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -1230,6 +1231,23 @@ Owner pick (`абракадабра` gsv / Telegram messages): keep Godfather sy
 | **PH-S2416** | Galaxy | hook button + phrase field; `CARD_NAMES` **40** — **✅** |
 | **PH-S2417** | Tests / bench | contracts + `gsv_dev` `hook_parse_phrase` / `hook_roadmap_band`; `--stretch-96` — **✅** |
 | **PH-S2418** | Band close | `--band 177` + fingerprint; recopy live; one commit + push; next = bench **or** hook from plans — **✅** |
+
+## Спринти (band 178) — scenario benchmark ✅
+
+Owner pick (`абракадабра` gsv): persist Instant timings for an `abrakadabra-session` create+walk so Godfather / Galaxy / MCP show real `gsv_dev` medians (`session=` ns), not speed-index zeros. Spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md).
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2419** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2419`; `last_sprint_closed` = `PH-S2418` — **✅** |
+| **PH-S2420** | Harness | `time_session_walk` + `gsv_dev` `session_walk_abrakadabra` — **✅** |
+| **PH-S2421** | Persist | `docs/gsv/scenario_bench.json` last Instant timings — **✅** |
+| **PH-S2422** | HTTP | `GET`/`POST /api/tickets/bench` (`run:true` times a throwaway kit) — **✅** |
+| **PH-S2423** | MCP | `gsv_tickets_bench` → **52** tools — **✅** |
+| **PH-S2424** | Session line | `bench_session_line` prefers scenario_bench.json; includes `session=` — **✅** |
+| **PH-S2425** | Galaxy | tickets card last bench + record button; `CARD_NAMES` **40** — **✅** |
+| **PH-S2426** | xtask | `cargo xtask record-scenario-bench` — **✅** |
+| **PH-S2427** | Tests | contracts + dry-run; `--stretch-96` — **✅** |
+| **PH-S2428** | Band close | `--band 178` + fingerprint; recopy live; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

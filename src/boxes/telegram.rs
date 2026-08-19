@@ -11,6 +11,7 @@
 //! Band 176: session lines (`solo claimed …` / `squad assigned …` / `bench gsv_dev … ns`);
 //! live `sendMessage` 1/s when the token is set; cargo tests stay dry-run.
 //! Band 177: `run mcp bot hook up scenario` (catalog / roadmap band / plan).
+//! Band 178: Godfather bench line reads `docs/gsv/scenario_bench.json` (session walk).
 
 use std::collections::VecDeque;
 use std::path::Path;
@@ -457,10 +458,15 @@ pub fn session_line(kind: &str, phase: &str, title: &str, worker: &str) -> Strin
     }
 }
 
-/// `gsv_dev` medians as a session line. Missing speed-index → zeros (dry-run stub).
+/// `gsv_dev` medians as a session line. Prefers `scenario_bench.json`;
+/// missing file falls back to speed-index (zeros in cargo tests).
 pub fn bench_session_line(repo_root: &Path) -> String {
+    let b = tickets::load_scenario_bench(repo_root);
+    if b.ok || b.session_walk_ns > 0 || b.create_ns > 0 {
+        return tickets::scenario_bench_line(&b);
+    }
     let (create, walk, mds, enqueue) = gsv_dev_medians(repo_root);
-    format!("bench gsv_dev create={create} walk={walk} mds={mds} enqueue={enqueue} ns")
+    format!("bench gsv_dev create={create} walk={walk} mds={mds} enqueue={enqueue} session=0 ns")
 }
 
 fn gsv_dev_medians(repo_root: &Path) -> (u64, u64, u64, u64) {
@@ -1273,6 +1279,9 @@ mod tests {
             "hook band 177 n=10"
         );
         let stub = bench_session_line(std::path::Path::new("/no/such/gsv-speed-index"));
-        assert_eq!(stub, "bench gsv_dev create=0 walk=0 mds=0 enqueue=0 ns");
+        assert_eq!(
+            stub,
+            "bench gsv_dev create=0 walk=0 mds=0 enqueue=0 session=0 ns"
+        );
     }
 }

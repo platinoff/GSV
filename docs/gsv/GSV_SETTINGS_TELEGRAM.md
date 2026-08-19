@@ -1,6 +1,6 @@
 # GSV settings, Telegram Godfather, tickets, MCP bot bus
 
-**Status:** Landed band **177** (roadmap/plan MCP hook-up — `run mcp bot hook up scenario`) · **band 176 ✅** visible MCP session walk · **band 175 ✅** MDS scenario band + solo walk + Telegram `kind:sync` · **band 174 ✅** solo Telegram tickets · **band 173 ✅** vision queue close-lockstep · **band 172 ✅** live crate lockstep · bands **166–171 ✅** · **next drain:** propose **scenario benchmark** (`gsv_dev` / `abrakadabra-session` walk) **or hook from plans**  
+**Status:** Landed band **178** (scenario benchmark — `abrakadabra-session` Instant timings) · **band 177 ✅** roadmap/plan MCP hook-up — `run mcp bot hook up scenario` · **band 176 ✅** visible MCP session walk · **band 175 ✅** MDS scenario band + solo walk + Telegram `kind:sync` · **band 174 ✅** solo Telegram tickets · **band 173 ✅** vision queue close-lockstep · **band 172 ✅** live crate lockstep · bands **166–171 ✅** · **next drain:** owner pick after a warnings-first scan  
 **Date:** 2026-08-19  
 **Deciders:** owner  
 **Owner ask:** GSV settings; Telegram channels; MCP bots talk to each other through a Telegram tunnel; a ticket board for people who want to join; MCP claims tickets and marks `in_progress` the same way fingerprints sync; server settings hold **Godfather** data (which channel, how secrets are stored, co-workflows). Next session starts with `абракадабра`.
@@ -19,7 +19,7 @@ Cost of leaving it: the next drain invents a one-off Telegram script, leaks a bo
 1. Owner configures GSV on the live Galaxy **Settings** card (Godfather channel, co-workflows, secret policy) without putting tokens in git.
 2. Joiners see a **ticket board**; MCP bots **claim** a ticket, mark `in_progress`, and leave a fingerprint-class row (actor / IDE / model / time).
 3. Two (or more) `gsv_mcp_openbot` clients can exchange short control messages over a **Telegram channel bus** once Godfather is bound — not a public Cloudflare hop.
-4. Band **177** is landed: MCP parses `run mcp bot hook up scenario` and places tickets from the catalog, a roadmap band, or a superpowers plan. Bands **166–177** are landed. Next drain: propose scenario benchmark or hook from plans.
+4. Band **178** is landed: Instant `abrakadabra-session` walk timings persist to `docs/gsv/scenario_bench.json` and show on Godfather / Galaxy / MCP. Bands **166–178** are landed. Next drain: owner pick after a warnings-first scan.
 5. Ratio stays `gsv-loc-audit --stretch-96` ≥ 96%. No Python. Secrets never in MCP/HTTP JSON.
 
 ## Non-goals
@@ -178,6 +178,19 @@ Research (agents turning specs into a shared board): GitHub and Linear import ma
 | Galaxy | Hook button per scenario + phrase field. `CARD_NAMES` stays **40**. |
 | Bench | `gsv_dev` `hook_parse_phrase` + `hook_roadmap_band`. |
 
+### P2 — Should (band 178) — scenario benchmark ✅
+
+Owner pick (`абракадабра` gsv): the Godfather bench line was reading `speed_index` Criterion history (always zeros). Persist Instant timings for `abrakadabra-session` create+walk so session copy, Galaxy, and MCP show real ns.
+
+| Piece | Acceptance |
+|-------|------------|
+| Harness | `time_session_walk` + `gsv_dev` `session_walk_abrakadabra` on a throwaway kit. |
+| Persist | `docs/gsv/scenario_bench.json` (`create_ns` / `walk_ns` / `session_walk_ns` / `mds_ns` / `enqueue_ns`). |
+| HTTP / MCP | `GET`/`POST /api/tickets/bench`. MCP `gsv_tickets_bench` `{run?}` → **52** tools. |
+| Session line | `bench gsv_dev create=… walk=… mds=… enqueue=… session=… ns`. Prefers JSON; speed-index fallback keeps `session=0`. |
+| Galaxy | Last bench on tickets card + record button. `CARD_NAMES` **40**. |
+| xtask | `cargo xtask record-scenario-bench`. |
+
 ## Security (how we store)
 
 | Layer | Rule |
@@ -187,7 +200,7 @@ Research (agents turning specs into a shared board): GitHub and Linear import ma
 | Env | `GSV_TELEGRAM_BOT_TOKEN` overrides file; process env is not dumped to `/api/*`. |
 | API / MCP / logs | Redact. `token_set` only. Preview confine still cannot read `../` or `file://`. |
 | Telegram | v1 poll from the server process; no public webhook URL. Godfather channel is private/invite. |
-| MCP write | Band 166: settings **read**. Band 168: ticket **claim**. Band 170: ticket **create/done/error/presence**. Band 171: ticket **reclaim**. Band 175: ticket **walk**. Band 177: ticket **hook** (catalog / roadmap / plan). Never `update/apply` / tunnel start. |
+| MCP write | Band 166: settings **read**. Band 168: ticket **claim**. Band 170: ticket **create/done/error/presence**. Band 171: ticket **reclaim**. Band 175: ticket **walk**. Band 177: ticket **hook** (catalog / roadmap / plan). Band 178: ticket **bench** (throwaway kit; persist JSON). Never `update/apply` / tunnel start. |
 
 ## Co-workflows (v1 ids)
 
@@ -210,6 +223,7 @@ Unknown ids in the file are kept but ignored (forward compatible).
 - Band 175: scenario `memory-disk-speed` places 6 tickets; solo walk claims/dones them and enqueues `kind:sync`; `gsv-mds` reports memory/disk/speed; `--stretch-96` ≥ 96%.
 - Band 176: Godfather (live) or bus queue (dry-run) shows session lines for solo, squad, and bench; scenario `abrakadabra-session`; `--stretch-96` ≥ 96%.
 - Band 177: phrase `run mcp bot hook up scenario band 177` places ≤10 tickets from the roadmap; catalog/plan sources work; idempotent re-hook; MCP `gsv_tickets_hook`; `--stretch-96` ≥ 96%.
+- Band 178: `GET /api/tickets/bench` empty-ok; `POST {run:true}` writes `scenario_bench.json`; Godfather line includes `session=`; MCP `gsv_tickets_bench`; `--stretch-96` ≥ 96%.
 
 ## Open questions (non-blocking)
 
@@ -230,8 +244,9 @@ Unknown ids in the file are kept but ignored (forward compatible).
 | **175** | S2389–S2398 | MDS scenario band + solo walk + Telegram `kind:sync` + `gsv-mds` | **✅ this drain** |
 | **176** | S2399–S2408 | Visible MCP session walk (solo / squad / bench on Godfather) | **✅ this drain** |
 | **177** | S2409–S2418 | Roadmap/plan hook-up (`run mcp bot hook up scenario`) | **✅ this drain** |
+| **178** | S2419–S2428 | Scenario benchmark (`abrakadabra-session` Instant timings) | **✅ this drain** |
 
-Next drain: propose **scenario benchmark** (`cargo bench --bench gsv_dev` / walk `abrakadabra-session`) **or hook from plans**. Do not invent band 178 until that pick.
+Next drain: **owner pick** after a warnings-first scan.
 
 ## Constraints
 

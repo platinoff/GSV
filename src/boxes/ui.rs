@@ -1187,6 +1187,15 @@ pub fn render_tickets(d: &Value) -> String {
     out.push_str(
         "<div class='dim'>hook · <kbd>run mcp bot hook up scenario</kbd> · band / plan</div>",
     );
+    let bench_line = s(&d["bench"]["line"]);
+    if bench_line.is_empty() {
+        out.push_str("<div class='dim'>scenario bench · <kbd>gsv_tickets_bench</kbd></div>");
+    } else {
+        out.push_str(&format!(
+            "<div class='dim'>last bench <kbd>{}</kbd></div>",
+            esc(&bench_line)
+        ));
+    }
     out.push_str(&format!(
         "<div class='dim'>mode <kbd>{}</kbd> · online <kbd>{}</kbd></div>",
         esc(mode_bit),
@@ -1266,6 +1275,7 @@ pub fn render_tickets(d: &Value) -> String {
 <button type='button' data-action='tickets-create'>Create</button>\
 <button type='button' data-action='tickets-presence'>I'm online</button>\
 <button type='button' data-action='tickets-walk'>solo walk</button>\
+<button type='button' data-action='tickets-bench'>record scenario bench</button>\
 <input id='tixHook' type='text' value='run mcp bot hook up scenario band 177' placeholder='hook phrase' aria-label='hook phrase'>\
 <button type='button' data-action='tickets-hook'>hook phrase</button>",
     );
@@ -2563,6 +2573,7 @@ mod tests {
         assert!(tickets.contains("open tickets are the board"), "{tickets}");
         assert!(tickets.contains("session lines"), "{tickets}");
         assert!(tickets.contains("data-action='tickets-hook'"), "{tickets}");
+        assert!(tickets.contains("data-action='tickets-bench'"), "{tickets}");
         assert!(
             tickets.contains("data-action='tickets-create'"),
             "{tickets}"

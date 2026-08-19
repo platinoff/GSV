@@ -737,11 +737,12 @@ fn mcp_tools_include_tickets_not_bus() {
     assert!(mcp::tool_names().contains(&"gsv_tickets_reclaim"));
     assert!(mcp::tool_names().contains(&"gsv_tickets_walk"));
     assert!(mcp::tool_names().contains(&"gsv_tickets_hook"));
+    assert!(mcp::tool_names().contains(&"gsv_tickets_bench"));
     assert!(mcp::tool_names().contains(&"gsv_mds"));
     assert!(mcp::tool_names().contains(&"gsv_telegram_bus_send"));
     assert!(mcp::tool_names().contains(&"gsv_telegram_ticket"));
     assert!(!mcp::tool_names().contains(&"gsv_telegram_create_ticket"));
-    assert_eq!(mcp::tool_names().len(), 51);
+    assert_eq!(mcp::tool_names().len(), 52);
 }
 
 fn write_stale_wip(kit: &Path, id: &str, actor: &str, lease_until: u64) {
@@ -1197,6 +1198,53 @@ async fn http_hook_phrase_places_catalog_and_syncs() {
             .as_str()
             .unwrap_or("")
             .starts_with("hook scenario")),
+        "{pjson}"
+    );
+}
+
+#[tokio::test]
+async fn http_tickets_bench_get_empty_ok_and_post_runs() {
+    let kit = temp_kit("http-bench");
+    enable_claim(&kit.join("data"));
+    std::fs::write(
+        tickets::scenarios_path(&kit),
+        r#"{
+          "scenarios": [{
+            "id": "abrakadabra-session",
+            "title": "session",
+            "body": "bench",
+            "workflow": "ticket-claim",
+            "product": "gsv",
+            "tickets": [
+              {"title": "Session: S0", "body": "a"},
+              {"title": "Session: close", "body": "c"}
+            ]
+          }]
+        }"#,
+    )
+    .expect("session catalog");
+    let app = app_kit(kit);
+    let (gstatus, gjson) = get_json(&app, "/api/tickets/bench").await;
+    assert_eq!(gstatus, StatusCode::OK, "{gjson}");
+    assert_eq!(gjson["ok"], true, "{gjson}");
+    assert_eq!(gjson["recorded"], false, "{gjson}");
+    let (pstatus, pjson) = post_json(
+        &app,
+        "/api/tickets/bench",
+        json!({ "run": true }),
+        Some("http://127.0.0.1:9999"),
+        None,
+    )
+    .await;
+    assert_eq!(pstatus, StatusCode::OK, "{pjson}");
+    assert_eq!(pjson["ok"], true, "{pjson}");
+    assert_eq!(pjson["recorded"], true, "{pjson}");
+    assert!(
+        pjson["session_walk_ns"].as_u64().unwrap_or(0) > 0,
+        "{pjson}"
+    );
+    assert!(
+        pjson["line"].as_str().unwrap_or("").contains("session="),
         "{pjson}"
     );
 }
