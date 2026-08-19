@@ -39,6 +39,7 @@ pub const WHITELIST: &[&str] = &[
     "gsv-live",
     "gsv-watchdog",
     "gsv-mcp",
+    "gsv-mds",
 ];
 
 /// `cargo` second token (no `run` / `install` / `publish`).

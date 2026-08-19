@@ -59,6 +59,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 172** (live crate lockstep) **✅** ·
 **band 173** (vision queue close-lockstep) **✅** ·
 **band 174** (solo Telegram tickets) **✅** ·
+**band 175** (MDS scenario band + solo walk + Telegram sync) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -1176,6 +1177,23 @@ Owner pick (`абракадабра` gsv / Telegram messages): test a **solo** M
 | **PH-S2386** | Contracts | dry-run solo/open/gates/allowlist/HTTP/MCP; no sockets — **✅** |
 | **PH-S2387** | Docs | BOXES / SERVER / MCP / SETTINGS / HANDOFF / NEXT / MEMORY / roadmap — **✅** |
 | **PH-S2388** | Band close | tests green; `--stretch-96`; `--band 174` + fingerprint; recopy live; one commit + push; next = owner pick — **✅** |
+
+## Спринти (band 175) — MDS scenario band + solo walk + Telegram sync ✅
+
+Owner pick (`gsv` / benchmark scenario): a **band of tickets** for a light Rust memory/disk/speed app; a **solo** bot claims each row, does the work, and posts Telegram `kind:sync` on claim/done. Spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md).
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2389** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2389`; `last_sprint_closed` = `PH-S2388` — **✅** |
+| **PH-S2390** | Scenario band | `ticket_scenarios.json` `tickets[]`; `create_band_from_scenario`; scenario `memory-disk-speed` (6 rows) — **✅** |
+| **PH-S2391** | MDS app | `boxes/mds.rs` + `gsv-mds` bin; memory (1 MiB + OS phys) / disk (`xtask::disk_report`) / speed (xor-fold) — **✅** |
+| **PH-S2392** | Wire | `GET /api/mds`; MCP `gsv_mds`; `--json`; no `sk-` in SLI first-line — **✅** |
+| **PH-S2393** | Solo walk | `solo_walk` claim→done open rows (optional scenario filter) — **✅** |
+| **PH-S2394** | Telegram sync | `kind:sync` enqueue on claimed/done; `POST /api/tickets/walk`; MCP `gsv_tickets_walk` → **50** tools — **✅** |
+| **PH-S2395** | Galaxy | scenario add+walk buttons; `CARD_NAMES` **40** — **✅** |
+| **PH-S2396** | Bench | `gsv_dev` `scenario_band_create` / `solo_walk_mds` / `mds_report` / `telegram_enqueue_sync` — **✅** |
+| **PH-S2397** | Tests | `gsv_mds_contracts` + band/walk/sync contracts; `--stretch-96` — **✅** |
+| **PH-S2398** | Band close | `--band 175` + fingerprint; recopy live; one commit + push; next = owner pick — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

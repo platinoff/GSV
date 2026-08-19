@@ -24,6 +24,7 @@ JSON remains **data or host protocol** (vision snapshots, MCP client configs, `C
 | Grok Bot tunnel | `cargo xtask tunnel` (cloudflared; owner opt-in; `/mcp` becomes public) |
 | Tests | `cargo test` (`tests/*.rs`) |
 | Benches | `cargo bench --bench gsv_dev` (`benches/*.rs`) |
+| MDS app | `cargo run --bin gsv-mds` (`--json`) |
 
 Alias: `.cargo/config.toml` → `xtask = "run --quiet --bin gsv-xtask --"`. Logic lives in `src/boxes/xtask.rs` so HTTP (`GET /api/xtask`, `GET /api/disk`) and MCP call the **same** functions.
 

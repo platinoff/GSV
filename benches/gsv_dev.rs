@@ -4,6 +4,7 @@
 
 use std::time::Instant;
 
+use gsv::boxes::mds;
 use gsv::boxes::telegram;
 use gsv::boxes::tickets::{self, ClaimedBy, Presence, TicketMode};
 use gsv::boxes::xtask;
@@ -48,7 +49,11 @@ fn main() {
         &kit.join("data"),
         &gsv::boxes::settings::SettingsFile {
             workflows: gsv::boxes::settings::Workflows {
-                enabled: vec!["ticket-claim".into(), "ticket-squad".into()],
+                enabled: vec![
+                    "ticket-claim".into(),
+                    "ticket-squad".into(),
+                    "telegram-relay".into(),
+                ],
             },
             tickets: gsv::boxes::settings::TicketsSettings {
                 mode: "squad".into(),
@@ -58,6 +63,24 @@ fn main() {
         },
     )
     .expect("settings");
+    std::fs::write(
+        tickets::scenarios_path(&kit),
+        r#"{
+          "scenarios": [{
+            "id": "memory-disk-speed",
+            "title": "MDS",
+            "body": "band",
+            "workflow": "ticket-claim",
+            "product": "gsv",
+            "tickets": [
+              {"title": "MDS: scaffold", "body": "a"},
+              {"title": "MDS: memory", "body": "b"},
+              {"title": "MDS: disk", "body": "c"}
+            ]
+          }]
+        }"#,
+    )
+    .expect("scenarios");
 
     for (name, n) in [
         ("products_tsv", 8usize),
@@ -66,6 +89,10 @@ fn main() {
         ("tickets_create_claim_done", 64usize),
         ("tickets_list", 64usize),
         ("telegram_parse_ticket", 10_000usize),
+        ("scenario_band_create", 16usize),
+        ("solo_walk_mds", 8usize),
+        ("mds_report", 8usize),
+        ("telegram_enqueue_sync", 1_000usize),
     ] {
         let start = Instant::now();
         for i in 0..n {
@@ -92,6 +119,35 @@ fn main() {
                 }
                 "telegram_parse_ticket" => {
                     let _ = telegram::parse_ticket_body("/ticket bench title");
+                }
+                "scenario_band_create" => {
+                    let _ = tickets::create_band_from_scenario(
+                        &kit,
+                        &kit.join("data"),
+                        "memory-disk-speed",
+                        "",
+                    );
+                }
+                "solo_walk_mds" => {
+                    let _ = tickets::create_band_from_scenario(
+                        &kit,
+                        &kit.join("data"),
+                        "memory-disk-speed",
+                        "",
+                    );
+                    let _ = tickets::solo_walk(
+                        &kit,
+                        &kit.join("data"),
+                        None,
+                        claimed("alpha"),
+                        "memory-disk-speed",
+                    );
+                }
+                "mds_report" => {
+                    let _ = mds::report(&root);
+                }
+                "telegram_enqueue_sync" => {
+                    let _ = telegram::enqueue_sync("solo", "t-bench", "claimed");
                 }
                 "disk_report" => {
                     let _ = xtask::disk_report(&root, false);

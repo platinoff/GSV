@@ -124,6 +124,9 @@ pub struct Ticket {
     pub product: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub workflow: String,
+    /// Named scenario that placed this row (`ticket_scenarios.json` id).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub scenario: String,
     /// Unix seconds when an `in_progress` lease expires. Missing on legacy rows
     /// is treated as already stale.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -153,6 +156,14 @@ pub struct TicketClaim {
     pub note: String,
 }
 
+/// One step inside a scenario band (`tickets[]`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScenarioStep {
+    pub title: String,
+    #[serde(default)]
+    pub body: String,
+}
+
 /// Named scenario from `ticket_scenarios.json`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TicketScenario {
@@ -164,6 +175,26 @@ pub struct TicketScenario {
     pub workflow: String,
     #[serde(default = "default_product")]
     pub product: String,
+    /// When non-empty, create this many board rows (a band) instead of one.
+    #[serde(default)]
+    pub tickets: Vec<ScenarioStep>,
+}
+
+/// One claim→done step from [`solo_walk`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WalkStep {
+    pub ticket_id: String,
+    pub title: String,
+    pub phase: String,
+}
+
+/// Solo-bot walk of open tickets (optional scenario filter).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WalkReport {
+    pub ok: bool,
+    pub scenario: String,
+    pub walked: Vec<WalkStep>,
+    pub telegram: usize,
 }
 
 /// Load / claim failures (HTTP maps these to 404/403/400).
@@ -489,7 +520,7 @@ pub fn create(
     body: &str,
     product: &str,
 ) -> Result<Ticket, TicketError> {
-    create_with_workflow(repo_root, title, body, product, "")
+    create_with_workflow(repo_root, title, body, product, "", "")
 }
 
 /// Board row from a Godfather Telegram message (workflow `telegram`).
@@ -499,7 +530,7 @@ pub fn create_from_telegram(
     body: &str,
     product: &str,
 ) -> Result<Ticket, TicketError> {
-    create_with_workflow(repo_root, title, body, product, "telegram")
+    create_with_workflow(repo_root, title, body, product, "telegram", "")
 }
 
 /// Fingerprint-class event that the row came from Telegram (`kind: telegram`).
@@ -528,6 +559,7 @@ fn create_with_workflow(
     body: &str,
     product: &str,
     workflow: &str,
+    scenario: &str,
 ) -> Result<Ticket, TicketError> {
     let title = title.trim();
     if title.is_empty() {
@@ -555,6 +587,7 @@ fn create_with_workflow(
         claimed_by: None,
         product: product.to_string(),
         workflow: workflow.trim().to_string(),
+        scenario: scenario.trim().to_string(),
         lease_until: None,
     };
     tickets.push(ticket.clone());
@@ -562,13 +595,22 @@ fn create_with_workflow(
     Ok(ticket)
 }
 
-/// Create from a named scenario (workflow must be enabled).
-pub fn create_from_scenario(
+fn scenario_steps(sc: &TicketScenario) -> Vec<(String, String)> {
+    if sc.tickets.is_empty() {
+        vec![(sc.title.clone(), sc.body.clone())]
+    } else {
+        sc.tickets
+            .iter()
+            .map(|s| (s.title.clone(), s.body.clone()))
+            .collect()
+    }
+}
+
+fn load_scenario_gated(
     repo_root: &Path,
     data_dir: &Path,
     scenario_id: &str,
-    product_override: &str,
-) -> Result<Ticket, TicketError> {
+) -> Result<TicketScenario, TicketError> {
     let id = scenario_id.trim();
     if id.is_empty() {
         return Err(TicketError::BadRequest("scenario_id required".into()));
@@ -584,12 +626,49 @@ pub fn create_from_scenario(
             sc.workflow
         )));
     }
+    Ok(sc)
+}
+
+/// Create every row in a named scenario (one ticket, or a `tickets[]` band).
+pub fn create_band_from_scenario(
+    repo_root: &Path,
+    data_dir: &Path,
+    scenario_id: &str,
+    product_override: &str,
+) -> Result<Vec<Ticket>, TicketError> {
+    let sc = load_scenario_gated(repo_root, data_dir, scenario_id)?;
     let product = if product_override.trim().is_empty() {
         sc.product.as_str()
     } else {
         product_override.trim()
     };
-    create_with_workflow(repo_root, &sc.title, &sc.body, product, &sc.workflow)
+    let mut out = Vec::new();
+    for (title, body) in scenario_steps(&sc) {
+        out.push(create_with_workflow(
+            repo_root,
+            &title,
+            &body,
+            product,
+            &sc.workflow,
+            &sc.id,
+        )?);
+    }
+    if out.is_empty() {
+        return Err(TicketError::BadRequest("scenario has no tickets".into()));
+    }
+    Ok(out)
+}
+
+/// Create from a named scenario (workflow must be enabled). Band → first row.
+pub fn create_from_scenario(
+    repo_root: &Path,
+    data_dir: &Path,
+    scenario_id: &str,
+    product_override: &str,
+) -> Result<Ticket, TicketError> {
+    let mut tickets =
+        create_band_from_scenario(repo_root, data_dir, scenario_id, product_override)?;
+    Ok(tickets.remove(0))
 }
 
 fn append_event(
@@ -815,16 +894,26 @@ pub fn wire_create(
         .and_then(Value::as_str)
         .unwrap_or("");
     let product = body.get("product").and_then(Value::as_str).unwrap_or("");
-    let ticket = if !scenario_id.trim().is_empty() {
-        create_from_scenario(repo_root, data_dir, scenario_id, product)?
+    let tickets = if !scenario_id.trim().is_empty() {
+        create_band_from_scenario(repo_root, data_dir, scenario_id, product)?
     } else {
         let title = body.get("title").and_then(Value::as_str).unwrap_or("");
         let tbody = body.get("body").and_then(Value::as_str).unwrap_or("");
         let product = if product.is_empty() { "gsv" } else { product };
-        create(repo_root, title, tbody, product)?
+        vec![create(repo_root, title, tbody, product)?]
     };
-    let ticket = maybe_dispatch(repo_root, data_dir, ticket, presence, assign_seed())?;
-    Ok(json!({ "ok": true, "ticket": ticket }))
+    let mut tickets = tickets;
+    if tickets.len() == 1 {
+        tickets[0] = maybe_dispatch(
+            repo_root,
+            data_dir,
+            tickets[0].clone(),
+            presence,
+            assign_seed(),
+        )?;
+    }
+    let ticket = tickets[0].clone();
+    Ok(json!({ "ok": true, "ticket": ticket, "tickets": tickets }))
 }
 
 /// HTTP POST claim wire.
@@ -946,6 +1035,92 @@ pub fn wire_reclaim(repo_root: &Path, data_dir: &Path, body: &Value) -> Result<V
     Ok(json!({ "ok": true, "ticket": updated }))
 }
 
+fn ticket_sort_key(t: &Ticket) -> (String, String) {
+    (t.ts.clone(), t.id.clone())
+}
+
+/// Claim then done every `open` row (optional `scenario` filter). Telegram notify is separate.
+pub fn solo_walk(
+    repo_root: &Path,
+    data_dir: &Path,
+    presence: Option<&PresenceStore>,
+    who: ClaimedBy,
+    scenario: &str,
+) -> Result<WalkReport, TicketError> {
+    let file = settings::load_result(data_dir).map_err(TicketError::Io)?;
+    if !settings::ticket_claim_enabled(&file) {
+        return Err(TicketError::Forbidden);
+    }
+    if let Some(store) = presence {
+        let _ = heartbeat(store, &who);
+        let _ = renew_leases(repo_root, data_dir, &who);
+    }
+    let _ = reclaim_stale(repo_root, data_dir);
+    let filter = scenario.trim();
+    let mut open: Vec<Ticket> = read_tickets(&tickets_path(repo_root))?
+        .into_iter()
+        .filter(|t| t.status == "open")
+        .filter(|t| filter.is_empty() || t.scenario == filter)
+        .collect();
+    open.sort_by_key(ticket_sort_key);
+    let mut walked = Vec::new();
+    for t in open {
+        let claimed = claim_with(repo_root, data_dir, &t.id, who.clone(), presence)?;
+        walked.push(WalkStep {
+            ticket_id: claimed.id.clone(),
+            title: claimed.title.clone(),
+            phase: "claimed".into(),
+        });
+        let finished = done(
+            repo_root,
+            data_dir,
+            &claimed.id,
+            who.clone(),
+            "solo walk",
+            presence,
+        )?;
+        walked.push(WalkStep {
+            ticket_id: finished.id,
+            title: finished.title,
+            phase: "done".into(),
+        });
+    }
+    Ok(WalkReport {
+        ok: true,
+        scenario: filter.to_string(),
+        walked,
+        telegram: 0,
+    })
+}
+
+/// HTTP POST walk wire. Optional `scenario_id` creates the band first (all stay open).
+pub fn wire_walk(
+    repo_root: &Path,
+    data_dir: &Path,
+    body: &Value,
+    presence: Option<&PresenceStore>,
+) -> Result<WalkReport, TicketError> {
+    let scenario_id = body
+        .get("scenario_id")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim();
+    let create = body
+        .get("create")
+        .and_then(Value::as_bool)
+        .unwrap_or(!scenario_id.is_empty());
+    if create && !scenario_id.is_empty() {
+        let _ = create_band_from_scenario(repo_root, data_dir, scenario_id, "")?;
+    }
+    let mut who = resolve_claimed_by();
+    if let Some(a) = body.get("actor").and_then(Value::as_str) {
+        if !a.trim().is_empty() {
+            who.actor = a.trim().to_string();
+        }
+    }
+    solo_walk(repo_root, data_dir, presence, who, scenario_id)
+}
+
 #[cfg(test)]
 mod unit {
     use super::*;
@@ -1003,6 +1178,7 @@ mod unit {
             claimed_by: None,
             product: "gsv".into(),
             workflow: String::new(),
+            scenario: String::new(),
             lease_until: None,
         };
         assert!(lease_is_expired(&t, 100));

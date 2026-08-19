@@ -240,7 +240,7 @@ async fn mcp_telegram_is_read_only_status() {
     assert!(mcp::tool_names().contains(&"gsv_telegram_bus_poll"));
     assert!(mcp::tool_names().contains(&"gsv_telegram_ticket"));
     assert!(!mcp::tool_names().contains(&"gsv_telegram_create_ticket"));
-    assert_eq!(mcp::tool_names().len(), 48);
+    assert_eq!(mcp::tool_names().len(), 50);
 }
 
 async fn bus_guard() -> tokio::sync::MutexGuard<'static, ()> {
@@ -308,6 +308,15 @@ fn parse_envelope_rejects_invalid_and_non_bus() {
         "body": "hi"
     }));
     assert!(kind.is_err(), "{kind:?}");
+    let sync = telegram::parse_envelope(&json!({
+        "v": 1,
+        "kind": "sync",
+        "from": "solo",
+        "ticket_id": "t-1",
+        "body": "claimed t-1"
+    }))
+    .expect("sync");
+    assert_eq!(sync.kind, "sync");
     let ok = telegram::parse_envelope(&json!({
         "v": 1,
         "kind": "bus",
@@ -844,4 +853,16 @@ async fn mcp_telegram_ticket_solo() {
     );
     assert!(!text.contains("bot_token"), "{text}");
     assert!(!text.contains("mcp-tix-secret-token"), "{text}");
+}
+
+#[tokio::test]
+async fn enqueue_sync_is_kind_sync_no_token() {
+    let _g = bus_guard().await;
+    telegram::bus_reset();
+    let env = telegram::enqueue_sync("solo", "t-mds", "claimed").expect("sync");
+    assert_eq!(env.kind, "sync");
+    assert_eq!(env.ticket_id.as_deref(), Some("t-mds"));
+    assert!(env.body.contains("claimed"), "{}", env.body);
+    let raw = serde_json::to_string(&env).expect("json");
+    assert!(!raw.contains("bot_token"), "{raw}");
 }

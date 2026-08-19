@@ -292,6 +292,12 @@ async fn run_smokes(cli: &Cli) -> SmokeReport {
         check_ok(&client, &cli.base_url, "/api/tickets"),
     )
     .await;
+    record(
+        &mut cases,
+        "mds",
+        check_ok(&client, &cli.base_url, "/api/mds"),
+    )
+    .await;
     record(&mut cases, "mcp", check_ok(&client, &cli.base_url, "/mcp")).await;
     record(
         &mut cases,

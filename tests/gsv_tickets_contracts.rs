@@ -365,6 +365,7 @@ fn card_tickets_in_registry() {
         "{board}"
     );
     assert!(board.contains("data-action='tickets-presence'"), "{board}");
+    assert!(board.contains("data-action='tickets-walk'"), "{board}");
     assert!(board.contains("squad"), "{board}");
 }
 
@@ -510,7 +511,16 @@ fn seed_scenarios_have_no_secrets() {
     for sc in &list {
         assert!(!sc.title.contains("bot_token"), "{}", sc.title);
         assert!(!sc.body.contains("bot_token"), "{}", sc.body);
+        for step in &sc.tickets {
+            assert!(!step.title.contains("bot_token"), "{}", step.title);
+            assert!(!step.body.contains("bot_token"), "{}", step.body);
+        }
     }
+    assert!(
+        list.iter()
+            .any(|s| s.id == "memory-disk-speed" && s.tickets.len() >= 6),
+        "mds scenario band missing"
+    );
 }
 
 fn enable_squad(data: &Path) {
@@ -720,10 +730,12 @@ fn mcp_tools_include_tickets_not_bus() {
     assert!(mcp::tool_names().contains(&"gsv_tickets_error"));
     assert!(mcp::tool_names().contains(&"gsv_tickets_presence"));
     assert!(mcp::tool_names().contains(&"gsv_tickets_reclaim"));
+    assert!(mcp::tool_names().contains(&"gsv_tickets_walk"));
+    assert!(mcp::tool_names().contains(&"gsv_mds"));
     assert!(mcp::tool_names().contains(&"gsv_telegram_bus_send"));
     assert!(mcp::tool_names().contains(&"gsv_telegram_ticket"));
     assert!(!mcp::tool_names().contains(&"gsv_telegram_create_ticket"));
-    assert_eq!(mcp::tool_names().len(), 48);
+    assert_eq!(mcp::tool_names().len(), 50);
 }
 
 fn write_stale_wip(kit: &Path, id: &str, actor: &str, lease_until: u64) {
@@ -911,4 +923,99 @@ fn card_shows_lease_and_reclaim() {
     .expect("board");
     assert!(board.contains("lease"), "{board}");
     assert!(board.contains("data-action='tickets-reclaim'"), "{board}");
+}
+
+fn enable_claim_relay(data: &Path) {
+    settings::save(
+        data,
+        &settings::SettingsFile {
+            workflows: settings::Workflows {
+                enabled: vec!["ticket-claim".into(), "telegram-relay".into()],
+            },
+            ..Default::default()
+        },
+    )
+    .expect("save claim+relay");
+}
+
+fn write_mds_band(kit: &Path) {
+    let raw = r#"{
+      "scenarios": [
+        {
+          "id": "memory-disk-speed",
+          "title": "Light Rust MDS app",
+          "body": "band",
+          "workflow": "ticket-claim",
+          "product": "gsv",
+          "tickets": [
+            {"title": "MDS: scaffold", "body": "bin"},
+            {"title": "MDS: memory", "body": "probe"},
+            {"title": "MDS: disk", "body": "probe"}
+          ]
+        }
+      ]
+    }"#;
+    std::fs::write(tickets::scenarios_path(kit), raw).expect("mds scenarios");
+}
+
+#[test]
+fn scenario_band_creates_all_rows_open() {
+    let kit = temp_kit("mds-band");
+    enable_claim(&kit.join("data"));
+    write_mds_band(&kit);
+    let band = tickets::create_band_from_scenario(&kit, &kit.join("data"), "memory-disk-speed", "")
+        .expect("band");
+    assert_eq!(band.len(), 3, "{}", band.len());
+    assert!(band.iter().all(|t| t.status == "open"));
+    assert!(band.iter().all(|t| t.scenario == "memory-disk-speed"));
+    let listed = tickets::list(&kit);
+    let n = listed["tickets"].as_array().expect("arr").len();
+    assert_eq!(n, 3, "{listed}");
+}
+
+#[test]
+fn solo_walk_claims_and_dones_band() {
+    let kit = temp_kit("mds-walk");
+    enable_claim_relay(&kit.join("data"));
+    write_mds_band(&kit);
+    let _ = tickets::create_band_from_scenario(&kit, &kit.join("data"), "memory-disk-speed", "")
+        .expect("band");
+    let store = tickets::new_presence_store();
+    let report = tickets::solo_walk(
+        &kit,
+        &kit.join("data"),
+        Some(&store),
+        who(),
+        "memory-disk-speed",
+    )
+    .expect("walk");
+    assert!(report.ok);
+    assert_eq!(report.walked.len(), 6, "3 tickets × claimed+done");
+    assert!(report.walked.iter().any(|s| s.phase == "claimed"));
+    assert!(report.walked.iter().any(|s| s.phase == "done"));
+    let listed = tickets::list(&kit);
+    for t in listed["tickets"].as_array().expect("arr") {
+        assert_eq!(t["status"], "done", "{t}");
+    }
+}
+
+#[tokio::test]
+async fn http_walk_enqueues_telegram_sync() {
+    let kit = temp_kit("http-walk");
+    enable_claim_relay(&kit.join("data"));
+    write_mds_band(&kit);
+    let app = app_kit(kit);
+    gsv::boxes::telegram::bus_reset();
+    let (status, json) = post_json(
+        &app,
+        "/api/tickets/walk",
+        json!({ "scenario_id": "memory-disk-speed", "from": "solo-bot" }),
+        Some("http://127.0.0.1:9999"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{json}");
+    assert_eq!(json["ok"], true, "{json}");
+    assert_eq!(json["walked"].as_array().expect("w").len(), 6, "{json}");
+    assert_eq!(json["telegram"], 6, "{json}");
 }

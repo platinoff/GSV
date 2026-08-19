@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-19 · band 175 ✅)
+
+- **Band 175:** MDS scenario band + solo walk + Telegram sync. Scenario `tickets[]` · catalog `memory-disk-speed` (6) · `gsv-mds` (1 MiB alloc + OS phys / `disk_report` / xor-fold) · `GET /api/mds` · `POST /api/tickets/walk` · MCP `gsv_tickets_walk` + `gsv_mds` (**50** tools) · `kind:sync` on claim/done · Galaxy add+walk · `gsv_dev` band/walk/mds benches. `CARD_NAMES` **40**.
+- **Canon:** [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md).
+- **Next drain:** owner pick after warnings-first scan.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.37%** (rust 31587 / product 31788) · **594** tests · clippy 0
+
 ## Стан (2026-08-19 · band 174 ✅)
 
 - **Band 174:** Solo bot tickets from Telegram. `/ticket` or `{kind:ticket}` → board row · solo MCP auto-claims when one worker is online · `POST /api/telegram/ticket` · MCP `gsv_telegram_ticket` (**48** tools) · events `telegram` then `claimed` · scenario `telegram-solo` · clippy unused `_c` in `watchdog_version_lag`. `CARD_NAMES` **40**.

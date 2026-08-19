@@ -1241,7 +1241,9 @@ pub fn render_tickets(d: &Value) -> String {
                     "—".into()
                 } else {
                     format!(
-                        "<button type='button' data-action='tickets-from-scenario' data-scenario-id='{}'>add</button>",
+                        "<button type='button' data-action='tickets-from-scenario' data-scenario-id='{}'>add</button> \
+<button type='button' data-action='tickets-walk' data-scenario-id='{}'>walk</button>",
+                        esc(&sid),
                         esc(&sid)
                     )
                 };
@@ -1256,7 +1258,8 @@ pub fn render_tickets(d: &Value) -> String {
 <input id='tixBody' type='text' value='' placeholder='body' aria-label='ticket body'>\
 <input id='tixProduct' type='text' value='gsv' placeholder='product' aria-label='product'>\
 <button type='button' data-action='tickets-create'>Create</button>\
-<button type='button' data-action='tickets-presence'>I'm online</button>",
+<button type='button' data-action='tickets-presence'>I'm online</button>\
+<button type='button' data-action='tickets-walk'>solo walk</button>",
     );
     out
 }

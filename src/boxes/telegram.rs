@@ -7,8 +7,7 @@
 //!
 //! Band 169 bus: JSON envelopes on the Godfather channel. No public webhook,
 //! no Cloudflare. Dry-run uses a process-local queue.
-//! Band 174: `/ticket` or `{kind:ticket}` messages become board rows; solo MCP
-//! auto-claims when one worker is online. Requires `telegram-relay` + `ticket-claim`.
+//! Band 175: `kind:sync` envelopes on claim/done during a solo scenario walk.
 
 use std::collections::VecDeque;
 use std::path::Path;
@@ -297,7 +296,7 @@ const RATE_LIMIT: Duration = Duration::from_secs(1);
 const DEFAULT_POLL_LIMIT: usize = 8;
 const MAX_POLL_LIMIT: usize = 32;
 
-/// Channel-as-bus envelope (`kind` other than `bus` is rejected in v1).
+/// Channel-as-bus envelope (`kind` is `bus` or `sync`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BusEnvelope {
     pub v: u32,
@@ -401,15 +400,15 @@ fn empty_to_none(v: Option<String>) -> Option<String> {
     })
 }
 
-/// Serialize/validate a bus envelope. Invalid JSON or `kind != bus` → err.
+/// Serialize/validate a bus envelope. Invalid JSON or unknown `kind` → err.
 pub fn parse_envelope(v: &Value) -> Result<BusEnvelope, String> {
     let mut env: BusEnvelope =
         serde_json::from_value(v.clone()).map_err(|_| "invalid envelope".to_string())?;
     if env.v != 1 {
         return Err("v must be 1".into());
     }
-    if env.kind != "bus" {
-        return Err("kind must be bus".into());
+    if env.kind != "bus" && env.kind != "sync" {
+        return Err("kind must be bus or sync".into());
     }
     env.from = env.from.trim().to_string();
     if env.from.is_empty() {
@@ -421,6 +420,77 @@ pub fn parse_envelope(v: &Value) -> Result<BusEnvelope, String> {
         return Err("body exceeds 2 KiB".into());
     }
     Ok(env)
+}
+
+/// Queue a fingerprint-class sync envelope (claim/done). No 1/s rate limit —
+/// a solo walk posts two envelopes per ticket. Live Bot API is HTTP/MCP.
+pub fn enqueue_sync(from: &str, ticket_id: &str, phase: &str) -> Result<BusEnvelope, String> {
+    let from = from.trim();
+    if from.is_empty() {
+        return Err("from required".into());
+    }
+    let ticket_id = ticket_id.trim();
+    if ticket_id.is_empty() {
+        return Err("ticket_id required".into());
+    }
+    let body = format!("{phase} {ticket_id}");
+    if body.len() > BODY_CAP {
+        return Err("body exceeds 2 KiB".into());
+    }
+    let envelope = BusEnvelope {
+        v: 1,
+        kind: "sync".into(),
+        from: from.to_string(),
+        to: None,
+        ticket_id: Some(ticket_id.to_string()),
+        body,
+    };
+    {
+        let mut g = bus();
+        g.queue.push_back(envelope.clone());
+        g.last_send = Some(Instant::now());
+        g.last_bus_ok = true;
+        g.last_bus_ts = now_rfc3339();
+        g.last_bus_error.clear();
+        g.last_ticket_id = ticket_id.to_string();
+    }
+    Ok(envelope)
+}
+
+/// Solo-walk open tickets and enqueue `kind:sync` on each claimed/done step.
+pub fn sync_walk(
+    repo_root: &Path,
+    data_dir: &Path,
+    body: &Value,
+    presence: Option<&tickets::PresenceStore>,
+) -> Result<Value, tickets::TicketError> {
+    let file = settings::load_result(data_dir).map_err(tickets::TicketError::Io)?;
+    if !settings::telegram_relay_enabled(&file) {
+        return Err(tickets::TicketError::BadRequest(
+            "telegram-relay workflow is off".into(),
+        ));
+    }
+    let mut report = tickets::wire_walk(repo_root, data_dir, body, presence)?;
+    let from = body
+        .get("from")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("solo");
+    report.telegram = 0;
+    for step in &report.walked {
+        if enqueue_sync(from, &step.ticket_id, &step.phase).is_ok() {
+            report.telegram += 1;
+        }
+    }
+    serde_json::to_value(&report)
+        .map_err(|_| tickets::TicketError::Io("walk encode failed".into()))
+        .map(|mut v| {
+            if let Some(obj) = v.as_object_mut() {
+                obj.insert("ok".into(), json!(true));
+            }
+            v
+        })
 }
 
 fn title_body(s: &str) -> (String, String) {

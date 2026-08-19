@@ -35,6 +35,39 @@
       "body": "Registered product poolai: run cargo test-ci with CARGO_TARGET_DIR=/s/rust/poolAI/target.",
       "workflow": "ticket-claim",
       "product": "poolai"
+    },
+    {
+      "id": "memory-disk-speed",
+      "title": "Light Rust MDS app",
+      "body": "Solo bot walks this band: scaffold gsv-mds, memory probe, disk probe, speed probe, JSON wire + tests, Telegram sync on claim/done.",
+      "workflow": "ticket-claim",
+      "product": "gsv",
+      "tickets": [
+        {
+          "title": "MDS: scaffold bin",
+          "body": "Add boxes/mds.rs and src/bin/gsv_mds.rs. cargo run --bin gsv-mds."
+        },
+        {
+          "title": "MDS: memory probe",
+          "body": "1 MiB alloc sample plus OS phys (GlobalMemoryStatusEx on Windows)."
+        },
+        {
+          "title": "MDS: disk probe",
+          "body": "Reuse xtask::disk_report (free MiB + target size)."
+        },
+        {
+          "title": "MDS: speed probe",
+          "body": "Instant xor-fold SPEED_ITERS; report ns/iter."
+        },
+        {
+          "title": "MDS: JSON wire + tests",
+          "body": "GET /api/mds, MCP gsv_mds, gsv_mds_contracts, cargo test."
+        },
+        {
+          "title": "MDS: solo walk Telegram sync",
+          "body": "Claim/done each row; enqueue kind:sync envelopes. POST /api/tickets/walk."
+        }
+      ]
     }
   ]
 }

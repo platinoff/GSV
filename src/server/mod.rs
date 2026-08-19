@@ -110,6 +110,8 @@ pub fn router(state: AppState) -> Router {
         .route("/api/tickets/error", post(api_tickets_error))
         .route("/api/tickets/presence", post(api_tickets_presence))
         .route("/api/tickets/reclaim", post(api_tickets_reclaim))
+        .route("/api/tickets/walk", post(api_tickets_walk))
+        .route("/api/mds", get(api_mds))
         .route("/api/xtask", get(api_xtask))
         .route("/api/disk", get(api_disk))
         .route("/api/tracker", get(api_tracker))
@@ -444,6 +446,22 @@ async fn api_tickets_reclaim(State(state): State<AppState>, Json(body): Json<Val
     }
 }
 
+async fn api_tickets_walk(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
+    match crate::boxes::telegram::sync_walk(
+        &state.repo_root,
+        &state.data_dir,
+        &body,
+        Some(&state.ticket_presence),
+    ) {
+        Ok(v) => Json(v).into_response(),
+        Err(e) => err_json(ticket_http_status(&e), e.to_string()),
+    }
+}
+
+async fn api_mds(State(state): State<AppState>) -> Json<Value> {
+    Json(crate::boxes::mds::wire(&state.repo_root))
+}
+
 fn ticket_http_status(err: &crate::boxes::tickets::TicketError) -> StatusCode {
     use crate::boxes::tickets::TicketError;
     match err {
@@ -630,7 +648,7 @@ async fn api_index() -> Json<Value> {
         "categories": [
             "/api/vision/", "/api/ui/", "/api/ratio/", "/api/toolchain/",
             "/api/ide/", "/api/omni/", "/api/sli", "/api/tracker", "/api/products",
-            "/api/fingerprints", "/api/sw", "/api/watchdog", "/api/usage", "/api/settings", "/api/telegram", "/api/telegram/bus", "/api/telegram/ticket", "/api/tickets", "/api/xtask", "/api/disk", "/sw.js",
+            "/api/fingerprints", "/api/sw", "/api/watchdog", "/api/usage", "/api/settings", "/api/telegram", "/api/telegram/bus", "/api/telegram/ticket", "/api/tickets", "/api/mds", "/api/xtask", "/api/disk", "/sw.js",
             "/api/hooks/", "/api/preview", "/api/terminal", "/data/", "/mcp"
         ],
         "example": "/api/vision",
