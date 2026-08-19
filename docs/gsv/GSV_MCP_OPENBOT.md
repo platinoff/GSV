@@ -1,6 +1,6 @@
 # gsv_mcp_openbot — GSV as an MCP server
 
-**Status:** Implemented (band **168**, ticket board + MCP claim · band **167**, Godfather Telegram bind · band **166**, settings + Godfather secret store · band **165**, watchdog live copy + lockstep observability · band **164**, Cursor 3.16.29 kit lockstep · band **163**, vision queue lockstep + bump auto-advance · band **162**, live crate/version lockstep · band **161**, vision lockstep + disk MiB / `--clean` keep-live · band **160**, GSV sandbox MCP · no User leak · band **159**, Cursor HTTP MCP + session SSE hold · band **158**, live stdio + sync check · band **157**, OmniRouter catalog + quota timers · band **156**, streaming usage · band **155**, session token usage · band **154**, watchdog ops card · band **153**, rust-first xtask · band **152**, `PH-S2159…S2168` ✅ · band **151**, `PH-S2149…S2158` ✅ · band 142 `PH-S2059…S2068` ✅ · band 141 `PH-S2049…S2058` ✅ · band 140 `PH-S2039…S2048` ✅ · band 139 `PH-S2029…S2038` ✅ · band 138 `PH-S2019…S2028` ✅ · band 137 `PH-S2009…S2018` ✅ · band 136 `PH-S1999…S2008` ✅ · band 135 `PH-S1989…S1998` ✅) · **Date:** 2026-08-19
+**Status:** Implemented (band **169**, Telegram bus · band **168**, ticket board + MCP claim · band **167**, Godfather Telegram bind · band **166**, settings + Godfather secret store · band **165**, watchdog live copy + lockstep observability · band **164**, Cursor 3.16.29 kit lockstep · band **163**, vision queue lockstep + bump auto-advance · band **162**, live crate/version lockstep · band **161**, vision lockstep + disk MiB / `--clean` keep-live · band **160**, GSV sandbox MCP · no User leak · band **159**, Cursor HTTP MCP + session SSE hold · band **158**, live stdio + sync check · band **157**, OmniRouter catalog + quota timers · band **156**, streaming usage · band **155**, session token usage · band **154**, watchdog ops card · band **153**, rust-first xtask · band **152**, `PH-S2159…S2168` ✅ · band **151**, `PH-S2149…S2158` ✅ · band 142 `PH-S2059…S2068` ✅ · band 141 `PH-S2049…S2058` ✅ · band 140 `PH-S2039…S2048` ✅ · band 139 `PH-S2029…S2038` ✅ · band 138 `PH-S2019…S2028` ✅ · band 137 `PH-S2009…S2018` ✅ · band 136 `PH-S1999…S2008` ✅ · band 135 `PH-S1989…S1998` ✅) · **Date:** 2026-08-19
 **Deciders:** owner
 
 GSV exposes one MCP server named **`gsv_mcp_openbot`**. OpenCode, Cursor, Grok CLI, and Grok Bot consume the **same** tools. Those products stay **clients** — they are not embedded inside `gsv-server`.
@@ -13,7 +13,7 @@ GSV exposes one MCP server named **`gsv_mcp_openbot`**. OpenCode, Cursor, Grok C
 | Discovery JSON | `GET /mcp` includes `version` + `crate_version` + `version_lag` + `http_url`. Sessionless `Accept: text/event-stream` still finite-flush. **GET with `Mcp-Session-Id` + SSE holds** the Streamable HTTP stream (Cursor). `POST /mcp` JSON-RPC; **skips browser CSRF**; `initialize` issues `Mcp-Session-Id`; `DELETE /mcp` ends the session; loopback unless `--allow-lan` |
 | Auto-register | `.mcp.json` · `opencode.json` `mcp.gsv_mcp_openbot` · `.grok/config.toml` spawn **stdio** `target/live/gsv-mcp.exe`. **Cursor** `.cursor/mcp.json` uses **HTTP** `url: http://127.0.0.1:9999/mcp` (same live `gsv-server`, no second AppState) |
 | Galaxy card | `GET /api/ui/card/mcp` (`render_mcp`, ops group, `CARD_NAMES` 32) |
-| Tools (40) | health / tracker / ratio / sli / toolchain / vision (summary) / vision_{manifest,feed,queue,map,board,progress,speeds,rust,sprint_map,doc_preview,node_search,sync,extensions} / omni_chat (dry-run default) / **omni_route** / ide_sessions / terminal (HTTP allowlist) / hooks_{tests,bench} / update / preview (repo-relative, same confine as HTTP) / products / products_scan / products_select / watchdog / sw / fingerprints / xtask / disk / usage / **settings** (redacted read) / **telegram** (Godfather bind status; no send/poll) / **tickets** (list) / **tickets_claim** `{id}` (MCP claim; requires `ticket-claim`) |
+| Tools (42) | health / tracker / ratio / sli / toolchain / vision (summary) / vision_{manifest,feed,queue,map,board,progress,speeds,rust,sprint_map,doc_preview,node_search,sync,extensions} / omni_chat (dry-run default) / **omni_route** / ide_sessions / terminal (HTTP allowlist) / hooks_{tests,bench} / update / preview (repo-relative, same confine as HTTP) / products / products_scan / products_select / watchdog / sw / fingerprints / xtask / disk / usage / **settings** (redacted read) / **telegram** (Godfather bind status) / **telegram_bus_send** / **telegram_bus_poll** (requires `telegram-relay`; dry-run queue; no webhook) / **tickets** (list) / **tickets_claim** `{id}` (MCP claim; requires `ticket-claim`) |
 | Resources (11) | `gsv://vision/{manifest,feed,extensions}` · `gsv://docs/{mcp-openbot,handoff,next,fingerprints,post-always-on,rust-dev,omni-catalog,settings-telegram}` — allowlist + `preview::resolve`; unknown / `file://` / `..` → JSON-RPC `-32602` |
 | Subscribe | `resources/subscribe` + `resources/unsubscribe` (same allowlist); `initialize` `resources.subscribe: true` |
 | Prompts (3) | `gsv_status` · `gsv_vision_brief` · `gsv_drain` |
@@ -117,7 +117,11 @@ Do **not** `cargo run --bin gsv-mcp` from the client: it is slow, takes the carg
 | `gsv_omni_route` | OmniRouter `GET /api/omni/route` — skip cooling free hosts until `reset_secs` |
 | `gsv_usage` | Session token totals (`GET /api/usage`) — OmniRouter + MCP session + OmniRoute pull |
 | `gsv_settings` | Godfather settings (redacted `token_set`; never `bot_token`; no MCP write) |
-| `gsv_telegram` | Godfather bind status (redacted; never `bot_token`; no send/poll in 167) |
+| `gsv_telegram` | Godfather bind status (redacted; never `bot_token`) |
+| `gsv_telegram_bus_send` | Bus envelope send (`from`,`to?`,`ticket_id?`,`body`; requires `telegram-relay`; cap 2 KiB; never `bot_token`) |
+| `gsv_telegram_bus_poll` | Bus envelope poll (`limit?`; dry-run in-memory queue; no webhook) |
+| `gsv_tickets` | Ticket board list (`docs/gsv/tickets.jsonl`) |
+| `gsv_tickets_claim` | Claim ticket `{id}` (requires `ticket-claim`; unknown id is a tool error) |
 | `gsv_xtask` | Read-only `catalog` / `products` / `disk` / `sync` (`--check` drift). Remirror is `gsv_vision_sync`. |
 | `gsv_ide_sessions` | IDE box (OpenCode + Cursor sessions, read) |
 | `gsv_terminal` | SLI terminal **same allowlist** as HTTP (no extra shell) |
@@ -204,7 +208,7 @@ No secrets in tool output (`omni.toml` keys stay redacted). POST body cap and CS
 
 ## Horizon (band 160+)
 
-Band **166 ✅** settings; **167–169** fully specified (next drain **167** `gsv_telegram` status; **168** `gsv_tickets` / `gsv_tickets_claim`; **169** `gsv_telegram_bus_*`) — [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md). Still **not** on MCP: `products/open`, `update/apply`, starting Cloudflare tunnel.
+Band **166–169 ✅** settings · Godfather bind · tickets · Telegram bus — [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md). Still **not** on MCP: `products/open`, `update/apply`, starting Cloudflare tunnel. Next drain is an owner pick (do not invent 170).
 
 Band **164** lockstepped the kit to Cursor desktop **3.16.29**: folder `.cursor/mcp.json` stays Streamable HTTP `type: http` + loopback `url`; toolchain inventories `cursor` from `package.json`; never User MCP; do not Origin-host this kit. Tools/sync unchanged (`gsv_xtask` `{task:sync}` is `--check`; remirror is `gsv_vision_sync`).
 

@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-19 · band 169 ✅)
+
+- **Band 169:** Telegram bus between MCP bots. Envelope `{v:1,kind:bus,from,to?,ticket_id?,body}` · dry-run VecDeque · `GET`/`POST /api/telegram/bus` (CSRF) · MCP `gsv_telegram_bus_send` / `gsv_telegram_bus_poll` (**42** tools · **11** resources) · `telegram-relay` gate · allowlist · 2 KiB cap · 1/s rate-limit. No webhook. No Cloudflare. No create-ticket. `CARD_NAMES` **40** (telegram card shows last bus).
+- **Canon:** [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md) · plan [`superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md`](superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md) **complete**.
+- **Next drain:** owner pick after warnings-first scan. Do not invent 170.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.33%** (rust 28750 / product 28945) · **551** tests · clippy 0
+
 ## Стан (2026-08-19 · band 168 ✅)
 
 - **Band 168:** Ticket board + MCP claim. `boxes/tickets.rs` · `docs/gsv/tickets.jsonl` + sibling `ticket_claims.jsonl` · `GET`/`POST /api/tickets` · `POST /api/tickets/claim` (CSRF; unknown 404; `ticket-claim` off 403) · Galaxy ops card `tickets` (`CARD_NAMES` **40**) · MCP `gsv_tickets` + `gsv_tickets_claim` (**40** tools · **11** resources). No Telegram bus.

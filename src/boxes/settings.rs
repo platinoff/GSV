@@ -65,6 +65,14 @@ pub fn ticket_claim_enabled(file: &SettingsFile) -> bool {
     file.workflows.enabled.iter().any(|id| id == "ticket-claim")
 }
 
+/// Band 169: MCP/HTTP bus is allowed only when `telegram-relay` is enabled.
+pub fn telegram_relay_enabled(file: &SettingsFile) -> bool {
+    file.workflows
+        .enabled
+        .iter()
+        .any(|id| id == "telegram-relay")
+}
+
 fn default_redact() -> bool {
     true
 }

@@ -1092,6 +1092,8 @@ pub fn render_telegram(d: &Value) -> String {
     let bot = s(&d["bot_username"]);
     let title = s(&d["chat_title"]);
     let probe = s(&d["last_probe"]);
+    let bus_ts = s(&d["last_bus_ts"]);
+    let bus_err = s(&d["last_bus_error"]);
     out.push_str(&format!(
         "<div class='dim'>Godfather bind · token <kbd>{}</kbd> · dry-run <kbd>{}</kbd></div>",
         if token_set { "set" } else { "unset" },
@@ -1139,6 +1141,22 @@ pub fn render_telegram(d: &Value) -> String {
                     if polling { "ok" } else { "dim" },
                     if polling { "on" } else { "off" }
                 ),
+            ],
+            vec![
+                "last bus".into(),
+                if bus_ts.is_empty() {
+                    "<span class='dim'>—</span>".into()
+                } else {
+                    esc(&bus_ts)
+                },
+            ],
+            vec![
+                "bus error".into(),
+                if bus_err.is_empty() {
+                    "<span class='dim'>—</span>".into()
+                } else {
+                    format!("<span class='err'>{}</span>", esc(&bus_err))
+                },
             ],
         ],
     ));

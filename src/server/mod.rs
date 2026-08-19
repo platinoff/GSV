@@ -99,6 +99,10 @@ pub fn router(state: AppState) -> Router {
         .route("/api/usage", get(api_usage))
         .route("/api/settings", get(api_settings).post(api_settings_post))
         .route("/api/telegram", get(api_telegram))
+        .route(
+            "/api/telegram/bus",
+            get(api_telegram_bus).post(api_telegram_bus_post),
+        )
         .route("/api/tickets", get(api_tickets).post(api_tickets_post))
         .route("/api/tickets/claim", post(api_tickets_claim))
         .route("/api/xtask", get(api_xtask))
@@ -324,6 +328,29 @@ async fn api_telegram(State(state): State<AppState>, headers: HeaderMap) -> Json
     Json(crate::boxes::telegram::status(&state.data_dir, dry).await)
 }
 
+#[derive(serde::Deserialize)]
+struct TelegramBusQuery {
+    limit: Option<u64>,
+}
+
+async fn api_telegram_bus(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<TelegramBusQuery>,
+) -> Json<Value> {
+    let dry = crate::boxes::telegram::header_dry_run(&headers);
+    Json(crate::boxes::telegram::bus_poll(&state.data_dir, dry, q.limit.map(|n| n as usize)).await)
+}
+
+async fn api_telegram_bus_post(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(body): Json<Value>,
+) -> Json<Value> {
+    let dry = crate::boxes::telegram::header_dry_run(&headers);
+    Json(crate::boxes::telegram::bus_send(&state.data_dir, dry, &body).await)
+}
+
 async fn api_tickets(State(state): State<AppState>) -> Json<Value> {
     Json(crate::boxes::tickets::list(&state.repo_root))
 }
@@ -528,7 +555,7 @@ async fn api_index() -> Json<Value> {
         "categories": [
             "/api/vision/", "/api/ui/", "/api/ratio/", "/api/toolchain/",
             "/api/ide/", "/api/omni/", "/api/sli", "/api/tracker", "/api/products",
-            "/api/fingerprints", "/api/sw", "/api/watchdog", "/api/usage", "/api/settings", "/api/telegram", "/api/tickets", "/api/xtask", "/api/disk", "/sw.js",
+            "/api/fingerprints", "/api/sw", "/api/watchdog", "/api/usage", "/api/settings", "/api/telegram", "/api/telegram/bus", "/api/tickets", "/api/xtask", "/api/disk", "/sw.js",
             "/api/hooks/", "/api/preview", "/api/terminal", "/data/", "/mcp"
         ],
         "example": "/api/vision",

@@ -486,7 +486,7 @@ async fn mcp_claim_unknown_and_gate_are_tool_errors() {
 fn mcp_tools_include_tickets_not_bus() {
     assert!(mcp::tool_names().contains(&"gsv_tickets"));
     assert!(mcp::tool_names().contains(&"gsv_tickets_claim"));
-    assert!(!mcp::tool_names().contains(&"gsv_telegram_bus_send"));
+    assert!(mcp::tool_names().contains(&"gsv_telegram_bus_send"));
     assert!(!mcp::tool_names().contains(&"gsv_telegram_create_ticket"));
-    assert_eq!(mcp::tool_names().len(), 40);
+    assert_eq!(mcp::tool_names().len(), 42);
 }

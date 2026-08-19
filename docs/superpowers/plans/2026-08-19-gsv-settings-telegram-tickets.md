@@ -1,6 +1,6 @@
 # GSV settings / Telegram / tickets Implementation Plan
 
-> **For agentic workers:** Owner 2026-08-19: remaining work **169 is fully specified below**. Next `абракадабра` on **gsv** drains **band 169 only** (`PH-S2329…S2338`). ≤10 PH-S* per drain; one commit + push per band. Do not invent band 170. Spec travels with the plan: [`GSV_SETTINGS_TELEGRAM.md`](../gsv/GSV_SETTINGS_TELEGRAM.md).
+> **For agentic workers:** Owner 2026-08-19: this plan is **complete** (bands 166–169 landed). Next `абракадабра` on **gsv** is an **owner pick** after a warnings-first scan. Do not invent band 170. Spec travels with the plan: [`GSV_SETTINGS_TELEGRAM.md`](../gsv/GSV_SETTINGS_TELEGRAM.md).
 
 **Goal:** Queue owner-picked GSV settings (Godfather channel + secret store + co-workflows), then Telegram bind, ticket board with MCP claim, then MCP-to-MCP Telegram bus. Band **166** is settings only so secrets land correctly before any Bot API call.
 
@@ -248,47 +248,47 @@ Envelope: `{v:1, kind:"bus", from, to?, ticket_id?, body}`. Cap `body` (e.g. 2 K
 
 ### Task 1: Scope (PH-S2329)
 
-- [ ] No public webhook. No `cloudflared`. Poll from process / dry-run queue only.
-- [ ] Telegram create-ticket stays **out** (spec 169+ later; not this band unless owner asks).
+- [x] No public webhook. No `cloudflared`. Poll from process / dry-run queue only.
+- [x] Telegram create-ticket stays **out** (spec 169+ later; not this band unless owner asks).
 
 ### Task 2: Envelope + dry-run queue (PH-S2330)
 
-- [ ] Serialize/validate envelope. Invalid JSON → `{ok:false}`.
-- [ ] Test/dry-run: process-local VecDeque; send then poll returns the same item. No sockets.
+- [x] Serialize/validate envelope. Invalid JSON → `{ok:false}`.
+- [x] Test/dry-run: process-local VecDeque; send then poll returns the same item. No sockets.
 
 ### Task 3: Gates (PH-S2331)
 
-- [ ] Missing `telegram-relay` → tool/HTTP error.
-- [ ] If `allowed_user_ids` non-empty, `from` must match or error.
-- [ ] Rate-limit cheap (e.g. last-send timestamp; burst 1/s in-process).
+- [x] Missing `telegram-relay` → tool/HTTP error.
+- [x] If `allowed_user_ids` non-empty, `from` must match or error.
+- [x] Rate-limit cheap (e.g. last-send timestamp; burst 1/s in-process).
 
 ### Task 4: MCP tools (PH-S2332)
 
-- [ ] `gsv_telegram_bus_send` `{from,to?,ticket_id?,body}`. `gsv_telegram_bus_poll` `{limit?}`.
-- [ ] Never return `bot_token`. Live send uses Godfather channel; tests stay on dry-run queue.
+- [x] `gsv_telegram_bus_send` `{from,to?,ticket_id?,body}`. `gsv_telegram_bus_poll` `{limit?}`.
+- [x] Never return `bot_token`. Live send uses Godfather channel; tests stay on dry-run queue.
 
 ### Task 5: HTTP optional (PH-S2333)
 
-- [ ] Same JSON as MCP or skip HTTP if MCP-only is enough — prefer thin `GET`/`POST /api/telegram/bus` for Galaxy debug. CSRF on POST.
+- [x] Same JSON as MCP or skip HTTP if MCP-only is enough — prefer thin `GET`/`POST /api/telegram/bus` for Galaxy debug. CSRF on POST.
 
 ### Task 6: Card + contracts (PH-S2334)
 
-- [ ] Telegram card: `polling`, last bus ts/error.
-- [ ] Two-message dry-run test; token redact; workflow gate.
+- [x] Telegram card: `polling`, last bus ts/error.
+- [x] Two-message dry-run test; token redact; workflow gate.
 
 ### Task 7: Docs (PH-S2335)
 
-- [ ] Spec P2 169 Landed; BOXES bus **✅**; HANDOFF: this plan **complete**; do not invent 170.
+- [x] Spec P2 169 Landed; BOXES bus **✅**; HANDOFF: this plan **complete**; do not invent 170.
 
 ### Task 8: Ratio (PH-S2336)
 
-- [ ] fmt / clippy / `--stretch-96` ≥ 96%.
+- [x] fmt / clippy / `--stretch-96` ≥ 96%.
 
 ### Task 9: Tests (PH-S2337)
 
-- [ ] `cargo test` green; live copy stays.
+- [x] `cargo test` green; live copy stays.
 
 ### Task 10: Band close (PH-S2338)
 
-- [ ] `cargo xtask bump --band 169` + fingerprint + one commit + push.
-- [ ] NEXT: no queued band from this spec. Next drain = owner pick / warnings-first scan.
+- [x] `cargo xtask bump --band 169` + fingerprint + one commit + push.
+- [x] NEXT: no queued band from this spec. Next drain = owner pick / warnings-first scan.

@@ -53,7 +53,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 166** (GSV settings + Godfather secret store) **✅** ·
 **band 167** (Telegram Godfather channel bind) **✅** ·
 **band 168** (ticket board + MCP claim) **✅** ·
-**band 169** (Telegram bus between MCP bots) **queued** ·
+**band 169** (Telegram bus between MCP bots) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -1025,7 +1025,7 @@ Owner pick (`абракадабра` gsv / scan): live crate **0.164.0** vs runn
 
 ## Спринти (band 166) — GSV settings + Godfather store ✅
 
-Owner pick 2026-08-19: Settings card; Godfather channel + token store; co-workflows; later Telegram + ticket board + MCP bus. Spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md). Plan: [`docs/superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md`](../superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md). **Next `абракадабра` gsv = band 169.** Remaining **169** has a full PH-S table.
+Owner pick 2026-08-19: Settings card; Godfather channel + token store; co-workflows; later Telegram + ticket board + MCP bus. Spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md). Plan: [`docs/superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md`](../superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md). **This spec is complete (166–169 ✅).** Next drain = owner pick. Do not invent 170.
 
 | Sprint | Фокус | Acceptance (ключ) |
 |--------|-------|-------------------|
@@ -1072,20 +1072,20 @@ Owner 2026-08-19: remaining plan **168–169 fully specified**. Next `абрак
 | **PH-S2327** | Ratio + tests | fmt/clippy/`cargo test`/`--stretch-96` — **✅** |
 | **PH-S2328** | Band close | `--band 168` + fingerprint + push — **✅** |
 
-## Спринти (band 169) — Telegram bus between MCP bots · queued (after 168)
+## Спринти (band 169) — Telegram bus between MCP bots · ✅
 
 | Sprint | Фокус | Acceptance (ключ) |
 |--------|-------|-------------------|
-| **PH-S2329** | Scope | no webhook; no Cloudflare; no invent 170 |
-| **PH-S2330** | Envelope | `{v:1,kind:bus,…}`; dry-run in-memory queue |
-| **PH-S2331** | Gates | `telegram-relay`; allowlist; body cap; rate-limit |
-| **PH-S2332** | MCP | `gsv_telegram_bus_send` / `gsv_telegram_bus_poll` |
-| **PH-S2333** | HTTP | optional `/api/telegram/bus`; CSRF on POST |
-| **PH-S2334** | Card + tests | two dry-run messages; token redact |
-| **PH-S2335** | Docs | spec P2 Landed; this plan complete |
-| **PH-S2336** | Ratio | `--stretch-96` ≥96%; fmt/clippy |
-| **PH-S2337** | Tests | `cargo test`; keep live |
-| **PH-S2338** | Band close | `--band 169` + fingerprint; NEXT = owner pick |
+| **PH-S2329** | Scope | no webhook; no Cloudflare; no invent 170 — **✅** |
+| **PH-S2330** | Envelope | `{v:1,kind:bus,…}`; dry-run in-memory queue — **✅** |
+| **PH-S2331** | Gates | `telegram-relay`; allowlist; body cap; rate-limit — **✅** |
+| **PH-S2332** | MCP | `gsv_telegram_bus_send` / `gsv_telegram_bus_poll` — **✅** |
+| **PH-S2333** | HTTP | `/api/telegram/bus`; CSRF on POST — **✅** |
+| **PH-S2334** | Card + tests | two dry-run messages; token redact — **✅** |
+| **PH-S2335** | Docs | spec P2 Landed; this plan complete — **✅** |
+| **PH-S2336** | Ratio | `--stretch-96` ≥96%; fmt/clippy — **✅** |
+| **PH-S2337** | Tests | `cargo test`; keep live — **✅** |
+| **PH-S2338** | Band close | `--band 169` + fingerprint; NEXT = owner pick — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
