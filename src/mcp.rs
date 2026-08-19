@@ -303,6 +303,11 @@ pub fn tools_list() -> Vec<Value> {
             "Session token usage (OmniRouter + MCP bot + OmniRoute pull).",
             object_schema(),
         ),
+        tool(
+            "gsv_settings",
+            "GSV settings / Godfather store (redacted: token_set, never bot_token). Read-only; owner writes via POST /api/settings.",
+            object_schema(),
+        ),
     ]
 }
 
@@ -317,6 +322,7 @@ const RESOURCE_URIS: &[&str] = &[
     "gsv://docs/post-always-on",
     "gsv://docs/rust-dev",
     "gsv://docs/omni-catalog",
+    "gsv://docs/settings-telegram",
 ];
 
 const PROMPT_NAMES: &[&str] = &["gsv_status", "gsv_vision_brief", "gsv_drain"];
@@ -401,6 +407,13 @@ const RESOURCES: &[ResourceSpec] = &[
         mime: "text/markdown",
         rel: "docs/gsv/GSV_OMNI_CATALOG.md",
     },
+    ResourceSpec {
+        uri: "gsv://docs/settings-telegram",
+        name: "Settings / Telegram spec",
+        description: "Band 166 settings + Godfather store; 167–169 sequenced Telegram/tickets/bus.",
+        mime: "text/markdown",
+        rel: "docs/gsv/GSV_SETTINGS_TELEGRAM.md",
+    },
 ];
 
 struct PromptSpec {
@@ -423,7 +436,7 @@ const PROMPTS: &[PromptSpec] = &[
     PromptSpec {
         name: "gsv_drain",
         description: "Start a VDT drain: next PH-S* band after the last closed sprint.",
-        text: "Start a GSV VDT drain. Sandbox is this GSV repo (S:/rust/GSV): preview, terminal, vision, and xtask stay inside it. Registered VDT products (poolai, omniroute, …) are reached only via gsv_products / gsv_products_select / gsv_products_scan (unknown id is a tool error; no gsv_products_open). Do not install gsv_mcp_openbot as Cursor User MCP — that leaks into PoolAI windows. Keep it in GSV/.cursor/mcp.json (folder scope GSV). Cursor 3.16 still uses Streamable HTTP type=http on that folder file (never User; do not Origin-host this kit). Read gsv://docs/next, gsv://docs/rust-dev, and gsv://docs/post-always-on. Call gsv_xtask (task=products) or gsv_products, then gsv_products_select with the owner pick, then gsv_products_scan (id optional after select), gsv_disk, gsv_watchdog, gsv_usage, and gsv_xtask task=sync (read-only vision drift). gsv_vision_sync remirrors snapshots and notifies subscribed gsv:// resources. For model routing call gsv_omni_route (task=rust|web, prefer_free) so cooldown timers skip exhausted free hosts. Cursor attaches over HTTP url http://127.0.0.1:9999/mcp (live gsv-server). Check GET /mcp crate_version vs version (version_lag); a stale live copy is why tools go missing. gsv_watchdog debug_newer means recopy after cargo test (do not kill target/live before tests). Stdio MCP is target/live/gsv-mcp.exe for OpenCode/Grok (cargo xtask live copies it; do not cargo run --bin gsv-mcp). Product tests/benches/scripts are cargo xtask / tests/*.rs / benches/*.rs — do not add .sh/.ps1/JSON harnesses. cargo xtask bump --band N locksteps the vision queue (last/next/active). Propose the next ≤10 PH-S* after the last closed band. Do not push mid-drain. Invoke cargo via MSYS2 bash.",
+        text: "Start a GSV VDT drain. Sandbox is this GSV repo (S:/rust/GSV): preview, terminal, vision, and xtask stay inside it. Registered VDT products (poolai, omniroute, …) are reached only via gsv_products / gsv_products_select / gsv_products_scan (unknown id is a tool error; no gsv_products_open). Do not install gsv_mcp_openbot as Cursor User MCP — that leaks into PoolAI windows. Keep it in GSV/.cursor/mcp.json (folder scope GSV). Cursor 3.16 still uses Streamable HTTP type=http on that folder file (never User; do not Origin-host this kit). Read gsv://docs/next, gsv://docs/rust-dev, gsv://docs/post-always-on, and gsv://docs/settings-telegram. Call gsv_xtask (task=products) or gsv_products, then gsv_products_select with the owner pick, then gsv_products_scan (id optional after select), gsv_disk, gsv_watchdog, gsv_usage, gsv_settings (redacted read; no MCP write of tokens — HTTP POST /api/settings is the owner path), and gsv_xtask task=sync (read-only vision drift). Band 166 settings / Godfather store is landed. Drain band 167 Godfather bind only; do not skip to 168 tickets. gsv_vision_sync remirrors snapshots and notifies subscribed gsv:// resources. For model routing call gsv_omni_route (task=rust|web, prefer_free) so cooldown timers skip exhausted free hosts. Cursor attaches over HTTP url http://127.0.0.1:9999/mcp (live gsv-server). Check GET /mcp crate_version vs version (version_lag); a stale live copy is why tools go missing. gsv_watchdog debug_newer means recopy after cargo test (do not kill target/live before tests). Stdio MCP is target/live/gsv-mcp.exe for OpenCode/Grok (cargo xtask live copies it; do not cargo run --bin gsv-mcp). Product tests/benches/scripts are cargo xtask / tests/*.rs / benches/*.rs — do not add .sh/.ps1/JSON harnesses. cargo xtask bump --band N locksteps the vision queue (last/next/active). Propose the next ≤10 PH-S* after the last closed band. Do not push mid-drain. Invoke cargo via MSYS2 bash.",
     },
 ];
 
@@ -474,6 +487,7 @@ const TOOL_NAMES: &[&str] = &[
     "gsv_xtask",
     "gsv_disk",
     "gsv_usage",
+    "gsv_settings",
 ];
 
 /// Stable tool name list (tests / GET /mcp).
@@ -1098,6 +1112,7 @@ async fn call_tool(state: &AppState, params: &Value, session: Option<&str>) -> V
             tool_ok(crate::boxes::xtask::disk_wire(&state.repo_root, enforce))
         }
         "gsv_usage" => tool_ok(crate::boxes::usage::wire_state(state).await),
+        "gsv_settings" => tool_ok(crate::boxes::settings::wire(&state.data_dir)),
         "" => tool_err("missing tool name"),
         other => tool_err(format!("unknown tool: {other}")),
     }
@@ -1263,7 +1278,7 @@ fn redact_secrets(value: Value) -> Value {
             let mut out = serde_json::Map::new();
             for (k, v) in map {
                 let key_l = k.to_ascii_lowercase();
-                if key_l.contains("tokens") {
+                if key_l == "token_set" || key_l.contains("tokens") {
                     out.insert(k, redact_secrets(v));
                 } else if SECRET_KEYS.iter().any(|s| key_l.contains(s)) {
                     out.insert(k, json!("[redacted]"));
@@ -1348,6 +1363,7 @@ mod tests {
             "gsv_xtask",
             "gsv_disk",
             "gsv_usage",
+            "gsv_settings",
         ] {
             assert!(names.contains(&n), "missing {n}");
         }
@@ -1399,6 +1415,9 @@ mod tests {
         assert_eq!(r["api_key"], "[redacted]");
         assert_eq!(r["nested"]["authorization"], "[redacted]");
         assert_eq!(r["ok"], true);
+        let keep = redact_secrets(json!({ "token_set": true, "bot_token": "secret" }));
+        assert_eq!(keep["token_set"], true);
+        assert_eq!(keep["bot_token"], "[redacted]");
     }
 
     async fn rpc(s: &AppState, id: u32, method: &str, params: Value) -> Value {
@@ -1777,6 +1796,7 @@ mod tests {
         assert!(RESOURCE_URIS.contains(&"gsv://docs/post-always-on"));
         assert!(RESOURCE_URIS.contains(&"gsv://docs/rust-dev"));
         assert!(RESOURCE_URIS.contains(&"gsv://docs/omni-catalog"));
+        assert!(RESOURCE_URIS.contains(&"gsv://docs/settings-telegram"));
         assert_eq!(listed.len(), RESOURCE_URIS.len());
         for (item, expected) in listed.iter().zip(RESOURCE_URIS.iter()) {
             assert_eq!(item["uri"], *expected);
@@ -2137,6 +2157,9 @@ mod tests {
         assert!(text.contains("User MCP"), "{text}");
         assert!(text.contains("gsv_disk"), "{text}");
         assert!(text.contains("gsv_usage"), "{text}");
+        assert!(text.contains("gsv_settings"), "{text}");
+        assert!(text.contains("gsv://docs/settings-telegram"), "{text}");
+        assert!(text.contains("Band 166"), "{text}");
         assert!(text.contains("gsv_omni_route"), "{text}");
         assert!(text.contains("gsv://docs/next"), "{text}");
         assert!(text.contains("gsv://docs/rust-dev"), "{text}");
@@ -2211,5 +2234,15 @@ mod tests {
         assert!(text.contains("band 151"), "{text}");
         let trav = rpc(&s, 92, "resources/read", json!({ "uri": "gsv://docs/../" })).await;
         assert_eq!(trav["error"]["code"], -32602);
+        let spec = rpc(
+            &s,
+            93,
+            "resources/read",
+            json!({ "uri": "gsv://docs/settings-telegram" }),
+        )
+        .await;
+        let spec_text = spec["result"]["contents"][0]["text"].as_str().unwrap_or("");
+        assert!(spec.get("error").is_none(), "{spec}");
+        assert!(spec_text.contains("Godfather"), "{spec_text}");
     }
 }

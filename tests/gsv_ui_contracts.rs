@@ -126,7 +126,7 @@ fn ui_helpers_match_js_semantics() {
     assert!(tab(&["a"], Vec::new()).contains("<span class='dim'>—</span>"));
     assert!(bar(50.0).contains("width:50%"));
     assert!(bar(120.0).contains("width:100%"));
-    assert_eq!(CARD_NAMES.len(), 37);
+    assert_eq!(CARD_NAMES.len(), 38);
 }
 
 #[tokio::test]
@@ -183,13 +183,14 @@ async fn ui_card_mcp_renders_openbot_tools() {
 
 /// The rustCards the thin JS glue fetches via `getText` (mirror of
 /// `rustCards` in `GSV/ui/index.html`).
-const RUST_CARDS: [&str; 29] = [
+const RUST_CARDS: [&str; 30] = [
     "health",
     "products",
     "fingerprints",
     "sw",
     "watchdog",
     "usage",
+    "settings",
     "mcp",
     "update",
     "tracker",
@@ -287,6 +288,19 @@ fn card_renderers_empty_state_contract() {
     )
     .expect("sprint-focus");
     assert!(focus.contains("sprint focus — no data"), "{focus}");
+
+    let settings = render_card(
+        "settings",
+        &serde_json::json!({
+            "ok": true,
+            "token_set": false,
+            "source": "none",
+            "godfather": { "channel_id": "", "allowed_user_ids": [] },
+            "workflows": { "enabled": [] }
+        }),
+    )
+    .expect("settings");
+    assert!(settings.contains("settings — no data"), "{settings}");
 }
 
 /// A11y contract: the served UI HTML carries axe-friendly markers — lang,
@@ -367,7 +381,8 @@ async fn ui_index_cards_are_offline_stable() {
             && html.contains("\"sprint-focus\"")
             && html.contains("\"mcp\"")
             && html.contains("\"sw\"")
-            && html.contains("\"watchdog\""),
+            && html.contains("\"watchdog\"")
+            && html.contains("\"settings\""),
         "rustCards includes layout ops/sprint cards"
     );
     assert!(

@@ -4,7 +4,15 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
-## Стан (2026-08-19 · band 166 queued)
+## Стан (2026-08-19 · band 166 ✅)
+
+- **Band 166:** Settings + Godfather secret store. `boxes/settings.rs` · `data/gsv_settings.json` (gitignored) · env `GSV_TELEGRAM_BOT_TOKEN` wins without being written back · `GET`/`POST /api/settings` never contains `bot_token` · Galaxy ops card `settings` (`CARD_NAMES` **38**) · MCP `gsv_settings` read-only + resource `gsv://docs/settings-telegram` (**37** tools · **11** resources). No live Telegram.
+- **Canon:** [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md) · plan [`superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md`](superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md).
+- **Next drain:** band **167** (`PH-S2309…S2318`) Godfather channel bind. Not 168 tickets.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.27%** (rust 25931 / product 26122) · **517** tests · clippy 0
+
+## Стан (2026-08-19 · band 166 queued → landed)
 
 - **Owner pick:** GSV settings (Godfather channel + token store + co-workflows); Telegram channels; MCP bots talk via Telegram bus; ticket board for joiners; MCP claim → `in_progress` like fingerprint sync.
 - **Canon:** [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md) · plan [`superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md`](superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md).

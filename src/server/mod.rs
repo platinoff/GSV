@@ -97,6 +97,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/health", get(api_health))
         .route("/api/watchdog", get(api_watchdog))
         .route("/api/usage", get(api_usage))
+        .route("/api/settings", get(api_settings).post(api_settings_post))
         .route("/api/xtask", get(api_xtask))
         .route("/api/disk", get(api_disk))
         .route("/api/tracker", get(api_tracker))
@@ -307,6 +308,14 @@ async fn api_watchdog(State(state): State<AppState>) -> Json<Value> {
     Json(crate::boxes::watchdog::wire(&state.repo_root))
 }
 
+async fn api_settings(State(state): State<AppState>) -> Json<Value> {
+    Json(crate::boxes::settings::wire(&state.data_dir))
+}
+
+async fn api_settings_post(State(state): State<AppState>, Json(patch): Json<Value>) -> Json<Value> {
+    Json(crate::boxes::settings::wire_post(&state.data_dir, &patch))
+}
+
 async fn api_usage(State(state): State<AppState>) -> Json<Value> {
     crate::boxes::usage::merge_omniroute_pull(&state).await;
     Json(crate::boxes::usage::wire_state(&state).await)
@@ -483,7 +492,7 @@ async fn api_index() -> Json<Value> {
         "categories": [
             "/api/vision/", "/api/ui/", "/api/ratio/", "/api/toolchain/",
             "/api/ide/", "/api/omni/", "/api/sli", "/api/tracker", "/api/products",
-            "/api/fingerprints", "/api/sw", "/api/watchdog", "/api/usage", "/api/xtask", "/api/disk", "/sw.js",
+            "/api/fingerprints", "/api/sw", "/api/watchdog", "/api/usage", "/api/settings", "/api/xtask", "/api/disk", "/sw.js",
             "/api/hooks/", "/api/preview", "/api/terminal", "/data/", "/mcp"
         ],
         "example": "/api/vision",
@@ -887,6 +896,7 @@ async fn card_wire(state: &AppState, name: &str, q: &CardQuery) -> Result<Value,
             crate::boxes::usage::wire_state(state).await
         }
         "mcp" => crate::mcp::http_info(state),
+        "settings" => crate::boxes::settings::wire(&state.data_dir),
         "update" => json!(crate::boxes::update::wire(state)),
         "ide" => {
             let selection = state.ide_selection.try_read().ok().and_then(|s| s.clone());

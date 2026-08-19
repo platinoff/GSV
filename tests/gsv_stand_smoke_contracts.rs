@@ -202,6 +202,10 @@ fn stand_smoke_cards_include_products_and_fingerprints() {
         smoke_src.contains("\"watchdog\""),
         "watchdog must stay in stand-smoke CARDS"
     );
+    assert!(
+        smoke_src.contains("\"settings\""),
+        "settings must stay in stand-smoke CARDS"
+    );
 }
 
 /// The bin's card list must not drift from the UI registry (mirror of the bin's

@@ -19,6 +19,7 @@
 //! | Service Worker | `sw` | `/sw.js` · `/api/sw` | Rust-rendered shell cache |
 //! | Watchdog | `watchdog` | `/api/watchdog` | `target/live/watchdog.json` heartbeat + respawn live copy |
 //! | Usage | `usage` | `/api/usage` | per-session token counts (OmniRouter + MCP + OmniRoute) |
+//! | Settings | `settings` | `/api/settings` | Godfather channel + redacted token + co-workflows |
 //! | Xtask | `xtask` | `/api/xtask` · `/api/disk` | `cargo xtask` product automation (no `.sh`) |
 
 pub mod fingerprint;
@@ -29,6 +30,7 @@ pub mod omni;
 pub mod preview;
 pub mod products;
 pub mod ratio;
+pub mod settings;
 pub mod sli;
 pub mod sw;
 pub mod terminal;

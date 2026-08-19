@@ -36,55 +36,55 @@
 
 # Band 166 — Settings + Godfather store (PH-S2299…S2308)
 
-Next `абракадабра` on **gsv**: S0 → clippy → **this band**. Do not skip to 167.
+Landed this `абракадабра` on **gsv**. Do not skip to 167.
 
 ### Task 1: Scope + queue (PH-S2299)
 
-- [ ] Set vision `active_sprint` / `next_sprint` to `PH-S2299` via bump/sync at close, not in a mid-drain push.
-- [ ] Confirm spec P0 table still matches (no live Telegram).
+- [x] Set vision `active_sprint` / `next_sprint` to `PH-S2299` via bump/sync at close, not in a mid-drain push.
+- [x] Confirm spec P0 table still matches (no live Telegram).
 
 ### Task 2: Settings schema + disk (PH-S2300)
 
-- [ ] `SettingsFile` / `Godfather` / `Workflows` / `Security` with `#[serde(default)]`.
-- [ ] Path `data/gsv_settings.json`. Missing file → empty defaults, `ok:true`, `token_set:false`.
-- [ ] Env `GSV_TELEGRAM_BOT_TOKEN` sets `token_set` without writing the env into the file.
+- [x] `SettingsFile` / `Godfather` / `Workflows` / `Security` with `#[serde(default)]`.
+- [x] Path `data/gsv_settings.json`. Missing file → empty defaults, `ok:true`, `token_set:false`.
+- [x] Env `GSV_TELEGRAM_BOT_TOKEN` sets `token_set` without writing the env into the file.
 
 ### Task 3: HTTP GET/POST redacted (PH-S2301)
 
-- [ ] `GET /api/settings` never contains `bot_token`.
-- [ ] `POST /api/settings` loopback CSRF; stores token; response redacted.
-- [ ] Unit: round-trip token in file, JSON wire omits it.
+- [x] `GET /api/settings` never contains `bot_token`.
+- [x] `POST /api/settings` loopback CSRF; stores token; response redacted.
+- [x] Unit: round-trip token in file, JSON wire omits it.
 
 ### Task 4: Galaxy card (PH-S2302)
 
-- [ ] `render_settings`; `CARD_NAMES` includes `settings`.
-- [ ] Empty + error HTML markers. Stand-smoke card list if required.
+- [x] `render_settings`; `CARD_NAMES` includes `settings`.
+- [x] Empty + error HTML markers. Stand-smoke card list if required.
 
 ### Task 5: MCP read + resource (PH-S2303)
 
-- [ ] `gsv_settings` tool; `gsv://docs/settings-telegram`.
-- [ ] `gsv_drain` prompt: after products scan, read this spec; drain 166 not 167.
+- [x] `gsv_settings` tool; `gsv://docs/settings-telegram`.
+- [x] `gsv_drain` prompt: after products scan, read this spec; drain 166 not 167.
 
 ### Task 6: Contracts (PH-S2304)
 
-- [ ] mcp unit + `gsv_mcp_contracts` + settings tests (redact, env override, unknown POST field ignored).
+- [x] mcp unit + `gsv_mcp_contracts` + settings tests (redact, env override, unknown POST field ignored).
 
 ### Task 7: Docs (PH-S2305)
 
-- [ ] BOXES / SERVER / ARCHITECTURE / MCP_OPENBOT / README / this spec **Landed** for 166.
+- [x] BOXES / SERVER / ARCHITECTURE / MCP_OPENBOT / README / this spec **Landed** for 166.
 
 ### Task 8: Ratio hold (PH-S2306)
 
-- [ ] `cargo fmt -- --check` · `cargo clippy --all-targets` · `--stretch-96` ≥ 96%.
+- [x] `cargo fmt -- --check` · `cargo clippy --all-targets` · `--stretch-96` ≥ 96%.
 
 ### Task 9: Tests (PH-S2307)
 
-- [ ] `cargo test` green. Do not kill live copy.
+- [x] `cargo test` green. Do not kill live copy.
 
 ### Task 10: Band close (PH-S2308)
 
-- [ ] `cargo xtask bump --band 166` + fingerprint + one commit + push.
-- [ ] HANDOFF/NEXT: next = **167** (Godfather bind), not 168.
+- [x] `cargo xtask bump --band 166` + fingerprint + one commit + push.
+- [x] HANDOFF/NEXT: next = **167** (Godfather bind), not 168.
 
 ---
 

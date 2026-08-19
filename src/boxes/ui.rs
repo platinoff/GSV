@@ -115,6 +115,7 @@ pub const UI_GROUPS: [UiGroup; 4] = [
             "sw",
             "watchdog",
             "mcp",
+            "settings",
             "update",
             "tracker",
             "sli",
@@ -991,6 +992,87 @@ pub fn render_mcp(d: &Value) -> String {
     out
 }
 
+/// Settings / Godfather card (`/api/settings`) — never echoes the bot token.
+pub fn render_settings(d: &Value) -> String {
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let token_set = b(&d["token_set"]);
+    let source = s(&d["source"]);
+    let channel = s(&d["godfather"]["channel_id"]);
+    let users = arr(&d["godfather"]["allowed_user_ids"]);
+    let enabled = arr(&d["workflows"]["enabled"]);
+    let empty = !token_set && channel.is_empty();
+    let mut out = String::new();
+    if empty {
+        out.push_str(&empty_html("settings"));
+    }
+    let token_bit = if token_set { "set" } else { "unset" };
+    let src_bit = if source.is_empty() { "none" } else { &source };
+    out.push_str(&format!(
+        "<div class='dim'>Godfather · token <kbd>{}</kbd> · source <kbd>{}</kbd> · file <kbd>data/gsv_settings.json</kbd></div>",
+        token_bit,
+        esc(src_bit)
+    ));
+    let user_join = users
+        .iter()
+        .filter_map(|v| v.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
+    let wf_join = enabled
+        .iter()
+        .filter_map(|v| v.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
+    out.push_str(&tab(
+        &["field", "value"],
+        vec![
+            vec![
+                "channel".into(),
+                if channel.is_empty() {
+                    "<span class='dim'>—</span>".into()
+                } else {
+                    format!("<kbd>{}</kbd>", esc(&channel))
+                },
+            ],
+            vec![
+                "allowed users".into(),
+                if user_join.is_empty() {
+                    "<span class='dim'>—</span>".into()
+                } else {
+                    esc(&user_join)
+                },
+            ],
+            vec![
+                "workflows".into(),
+                if wf_join.is_empty() {
+                    "<span class='dim'>—</span>".into()
+                } else {
+                    esc(&wf_join)
+                },
+            ],
+        ],
+    ));
+    let tok_ph = if token_set {
+        "token set — paste to replace"
+    } else {
+        "bot token"
+    };
+    out.push_str(&format!(
+        "<div class='dim'>owner POST · never shown again</div>\
+<input id='setChannel' type='text' value='{}' placeholder='Godfather channel id' aria-label='Godfather channel id'>\
+<input id='setUsers' type='text' value='{}' placeholder='allowed user ids' aria-label='allowed Telegram user ids'>\
+<input id='setToken' type='password' value='' placeholder='{}' aria-label='Godfather bot token' autocomplete='off'>\
+<input id='setWorkflows' type='text' value='{}' placeholder='drain, ticket-claim' aria-label='co-workflow ids'>\
+<button type='button' data-action='settings-save'>Save</button>",
+        esc(&channel),
+        esc(&user_join),
+        esc(tok_ph),
+        esc(&wf_join)
+    ));
+    out
+}
+
 /// Health card (`/api/health`).
 pub fn render_health(d: &Value) -> String {
     if let Some(msg) = not_ok(d) {
@@ -1707,6 +1789,7 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
         "watchdog" => Some(render_watchdog(d)),
         "usage" => Some(render_usage(d)),
         "mcp" => Some(render_mcp(d)),
+        "settings" => Some(render_settings(d)),
         "update" => Some(render_update(d)),
         "ide" => Some(render_ide(d)),
         "vision" => Some(render_vision(d)),
@@ -1729,7 +1812,7 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
 }
 
 /// Server-rendered card names (stable contract for `/api/ui/card/:name`).
-pub const CARD_NAMES: [&str; 37] = [
+pub const CARD_NAMES: [&str; 38] = [
     "tracker",
     "sli",
     "toolchain",
@@ -1750,6 +1833,7 @@ pub const CARD_NAMES: [&str; 37] = [
     "watchdog",
     "usage",
     "mcp",
+    "settings",
     "update",
     "ide",
     "vision",
@@ -2141,10 +2225,11 @@ mod tests {
         assert!(render_card("fullscreen", &d).is_some());
         assert!(render_card("node-search", &d).is_some());
         assert!(render_card("mcp", &d).is_some());
+        assert!(render_card("settings", &d).is_some());
         assert!(render_card("products", &d).is_some());
         assert!(render_card("fingerprints", &d).is_some());
         assert!(render_card("nope", &d).is_none());
-        assert_eq!(CARD_NAMES.len(), 37);
+        assert_eq!(CARD_NAMES.len(), 38);
         assert!(render_card("usage", &d).is_some());
         assert!(render_card("sw", &d).is_some());
         assert!(render_card("watchdog", &d).is_some());
@@ -2209,6 +2294,20 @@ mod tests {
         assert!(mcp.contains("sandbox <kbd>S:/rust/GSV</kbd>"), "{mcp}");
         assert!(render_mcp(&serde_json::json!({ "ok": false, "error": "down" })).contains("down"));
         assert!(render_mcp(&serde_json::json!({})).contains("mcp — no data"));
+        let settings = render_settings(&serde_json::json!({
+            "ok": true,
+            "token_set": false,
+            "source": "none",
+            "godfather": { "channel_id": "", "allowed_user_ids": [] },
+            "workflows": { "enabled": [] }
+        }));
+        assert!(settings.contains("settings — no data"), "{settings}");
+        assert!(
+            settings.contains("data-action='settings-save'"),
+            "{settings}"
+        );
+        assert!(!settings.contains("bot_token"), "{settings}");
+        assert!(render_settings(&serde_json::json!({ "ok": false, "error": "io" })).contains("io"));
     }
 
     #[test]

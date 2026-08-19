@@ -166,6 +166,7 @@ async fn post_initialize_and_tools_list() {
     assert!(names.contains(&"gsv_xtask"));
     assert!(names.contains(&"gsv_disk"));
     assert!(names.contains(&"gsv_usage"));
+    assert!(names.contains(&"gsv_settings"));
     assert_eq!(names.len(), mcp::tool_names().len());
 }
 
@@ -569,7 +570,7 @@ async fn logging_and_completion_over_http() {
     let values = complete["result"]["completion"]["values"]
         .as_array()
         .expect("values");
-    assert_eq!(values.len(), 7);
+    assert_eq!(values.len(), 8);
     assert!(values
         .iter()
         .all(|v| v.as_str().unwrap_or("").starts_with("gsv://docs/")));
@@ -579,6 +580,9 @@ async fn logging_and_completion_over_http() {
     assert!(values
         .iter()
         .any(|v| v.as_str() == Some("gsv://docs/omni-catalog")));
+    assert!(values
+        .iter()
+        .any(|v| v.as_str() == Some("gsv://docs/settings-telegram")));
 
     let (status, rejected) = mcp_post(
         &app,
@@ -1118,6 +1122,9 @@ async fn drain_prompt_names_always_on_tools() {
     assert!(text.contains("gsv_products_select"), "{text}");
     assert!(text.contains("gsv_watchdog"), "{text}");
     assert!(text.contains("gsv_usage"), "{text}");
+    assert!(text.contains("gsv_settings"), "{text}");
+    assert!(text.contains("gsv://docs/settings-telegram"), "{text}");
+    assert!(text.contains("Band 166"), "{text}");
     assert!(text.contains("gsv://docs/next"), "{text}");
     assert!(text.contains("http://127.0.0.1:9999/mcp"), "{text}");
     assert!(text.contains("S:/rust/GSV"), "{text}");

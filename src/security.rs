@@ -6,6 +6,7 @@
 //! frame-deny headers; POST bodies are capped at [`MAX_BODY_BYTES`].
 
 /// JSON snapshots served from `GET /data/{file}` (aliases map onto these).
+/// Secrets (`omni.toml`, `gsv_settings.json`) are not on this list.
 pub const DATA_FILES: &[&str] = &[
     "gsv_tracker.json",
     "gsv_sli.json",
