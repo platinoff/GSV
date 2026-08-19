@@ -1195,11 +1195,21 @@ pub fn render_tickets(d: &Value) -> String {
                         esc(&id)
                     )
                 } else if col == "in_progress" && !id.is_empty() {
+                    let until = u(&t["lease_until"]);
+                    let lease_bit = if until == 0 {
+                        "lease —".to_string()
+                    } else {
+                        format!("lease <kbd>{until}</kbd>")
+                    };
                     format!(
                         "<button type='button' data-action='tickets-done' data-ticket-id='{}'>done</button> \
-<button type='button' data-action='tickets-error' data-ticket-id='{}'>error</button>",
+<button type='button' data-action='tickets-error' data-ticket-id='{}'>error</button> \
+<button type='button' data-action='tickets-reclaim' data-ticket-id='{}'>reclaim</button> \
+<span class='dim'>{}</span>",
                         esc(&id),
-                        esc(&id)
+                        esc(&id),
+                        esc(&id),
+                        lease_bit
                     )
                 } else {
                     format!("<kbd>{}</kbd>", esc(&id))

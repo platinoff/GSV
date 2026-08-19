@@ -522,6 +522,7 @@ fn enable_squad(data: &Path) {
             },
             tickets: settings::TicketsSettings {
                 mode: "squad".into(),
+                ..Default::default()
             },
             ..Default::default()
         },
@@ -718,7 +719,195 @@ fn mcp_tools_include_tickets_not_bus() {
     assert!(mcp::tool_names().contains(&"gsv_tickets_done"));
     assert!(mcp::tool_names().contains(&"gsv_tickets_error"));
     assert!(mcp::tool_names().contains(&"gsv_tickets_presence"));
+    assert!(mcp::tool_names().contains(&"gsv_tickets_reclaim"));
     assert!(mcp::tool_names().contains(&"gsv_telegram_bus_send"));
     assert!(!mcp::tool_names().contains(&"gsv_telegram_create_ticket"));
-    assert_eq!(mcp::tool_names().len(), 46);
+    assert_eq!(mcp::tool_names().len(), 47);
+}
+
+fn write_stale_wip(kit: &Path, id: &str, actor: &str, lease_until: u64) {
+    let row = json!({
+        "id": id,
+        "ts": "2026-08-19T00:00:00Z",
+        "title": "stale lease",
+        "body": "",
+        "status": "in_progress",
+        "product": "gsv",
+        "claimed_by": {
+            "actor": actor,
+            "ide": "cursor",
+            "model": "grok-4.6",
+            "agent": "worker"
+        },
+        "lease_until": lease_until
+    });
+    std::fs::write(tickets::tickets_path(kit), format!("{row}\n")).expect("stale jsonl");
+}
+
+#[test]
+fn claim_sets_default_lease() {
+    let kit = temp_kit("lease-set");
+    enable_claim(&kit.join("data"));
+    let created = tickets::create(&kit, "lease me", "", "gsv").expect("create");
+    let claimed = tickets::claim(&kit, &kit.join("data"), &created.id, who()).expect("claim");
+    let until = claimed.lease_until.expect("lease_until");
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    assert!(
+        until >= now + tickets::DEFAULT_LEASE_SECS - 2,
+        "until={until} now={now}"
+    );
+    assert!(
+        until <= now + tickets::DEFAULT_LEASE_SECS + 2,
+        "until={until} now={now}"
+    );
+}
+
+#[test]
+fn stale_in_progress_reclaims_to_open_on_list() {
+    let kit = temp_kit("lease-expire");
+    enable_claim(&kit.join("data"));
+    write_stale_wip(&kit, "t-stale", "agent", 1);
+    let store = tickets::new_presence_store();
+    let listed = tickets::wire_list(&kit, &kit.join("data"), &store);
+    let row = listed["tickets"]
+        .as_array()
+        .expect("arr")
+        .iter()
+        .find(|t| t["id"] == "t-stale")
+        .expect("row");
+    assert_eq!(row["status"], "open");
+    assert!(row["claimed_by"].is_null() || row.get("claimed_by").is_none());
+    assert!(row.get("lease_until").is_none() || row["lease_until"].is_null());
+    let claims_raw = std::fs::read_to_string(tickets::claims_path(&kit)).expect("claims");
+    assert!(
+        claims_raw.contains("\"kind\":\"reclaimed\""),
+        "{claims_raw}"
+    );
+}
+
+#[test]
+fn unexpired_lease_stays_in_progress() {
+    let kit = temp_kit("lease-fresh");
+    enable_claim(&kit.join("data"));
+    let far = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+        + 10_000;
+    write_stale_wip(&kit, "t-fresh", "agent", far);
+    let store = tickets::new_presence_store();
+    let listed = tickets::wire_list(&kit, &kit.join("data"), &store);
+    let row = listed["tickets"]
+        .as_array()
+        .expect("arr")
+        .iter()
+        .find(|t| t["id"] == "t-fresh")
+        .expect("row");
+    assert_eq!(row["status"], "in_progress");
+}
+
+#[test]
+fn presence_renews_holder_lease() {
+    let kit = temp_kit("lease-renew");
+    enable_claim(&kit.join("data"));
+    write_stale_wip(&kit, "t-hold", "agent", 50);
+    let store = tickets::new_presence_store();
+    let listed = tickets::wire_presence(
+        &kit,
+        &kit.join("data"),
+        &store,
+        &json!({ "actor": "agent", "ide": "cursor", "agent": "worker" }),
+    );
+    assert_eq!(listed["ok"], true);
+    let tickets = tickets::list(&kit);
+    let row = tickets["tickets"]
+        .as_array()
+        .expect("arr")
+        .iter()
+        .find(|t| t["id"] == "t-hold")
+        .expect("row");
+    assert_eq!(row["status"], "in_progress");
+    let until = row["lease_until"].as_u64().expect("lease");
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    assert!(until >= now + tickets::DEFAULT_LEASE_SECS - 2, "{until}");
+}
+
+#[tokio::test]
+async fn http_and_mcp_reclaim_stale() {
+    let kit = temp_kit("lease-http");
+    enable_claim(&kit.join("data"));
+    write_stale_wip(&kit, "t-http", "agent", 1);
+    let app = app_kit(kit);
+
+    let (status, json) = post_json(
+        &app,
+        "/api/tickets/reclaim",
+        json!({ "id": "t-http" }),
+        Some("http://127.0.0.1:9999"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{json}");
+    assert_eq!(json["ok"], true);
+    assert_eq!(json["ticket"]["status"], "open");
+
+    let (cstatus, csrf) = post_json(
+        &app,
+        "/api/tickets/reclaim",
+        json!({ "id": "t-http" }),
+        Some("https://example.com"),
+        Some("cross-site"),
+    )
+    .await;
+    assert_eq!(cstatus, StatusCode::FORBIDDEN);
+    assert_eq!(csrf["ok"], false);
+
+    let mcp_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::POST)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": 9,
+                        "method": "tools/call",
+                        "params": { "name": "gsv_tickets_reclaim", "arguments": {} }
+                    })
+                    .to_string(),
+                ))
+                .expect("req"),
+        )
+        .await
+        .expect("res");
+    let bytes = axum::body::to_bytes(mcp_res.into_body(), usize::MAX)
+        .await
+        .expect("body");
+    let mcp_json: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+    assert_eq!(mcp_json["result"]["isError"], false, "{mcp_json}");
+}
+
+#[test]
+fn card_shows_lease_and_reclaim() {
+    let board = render_card(
+        "tickets",
+        &json!({
+            "ok": true,
+            "lease_secs": 300,
+            "tickets": [
+                {"id":"t-wip","title":"WIP","status":"in_progress","lease_until": 9_999_999_999u64}
+            ]
+        }),
+    )
+    .expect("board");
+    assert!(board.contains("lease"), "{board}");
+    assert!(board.contains("data-action='tickets-reclaim'"), "{board}");
 }

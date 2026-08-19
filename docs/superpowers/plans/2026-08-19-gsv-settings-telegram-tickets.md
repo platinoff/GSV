@@ -1,6 +1,6 @@
 # GSV settings / Telegram / tickets Implementation Plan
 
-> **For agentic workers:** Owner 2026-08-19: bands **166–169** landed; owner pick **170** (ticket scenarios + solo/squad) landed this drain. Next `абракадабра` on **gsv** is an **owner pick** after a warnings-first scan. Spec travels with the plan: [`GSV_SETTINGS_TELEGRAM.md`](../gsv/GSV_SETTINGS_TELEGRAM.md).
+> **For agentic workers:** Owner 2026-08-19: bands **166–170** landed; owner pick **171** (ticket lease + stale reclaim) landed this drain. Next `абракадабра` on **gsv** is an **owner pick** after a warnings-first scan. Spec travels with the plan: [`GSV_SETTINGS_TELEGRAM.md`](../gsv/GSV_SETTINGS_TELEGRAM.md).
 
 **Goal:** Queue owner-picked GSV settings (Godfather channel + secret store + co-workflows), then Telegram bind, ticket board with MCP claim, then MCP-to-MCP Telegram bus. Band **166** is settings only so secrets land correctly before any Bot API call.
 

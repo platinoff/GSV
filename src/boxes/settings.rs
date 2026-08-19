@@ -82,18 +82,43 @@ fn default_ticket_mode() -> String {
     "solo".to_string()
 }
 
+/// Default `in_progress` lease (seconds).
+pub const DEFAULT_TICKET_LEASE_SECS: u64 = 300;
+/// Floor for owner-configured lease.
+pub const MIN_TICKET_LEASE_SECS: u64 = 60;
+/// Cap for owner-configured lease.
+pub const MAX_TICKET_LEASE_SECS: u64 = 3600;
+
+fn default_lease_secs() -> u64 {
+    DEFAULT_TICKET_LEASE_SECS
+}
+
 /// Ticket collaboration mode (`solo` | `squad`). Default solo.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TicketsSettings {
     #[serde(default = "default_ticket_mode")]
     pub mode: String,
+    /// `in_progress` lease length. 0 / missing → [`DEFAULT_TICKET_LEASE_SECS`].
+    #[serde(default = "default_lease_secs")]
+    pub lease_secs: u64,
 }
 
 impl Default for TicketsSettings {
     fn default() -> Self {
         Self {
             mode: default_ticket_mode(),
+            lease_secs: default_lease_secs(),
         }
+    }
+}
+
+/// Effective lease length, clamped.
+pub fn ticket_lease_secs(file: &SettingsFile) -> u64 {
+    let n = file.tickets.lease_secs;
+    if n == 0 {
+        DEFAULT_TICKET_LEASE_SECS
+    } else {
+        n.clamp(MIN_TICKET_LEASE_SECS, MAX_TICKET_LEASE_SECS)
     }
 }
 
@@ -215,6 +240,13 @@ pub fn apply_patch(file: &mut SettingsFile, patch: &Value) {
                 file.tickets.mode = m;
             }
         }
+        if let Some(secs) = tix.get("lease_secs").and_then(Value::as_u64) {
+            file.tickets.lease_secs = if secs == 0 {
+                DEFAULT_TICKET_LEASE_SECS
+            } else {
+                secs.clamp(MIN_TICKET_LEASE_SECS, MAX_TICKET_LEASE_SECS)
+            };
+        }
     }
 }
 
@@ -240,7 +272,10 @@ pub fn redacted_wire(file: &SettingsFile, env: Option<&str>) -> Value {
         },
         "workflows": { "enabled": file.workflows.enabled },
         "security": { "redact": file.security.redact },
-        "tickets": { "mode": file.tickets.mode },
+        "tickets": {
+            "mode": file.tickets.mode,
+            "lease_secs": ticket_lease_secs(file),
+        },
     })
 }
 
@@ -403,6 +438,10 @@ mod tests {
         apply_patch(&mut file, &json!({ "tickets": { "mode": "solo" } }));
         assert_eq!(file.tickets.mode, "solo");
         assert_eq!(ticket_mode(&file), "solo");
+        apply_patch(&mut file, &json!({ "tickets": { "lease_secs": 12 } }));
+        assert_eq!(file.tickets.lease_secs, MIN_TICKET_LEASE_SECS);
+        apply_patch(&mut file, &json!({ "tickets": { "lease_secs": 900 } }));
+        assert_eq!(ticket_lease_secs(&file), 900);
     }
 
     #[test]

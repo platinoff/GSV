@@ -1,4 +1,4 @@
-//! Ticket board + MCP claim / solo-squad dispatch (bands 168 + 170).
+//! Ticket board + MCP claim / solo-squad dispatch (bands 168 + 170 + 171).
 //!
 //! Source of truth: `{kit}/docs/gsv/tickets.jsonl` (git-tracked, no secrets).
 //! Claims/events append `{kit}/docs/gsv/ticket_claims.jsonl` — sibling of
@@ -7,6 +7,7 @@
 //!
 //! Band 170: scenario catalog, registered-product create, solo vs squad
 //! assignment among online MCP presence, and claimed/done/error events.
+//! Band 171: `lease_until` on `in_progress`; stale reclaim → `open` + `kind:reclaimed`.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -27,6 +28,9 @@ pub type PresenceStore = Mutex<HashMap<String, Presence>>;
 
 /// Heartbeats older than this are offline.
 pub const PRESENCE_TTL_SECS: u64 = 120;
+
+/// Default `in_progress` lease (seconds). Settings `tickets.lease_secs` may override.
+pub const DEFAULT_LEASE_SECS: u64 = settings::DEFAULT_TICKET_LEASE_SECS;
 
 /// Canonical tickets JSONL (kit repo, not `data/`).
 pub fn tickets_path(repo_root: &Path) -> PathBuf {
@@ -119,6 +123,10 @@ pub struct Ticket {
     pub product: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub workflow: String,
+    /// Unix seconds when an `in_progress` lease expires. Missing on legacy rows
+    /// is treated as already stale.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lease_until: Option<u64>,
 }
 
 fn default_product() -> String {
@@ -360,6 +368,82 @@ pub fn pick_assignee(mode: TicketMode, online: &[Presence], seed: u64) -> Option
     }
 }
 
+fn same_worker(a: &ClaimedBy, b: &ClaimedBy) -> bool {
+    a.actor == b.actor && a.ide == b.ide && a.agent == b.agent
+}
+
+fn lease_is_expired(t: &Ticket, now: u64) -> bool {
+    if t.status != "in_progress" {
+        return false;
+    }
+    match t.lease_until {
+        Some(until) => until <= now,
+        None => true,
+    }
+}
+
+fn clear_claim(ticket: &mut Ticket) {
+    ticket.status = "open".into();
+    ticket.claimed_by = None;
+    ticket.lease_until = None;
+}
+
+/// `in_progress` rows whose lease has passed (or never had one) → `open` + `reclaimed`.
+pub fn reclaim_stale(repo_root: &Path, data_dir: &Path) -> Result<Vec<Ticket>, TicketError> {
+    let file = settings::load_result(data_dir).map_err(TicketError::Io)?;
+    if !settings::ticket_claim_enabled(&file) {
+        return Ok(Vec::new());
+    }
+    let path = tickets_path(repo_root);
+    let mut tickets = read_tickets(&path)?;
+    let now = unix_now();
+    let mut out = Vec::new();
+    for ticket in &mut tickets {
+        if !lease_is_expired(ticket, now) {
+            continue;
+        }
+        let who = ticket.claimed_by.clone().unwrap_or_else(resolve_claimed_by);
+        clear_claim(ticket);
+        append_event(repo_root, &ticket.id, &who, "reclaimed", "lease expired")?;
+        out.push(ticket.clone());
+    }
+    if !out.is_empty() {
+        write_tickets(&path, &tickets)?;
+    }
+    Ok(out)
+}
+
+/// Extend leases for `in_progress` tickets held by `who` (heartbeat grace).
+pub fn renew_leases(
+    repo_root: &Path,
+    data_dir: &Path,
+    who: &ClaimedBy,
+) -> Result<usize, TicketError> {
+    let file = settings::load_result(data_dir).map_err(TicketError::Io)?;
+    let secs = settings::ticket_lease_secs(&file);
+    let path = tickets_path(repo_root);
+    let mut tickets = read_tickets(&path)?;
+    let until = unix_now().saturating_add(secs);
+    let mut n = 0usize;
+    for ticket in &mut tickets {
+        if ticket.status != "in_progress" {
+            continue;
+        }
+        let Some(by) = &ticket.claimed_by else {
+            continue;
+        };
+        if !same_worker(by, who) {
+            continue;
+        }
+        ticket.lease_until = Some(until);
+        n += 1;
+    }
+    if n > 0 {
+        write_tickets(&path, &tickets)?;
+    }
+    Ok(n)
+}
+
 fn assign_seed() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -377,6 +461,7 @@ pub fn list(repo_root: &Path) -> Value {
 
 /// Board wire: tickets + mode + online + scenarios + recent events.
 pub fn wire_list(repo_root: &Path, data_dir: &Path, presence: &PresenceStore) -> Value {
+    let _ = reclaim_stale(repo_root, data_dir);
     let mut v = list(repo_root);
     if v.get("ok").and_then(Value::as_bool) != Some(true) {
         return v;
@@ -389,6 +474,7 @@ pub fn wire_list(repo_root: &Path, data_dir: &Path, presence: &PresenceStore) ->
         events = events.split_off(events.len() - 8);
     }
     v["mode"] = json!(mode.as_str());
+    v["lease_secs"] = json!(settings::ticket_lease_secs(&file));
     v["online"] = json!(online);
     v["scenarios"] = json!(load_scenarios(repo_root));
     v["events"] = json!(events);
@@ -438,6 +524,7 @@ fn create_with_workflow(
         claimed_by: None,
         product: product.to_string(),
         workflow: workflow.trim().to_string(),
+        lease_until: None,
     };
     tickets.push(ticket.clone());
     write_tickets(&path, &tickets)?;
@@ -533,6 +620,12 @@ fn set_status(
     }
     tickets[pos].status = step.to.into();
     tickets[pos].claimed_by = Some(who.clone());
+    if step.to == "in_progress" {
+        let secs = settings::ticket_lease_secs(&file);
+        tickets[pos].lease_until = Some(unix_now().saturating_add(secs));
+    } else {
+        tickets[pos].lease_until = None;
+    }
     let updated = tickets[pos].clone();
     write_tickets(&path, &tickets)?;
     append_event(repo_root, &updated.id, &who, step.kind, step.note)?;
@@ -560,6 +653,7 @@ pub fn claim_with(
     who: ClaimedBy,
     presence: Option<&PresenceStore>,
 ) -> Result<Ticket, TicketError> {
+    let _ = reclaim_stale(repo_root, data_dir);
     set_status(
         repo_root,
         data_dir,
@@ -635,6 +729,7 @@ pub fn try_dispatch(
     if !settings::ticket_claim_enabled(&file) {
         return Ok(None);
     }
+    let _ = reclaim_stale(repo_root, data_dir);
     let online = online_now(presence);
     let mode = resolve_mode(&file);
     let Some(who) = pick_assignee(mode, &online, seed).map(Presence::as_claimed) else {
@@ -753,8 +848,13 @@ pub fn wire_error(
     Ok(json!({ "ok": true, "ticket": ticket }))
 }
 
-/// HTTP POST presence wire.
-pub fn wire_presence(presence: &PresenceStore, body: &Value) -> Value {
+/// HTTP POST presence wire (heartbeat + renew leases for this worker).
+pub fn wire_presence(
+    repo_root: &Path,
+    data_dir: &Path,
+    presence: &PresenceStore,
+    body: &Value,
+) -> Value {
     let mut who = resolve_claimed_by();
     if let Some(a) = body.get("actor").and_then(Value::as_str) {
         if !a.trim().is_empty() {
@@ -777,7 +877,42 @@ pub fn wire_presence(presence: &PresenceStore, body: &Value) -> Value {
         }
     }
     let online = heartbeat(presence, &who);
+    let _ = renew_leases(repo_root, data_dir, &who);
     json!({ "ok": true, "online": online })
+}
+
+/// HTTP POST reclaim wire. Empty id → all stale. Else that `in_progress` row.
+pub fn wire_reclaim(repo_root: &Path, data_dir: &Path, body: &Value) -> Result<Value, TicketError> {
+    let file = settings::load_result(data_dir).map_err(TicketError::Io)?;
+    if !settings::ticket_claim_enabled(&file) {
+        return Err(TicketError::Forbidden);
+    }
+    let id = body.get("id").and_then(Value::as_str).unwrap_or("").trim();
+    if id.is_empty() {
+        let tickets = reclaim_stale(repo_root, data_dir)?;
+        return Ok(json!({ "ok": true, "tickets": tickets }));
+    }
+    let path = tickets_path(repo_root);
+    let mut tickets = read_tickets(&path)?;
+    let pos = tickets
+        .iter()
+        .position(|t| t.id == id)
+        .ok_or(TicketError::NotFound)?;
+    if tickets[pos].status != "in_progress" {
+        return Err(TicketError::BadRequest(format!(
+            "ticket is {}",
+            tickets[pos].status
+        )));
+    }
+    let who = tickets[pos]
+        .claimed_by
+        .clone()
+        .unwrap_or_else(resolve_claimed_by);
+    clear_claim(&mut tickets[pos]);
+    let updated = tickets[pos].clone();
+    write_tickets(&path, &tickets)?;
+    append_event(repo_root, &updated.id, &who, "reclaimed", "lease")?;
+    Ok(json!({ "ok": true, "ticket": updated }))
 }
 
 #[cfg(test)]
@@ -824,5 +959,27 @@ mod unit {
             "c"
         );
         assert!(pick_assignee(TicketMode::Squad, &[], 0).is_none());
+    }
+
+    #[test]
+    fn expired_when_missing_or_past() {
+        let mut t = Ticket {
+            id: "t".into(),
+            ts: "now".into(),
+            title: "x".into(),
+            body: String::new(),
+            status: "in_progress".into(),
+            claimed_by: None,
+            product: "gsv".into(),
+            workflow: String::new(),
+            lease_until: None,
+        };
+        assert!(lease_is_expired(&t, 100));
+        t.lease_until = Some(50);
+        assert!(lease_is_expired(&t, 100));
+        t.lease_until = Some(200);
+        assert!(!lease_is_expired(&t, 100));
+        t.status = "open".into();
+        assert!(!lease_is_expired(&t, 100));
     }
 }

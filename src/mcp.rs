@@ -392,7 +392,7 @@ pub fn tools_list() -> Vec<Value> {
         ),
         tool(
             "gsv_tickets_presence",
-            "Heartbeat this MCP as online for solo/squad assignment. Returns the current online set.",
+            "Heartbeat this MCP as online for solo/squad assignment and renew this worker's in_progress leases. Returns the current online set.",
             json!({
                 "type": "object",
                 "properties": {
@@ -400,6 +400,16 @@ pub fn tools_list() -> Vec<Value> {
                     "ide": { "type": "string" },
                     "model": { "type": "string" },
                     "agent": { "type": "string" }
+                }
+            }),
+        ),
+        tool(
+            "gsv_tickets_reclaim",
+            "Reclaim stale (or explicit id) in_progress tickets back to open and append kind=reclaimed. Requires ticket-claim. Empty id reclaims all expired leases.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "Ticket id. Omit to reclaim every expired lease." }
                 }
             }),
         ),
@@ -505,7 +515,7 @@ const RESOURCES: &[ResourceSpec] = &[
     ResourceSpec {
         uri: "gsv://docs/settings-telegram",
         name: "Settings / Telegram spec",
-        description: "Band 170 ticket solo/squad + scenarios. Settings 166 · bind 167 · tickets 168 · bus 169.",
+        description: "Band 171 ticket lease/reclaim. 170 solo/squad · 169 bus · 168 board · 167 bind · 166 settings.",
         mime: "text/markdown",
         rel: "docs/gsv/GSV_SETTINGS_TELEGRAM.md",
     },
@@ -531,7 +541,7 @@ const PROMPTS: &[PromptSpec] = &[
     PromptSpec {
         name: "gsv_drain",
         description: "Start a VDT drain: next PH-S* band after the last closed sprint.",
-        text: "Start a GSV VDT drain. Sandbox is this GSV repo (S:/rust/GSV): preview, terminal, vision, and xtask stay inside it. Registered VDT products (poolai, omniroute, …) are reached only via gsv_products / gsv_products_select / gsv_products_scan (unknown id is a tool error; no gsv_products_open). Do not install gsv_mcp_openbot as Cursor User MCP — that leaks into PoolAI windows. Keep it in GSV/.cursor/mcp.json (folder scope GSV). Cursor 3.16 still uses Streamable HTTP type=http on that folder file (never User; do not Origin-host this kit). Read gsv://docs/next, gsv://docs/rust-dev, gsv://docs/post-always-on, and gsv://docs/settings-telegram. Call gsv_xtask (task=products) or gsv_products, then gsv_products_select with the owner pick, then gsv_products_scan (id optional after select), gsv_disk, gsv_watchdog, gsv_usage, gsv_settings (redacted read; no MCP write of tokens — HTTP POST /api/settings is the owner path), gsv_telegram (read-only Godfather bind status), gsv_telegram_bus_send / gsv_telegram_bus_poll (Godfather channel envelopes; requires telegram-relay; no webhook / no Cloudflare), gsv_tickets (list the join board + mode/online/scenarios), gsv_tickets_claim {id}, gsv_tickets_create (registered product or scenario_id; solo = one MCP, squad = random online), gsv_tickets_done / gsv_tickets_error, and gsv_tickets_presence (heartbeat). Band 170 ticket solo/squad is landed. Next drain is an owner pick after a warnings-first scan. gsv_xtask task=sync (read-only vision drift). gsv_vision_sync remirrors snapshots and notifies subscribed gsv:// resources. For model routing call gsv_omni_route (task=rust|web, prefer_free) so cooldown timers skip exhausted free hosts. Cursor attaches over HTTP url http://127.0.0.1:9999/mcp (live gsv-server). Check GET /mcp crate_version vs version (version_lag); a stale live copy is why tools go missing. gsv_watchdog debug_newer means recopy after cargo test (do not kill target/live before tests). Stdio MCP is target/live/gsv-mcp.exe for OpenCode/Grok (cargo xtask live copies it; do not cargo run --bin gsv-mcp). Product tests/benches/scripts are cargo xtask / tests/*.rs / benches/*.rs — do not add .sh/.ps1/JSON harnesses. cargo xtask bump --band N locksteps the vision queue (last/next/active). Propose the next ≤10 PH-S* after the last closed band. Do not push mid-drain. Invoke cargo via MSYS2 bash.",
+        text: "Start a GSV VDT drain. Sandbox is this GSV repo (S:/rust/GSV): preview, terminal, vision, and xtask stay inside it. Registered VDT products (poolai, omniroute, …) are reached only via gsv_products / gsv_products_select / gsv_products_scan (unknown id is a tool error; no gsv_products_open). Do not install gsv_mcp_openbot as Cursor User MCP — that leaks into PoolAI windows. Keep it in GSV/.cursor/mcp.json (folder scope GSV). Cursor 3.16 still uses Streamable HTTP type=http on that folder file (never User; do not Origin-host this kit). Read gsv://docs/next, gsv://docs/rust-dev, gsv://docs/post-always-on, and gsv://docs/settings-telegram. Call gsv_xtask (task=products) or gsv_products, then gsv_products_select with the owner pick, then gsv_products_scan (id optional after select), gsv_disk, gsv_watchdog, gsv_usage, gsv_settings (redacted read; no MCP write of tokens — HTTP POST /api/settings is the owner path), gsv_telegram (read-only Godfather bind status), gsv_telegram_bus_send / gsv_telegram_bus_poll (Godfather channel envelopes; requires telegram-relay; no webhook / no Cloudflare), gsv_tickets (list the join board + mode/online/scenarios), gsv_tickets_claim {id}, gsv_tickets_create (registered product or scenario_id; solo = one MCP, squad = random online), gsv_tickets_done / gsv_tickets_error, gsv_tickets_presence (heartbeat + lease renew), and gsv_tickets_reclaim (stale in_progress → open). Band 171 ticket lease is landed. Next drain is an owner pick after a warnings-first scan. gsv_xtask task=sync (read-only vision drift). gsv_vision_sync remirrors snapshots and notifies subscribed gsv:// resources. For model routing call gsv_omni_route (task=rust|web, prefer_free) so cooldown timers skip exhausted free hosts. Cursor attaches over HTTP url http://127.0.0.1:9999/mcp (live gsv-server). Check GET /mcp crate_version vs version (version_lag); a stale live copy is why tools go missing. gsv_watchdog debug_newer means recopy after cargo test (do not kill target/live before tests). Stdio MCP is target/live/gsv-mcp.exe for OpenCode/Grok (cargo xtask live copies it; do not cargo run --bin gsv-mcp). Product tests/benches/scripts are cargo xtask / tests/*.rs / benches/*.rs — do not add .sh/.ps1/JSON harnesses. cargo xtask bump --band N locksteps the vision queue (last/next/active). Propose the next ≤10 PH-S* after the last closed band. Do not push mid-drain. Invoke cargo via MSYS2 bash.",
     },
 ];
 
@@ -592,6 +602,7 @@ const TOOL_NAMES: &[&str] = &[
     "gsv_tickets_done",
     "gsv_tickets_error",
     "gsv_tickets_presence",
+    "gsv_tickets_reclaim",
 ];
 
 /// Stable tool name list (tests / GET /mcp).
@@ -1307,9 +1318,17 @@ async fn call_tool(state: &AppState, params: &Value, session: Option<&str>) -> V
             }
         }
         "gsv_tickets_presence" => tool_ok(crate::boxes::tickets::wire_presence(
+            &state.repo_root,
+            &state.data_dir,
             &state.ticket_presence,
             &args,
         )),
+        "gsv_tickets_reclaim" => {
+            match crate::boxes::tickets::wire_reclaim(&state.repo_root, &state.data_dir, &args) {
+                Ok(v) => tool_ok(v),
+                Err(e) => tool_err(e.to_string()),
+            }
+        }
         "" => tool_err("missing tool name"),
         other => tool_err(format!("unknown tool: {other}")),
     }
@@ -1570,6 +1589,7 @@ mod tests {
             "gsv_tickets_done",
             "gsv_tickets_error",
             "gsv_tickets_presence",
+            "gsv_tickets_reclaim",
         ] {
             assert!(names.contains(&n), "missing {n}");
         }
@@ -2371,8 +2391,9 @@ mod tests {
         assert!(text.contains("gsv_tickets_claim"), "{text}");
         assert!(text.contains("gsv_tickets_create"), "{text}");
         assert!(text.contains("gsv_tickets_presence"), "{text}");
+        assert!(text.contains("gsv_tickets_reclaim"), "{text}");
         assert!(text.contains("gsv://docs/settings-telegram"), "{text}");
-        assert!(text.contains("Band 170"), "{text}");
+        assert!(text.contains("Band 171"), "{text}");
         assert!(text.contains("gsv_omni_route"), "{text}");
         assert!(text.contains("gsv://docs/next"), "{text}");
         assert!(text.contains("gsv://docs/rust-dev"), "{text}");

@@ -55,6 +55,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 168** (ticket board + MCP claim) **✅** ·
 **band 169** (Telegram bus between MCP bots) **✅** ·
 **band 170** (ticket scenarios + solo/squad MCP) **✅** ·
+**band 171** (ticket lease + stale reclaim) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -1104,6 +1105,23 @@ Owner pick 2026-08-19: place ticket scenarios on the Galaxy board; MCP works sol
 | **PH-S2346** | Bench | `benches/gsv_dev.rs` pick_assignee + create/claim/done — **✅** |
 | **PH-S2347** | Tests | `gsv_tickets_contracts` solo/squad/scenario/done/error — **✅** |
 | **PH-S2348** | Band close | `--band 170` + fingerprint; one commit + push — **✅** |
+
+## Спринти (band 171) — ticket lease + stale reclaim ✅
+
+Owner pick 2026-08-19: `in_progress` tickets get a lease (`lease_until`); heartbeat renews the holder's lease; expired (or explicit) reclaim returns the row to `open` with event `kind:reclaimed`. Spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md).
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2349** | Scope | owner pick; lease + reclaim; do not reopen 166–170 — **✅** |
+| **PH-S2350** | Schema | `Ticket.lease_until`; settings `tickets.lease_secs` default 300 (clamp 60–3600) — **✅** |
+| **PH-S2351** | Claim | claim/assign sets lease; done/error clears it — **✅** |
+| **PH-S2352** | Renew | `gsv_tickets_presence` / POST presence renews this worker's WIP leases — **✅** |
+| **PH-S2353** | Auto-reclaim | `wire_list` / claim reclaims expired; event `reclaimed` — **✅** |
+| **PH-S2354** | HTTP + MCP | `POST /api/tickets/reclaim`; `gsv_tickets_reclaim` → **47** tools — **✅** |
+| **PH-S2355** | Galaxy | in_progress shows lease + reclaim button; CSRF — **✅** |
+| **PH-S2356** | Contracts | expire / renew / unexpired / MCP reclaim — **✅** |
+| **PH-S2357** | Ratio + tests | fmt/clippy/`cargo test`/`--stretch-96`; keep live — **✅** |
+| **PH-S2358** | Band close | `--band 171` + fingerprint; one commit + push; next = owner pick — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

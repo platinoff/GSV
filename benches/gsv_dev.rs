@@ -51,6 +51,7 @@ fn main() {
             },
             tickets: gsv::boxes::settings::TicketsSettings {
                 mode: "squad".into(),
+                ..Default::default()
             },
             ..Default::default()
         },

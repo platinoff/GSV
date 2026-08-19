@@ -1,11 +1,11 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-08-19 (band 170 ✅ · next = **owner pick**)
+**Оновлено:** 2026-08-19 (band 171 ✅ · next = **owner pick**)
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
 **`абракадабра` / `abrakadabra`** → `cargo xtask products` → **AskQuestion на проєкти з environment**
 (не `gsv | poolai` з голови) → S0 диск/git → project scan (warnings first) →
-якщо **gsv:** settings/Telegram/tickets spec bands **166–170 ✅** (solo/squad + scenarios).
+якщо **gsv:** settings/Telegram/tickets spec bands **166–171 ✅** (lease/reclaim + solo/squad + scenarios).
 Owner pick after warnings-first scan. Speeds + Rust panel →
 vision-sync → **один commit** → **`git push` + самарі**.
 
@@ -22,16 +22,16 @@ vision queue lockstep + bump auto-advance **163 ✅**;
 Cursor 3.16.29 kit lockstep **164 ✅**;
 watchdog live copy + lockstep observability **165 ✅**;
 **band 166 ✅** settings / Godfather — [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md);
-**band 167 ✅** Telegram bind · **band 168 ✅** ticket board + MCP claim · **band 170 ✅** ticket scenarios + solo/squad MCP in the same spec. MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+**band 167 ✅** Telegram bind · **band 168 ✅** ticket board + MCP claim · **band 170 ✅** ticket scenarios + solo/squad MCP · **band 171 ✅** ticket lease + stale reclaim in the same spec. MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
 Omni catalog: [`gsv/GSV_OMNI_CATALOG.md`](gsv/GSV_OMNI_CATALOG.md).
 Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 Канон ролей: [`GSV_ROLES.md`](GSV_ROLES.md). Реєстр: [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
 
 ## Стан зараз
 
-- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–170 **✅**.
+- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–171 **✅**.
 - **Next drain (gsv):** **owner pick** after warnings-first scan. `cargo xtask bump --band N` locksteps last/next/active.
-- **Band 170:** Ticket scenarios + solo/squad MCP — `docs/gsv/ticket_scenarios.json`; registered product on create; `tickets.mode` + `ticket-squad`; presence TTL 120s; events `claimed`/`assigned`/`done`/`error`; HTTP done/error/presence; MCP **46** tools; bench `gsv_dev`.
+- **Band 171:** Ticket lease + stale reclaim — `lease_until` on `in_progress`; `tickets.lease_secs` default 300s; presence renews holder leases; GET list / claim auto-reclaim expired → `open` + `kind:reclaimed`; HTTP `POST /api/tickets/reclaim`; MCP `gsv_tickets_reclaim` (**47** tools). `CARD_NAMES` **40**.
 - **Owner live Godfather (2026-08-19):** `@GSV_OFFICIAL` + `@GsvOfficialBot`; token in `data/gsv_settings.json` (gitignored); workflows `drain, ticket-claim, telegram-relay`. Live `getMe`/`getChat`/`sendMessage` OK. Poll of the bot’s own posts is empty (Telegram); other members need BotFather `/setprivacy` → Disable.
 - **Band 169:** Telegram bus — `boxes/telegram.rs` envelope `{v:1,kind:bus,from,to?,ticket_id?,body}`; dry-run VecDeque; `GET`/`POST /api/telegram/bus` (CSRF); MCP `gsv_telegram_bus_send` / `gsv_telegram_bus_poll` (**42** tools); `telegram-relay` gate; allowlist; 2 KiB cap; 1/s rate-limit. No webhook. No Cloudflare. No create-ticket. Poll matches `@username` or numeric chat id.
 - **Band 168:** Ticket board + MCP claim — `boxes/tickets.rs`; `docs/gsv/tickets.jsonl` + `ticket_claims.jsonl`; `GET`/`POST /api/tickets` + `POST /api/tickets/claim` (CSRF; unknown 404; `ticket-claim` off 403); Galaxy ops card `tickets` (`CARD_NAMES` **40**); MCP `gsv_tickets` + `gsv_tickets_claim`.
@@ -72,7 +72,7 @@ Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 - **Band 134:** HTTP response hardening — CSP / nosniff / DENY / no-store / COOP+CORP; POST 256 KiB cap → 413 `{ok:false}`.
 - **VDT kit (band 127):** shared `.agents/skills/` + generic `.cursor/rules/` + `gsv.code-workspace` + `PRODUCTS.md`.
   Discover: `cargo xtask products` (не hardcoded `gsv | poolai`).
-- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.33%** (rust 28750 / product 28945) · **551** tests · clippy 0 · fmt clean.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.34%** (rust 30249 / product 30449) · **568** tests · clippy 0 · fmt clean.
 - **Сервер:** canon порт **9999** (`DEFAULT_PORT`; 8765 — Hyper-V reserved range).
 - **Vision rev:** **516** (band 164 `cargo xtask sync`; next `PH-S2279`).
 - **Live UI** — `gsv-server` → `http://127.0.0.1:9999/`. MCP stdio — `target/live/gsv-mcp.exe` (`cargo xtask live`).

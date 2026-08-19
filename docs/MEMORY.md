@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-19 · band 171 ✅)
+
+- **Band 171:** Ticket lease + stale reclaim. `lease_until` on `in_progress` · settings `tickets.lease_secs` default 300s (clamp 60–3600) · presence renews holder leases · GET list / claim auto-reclaim expired → `open` + `kind:reclaimed` · HTTP `POST /api/tickets/reclaim` · MCP `gsv_tickets_reclaim` (**47** tools). `CARD_NAMES` **40**.
+- **Canon:** [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md).
+- **Next drain:** owner pick after warnings-first scan.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.34%** (rust 30249 / product 30449) · **568** tests · clippy 0
+
 ## Стан (2026-08-19 · band 170 ✅)
 
 - **Band 170:** Ticket scenarios + solo/squad MCP. Catalog `docs/gsv/ticket_scenarios.json` · registered `PRODUCTS.md` product on create · `tickets.mode` solo (one MCP) / squad (random online, workflow `ticket-squad`) · presence TTL 120s · events `claimed`/`assigned`/`done`/`error` · HTTP `/api/tickets/{done,error,presence}` · MCP **46** tools · bench `gsv_dev`. `CARD_NAMES` **40**.

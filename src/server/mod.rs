@@ -108,6 +108,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/tickets/done", post(api_tickets_done))
         .route("/api/tickets/error", post(api_tickets_error))
         .route("/api/tickets/presence", post(api_tickets_presence))
+        .route("/api/tickets/reclaim", post(api_tickets_reclaim))
         .route("/api/xtask", get(api_xtask))
         .route("/api/disk", get(api_disk))
         .route("/api/tracker", get(api_tracker))
@@ -412,10 +413,19 @@ async fn api_tickets_error(State(state): State<AppState>, Json(body): Json<Value
 
 async fn api_tickets_presence(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
     Json(crate::boxes::tickets::wire_presence(
+        &state.repo_root,
+        &state.data_dir,
         &state.ticket_presence,
         &body,
     ))
     .into_response()
+}
+
+async fn api_tickets_reclaim(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
+    match crate::boxes::tickets::wire_reclaim(&state.repo_root, &state.data_dir, &body) {
+        Ok(v) => Json(v).into_response(),
+        Err(e) => err_json(ticket_http_status(&e), e.to_string()),
+    }
 }
 
 fn ticket_http_status(err: &crate::boxes::tickets::TicketError) -> StatusCode {
