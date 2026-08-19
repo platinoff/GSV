@@ -6,7 +6,7 @@
 
 ## Стан (2026-08-19 · band 169 ✅)
 
-- **Band 169:** Telegram bus between MCP bots. Envelope `{v:1,kind:bus,from,to?,ticket_id?,body}` · dry-run VecDeque · `GET`/`POST /api/telegram/bus` (CSRF) · MCP `gsv_telegram_bus_send` / `gsv_telegram_bus_poll` (**42** tools · **11** resources) · `telegram-relay` gate · allowlist · 2 KiB cap · 1/s rate-limit. No webhook. No Cloudflare. No create-ticket. `CARD_NAMES` **40** (telegram card shows last bus).
+- **Band 169:** Telegram bus between MCP bots. Envelope `{v:1,kind:bus,from,to?,ticket_id?,body}` · dry-run VecDeque · `GET`/`POST /api/telegram/bus` (CSRF) · MCP `gsv_telegram_bus_send` / `gsv_telegram_bus_poll` (**42** tools · **11** resources) · `telegram-relay` gate · allowlist · 2 KiB cap · 1/s rate-limit. Poll matches `@username` or numeric chat id. Owner live bind `@GSV_OFFICIAL` / `@GsvOfficialBot` (token gitignored). No webhook. No Cloudflare. No create-ticket. `CARD_NAMES` **40** (telegram card shows last bus).
 - **Canon:** [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md) · plan [`superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md`](superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md) **complete**.
 - **Next drain:** owner pick after warnings-first scan. Do not invent 170.
 - **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.

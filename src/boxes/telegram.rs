@@ -605,6 +605,29 @@ pub async fn bus_poll(data_dir: &Path, explicit_dry: bool, limit: Option<usize>)
     bus_poll_live(&token, &channel, n).await
 }
 
+/// Telegram `chat.id` as a decimal string (`-100…`).
+fn json_id(v: Option<&Value>) -> String {
+    match v {
+        Some(Value::Number(n)) => n.to_string(),
+        Some(Value::String(s)) => s.clone(),
+        _ => String::new(),
+    }
+}
+
+/// Godfather channel may be stored as `@GSV_OFFICIAL`; getUpdates uses numeric id.
+fn chat_is_godfather(channel: &str, chat_id: &str, chat_username: &str) -> bool {
+    let ch = channel.trim();
+    if ch.is_empty() {
+        return false;
+    }
+    if !chat_id.is_empty() && (chat_id == ch || format!("@{chat_id}") == ch) {
+        return true;
+    }
+    let want = ch.trim_start_matches('@');
+    let got = chat_username.trim().trim_start_matches('@');
+    !want.is_empty() && !got.is_empty() && want.eq_ignore_ascii_case(got)
+}
+
 async fn bus_poll_live(token: &str, channel: &str, limit: usize) -> Value {
     let offset = bus().update_offset;
     let client = match reqwest::Client::builder()
@@ -650,15 +673,16 @@ async fn bus_poll_live(token: &str, channel: &str, limit: usize) -> Value {
                 .or_else(|| item.pointer("/channel_post/text"))
                 .and_then(Value::as_str)
                 .unwrap_or("");
-            let chat = match item
-                .pointer("/message/chat/id")
-                .or_else(|| item.pointer("/channel_post/chat/id"))
-            {
-                Some(Value::Number(n)) => n.to_string(),
-                Some(Value::String(s)) => s.clone(),
-                _ => String::new(),
-            };
-            if !chat.is_empty() && chat != channel {
+            let chat_id = json_id(
+                item.pointer("/message/chat/id")
+                    .or_else(|| item.pointer("/channel_post/chat/id")),
+            );
+            let chat_username = item
+                .pointer("/message/chat/username")
+                .or_else(|| item.pointer("/channel_post/chat/username"))
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            if !chat_is_godfather(channel, &chat_id, chat_username) {
                 continue;
             }
             let Ok(parsed) = serde_json::from_str::<Value>(text) else {
@@ -694,5 +718,14 @@ mod tests {
     fn redact_replaces_token_only() {
         assert_eq!(redact("ok", ""), "ok");
         assert_eq!(redact("hit 1:abc/getMe", "1:abc"), "hit [redacted]/getMe");
+    }
+
+    #[test]
+    fn chat_is_godfather_matches_username_or_numeric() {
+        assert!(chat_is_godfather("@GSV_OFFICIAL", "-1001", "GSV_OFFICIAL"));
+        assert!(chat_is_godfather("@GSV_OFFICIAL", "-1001", "gsv_official"));
+        assert!(chat_is_godfather("-1001", "-1001", ""));
+        assert!(!chat_is_godfather("@GSV_OFFICIAL", "-1001", "other"));
+        assert!(!chat_is_godfather("@GSV_OFFICIAL", "", ""));
     }
 }
