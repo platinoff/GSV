@@ -41,7 +41,7 @@
 | `watchdog/` | live watchdog heartbeat (`GET /api/watchdog`) + bin `gsv-watchdog` + Galaxy ops card `watchdog` (band **154 ✅**) |
 | `usage/` | session token usage (`GET /api/usage`) — OmniRouter + MCP bot + OmniRoute; Galaxy studio card `usage` (band **155 ✅**) |
 | `update/` | перевірка оновлення бінарника; сигнал «Update»; offline resync |
-| `mcp/` | `gsv_mcp_openbot` JSON-RPC (stdio `target/live/gsv-mcp.exe` + Cursor HTTP `http://127.0.0.1:9999/mcp`); **36** tools + **10** `gsv://` (band **159 ✅** Cursor HTTP + session SSE hold; **158 ✅** live copy + sync `--check`; **157 ✅** omni route) |
+| `mcp/` | `gsv_mcp_openbot` JSON-RPC (stdio `target/live/gsv-mcp.exe` + Cursor HTTP `http://127.0.0.1:9999/mcp`); **36** tools + **10** `gsv://` (band **164 ✅** Cursor 3.16.29 kit lockstep; **159 ✅** Cursor HTTP + session SSE hold; **158 ✅** live copy + sync `--check`; **157 ✅** omni route) |
 
 ### UI (тонкий JS glue)
 

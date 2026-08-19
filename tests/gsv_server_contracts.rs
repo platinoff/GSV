@@ -143,6 +143,10 @@ async fn toolchain_inventory_present() {
     let entries = json["entries"].as_array().expect("entries");
     let tools: Vec<&str> = entries.iter().filter_map(|e| e["tool"].as_str()).collect();
     assert!(tools.iter().any(|t| *t == "rustc" || *t == "repo-head"));
+    assert!(
+        tools.contains(&"cursor"),
+        "toolchain must inventory Cursor: {tools:?}"
+    );
 }
 
 #[tokio::test]

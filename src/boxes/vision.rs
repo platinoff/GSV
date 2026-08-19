@@ -3784,10 +3784,15 @@ mod tests {
         assert_eq!(band_last_sprint(162), Some(2268));
         assert_eq!(band_first_sprint(163), Some(2269));
         assert_eq!(band_last_sprint(163), Some(2278));
+        assert_eq!(band_first_sprint(164), Some(2279));
+        assert_eq!(band_last_sprint(164), Some(2288));
         assert_eq!(band_first_sprint(101), None);
         let (last, next) = queue_ids_for_band(163).expect("163");
         assert_eq!(last, "PH-S2268");
         assert_eq!(next, "PH-S2269");
+        let (last, next) = queue_ids_for_band(164).expect("164");
+        assert_eq!(last, "PH-S2278");
+        assert_eq!(next, "PH-S2279");
     }
 
     #[test]

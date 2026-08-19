@@ -300,6 +300,39 @@ fn cursor_mcp_uses_live_http_url() {
 }
 
 #[test]
+fn cursor_environment_baseline_pins_316() {
+    let text = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/.cursor/rules/cursor-environment-baseline.mdc"
+    ))
+    .expect("cursor-environment-baseline.mdc");
+    assert!(
+        text.contains("**3.16.29**"),
+        "baseline must pin installed Cursor: {text}"
+    );
+    assert!(
+        !text.contains("3.13.21"),
+        "stale Cursor 3.13.21 pin: {text}"
+    );
+    assert!(text.contains("type: http"), "{text}");
+    assert!(
+        text.contains("never User") || text.contains("Never"),
+        "{text}"
+    );
+}
+
+#[test]
+fn cursor_mcp_json_is_folder_loopback_only() {
+    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/.cursor/mcp.json"))
+        .expect(".cursor/mcp.json");
+    assert!(text.contains("127.0.0.1:9999/mcp"), "{text}");
+    assert!(
+        !text.contains("cursor.com"),
+        "must not Origin-host MCP: {text}"
+    );
+}
+
+#[test]
 fn mcp_tools_omit_mutating_and_tunnel() {
     let names = mcp::tool_names();
     for forbidden in ["gsv_products_open", "gsv_tunnel", "gsv_update_apply"] {
@@ -1090,6 +1123,8 @@ async fn drain_prompt_names_always_on_tools() {
     assert!(text.contains("S:/rust/GSV"), "{text}");
     assert!(text.contains("locksteps the vision queue"), "{text}");
     assert!(text.contains("mid-drain"), "{text}");
+    assert!(text.contains("3.16"), "{text}");
+    assert!(text.contains("type=http"), "{text}");
 }
 
 #[tokio::test]

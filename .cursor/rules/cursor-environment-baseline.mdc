@@ -6,18 +6,25 @@ alwaysApply: false
 
 # Cursor environment baseline
 
-Verified on this machine (2026-07-27):
+Verified on this machine (2026-08-18):
 
-- **Cursor** **3.13.21** (`C:\Program Files\cursor\resources\app\bin\cursor.cmd`)
-- **rustc / cargo** 1.92.0 (`stable-x86_64-pc-windows-gnu`)
+- **Cursor** **3.16.29** (`C:\Program Files\cursor\resources\app\package.json`)
+- **rustc / cargo** 1.92.0 (`1.92.0-x86_64-pc-windows-gnu`; `rust-toolchain.toml` names the gnu host)
 - **git** 2.50.0 (MSYS2 UCRT64)
+
+## MCP / tools / sync (3.16)
+
+- Folder MCP only: [`.cursor/mcp.json`](../mcp.json) `type: http` + `url: http://127.0.0.1:9999/mcp` (Streamable HTTP to live `gsv-server`). Cursor 3.16 docs still accept `url` without `type`; keep `type: http`.
+- **Never** User MCP (`%USERPROFILE%/.cursor/mcp.json`) — it leaks `gsv_mcp_openbot` into PoolAI windows.
+- Do **not** Origin-host this kit; GitHub `platinoff/GSV` stays the source of truth.
+- Skills canon: [`.agents/skills/`](../../.agents/skills/). After skill edits: `cargo xtask mirrors`.
+- Vision: `cargo xtask sync` then `cargo xtask sync --check`. MCP `gsv_xtask` `{task:sync}` is `--check` only; remirror is `gsv_vision_sync`.
 
 ## Drain settings
 
 - Run Mode: **Auto-review** (not Run Everything). Steer: [`.cursor/permissions.json`](../permissions.json).
 - Chat mode for `абракадабра` / `abrakadabra`: **Agent**. Plan only for ambiguous scope.
 - Cursor Router Auto: **Balance** or **Intelligence** (not Cost) for long drain.
-- Skills canon: [`.agents/skills/`](../../.agents/skills/). Do not paste full skill bodies into rules.
 - Do not add project `sandbox.json` without OWNER (Windows VDT / MSYS2).
 
 `GITHUB_TOKEN` / `ghs_*` — treat as **opaque** (may be JWT ~520). Do not length-check in CI/scripts.

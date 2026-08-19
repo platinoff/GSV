@@ -7,7 +7,7 @@ alwaysApply: false
 # Rust Toolchain Baseline
 
 - For dependency, feature, or build config edits, preserve compatibility with installed baseline:
-  - `rustc 1.92.0`
+  - `rustc 1.92.0` (`1.92.0-x86_64-pc-windows-gnu` — `rust-toolchain.toml` must name the gnu host; channel-only `1.92.0` follows rustup's default host **msvc** and then MSYS2 `link` breaks the build)
   - `cargo 1.92.0`
   - target profile from `rust-toolchain.toml` and `.cargo/config.toml`
 

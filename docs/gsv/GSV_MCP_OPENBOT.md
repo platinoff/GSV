@@ -1,6 +1,6 @@
 # gsv_mcp_openbot — GSV as an MCP server
 
-**Status:** Implemented (band **163**, vision queue lockstep + bump auto-advance · band **162**, live crate/version lockstep · band **161**, vision lockstep + disk MiB / `--clean` keep-live · band **160**, GSV sandbox MCP · no User leak · band **159**, Cursor HTTP MCP + session SSE hold · band **158**, live stdio + sync check · band **157**, OmniRouter catalog + quota timers · band **156**, streaming usage · band **155**, session token usage · band **154**, watchdog ops card · band **153**, rust-first xtask · band **152**, `PH-S2159…S2168` ✅ · band **151**, `PH-S2149…S2158` ✅ · band 142 `PH-S2059…S2068` ✅ · band 141 `PH-S2049…S2058` ✅ · band 140 `PH-S2039…S2048` ✅ · band 139 `PH-S2029…S2038` ✅ · band 138 `PH-S2019…S2028` ✅ · band 137 `PH-S2009…S2018` ✅ · band 136 `PH-S1999…S2008` ✅ · band 135 `PH-S1989…S1998` ✅) · **Date:** 2026-08-18
+**Status:** Implemented (band **164**, Cursor 3.16.29 kit lockstep · band **163**, vision queue lockstep + bump auto-advance · band **162**, live crate/version lockstep · band **161**, vision lockstep + disk MiB / `--clean` keep-live · band **160**, GSV sandbox MCP · no User leak · band **159**, Cursor HTTP MCP + session SSE hold · band **158**, live stdio + sync check · band **157**, OmniRouter catalog + quota timers · band **156**, streaming usage · band **155**, session token usage · band **154**, watchdog ops card · band **153**, rust-first xtask · band **152**, `PH-S2159…S2168` ✅ · band **151**, `PH-S2149…S2158` ✅ · band 142 `PH-S2059…S2068` ✅ · band 141 `PH-S2049…S2058` ✅ · band 140 `PH-S2039…S2048` ✅ · band 139 `PH-S2029…S2038` ✅ · band 138 `PH-S2019…S2028` ✅ · band 137 `PH-S2009…S2018` ✅ · band 136 `PH-S1999…S2008` ✅ · band 135 `PH-S1989…S1998` ✅) · **Date:** 2026-08-18
 **Deciders:** owner
 
 GSV exposes one MCP server named **`gsv_mcp_openbot`**. OpenCode, Cursor, Grok CLI, and Grok Bot consume the **same** tools. Those products stay **clients** — they are not embedded inside `gsv-server`.
@@ -201,6 +201,8 @@ No secrets in tool output (`omni.toml` keys stay redacted). POST body cap and CS
 
 ## Horizon (band 160+)
 
+Band **164** lockstepped the kit to Cursor desktop **3.16.29**: folder `.cursor/mcp.json` stays Streamable HTTP `type: http` + loopback `url`; toolchain inventories `cursor` from `package.json`; never User MCP; do not Origin-host this kit. Tools/sync unchanged (`gsv_xtask` `{task:sync}` is `--check`; remirror is `gsv_vision_sync`).
+
 Band **160** scoped Cursor MCP to folder **GSV** (`S:/rust/GSV` sandbox; VDT products via allowlist). Do not install User MCP. Still **not** on MCP: `products/open`, `update/apply`, starting the tunnel.
 
 Band **159** attached Cursor to the live Galaxy HTTP MCP (`url` in `.cursor/mcp.json`), advertised `version`/`http_url` on `GET /mcp`, and held session GET SSE so Streamable HTTP stays up. Recopy `target/live/gsv-server.exe` after a drain or HTTP tools lag the crate. Still **not** on MCP: `products/open`, `update/apply`, starting the tunnel.
@@ -209,6 +211,6 @@ Spec: [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md). Plan: [`docs/superpowe
 
 ## See also
 
-- Roadmap sprints: [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) band 135–142 ✅ · **151 ✅** · **152 ✅** · **153 ✅** · **154 ✅** · **155 ✅** · **156 ✅** · **157 ✅** · **158 ✅** · **159 ✅** · **160 ✅** · **161 ✅** · **162 ✅** · **163 ✅**
+- Roadmap sprints: [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) band 135–142 ✅ · **151 ✅** · **152 ✅** · **153 ✅** · **154 ✅** · **155 ✅** · **156 ✅** · **157 ✅** · **158 ✅** · **159 ✅** · **160 ✅** · **161 ✅** · **162 ✅** · **163 ✅** · **164 ✅**
 - Server: [`GSV_SERVER.md`](./GSV_SERVER.md)
 - Boxes: [`GSV_BOXES.md`](./GSV_BOXES.md)

@@ -48,6 +48,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 161** (vision lockstep PH-S2249 + disk MiB + `--clean` keep-live) **✅** ·
 **band 162** (live crate/version lockstep) **✅** ·
 **band 163** (vision queue lockstep + bump auto-advance) **✅** ·
+**band 164** (Cursor 3.16.29 kit lockstep — rules / tools / MCP / sync) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -982,6 +983,23 @@ Owner pick (`абракадабра` gsv / vision-lockstep): Galaxy queue stayed
 | **PH-S2276** | Docs | RUST_DEV / BOXES / SERVER / HANDOFF / NEXT / MEMORY / roadmap — **✅** |
 | **PH-S2277** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy — **✅** |
 | **PH-S2278** | Band close | tests **489** green; `--stretch-96` **99.26%**; `--band 163` + fingerprint; one commit + push — **✅** |
+
+## Спринти (band 164) — Cursor 3.16.29 kit lockstep ✅
+
+Owner pick (`абракадабра` gsv / Cursor version update): desktop jumped **3.13.21 → 3.16.29**. Scan: folder MCP `type:http` + live `:9999/mcp` still works (36 tools); User MCP still absent; vision drift ok; kit pin and toolchain inventory lagged.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2279** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2279`; `last_sprint_closed` = `PH-S2278` — **✅** |
+| **PH-S2280** | Probe | Cursor `package.json` version **3.16.29**; toolchain `cursor` entry — **✅** |
+| **PH-S2281** | Rules | `.cursor/rules/cursor-environment-baseline.mdc` pin + MCP/sync notes — **✅** |
+| **PH-S2282** | MCP | keep folder `type:http` loopback; drain prompt names 3.16 / type=http; never User; no Origin-host — **✅** |
+| **PH-S2283** | Tools | `gsv_health` / `gsv_xtask` / `gsv_watchdog` / `gsv_products` still match Cursor 3.16 Streamable HTTP — **✅** |
+| **PH-S2284** | Sync | `gsv_xtask` `{task:sync}` `--check`; remirror `gsv_vision_sync`; `cargo xtask mirrors` — **✅** |
+| **PH-S2285** | Contracts | baseline 3.16.29 · MCP folder HTTP · toolchain cursor · queue PH-S2279 — **✅** |
+| **PH-S2286** | Docs | BOXES / ARCHITECTURE / MCP_OPENBOT / HANDOFF / NEXT / MEMORY / roadmap — **✅** |
+| **PH-S2287** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy — **✅** |
+| **PH-S2288** | Band close | tests **496** green; `--stretch-96` **99.26%**; `--band 164` + fingerprint; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

@@ -3,7 +3,7 @@
 //! Versions come from running `--version` probes (best effort, offline-safe) and
 //! from `rust-toolchain.toml` when present.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -89,6 +89,61 @@ fn toolchain_pin(repo_root: &Path) -> Option<String> {
         .map(ToOwned::to_owned)
 }
 
+/// Cursor desktop `package.json` candidates (Windows Program Files / user install / macOS).
+pub fn cursor_package_candidates() -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    if let Ok(pf) = std::env::var("ProgramFiles") {
+        out.push(PathBuf::from(pf).join("cursor/resources/app/package.json"));
+    }
+    out.push(PathBuf::from(
+        r"C:\Program Files\cursor\resources\app\package.json",
+    ));
+    if let Ok(local) = std::env::var("LOCALAPPDATA") {
+        out.push(PathBuf::from(local).join("Programs/cursor/resources/app/package.json"));
+    }
+    out.push(PathBuf::from(
+        "/Applications/Cursor.app/Contents/Resources/app/package.json",
+    ));
+    out
+}
+
+/// Parse `"version"` from Cursor's app `package.json`.
+pub fn parse_cursor_package_version(raw: &str) -> Option<String> {
+    let v: serde_json::Value = serde_json::from_str(raw).ok()?;
+    v.get("version")?
+        .as_str()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(ToOwned::to_owned)
+}
+
+/// Best-effort Cursor desktop version (app package, else `cursor --version`).
+pub fn cursor_app_version() -> Option<(String, &'static str)> {
+    for path in cursor_package_candidates() {
+        if let Ok(raw) = std::fs::read_to_string(&path) {
+            if let Some(ver) = parse_cursor_package_version(&raw) {
+                return Some((ver, "app-package"));
+            }
+        }
+    }
+    probe("cursor", &["--version"]).map(|ver| (ver, "probe"))
+}
+
+fn cursor_entry() -> ToolchainEntry {
+    match cursor_app_version() {
+        Some((version, source)) => ToolchainEntry {
+            tool: "cursor".to_string(),
+            version,
+            source: source.to_string(),
+        },
+        None => ToolchainEntry {
+            tool: "cursor".to_string(),
+            version: "not-found".to_string(),
+            source: "probe".to_string(),
+        },
+    }
+}
+
 /// Build the toolchain inventory.
 pub fn build(repo_root: &Path) -> Vec<ToolchainEntry> {
     let mut entries = Vec::new();
@@ -100,6 +155,7 @@ pub fn build(repo_root: &Path) -> Vec<ToolchainEntry> {
             source: "probe".to_string(),
         });
     }
+    entries.push(cursor_entry());
     if let Some(pin) = toolchain_pin(repo_root) {
         entries.push(ToolchainEntry {
             tool: "rust-toolchain".to_string(),
@@ -159,6 +215,47 @@ mod tests {
     #[test]
     fn probe_returns_none_for_missing_binary() {
         assert!(probe("definitely-missing-binary-xyz", &["--version"]).is_none());
+    }
+
+    #[test]
+    fn kit_rust_toolchain_names_gnu_host() {
+        let raw = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/rust-toolchain.toml"
+        ));
+        assert!(
+            raw.contains("1.92.0-x86_64-pc-windows-gnu"),
+            "channel must pin gnu host (msvc + MSYS2 link.exe breaks): {raw}"
+        );
+    }
+
+    #[test]
+    fn parse_cursor_package_version_reads_semver() {
+        let raw = r#"{"name":"Cursor","version":"3.16.29","distro":"abc"}"#;
+        assert_eq!(
+            parse_cursor_package_version(raw).as_deref(),
+            Some("3.16.29")
+        );
+        assert!(parse_cursor_package_version("{}").is_none());
+        assert!(parse_cursor_package_version("not-json").is_none());
+    }
+
+    #[test]
+    fn cursor_package_candidates_include_install_paths() {
+        let c = cursor_package_candidates();
+        assert!(
+            c.iter().any(|p| p.to_string_lossy().contains("cursor")),
+            "{c:?}"
+        );
+    }
+
+    #[test]
+    fn build_includes_cursor_entry() {
+        let dir = std::env::temp_dir().join(format!("gsv-tc-cursor-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let entries = build(&dir);
+        assert!(entries.iter().any(|e| e.tool == "cursor"), "{entries:?}");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

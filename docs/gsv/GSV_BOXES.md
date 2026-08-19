@@ -39,7 +39,7 @@ Rust модуль: `sli/` → `gsv_sli.json`.
 | clippy / rustfmt | — | toolchain |
 | MSYS2 bash | — | AGENTS.md |
 | Node / Playwright | — | `e2e/` |
-| Cursor / opencode | 3.13.21 | service |
+| Cursor / opencode | 3.16.29 | service (desktop `package.json`; toolchain `cursor` entry) |
 
 Rust модуль: `toolchain/` → `gsv_toolchain.json`.
 
@@ -126,7 +126,7 @@ Rust модуль: `omni/` (catalog.rs, config.rs, proxy.rs, quota.rs) → `GSV/
 |-----|-------------|----------|---------------|
 | Tracker | `tracker/` | `/api/tracker` | FM §5.12, logs, loc-audit |
 | SLI console | `sli/` | `/api/sli` | `bin/`, `scripts/`, `src/bin/` |
-| Toolchain | `toolchain/` | `/api/toolchain` | toolchain, env |
+| Toolchain | `toolchain/` | `/api/toolchain` | toolchain, env; **band 164:** `cursor` from desktop `package.json` |
 | IDE | `ide/` | `/api/ide/…` | opencode/cursor сесії |
 | Products | `products/` (`boxes/products.rs`) | `/api/products` · `/api/products/select` · `/api/products/open` · `/api/products/scan` | workspace ∪ sibling git ∪ kit; `registered` from PRODUCTS.md (`omniroute` band 149); scan HANDOFF fallback `AGENTS.md` / `docs/ROADMAP.md` |
 | Fingerprints | `fingerprint/` (`boxes/fingerprint.rs`) | `/api/fingerprints` | append-only `docs/gsv/fingerprints.jsonl` (actor / IDE / model / agent / time); ops card `fingerprints`; **band 154:** `model` from `GSV_MODEL` else Cursor session (`CURSOR_MODEL` / `GSV_SESSION_FILE`); else latest Cursor `renderer.log` `catalogModelId`; default `unknown` |
@@ -141,4 +141,4 @@ Rust модуль: `omni/` (catalog.rs, config.rs, proxy.rs, quota.rs) → `GSV/
 | Vision | `vision/` (`boxes/vision.rs`) | `/api/vision*` · `/assets/vision.svg` | `GSV/docs/vision/{manifest,feed,extensions}.json` → `GSV/data/gsv_*.json`; **band 163:** `cargo xtask bump --band N` locksteps `last_sprint_closed` / `next_sprint` / `active_sprint` |
 | UI fragments | `ui/` (`boxes/ui.rs`) | `/api/ui/layout` · `/api/ui/card/:name` · `/api/ui/load-palette` · `/api/ui/load-theme` | dashboard `CARD_NAMES` 37 + chrome 8 + layout `html`/`header` + live `:root` CSS; **band 156:** `.card.fullscreen img{max-height:none`; **band 155:** studio card `usage`; **band 154:** ops card `watchdog`; **band 148:** ops card `sw`; **band 146:** ops card `fingerprints`; **band 145:** ops card `products` (list/select/open/scan); **band 143:** power menu `z-index:80` above workspace, exclusive fullscreen (`data-action='card-fs'`), collapsed cards `display:none` (dock restore), `--fs-*` type scale, speed/rust SVG height 168 |
 | Stand smoke | `src/bin/gsv_http_stand_smoke.rs` | live HTTP перевірка | всі boxes + `/api/vision*` + SVG + `/api/ui/card/:name` |
-| **gsv_mcp_openbot** | `mcp.rs` + `gsv-mcp` bin | stdio live copy + `GET`/`POST`/`DELETE /mcp` + Galaxy card `/api/ui/card/mcp` | 36 box tools + 10 `gsv://` resources (band **160** GSV sandbox + no User MCP · **159** Cursor HTTP url + session SSE hold · **158** live stdio + sync check · **157** omni route) — [`GSV_OMNI_CATALOG.md`](./GSV_OMNI_CATALOG.md) · [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) |
+| **gsv_mcp_openbot** | `mcp.rs` + `gsv-mcp` bin | stdio live copy + `GET`/`POST`/`DELETE /mcp` + Galaxy card `/api/ui/card/mcp` | 36 box tools + 10 `gsv://` resources (band **164** Cursor 3.16.29 kit lockstep · **160** GSV sandbox + no User MCP · **159** Cursor HTTP url + session SSE hold · **158** live stdio + sync check · **157** omni route) — [`GSV_OMNI_CATALOG.md`](./GSV_OMNI_CATALOG.md) · [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) |
