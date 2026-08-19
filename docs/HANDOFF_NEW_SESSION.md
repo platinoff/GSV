@@ -1,6 +1,6 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-08-18 (band 162 ✅ · live crate/version lockstep)
+**Оновлено:** 2026-08-18 (band 163 ✅ · vision queue lockstep + bump auto-advance)
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
 **`абракадабра` / `abrakadabra`** → `cargo xtask products` → **AskQuestion на проєкти з environment**
@@ -16,16 +16,17 @@ OmniRouter catalog + quota timers **157 ✅**; live MCP stdio + sync check **158
 Cursor HTTP MCP + session SSE hold **159 ✅**;
 GSV sandbox MCP / no User leak **160 ✅**;
 vision lockstep + disk MiB **161 ✅**;
-live crate/version lockstep **162 ✅**). MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+live crate/version lockstep **162 ✅**;
+vision queue lockstep + bump auto-advance **163 ✅**). MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
 Omni catalog: [`gsv/GSV_OMNI_CATALOG.md`](gsv/GSV_OMNI_CATALOG.md).
 Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 Канон ролей: [`GSV_ROLES.md`](GSV_ROLES.md). Реєстр: [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
 
 ## Стан зараз
 
-- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–161 · **162 ✅**.
-- **Next drain (gsv):** scan / owner pick. Band **162** vision queue is `PH-S2259`; health/update expose `crate_version`/`version_lag`; watchdog POSTs apply when `debug_newer`.
-- **Band 162:** live crate vs running version lockstep; `GET /mcp` `crate_version`; watchdog recopy via apply when debug is newer than live.
+- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–162 · **163 ✅**.
+- **Next drain (gsv):** scan / owner pick. Band **163** vision queue is `PH-S2269`; `cargo xtask bump --band N` locksteps last/next/active.
+- **Band 163:** vision queue lockstep after 162 close; `lockstep_queue_for_band` + bump auto-advance.
 - **Band 160:** `GET /mcp` `sandbox`; no `gsv_products_open` / tunnel / apply on MCP; preview cannot `../poolAI`.
 - **Band 159:** `.cursor/mcp.json` talks to live `gsv-server` (not a second stdio `gsv-mcp`). Stdio stays `.mcp.json` / OpenCode / Grok. Recopy `target/live/gsv-server.exe` after drains.
 - **Band 158:** `copy_debug_to_live` also copies `gsv-mcp`; `.mcp.json` / OpenCode / Grok spawn the live exe; `gsv_xtask` MCP tasks **catalog|products|disk|sync**.
@@ -59,9 +60,9 @@ Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 - **Band 134:** HTTP response hardening — CSP / nosniff / DENY / no-store / COOP+CORP; POST 256 KiB cap → 413 `{ok:false}`.
 - **VDT kit (band 127):** shared `.agents/skills/` + generic `.cursor/rules/` + `gsv.code-workspace` + `PRODUCTS.md`.
   Discover: `cargo xtask products` (не hardcoded `gsv | poolai`).
-- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.25%** (rust 25225 / product 25415) · **485** tests · clippy 0 · fmt clean.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.26%** (rust 25387 / product 25577) · **489** tests · clippy 0 · fmt clean.
 - **Сервер:** canon порт **9999** (`DEFAULT_PORT`; 8765 — Hyper-V reserved range).
-- **Vision rev:** **516** (band 161 `cargo xtask sync`; next `PH-S2259`).
+- **Vision rev:** **516** (band 163 `cargo xtask sync`; next `PH-S2269`).
 - **Live UI** — `gsv-server` → `http://127.0.0.1:9999/`. MCP stdio — `target/live/gsv-mcp.exe` (`cargo xtask live`).
 - **Band 133:** localhost security — `--allow-lan`; CSRF POST gate; terminal cargo/git allowlists; `/data/{file}` allowlist; preview canonicalize.
 - **FM:** band 127 = PoolAI FM §5.108 (PH-S1909…S1918 ✅). Master horizon poolAI: band 128.
@@ -169,7 +170,7 @@ cargo fmt -- --check && cargo clippy --all-targets && cargo test && cargo run --
 
 ## Git (кінець сесії)
 
-- `cargo xtask bump --band N` (semver minor = band) then `cargo xtask fingerprint` (JSONL + trailers) **before** the commit.
+- `cargo xtask bump --band N` (semver minor = band **and** vision queue last/next/active) then `cargo xtask fingerprint` (JSONL + trailers) **before** the commit.
 - Один commit (код + docs + FM/HANDOFF/NEXT). Не `git add -A` — тільки файли спринту.
 - Trailers: `Gsv-Actor` / `Gsv-Ide` / `Gsv-Model` (no secrets).
 - **`git push` + самарі** — обов'язково останній крок.

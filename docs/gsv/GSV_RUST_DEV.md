@@ -17,7 +17,7 @@ JSON remains **data or host protocol** (vision snapshots, MCP client configs, `C
 | Outer watchdog | `cargo xtask watchdog` / `cargo xtask watchdog-install` |
 | Speeds / Clippy panels | `cargo xtask record-speed` / `cargo xtask record-rust` |
 | Vision close | `cargo xtask sync` then `cargo xtask sync --check` |
-| Band close | `cargo xtask bump --band N` then rebuild `gsv-server`/`gsv-mcp` then `cargo xtask fingerprint` (optional `--model`). Watchdog lockstep recopies live when debug is newer. |
+| Band close | `cargo xtask bump --band N` (semver minor = band **and** vision queue last/next/active) then rebuild `gsv-server`/`gsv-mcp` then `cargo xtask fingerprint` (optional `--model`). Watchdog lockstep recopies live when debug is newer. |
 | Skill mirrors | `cargo xtask mirrors` |
 | Push after commit | `cargo xtask git push` (alias `cargo xtask push`) |
 | Commit (message file) | `cargo xtask git commit --file comitmsg/<name>.md` |

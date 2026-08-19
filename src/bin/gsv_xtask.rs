@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use gsv::boxes::fingerprint;
+use gsv::boxes::vision;
 use gsv::boxes::xtask;
 use gsv::{DEFAULT_HOST, DEFAULT_PORT};
 
@@ -199,10 +200,17 @@ fn main() -> ExitCode {
                 return ExitCode::FAILURE;
             };
             match fingerprint::bump_package_version(&toml, band) {
-                Ok(ver) => {
-                    println!("gsv-bump-version: {ver}");
-                    ExitCode::SUCCESS
-                }
+                Ok(ver) => match vision::lockstep_queue_for_band(&root, band) {
+                    Ok((last, next)) => {
+                        println!("gsv-bump-version: {ver}");
+                        println!("gsv-bump-version: queue last {last} next {next}");
+                        ExitCode::SUCCESS
+                    }
+                    Err(e) => {
+                        eprintln!("gsv-bump-version: {ver} (queue lockstep failed: {e})");
+                        ExitCode::FAILURE
+                    }
+                },
                 Err(e) => {
                     eprintln!("gsv-bump-version: {e}");
                     ExitCode::FAILURE

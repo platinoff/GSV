@@ -235,6 +235,85 @@ pub fn extensions_target(data_dir: &Path) -> PathBuf {
     data_dir.join(EXTENSIONS_TARGET)
 }
 
+/// First GSV product band (`PH-S1659…S1668`).
+pub const BAND_ORIGIN: u32 = 102;
+/// `PH-S*` number of the first sprint in [`BAND_ORIGIN`].
+pub const BAND_ORIGIN_FIRST: u32 = 1659;
+
+/// First `PH-S*` number in VDT band `band` (`None` if `band < 102`).
+pub fn band_first_sprint(band: u32) -> Option<u32> {
+    if band < BAND_ORIGIN {
+        return None;
+    }
+    Some(BAND_ORIGIN_FIRST + (band - BAND_ORIGIN) * 10)
+}
+
+/// Last `PH-S*` number in VDT band `band`.
+pub fn band_last_sprint(band: u32) -> Option<u32> {
+    band_first_sprint(band).map(|n| n + 9)
+}
+
+fn ph_s(n: u32) -> String {
+    format!("PH-S{n}")
+}
+
+/// `(last_sprint_closed, next_sprint)` for drain band `band`.
+/// Last closed is the previous band's last sprint; next is this band's first.
+pub fn queue_ids_for_band(band: u32) -> Result<(String, String), String> {
+    let next = band_first_sprint(band).ok_or_else(|| {
+        format!("band {band} is below GSV origin {BAND_ORIGIN} (PH-S{BAND_ORIGIN_FIRST})")
+    })?;
+    let last = if band == BAND_ORIGIN {
+        next.saturating_sub(1)
+    } else {
+        band_last_sprint(band - 1).ok_or_else(|| format!("no previous band for {band}"))?
+    };
+    Ok((ph_s(last), ph_s(next)))
+}
+
+/// Replace the first `"key": "…"` string value. Keeps surrounding whitespace.
+pub fn replace_json_string_field(text: &str, key: &str, value: &str) -> Result<String, String> {
+    let key_pat = format!("\"{key}\"");
+    let key_at = text
+        .find(&key_pat)
+        .ok_or_else(|| format!("json field {key} not found"))?;
+    let after_key = key_at + key_pat.len();
+    let colon_rel = text[after_key..]
+        .find(':')
+        .ok_or_else(|| format!("{key}: missing colon"))?;
+    let after_colon = after_key + colon_rel + 1;
+    let quote_rel = text[after_colon..]
+        .find('"')
+        .ok_or_else(|| format!("{key}: missing opening quote"))?;
+    let val_open = after_colon + quote_rel;
+    let val_close = text[val_open + 1..]
+        .find('"')
+        .map(|i| val_open + 1 + i)
+        .ok_or_else(|| format!("{key}: missing closing quote"))?;
+    let mut out = String::with_capacity(text.len() + value.len());
+    out.push_str(&text[..=val_open]);
+    out.push_str(value);
+    out.push_str(&text[val_close..]);
+    Ok(out)
+}
+
+fn patch_json_file(path: &Path, key: &str, value: &str) -> Result<(), String> {
+    let raw = std::fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
+    let next = replace_json_string_field(&raw, key, value)?;
+    std::fs::write(path, next).map_err(|e| format!("write {}: {e}", path.display()))
+}
+
+/// Set Galaxy `last_sprint_closed` / `next_sprint` / `active_sprint` for band `band`.
+/// Patches source JSON in place (no pretty-print rewrite).
+pub fn lockstep_queue_for_band(repo_root: &Path, band: u32) -> Result<(String, String), String> {
+    let (last, next) = queue_ids_for_band(band)?;
+    let manifest = manifest_source(repo_root);
+    patch_json_file(&manifest, "last_sprint_closed", &last)?;
+    patch_json_file(&manifest, "next_sprint", &next)?;
+    patch_json_file(&extensions_source(repo_root), "active_sprint", &next)?;
+    Ok((last, next))
+}
+
 const SPEED_INDEX_SOURCE: &str = "docs/vision/speed_index.json";
 const RUST_DIAGNOSTICS_SOURCE: &str = "docs/vision/rust_diagnostics.json";
 const SPEED_INDEX_TARGET: &str = "gsv_speed_index.json";
@@ -3694,6 +3773,69 @@ mod tests {
         assert_eq!(w["revision"], 458);
         assert_eq!(w["accent"], "#7eb8ff");
         assert_eq!(w["sprint"], "#a78bfa");
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn band_sprint_ids_follow_band_102_origin() {
+        assert_eq!(band_first_sprint(102), Some(1659));
+        assert_eq!(band_last_sprint(102), Some(1668));
+        assert_eq!(band_first_sprint(162), Some(2259));
+        assert_eq!(band_last_sprint(162), Some(2268));
+        assert_eq!(band_first_sprint(163), Some(2269));
+        assert_eq!(band_last_sprint(163), Some(2278));
+        assert_eq!(band_first_sprint(101), None);
+        let (last, next) = queue_ids_for_band(163).expect("163");
+        assert_eq!(last, "PH-S2268");
+        assert_eq!(next, "PH-S2269");
+    }
+
+    #[test]
+    fn replace_json_string_field_keeps_surrounding_text() {
+        let src = "{\n  \"next_sprint\": \"PH-S2259\",\n  \"keep\": 1\n}\n";
+        let out = replace_json_string_field(src, "next_sprint", "PH-S2269").expect("replace");
+        assert_eq!(
+            out,
+            "{\n  \"next_sprint\": \"PH-S2269\",\n  \"keep\": 1\n}\n"
+        );
+        assert!(replace_json_string_field(src, "missing", "x").is_err());
+    }
+
+    #[test]
+    fn lockstep_queue_for_band_patches_source_json() {
+        let tmp = std::env::temp_dir().join(format!(
+            "gsv_vision_lockstep_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let vis = tmp.join("docs/vision");
+        std::fs::create_dir_all(&vis).unwrap();
+        std::fs::write(
+            vis.join("manifest.json"),
+            "{\n  \"last_sprint_closed\": \"PH-S2258\",\n  \"next_sprint\": \"PH-S2259\"\n}\n",
+        )
+        .unwrap();
+        std::fs::write(
+            vis.join("extensions.json"),
+            "{\n  \"active_sprint\": \"PH-S2259\"\n}\n",
+        )
+        .unwrap();
+        let (last, next) = lockstep_queue_for_band(&tmp, 163).expect("lockstep");
+        assert_eq!(last, "PH-S2268");
+        assert_eq!(next, "PH-S2269");
+        let manifest = std::fs::read_to_string(vis.join("manifest.json")).unwrap();
+        assert!(
+            manifest.contains("\"last_sprint_closed\": \"PH-S2268\""),
+            "{manifest}"
+        );
+        assert!(
+            manifest.contains("\"next_sprint\": \"PH-S2269\""),
+            "{manifest}"
+        );
+        let ext = std::fs::read_to_string(vis.join("extensions.json")).unwrap();
+        assert!(ext.contains("\"active_sprint\": \"PH-S2269\""), "{ext}");
         let _ = std::fs::remove_dir_all(&tmp);
     }
 }

@@ -47,6 +47,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 160** (GSV sandbox MCP · no User leak into PoolAI) **✅** ·
 **band 161** (vision lockstep PH-S2249 + disk MiB + `--clean` keep-live) **✅** ·
 **band 162** (live crate/version lockstep) **✅** ·
+**band 163** (vision queue lockstep + bump auto-advance) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -964,6 +965,23 @@ Owner pick (`абракадабра` gsv / live-lockstep): live `gsv-server` was
 | **PH-S2266** | Docs | SERVER / BOXES / RUST_DEV / HANDOFF / NEXT / MEMORY / MCP_OPENBOT — **✅** |
 | **PH-S2267** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy — **✅** |
 | **PH-S2268** | Band close | tests **485** green; `--stretch-96` **99.25%**; `--band 162` + fingerprint; recopy live; one commit + push — **✅** |
+
+## Спринти (band 163) — vision queue lockstep + bump auto-advance ✅
+
+Owner pick (`абракадабра` gsv / vision-lockstep): Galaxy queue stayed on `PH-S2259` / last `PH-S2258` after band **162** closed `PH-S2268`. `cargo xtask bump --band N` now locksteps source vision JSON so the next drain does not stick.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2269** | Scope + queue | this band; `active_sprint` / `next_sprint` = `PH-S2269`; `last_sprint_closed` = `PH-S2268` — **✅** |
+| **PH-S2270** | Vision lockstep files | `docs/vision/manifest.json` + `extensions.json` — **✅** |
+| **PH-S2271** | Band math | `band_first_sprint` / `band_last_sprint` (origin band 102 = PH-S1659) — **✅** |
+| **PH-S2272** | JSON patch | `replace_json_string_field` keeps surrounding text (no pretty rewrite) — **✅** |
+| **PH-S2273** | `lockstep_queue_for_band` | patches last / next / active for band N — **✅** |
+| **PH-S2274** | `cargo xtask bump` | after semver, lockstep vision queue; catalog help names lockstep — **✅** |
+| **PH-S2275** | Contracts | vision PH-S2269 + xtask bump help + fingerprint queue ids — **✅** |
+| **PH-S2276** | Docs | RUST_DEV / BOXES / SERVER / HANDOFF / NEXT / MEMORY / roadmap — **✅** |
+| **PH-S2277** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy — **✅** |
+| **PH-S2278** | Band close | tests **489** green; `--stretch-96` **99.26%**; `--band 163` + fingerprint; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

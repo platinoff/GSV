@@ -127,6 +127,18 @@ fn catalog_lists_git_and_tunnel() {
         .collect();
     assert!(names.contains(&"git"), "{names:?}");
     assert!(names.contains(&"tunnel"), "{names:?}");
+    assert!(names.contains(&"bump"), "{names:?}");
+    let bump = v["tasks"]
+        .as_array()
+        .expect("tasks")
+        .iter()
+        .find(|t| t["name"] == "bump")
+        .expect("bump row");
+    let help = bump["description"].as_str().unwrap_or("");
+    assert!(
+        help.contains("queue") || help.contains("lockstep"),
+        "bump must lockstep vision queue: {help}"
+    );
 }
 
 #[test]

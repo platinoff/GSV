@@ -115,7 +115,7 @@ cargo run --manifest-path GSV/Cargo.toml --bin gsv-http-stand-smoke -- --base-ur
 - UI показує кнопку/бейдж **Update** замість auto-reload; `doUpdate()` POSTs `/api/update/apply`.
 - Клієнтський JS тримає стан offline; при SSE `onopen` робить full-resync (Tracker/SLI/toolchain/speed/rust diagnostics).
 
-**Horizon:** band **157** OmniRouter shared catalog + quota timers. Band **156 ✅** streaming usage + `cargo xtask git` / `tunnel`. Band **155 ✅** session token usage. Next drain = scan / owner pick. Spec: [`GSV_OMNI_CATALOG.md`](./GSV_OMNI_CATALOG.md) · [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md).
+**Horizon:** band **163** vision queue lockstep + `cargo xtask bump --band N` auto-advances last/next/active. Band **162 ✅** live crate/version lockstep. Next drain = scan / owner pick. Spec: [`GSV_OMNI_CATALOG.md`](./GSV_OMNI_CATALOG.md) · [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md).
 
 ## Live copy + apply (band 144)
 

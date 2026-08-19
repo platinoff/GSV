@@ -349,6 +349,13 @@ fn write_pkg_toml(dir: &Path, version: &str) -> PathBuf {
 }
 
 #[test]
+fn bump_lockstep_queue_ids_for_band_163() {
+    let (last, next) = gsv::boxes::vision::queue_ids_for_band(163).expect("163");
+    assert_eq!(last, "PH-S2268");
+    assert_eq!(next, "PH-S2269");
+}
+
+#[test]
 fn bump_version_sets_minor_to_band() {
     let dir = std::env::temp_dir().join(format!("gsv-bump-band-{}", std::process::id()));
     let toml = write_pkg_toml(&dir, "0.1.3");

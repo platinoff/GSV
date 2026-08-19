@@ -54,7 +54,10 @@ pub const TASKS: &[(&str, &str)] = &[
         "mirrors",
         "Copy .agents/skills → .cursor/skills + .opencode/skills",
     ),
-    ("bump", "Set Cargo.toml semver minor = band (`--band N`)"),
+    (
+        "bump",
+        "Set Cargo.toml semver minor = band (`--band N`); lockstep vision queue",
+    ),
     (
         "fingerprint",
         "Append drain fingerprint JSONL + print trailers (`--model` optional)",

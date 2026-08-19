@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-18 · band 163 ✅)
+
+- **Band 163:** vision queue lockstep — Galaxy `next_sprint` / `active_sprint` = `PH-S2269`, `last_sprint_closed` = `PH-S2268` (band 162 last). `cargo xtask bump --band N` patches those source JSON fields (no pretty rewrite) using band-102 origin math (`PH-S1659` + 10 per band).
+- **Canon:** [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md) · [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+- **Next drain:** scan / owner pick.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.26%** (rust 25387 / product 25577) · **489** tests · clippy 0.
+
 ## Стан (2026-08-18 · band 162 ✅)
 
 - **Band 162:** live crate/version lockstep — `crate_version` / `version_lag` on health, update, and `GET /mcp`; health `update_available` matches the Update box (mtime + version lag + notify); watchdog `debug_newer` and POST `/api/update/apply` when debug is newer than a healthy live copy (Windows cannot overwrite a locked exe). Vision queue `PH-S2259` / last closed `PH-S2258`.
