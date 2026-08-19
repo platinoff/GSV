@@ -2,7 +2,7 @@
 
 **Status:** Landed (band **160** ✅ GSV sandbox MCP / no User leak · band **159** ✅ Cursor HTTP MCP + session SSE hold · band **158** ✅ live MCP stdio + sync check · band **156** ✅ streaming usage + VDT git + owner tunnel · band **155** ✅ session token usage · band **154** ✅ watchdog ops card + fingerprint model)  
 **Date:** 2026-08-18  
-**Owner ask:** update needed docs/plans; put what the next `абракадабра` / `abrakadabra` on **gsv** must drain.  
+**Owner ask:** update needed docs/plans; put what the next `абракадабра` / `abrakadabra` on **gsv** must drain. **Superseded as next-drain pointer:** [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md) (band **166**).  
 **Scan (same day):** clippy 0 · roadmap 102–156 all ✅ · no `TODO` in `src/` · always-on P2 leftovers closed. Streaming token record **done band 156**. Grok Bot tunnel is `cargo xtask tunnel` (owner opt-in).
 
 **Plan:** [`docs/superpowers/plans/2026-08-18-mcp-always-on-catchup.md`](../superpowers/plans/2026-08-18-mcp-always-on-catchup.md)  

@@ -201,16 +201,18 @@ No secrets in tool output (`omni.toml` keys stay redacted). POST body cap and CS
 
 ## Horizon (band 160+)
 
+Band **166+** (queued): Settings / Godfather / tickets / Telegram bus — [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md). Band **166** adds read-only MCP `gsv_settings` (redacted) + `gsv://docs/settings-telegram`. Ticket **claim** lands on MCP in **168**. Telegram bus send/poll in **169**. Still **not** on MCP: `products/open`, `update/apply`, starting Cloudflare tunnel.
+
 Band **164** lockstepped the kit to Cursor desktop **3.16.29**: folder `.cursor/mcp.json` stays Streamable HTTP `type: http` + loopback `url`; toolchain inventories `cursor` from `package.json`; never User MCP; do not Origin-host this kit. Tools/sync unchanged (`gsv_xtask` `{task:sync}` is `--check`; remirror is `gsv_vision_sync`).
 
 Band **160** scoped Cursor MCP to folder **GSV** (`S:/rust/GSV` sandbox; VDT products via allowlist). Do not install User MCP. Still **not** on MCP: `products/open`, `update/apply`, starting the tunnel.
 
 Band **159** attached Cursor to the live Galaxy HTTP MCP (`url` in `.cursor/mcp.json`), advertised `version`/`http_url` on `GET /mcp`, and held session GET SSE so Streamable HTTP stays up. Recopy `target/live/gsv-server.exe` after a drain or HTTP tools lag the crate. Still **not** on MCP: `products/open`, `update/apply`, starting the tunnel.
 
-Spec: [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md). Plan: [`docs/superpowers/plans/2026-08-18-mcp-always-on-catchup.md`](../superpowers/plans/2026-08-18-mcp-always-on-catchup.md).
+Spec: [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md). Plan: [`docs/superpowers/plans/2026-08-18-mcp-always-on-catchup.md`](../superpowers/plans/2026-08-18-mcp-always-on-catchup.md). Next drain spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md).
 
 ## See also
 
-- Roadmap sprints: [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) band 135–142 ✅ · **151 ✅** · **152 ✅** · **153 ✅** · **154 ✅** · **155 ✅** · **156 ✅** · **157 ✅** · **158 ✅** · **159 ✅** · **160 ✅** · **161 ✅** · **162 ✅** · **163 ✅** · **164 ✅**
+- Roadmap sprints: [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) band 135–142 ✅ · **151–165 ✅** · **166 queued** ([`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md))
 - Server: [`GSV_SERVER.md`](./GSV_SERVER.md)
 - Boxes: [`GSV_BOXES.md`](./GSV_BOXES.md)

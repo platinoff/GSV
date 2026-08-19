@@ -12,14 +12,15 @@
 | [`GSV_SERVER.md`](./GSV_SERVER.md) | **exe/bin сервер** «Galaxy StarWalker Vision»: endpoints, update-повідомлення, offline-стійкість, metrics resync |
 | [`GSV_BOXES.md`](./GSV_BOXES.md) | **Специфікація боксів**: Tracker · SLI console · Toolchain · IDE · Update · Box preview · SLI terminal · Rust tests/benchmarks hook |
 | [`GSV_MIGRATION.md`](./GSV_MIGRATION.md) | Міграція з `GSV/docs/vision/` + `src/` у GSV: що переносимо, що лишається, як |
-| [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) | **TechPreroadMap**: логічний порядок → sprints (bands 143–151 ✅ · **152** MCP select queued) |
+| [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) | **TechPreroadMap**: логічний порядок → sprints (bands 143–**165 ✅** · **166** settings queued) |
 | [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md) | Always-on live binary, chrome bugs, products, version/fingerprints (spec, **143–150 ✅**) |
-| [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md) | After always-on: MCP catch-up (**band 151 ✅** · next **152** select) |
+| [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md) | After always-on: MCP catch-up (**band 151–165 ✅**) |
 | [`GSV_VDT_KIT.md`](./GSV_VDT_KIT.md) | GSV як точка входу: shared rules/skills vs product canon (Accepted, band 127) |
 | [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md) | Rust-first tests/benches/scripts (`cargo xtask`; band **153 ✅**) |
 | [`GSV_OMNI_CATALOG.md`](./GSV_OMNI_CATALOG.md) | Shared OmniRouter / Cursor / OpenCode / Grok models + free timers (band **157**) |
 | [`PRODUCTS.md`](./PRODUCTS.md) | Enrichment-реєстр; discover = `cargo xtask products` |
-| [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) | MCP `gsv_mcp_openbot` (band 135–151 ✅ · **152** select queued) |
+| [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) | MCP `gsv_mcp_openbot` (band 135–**165 ✅**) |
+| [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md) | Settings + Godfather + tickets + MCP Telegram bus (**band 166 queued**) |
 | [`../GSV/docs/GSV_ROLES.md`](../GSV_ROLES.md) | Ролі GSV VDT + канон сесії + Rust ratio gate (band 108) |
 
 ## Зв’язок з PoolAI docs

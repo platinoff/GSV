@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-19 · band 166 queued)
+
+- **Owner pick:** GSV settings (Godfather channel + token store + co-workflows); Telegram channels; MCP bots talk via Telegram bus; ticket board for joiners; MCP claim → `in_progress` like fingerprint sync.
+- **Canon:** [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md) · plan [`superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md`](superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md).
+- **Next drain:** band **166** (`PH-S2299…S2308`) — settings + redacted store only. Not 167 live Telegram.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Secrets:** `data/gsv_settings.json` (gitignored) + env `GSV_TELEGRAM_BOT_TOKEN`; never in MCP/HTTP JSON.
+
 ## Стан (2026-08-18 · band 165 ✅)
 
 - **Band 165:** watchdog live copy + lockstep observability. Scan found live **0.163.0** vs crate **0.164.0** with `debug_newer` while heartbeat stayed `probe-ok`. `cargo xtask watchdog` now copies `gsv-watchdog` to `target/live/`. Apply failures are `lockstep-fail` + `last_apply_status` / `lockstep_note`. `--once` locksteps. A second process oneshot-applies when debug is newer. Health `version_lag` also locksteps. Vision queue `PH-S2289` / last closed `PH-S2288`.

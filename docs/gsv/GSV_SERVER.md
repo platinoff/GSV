@@ -115,7 +115,7 @@ cargo run --manifest-path GSV/Cargo.toml --bin gsv-http-stand-smoke -- --base-ur
 - UI показує кнопку/бейдж **Update** замість auto-reload; `doUpdate()` POSTs `/api/update/apply`.
 - Клієнтський JS тримає стан offline; при SSE `onopen` робить full-resync (Tracker/SLI/toolchain/speed/rust diagnostics).
 
-**Horizon:** band **165** watchdog live copy + lockstep observability (`lockstep-fail` on the heartbeat; `cargo xtask watchdog` copies `gsv-watchdog` to `target/live/`). Band **164 ✅** Cursor 3.16.29 kit. Next drain = scan / owner pick. Spec: [`GSV_OMNI_CATALOG.md`](./GSV_OMNI_CATALOG.md) · [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md).
+**Horizon:** band **165** watchdog live copy + lockstep observability (`lockstep-fail` on the heartbeat; `cargo xtask watchdog` copies `gsv-watchdog` to `target/live/`). Band **164 ✅** Cursor 3.16.29 kit. Next drain = **band 166** (Settings + Godfather secret store). Spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md) · [`GSV_OMNI_CATALOG.md`](./GSV_OMNI_CATALOG.md) · [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md).
 
 ## Live copy + apply (band 144)
 

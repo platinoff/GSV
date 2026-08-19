@@ -50,6 +50,10 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 163** (vision queue lockstep + bump auto-advance) **✅** ·
 **band 164** (Cursor 3.16.29 kit lockstep — rules / tools / MCP / sync) **✅** ·
 **band 165** (watchdog live copy + lockstep observability) **✅** ·
+**band 166** (GSV settings + Godfather secret store) **queued** ·
+**band 167** (Telegram Godfather channel bind) **queued** ·
+**band 168** (ticket board + MCP claim) **queued** ·
+**band 169** (Telegram bus between MCP bots) **queued** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -1018,6 +1022,35 @@ Owner pick (`абракадабра` gsv / scan): live crate **0.164.0** vs runn
 | **PH-S2296** | Docs | BOXES / SERVER / RUST_DEV / MCP / HANDOFF / NEXT / MEMORY / roadmap — **✅** |
 | **PH-S2297** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy — **✅** |
 | **PH-S2298** | Band close | tests **503** green; `--stretch-96` **99.27%**; `--band 165` + fingerprint; one commit + push — **✅** |
+
+## Спринти (band 166) — GSV settings + Godfather secret store · queued
+
+Owner pick 2026-08-19: Settings card; Godfather channel + token store; co-workflows; later Telegram + ticket board + MCP bus. Spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md). Plan: [`docs/superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md`](../superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md). **Next `абракадабра` gsv = this band.** Do not skip to 167 (live Telegram).
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2299** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2299`; `last_sprint_closed` = `PH-S2298` |
+| **PH-S2300** | Schema + disk | `data/gsv_settings.json`; env `GSV_TELEGRAM_BOT_TOKEN` wins; missing file empty-ok |
+| **PH-S2301** | HTTP | `GET`/`POST /api/settings`; wire never contains `bot_token`; CSRF loopback |
+| **PH-S2302** | Galaxy card | `settings` in `CARD_NAMES`; empty/error HTML |
+| **PH-S2303** | MCP | `gsv_settings` read; `gsv://docs/settings-telegram`; drain prompt names 166 |
+| **PH-S2304** | Contracts | redaction · env override · mcp unit + `gsv_mcp_contracts` |
+| **PH-S2305** | Docs | BOXES / SERVER / MCP / HANDOFF / NEXT / MEMORY / spec Landed 166 |
+| **PH-S2306** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy |
+| **PH-S2307** | Tests | `cargo test` green; live copy stays |
+| **PH-S2308** | Band close | bump `--band 166` + fingerprint; one commit + push; next = **167** |
+
+## Спринти (band 167) — Telegram Godfather channel bind · queued
+
+`PH-S2309…S2318`. Bot API getMe/getChat; dry-run in tests; poller default off; card `telegram`; MCP `gsv_telegram` status. No bus.
+
+## Спринти (band 168) — ticket board + MCP claim · queued
+
+`PH-S2319…S2328`. `docs/gsv/tickets.jsonl` + `ticket_claims.jsonl`; HTTP + MCP claim; card `tickets`; fingerprint-class claim rows.
+
+## Спринти (band 169) — Telegram bus between MCP bots · queued
+
+`PH-S2329…S2338`. Channel envelopes; `gsv_telegram_bus_send` / `_poll`; co-workflow `telegram-relay`. Not Cloudflare.
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
