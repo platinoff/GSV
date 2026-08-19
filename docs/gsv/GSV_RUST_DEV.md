@@ -14,11 +14,11 @@ JSON remains **data or host protocol** (vision snapshots, MCP client configs, `C
 | Abracadabra Step 0 | `cargo xtask products` |
 | S0 disk | `cargo xtask disk` (`--enforce`; `--clean` deletes debug cache and **keeps** `target/live`) |
 | Always-on UI | `cargo build --bin gsv-server --bin gsv-mcp --bin gsv-live --bin gsv-watchdog` then `cargo xtask live` (copies server + mcp + watchdog) |
-| Outer watchdog | `cargo xtask watchdog` / `cargo xtask watchdog-install` (spawn/persist `target/live/gsv-watchdog.exe`; successor hop if that exe is stale) |
+| Outer watchdog | `cargo xtask watchdog` / `cargo xtask watchdog-install` (spawn/persist `target/live/gsv-watchdog.exe`; `hop_successor` each tick if that exe is stale; POST apply only when **gsv-server** debug is newer) |
 | Speeds / Clippy panels | `cargo xtask record-speed` / `cargo xtask record-rust` |
 | Scenario bench | `cargo xtask record-scenario-bench` (abrakadabra-session walk → `docs/gsv/scenario_bench.json`) |
 | Vision close | `cargo xtask sync` then `cargo xtask sync --check` |
-| Band close | `cargo xtask bump --band N` (semver minor = band **and** vision queue **close of N**: last of N / first of N+1) then rebuild `gsv-server`/`gsv-mcp`/`gsv-watchdog` then `cargo xtask fingerprint` (optional `--model`). Recopy live in the same session (`cargo xtask live` or watchdog lockstep). Watchdog lockstep recopies when debug is newer **or** health `version_lag`; `lockstep-wait` is not `probe-ok`. |
+| Band close | `cargo xtask bump --band N` (semver minor = band **and** vision queue **close of N**: last of N / first of N+1) then rebuild `gsv-server`/`gsv-mcp`/`gsv-watchdog` then `cargo xtask fingerprint` (optional `--model`). Recopy live in the same session (`cargo xtask live` or watchdog lockstep). Watchdog lockstep recopies the **server** when server debug is newer **or** health `version_lag`; a stale watchdog hops (`hop_successor`) instead of apply; `lockstep-wait` is not `probe-ok`. |
 | Skill mirrors | `cargo xtask mirrors` |
 | Push after commit | `cargo xtask git push` (alias `cargo xtask push`) |
 | Commit (message file) | `cargo xtask git commit --file comitmsg/<name>.md` |

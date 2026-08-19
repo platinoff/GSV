@@ -2,14 +2,16 @@
 //!
 //! Probes `GET /api/health`. After consecutive failures, copies
 //! `target/debug/gsv-server.exe` → `target/live/` and spawns a detached
-//! listener. When the live process is healthy but debug is newer (or health
-//! reports `version_lag`), POSTs `/api/update/apply` (lockstep) so the
-//! supervisor or the next fail-ticks recopy. Apply failures are recorded on
-//! the heartbeat (`lockstep-fail` + status/note). Cooldown while still needed
-//! is `lockstep-wait`. `--once` still locksteps. A second process oneshot-applies
-//! on debug-newer **or** health lag, and only yields if the peer pid is alive
-//! and its `bin_version` matches the crate (otherwise it takes over the loop).
-//! A stale exe spawns a successor then exits.
+//! listener. When the live **server** is healthy but server debug is newer
+//! (or health reports `version_lag`), POSTs `/api/update/apply` (lockstep).
+//! A stale **watchdog** exe hops via `successor_plan` **each tick** (not only
+//! at startup) so a long-lived 0.172.0 process does not keep writing heartbeat
+//! after the crate moved on. Apply failures are recorded on the heartbeat
+//! (`lockstep-fail` + status/note). Cooldown while still needed is
+//! `lockstep-wait`. `--once` still locksteps and does not hop. A second process
+//! oneshot-applies on server-debug-newer **or** health lag, and only yields if
+//! the peer pid is alive and its `bin_version` matches the crate (otherwise it
+//! takes over the loop).
 //!
 //! ```text
 //! cargo run --quiet --bin gsv-watchdog
@@ -22,8 +24,8 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use gsv::boxes::watchdog::{
-    self, epoch_now, heartbeat_path, read_heartbeat, write_heartbeat, Heartbeat, SpawnOutcome,
-    Successor, DEFAULT_COOLDOWN_SECS, DEFAULT_FAIL_THRESHOLD, DEFAULT_INTERVAL_SECS,
+    self, epoch_now, heartbeat_path, hop_successor, read_heartbeat, write_heartbeat, Heartbeat,
+    SpawnOutcome, DEFAULT_COOLDOWN_SECS, DEFAULT_FAIL_THRESHOLD, DEFAULT_INTERVAL_SECS,
 };
 use gsv::{DEFAULT_HOST, DEFAULT_PORT};
 
@@ -132,26 +134,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .timeout(Duration::from_secs(2))
         .no_proxy()
         .build()?;
-    if !cfg.once {
-        if let Ok(exe) = std::env::current_exe() {
-            if let Successor::Spawn(path) = watchdog::successor_plan(&exe, &cfg.repo_root) {
-                match watchdog::spawn_watchdog_process(&path, &cfg.repo_root) {
-                    Ok(()) => {
-                        eprintln!("gsv-watchdog: successor {}", path.display());
-                        return Ok(());
-                    }
-                    Err(e) => eprintln!("gsv-watchdog: successor spawn failed: {e}"),
-                }
+    if let Ok(exe) = std::env::current_exe() {
+        match hop_successor(cfg.once, &exe, &cfg.repo_root) {
+            Ok(true) => {
+                eprintln!("gsv-watchdog: successor hop");
+                return Ok(());
             }
+            Ok(false) => {}
+            Err(e) => eprintln!("gsv-watchdog: successor spawn failed: {e}"),
         }
     }
     if let Some(existing) = read_heartbeat(&hb_path) {
         if watchdog::peer_watchdog_running(&existing, now, my_pid) && !cfg.once {
             let probe = probe(&client, &url).await;
             let needs = watchdog::needs_lockstep(
-                watchdog::debug_newer_than_live(&cfg.repo_root),
+                watchdog::debug_newer_server(&cfg.repo_root),
                 probe.version_lag,
             );
+            let crate_ver = gsv::boxes::update::crate_version(&cfg.repo_root);
+            let taking_over =
+                watchdog::watchdog_version_lag(crate_ver.as_deref(), &existing.bin_version);
             if watchdog::should_oneshot_apply(true, needs) {
                 let (apply_ok, status, note) = post_apply(&client, &cfg.host, cfg.port).await;
                 let action = watchdog::lockstep_action(apply_ok);
@@ -166,7 +168,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     port: cfg.port,
                     last_apply_status: status,
                     lockstep_note: note.clone(),
-                    bin_version: existing.bin_version.clone(),
+                    bin_version: watchdog::oneshot_bin_version(
+                        taking_over,
+                        &existing.bin_version,
+                        &bin_version,
+                    ),
                 };
                 let _ = write_heartbeat(&hb_path, &hb);
                 eprintln!(
@@ -180,12 +186,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     now.saturating_sub(existing.epoch_secs)
                 );
             }
-            let crate_ver = gsv::boxes::update::crate_version(&cfg.repo_root);
-            if watchdog::watchdog_version_lag(crate_ver.as_deref(), &existing.bin_version) {
+            if taking_over {
                 eprintln!(
                     "gsv-watchdog: taking over stale peer {} bin={}",
                     existing.pid, existing.bin_version
                 );
+                if watchdog::should_stop_stale_peer(true, existing.pid, my_pid) {
+                    match watchdog::stop_peer_watchdog(existing.pid) {
+                        Ok(()) => eprintln!("gsv-watchdog: stopped stale peer {}", existing.pid),
+                        Err(e) => eprintln!("gsv-watchdog: stop stale peer failed: {e}"),
+                    }
+                }
             } else {
                 return Ok(());
             }
@@ -203,7 +214,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         failures = t.consecutive_failures;
         let now = epoch_now();
         let mut action = if ok { "probe-ok" } else { "probe-fail" };
-        let debug_newer = watchdog::debug_newer_than_live(&cfg.repo_root);
+        let debug_newer = watchdog::debug_newer_server(&cfg.repo_root);
         let needs = watchdog::needs_lockstep(debug_newer, probe.version_lag);
         if ok && watchdog::should_lockstep(needs, last_respawn, now, cfg.cooldown) {
             let (apply_ok, status, note) = post_apply(&client, &cfg.host, cfg.port).await;
@@ -269,6 +280,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         if cfg.once {
             break;
+        }
+        if let Ok(exe) = std::env::current_exe() {
+            match hop_successor(false, &exe, &cfg.repo_root) {
+                Ok(true) => {
+                    eprintln!("gsv-watchdog: successor hop");
+                    return Ok(());
+                }
+                Ok(false) => {}
+                Err(e) => eprintln!("gsv-watchdog: successor spawn failed: {e}"),
+            }
         }
         tokio::time::sleep(Duration::from_secs(cfg.interval.max(1))).await;
     }

@@ -253,6 +253,91 @@ fn debug_newer_than_live_when_debug_mtime_greater() {
         watchdog::debug_newer_than_live(&dir),
         "debug mtime must beat live"
     );
+    assert!(
+        watchdog::debug_newer_server(&dir),
+        "server-only mtime must beat live"
+    );
+}
+
+#[test]
+fn debug_newer_server_ignores_stale_watchdog_only() {
+    let dir = std::env::temp_dir().join(format!("gsv-wd-wdonly-{}", std::process::id()));
+    let debug_dir = dir.join("target/debug");
+    let live_dir = dir.join("target/live");
+    std::fs::create_dir_all(&debug_dir).expect("debug dir");
+    std::fs::create_dir_all(&live_dir).expect("live dir");
+    let server = watchdog::server_exe_name();
+    let wd = watchdog::watchdog_exe_name();
+    std::fs::write(debug_dir.join(server), b"srv").expect("debug server");
+    std::fs::write(live_dir.join(server), b"srv").expect("live server");
+    std::fs::write(live_dir.join(wd), b"old").expect("live wd");
+    std::thread::sleep(std::time::Duration::from_millis(1100));
+    std::fs::write(debug_dir.join(wd), b"new").expect("debug wd");
+    assert!(
+        watchdog::debug_newer_watchdog(&dir),
+        "watchdog debug mtime must beat live"
+    );
+    assert!(
+        watchdog::debug_newer_than_live(&dir),
+        "any-bin debug_newer stays true for Galaxy"
+    );
+    assert!(
+        !watchdog::debug_newer_server(&dir),
+        "server lockstep must ignore a locked/stale watchdog exe"
+    );
+    assert!(
+        !watchdog::needs_lockstep(watchdog::debug_newer_server(&dir), false),
+        "do not POST /api/update/apply just because gsv-watchdog.exe is stale"
+    );
+}
+
+#[test]
+fn should_recheck_successor_each_tick() {
+    assert!(
+        watchdog::should_recheck_successor(false),
+        "long-lived loop must hop; startup-only left 0.172.0 running"
+    );
+    assert!(
+        !watchdog::should_recheck_successor(true),
+        "--once must not spawn a successor"
+    );
+}
+
+#[test]
+fn should_exit_after_successor_spawn() {
+    let path = std::path::PathBuf::from("target/debug/gsv-watchdog.exe");
+    assert!(watchdog::should_exit_after_successor(
+        false,
+        &watchdog::Successor::Spawn(path)
+    ));
+    assert!(!watchdog::should_exit_after_successor(
+        false,
+        &watchdog::Successor::Stay
+    ));
+    assert!(!watchdog::should_exit_after_successor(
+        true,
+        &watchdog::Successor::Spawn(std::path::PathBuf::from("x"))
+    ));
+}
+
+#[test]
+fn oneshot_bin_version_uses_ours_on_takeover() {
+    assert_eq!(
+        watchdog::oneshot_bin_version(true, "0.172.0", "0.180.0"),
+        "0.180.0"
+    );
+    assert_eq!(
+        watchdog::oneshot_bin_version(false, "0.179.0", "0.180.0"),
+        "0.179.0"
+    );
+}
+
+#[test]
+fn should_stop_stale_peer_on_takeover() {
+    assert!(watchdog::should_stop_stale_peer(true, 4242, 7));
+    assert!(!watchdog::should_stop_stale_peer(false, 4242, 7));
+    assert!(!watchdog::should_stop_stale_peer(true, 7, 7));
+    assert!(!watchdog::should_stop_stale_peer(true, 0, 7));
 }
 
 #[test]
@@ -375,6 +460,8 @@ async fn api_watchdog_and_health_expose_alive() {
         .unwrap_or_default()
         .contains("watchdog.json"));
     assert!(json["debug_newer"].is_boolean(), "{json}");
+    assert!(json["server_debug_newer"].is_boolean(), "{json}");
+    assert!(json["watchdog_debug_newer"].is_boolean(), "{json}");
     assert!(
         json["crate_version"].is_string() || json["crate_version"].is_null(),
         "{json}"
@@ -423,6 +510,8 @@ fn render_watchdog_lists_heartbeat() {
             "consecutive_failures": 0,
             "pid": 4242,
             "debug_newer": true,
+            "server_debug_newer": false,
+            "watchdog_debug_newer": true,
             "last_apply_status": 403,
             "lockstep_note": "cross-site POST rejected",
             "last_action": "lockstep-fail",
@@ -436,6 +525,8 @@ fn render_watchdog_lists_heartbeat() {
     assert!(html.contains("lockstep-fail"), "{html}");
     assert!(html.contains("4242"), "{html}");
     assert!(html.contains("debug_newer"), "{html}");
+    assert!(html.contains("server_debug_newer"), "{html}");
+    assert!(html.contains("watchdog_debug_newer"), "{html}");
     assert!(html.contains("last_apply_status"), "{html}");
     assert!(html.contains("403"), "{html}");
     assert!(html.contains("cross-site POST rejected"), "{html}");

@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-19 · band 180 ✅)
+
+- **Band 180:** Watchdog process lockstep. `debug_newer_server` (apply only on **gsv-server**) · `hop_successor` each tick · `stop_peer_watchdog` on stale `bin_version` · wire `server_debug_newer` / `watchdog_debug_newer`. `CARD_NAMES` **40**.
+- **Canon:** [`gsv/GSV_BOXES.md`](gsv/GSV_BOXES.md) watchdog · [`gsv/GSV_SERVER.md`](gsv/GSV_SERVER.md).
+- **Next drain:** **owner pick** after a warnings-first scan.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.41%** (rust 34183 / product 34386) · **616** tests · clippy 0
+
 ## Стан (2026-08-19 · band 179 ✅)
 
 - **Band 179:** Godfather inbound poller. `classify_inbound` (hook / bus / `/ticket`) · `poll_once` + `spawn_poll_loop` in `gsv-server` · offset `data/telegram_offset.json` · `POST /api/telegram/poll` · MCP `gsv_telegram_poll` (**53** tools) · Galaxy poll now. `CARD_NAMES` **40**.

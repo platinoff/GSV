@@ -38,7 +38,7 @@
 | `ide/` | читання opencode/cursor чатів; вибір сесії |
 | `products/` | VDT environment picker (discover / select / confined open / scan) |
 | `sw/` | Service Worker shell cache (`GET /sw.js` Rust-rendered; `GET /api/sw`) |
-| `watchdog/` | live watchdog heartbeat (`GET /api/watchdog`) + bin `gsv-watchdog` + Galaxy ops card `watchdog` (band **154 ✅**) |
+| `watchdog/` | live watchdog heartbeat (`GET /api/watchdog`) + bin `gsv-watchdog` + Galaxy ops card `watchdog` (band **154 ✅** · **180 ✅** process lockstep) |
 | `usage/` | session token usage (`GET /api/usage`) — OmniRouter + MCP bot + OmniRoute; Galaxy studio card `usage` (band **155 ✅**) |
 | `settings/` | Godfather settings (`GET`/`POST /api/settings`) — redacted token; Galaxy ops card `settings` (band **166 ✅**) |
 | `telegram/` | Godfather bind (`GET /api/telegram`) — dry-run stub in tests; Galaxy ops card `telegram` (band **167 ✅**); inbound poller band **179 ✅** |
@@ -77,4 +77,4 @@
 
 ## Порядок реалізації (коротко)
 
-Повний порядок зі спринтами — [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md). Логіка: **docs/architecture → server scaffold → SLI console + Tracker → Toolchain → IDE → Update/offline → Preview + SLI terminal → Tests/bench hooks → band close**. MCP: [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) (band 135–**179 ✅**: inbound poller · scenario benchmark · roadmap/plan hook-up · MDS scenario walk · solo Telegram tickets · vision queue close-lockstep · live crate lockstep · ticket lease/reclaim · ticket solo/squad · Telegram bus · ticket board + MCP claim · Godfather bind + settings store · watchdog live copy + lockstep observability · vision queue lockstep + bump auto-advance · GSV sandbox `S:/rust/GSV` + folder MCP only + live stdio `gsv-mcp` + `/mcp` CSRF skip + `gsv_xtask` `sync` `--check` + notify all subscribed `gsv://` + Galaxy card + **53** tools + **11** resources). Next gsv drain: **owner pick** after a warnings-first scan.
+Повний порядок зі спринтами — [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md). Логіка: **docs/architecture → server scaffold → SLI console + Tracker → Toolchain → IDE → Update/offline → Preview + SLI terminal → Tests/bench hooks → band close**. MCP: [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) (band 135–**180 ✅**: watchdog process lockstep · inbound poller · scenario benchmark · roadmap/plan hook-up · MDS scenario walk · solo Telegram tickets · vision queue close-lockstep · live crate lockstep · ticket lease/reclaim · ticket solo/squad · Telegram bus · ticket board + MCP claim · Godfather bind + settings store · watchdog live copy + lockstep observability · vision queue lockstep + bump auto-advance · GSV sandbox `S:/rust/GSV` + folder MCP only + live stdio `gsv-mcp` + `/mcp` CSRF skip + `gsv_xtask` `sync` `--check` + notify all subscribed `gsv://` + Galaxy card + **53** tools + **11** resources). Next gsv drain: **owner pick** after a warnings-first scan.

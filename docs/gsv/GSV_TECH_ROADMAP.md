@@ -64,6 +64,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 177** (roadmap/plan hook-up) **✅** ·
 **band 178** (scenario benchmark) **✅** ·
 **band 179** (Godfather inbound poller) **✅** ·
+**band 180** (watchdog process lockstep) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -1266,6 +1267,23 @@ Owner pick (`абракадабра` gsv): `poller_wanted` was a status flag onl
 | **PH-S2436** | Contracts | CSRF; ticket+bus+skip; MCP dry-run; no token — **✅** |
 | **PH-S2437** | Bench | `gsv_dev` `telegram_classify_inbound` — **✅** |
 | **PH-S2438** | Band close | `--band 179` + fingerprint; recopy live; one commit + push — **✅** |
+
+## Спринти (band 180) — watchdog process lockstep ✅
+
+Owner pick (`абракадабра` gsv / continue): live `gsv-server` was **0.179.0** but `gsv-watchdog` heartbeat `bin_version` stayed **0.172.0**. `successor_plan` ran only at startup, so a long-lived watchdog never hopped; `debug_newer_than_live` ORed a locked stale watchdog exe and POSTed `/api/update/apply` on a healthy server.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2439** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2439`; `last_sprint_closed` = `PH-S2438` — **✅** |
+| **PH-S2440** | Server lockstep | `debug_newer_server`; `needs_lockstep` ignores stale watchdog mtime — **✅** |
+| **PH-S2441** | Loop hop | `should_recheck_successor` / `hop_successor` each tick (not `--once`) — **✅** |
+| **PH-S2442** | Takeover | `should_stop_stale_peer` + `stop_peer_watchdog` when `bin_version` lags — **✅** |
+| **PH-S2443** | Oneshot | `oneshot_bin_version` writes ours on takeover — **✅** |
+| **PH-S2444** | Wire | `GET /api/watchdog` `server_debug_newer` / `watchdog_debug_newer` — **✅** |
+| **PH-S2445** | Galaxy | watchdog card rows for those fields; `CARD_NAMES` **40** — **✅** |
+| **PH-S2446** | Contracts | `gsv_watchdog_contracts` hop / server-only / stop-peer — **✅** |
+| **PH-S2447** | Docs / MCP | BOXES / SERVER / drain prompt names band 180 — **✅** |
+| **PH-S2448** | Band close | `--band 180` + fingerprint; recopy live; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

@@ -3,15 +3,18 @@
 //! `cargo xtask live` (`gsv-live`) only restarts while that process stays alive
 //! (Cursor aborting the terminal is the usual `:9999` offline). This box is the
 //! process-level loop: consecutive probe failures (grace for update-apply)
-//! copy debug → live and spawn a detached listener. When debug is newer (or
-//! health `version_lag`) than a healthy live copy, POST `/api/update/apply` so
-//! the running binary exits and the next miss recopies (Windows cannot overwrite
-//! a locked exe). Failed apply is `last_action=lockstep-fail` (never silent
-//! `probe-ok`). Cooldown while still needed is `lockstep-wait`, not `probe-ok`.
-//! A second process oneshot-applies on debug-newer **or** health lag, and only
-//! yields if the peer pid is still alive. A stale watchdog exe spawns a
-//! successor (debug → live hop) then exits. `cargo xtask watchdog` copies
-//! `gsv-watchdog` to `target/live/` so cargo can overwrite debug.
+//! copy debug → live and spawn a detached listener. When **gsv-server** debug is
+//! newer (or health `version_lag`) than a healthy live copy, POST
+//! `/api/update/apply` so the running binary exits and the next miss recopies
+//! (Windows cannot overwrite a locked exe). A stale **watchdog** exe must hop
+//! (`successor_plan` each tick) — it must not POST apply on the healthy server.
+//! Failed apply is `last_action=lockstep-fail` (never silent `probe-ok`).
+//! Cooldown while still needed is `lockstep-wait`, not `probe-ok`.
+//! A second process oneshot-applies on server-debug-newer **or** health lag, and
+//! only yields if the peer pid is still alive **and** its `bin_version` matches
+//! the crate. A stale watchdog exe spawns a successor (debug → live hop) then
+//! exits. `cargo xtask watchdog` copies `gsv-watchdog` to `target/live/` so
+//! cargo can overwrite debug.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -145,9 +148,35 @@ pub fn should_oneshot_apply(peer_running: bool, needs: bool) -> bool {
     peer_running && needs
 }
 
-/// Recopy/apply when debug is newer or the running server lags the crate.
+/// Recopy/apply when **server** debug is newer or the running server lags the crate.
+/// Pass `debug_newer_server`, not `debug_newer_than_live` (a stale watchdog exe
+/// is a hop, not an apply).
 pub fn needs_lockstep(debug_newer: bool, version_lag: bool) -> bool {
     debug_newer || version_lag
+}
+
+/// Long-lived loop re-runs `successor_plan`; `--once` does not spawn a hop.
+pub fn should_recheck_successor(once: bool) -> bool {
+    !once
+}
+
+/// Exit after a successful successor spawn (not `--once`, not `Stay`).
+pub fn should_exit_after_successor(once: bool, plan: &Successor) -> bool {
+    should_recheck_successor(once) && matches!(plan, Successor::Spawn(_))
+}
+
+/// Takeover must not keep writing the stale peer `bin_version`.
+pub fn oneshot_bin_version(taking_over: bool, peer: &str, ours: &str) -> String {
+    if taking_over {
+        ours.to_string()
+    } else {
+        peer.to_string()
+    }
+}
+
+/// A newer watchdog may stop the heartbeat pid when taking over a stale `bin_version`.
+pub fn should_stop_stale_peer(taking_over: bool, peer_pid: u32, my_pid: u32) -> bool {
+    taking_over && peer_pid != 0 && peer_pid != my_pid
 }
 
 /// Heartbeat `last_action` while lockstep is needed but cooldown blocks.
@@ -217,6 +246,62 @@ fn pid_is_alive_unix(pid: u32) -> bool {
         .unwrap_or(false)
 }
 
+/// Stop a stale peer watchdog (Windows `TerminateProcess` / POSIX `SIGTERM`).
+/// No-op under the cargo-test harness.
+pub fn stop_peer_watchdog(pid: u32) -> Result<(), String> {
+    if update::is_cargo_test_harness() || pid == 0 {
+        return Ok(());
+    }
+    #[cfg(windows)]
+    {
+        stop_peer_watchdog_windows(pid)
+    }
+    #[cfg(not(windows))]
+    {
+        stop_peer_watchdog_unix(pid)
+    }
+}
+
+#[cfg(windows)]
+fn stop_peer_watchdog_windows(pid: u32) -> Result<(), String> {
+    const PROCESS_TERMINATE: u32 = 0x0001;
+    extern "system" {
+        fn OpenProcess(access: u32, inherit: i32, pid: u32) -> *mut std::ffi::c_void;
+        fn CloseHandle(handle: *mut std::ffi::c_void) -> i32;
+        fn TerminateProcess(handle: *mut std::ffi::c_void, code: u32) -> i32;
+    }
+    unsafe {
+        let handle = OpenProcess(PROCESS_TERMINATE, 0, pid);
+        if handle.is_null() {
+            return Err(format!("OpenProcess({pid}) failed"));
+        }
+        let ok = TerminateProcess(handle, 1);
+        CloseHandle(handle);
+        if ok == 0 {
+            return Err(format!("TerminateProcess({pid}) failed"));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn stop_peer_watchdog_unix(pid: u32) -> Result<(), String> {
+    Command::new("kill")
+        .args(["-TERM", &pid.to_string()])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map_err(|e| e.to_string())
+        .and_then(|s| {
+            if s.success() {
+                Ok(())
+            } else {
+                Err(format!("kill -TERM {pid} failed"))
+            }
+        })
+}
+
 /// Hop to a newer watchdog binary (debug if live is stale; live after a copy).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Successor {
@@ -274,6 +359,21 @@ pub fn spawn_watchdog_process(exe: &Path, repo_root: &Path) -> Result<(), String
     }
     cmd.spawn().map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Spawn a successor when the plan says hop. `true` = this process should exit.
+pub fn hop_successor(once: bool, current_exe: &Path, repo_root: &Path) -> Result<bool, String> {
+    let plan = successor_plan(current_exe, repo_root);
+    if !should_exit_after_successor(once, &plan) {
+        return Ok(false);
+    }
+    match plan {
+        Successor::Spawn(path) => {
+            spawn_watchdog_process(&path, repo_root)?;
+            Ok(true)
+        }
+        Successor::Stay => Ok(false),
+    }
 }
 
 /// Watchdog heartbeat version vs on-disk crate (empty heartbeat version = lag).
@@ -364,19 +464,31 @@ fn file_mtime_secs(path: &Path) -> u64 {
         .unwrap_or(0)
 }
 
-/// `target/debug/{gsv-server,gsv-mcp,gsv-watchdog}` is newer than live (or live missing).
-pub fn debug_newer_than_live(repo_root: &Path) -> bool {
-    for name in [server_exe_name(), mcp_exe_name(), watchdog_exe_name()] {
-        let debug = repo_root.join("target/debug").join(name);
-        if !debug.is_file() {
-            continue;
-        }
-        let live = repo_root.join("target/live").join(name);
-        if !live.is_file() || file_mtime_secs(&debug) > file_mtime_secs(&live) {
-            return true;
-        }
+/// True when `target/debug/{exe_name}` is newer than live (or live missing).
+pub fn debug_newer_bin(repo_root: &Path, exe_name: &str) -> bool {
+    let debug = repo_root.join("target/debug").join(exe_name);
+    if !debug.is_file() {
+        return false;
     }
-    false
+    let live = repo_root.join("target/live").join(exe_name);
+    !live.is_file() || file_mtime_secs(&debug) > file_mtime_secs(&live)
+}
+
+/// Server lockstep driver — ignore MCP/watchdog mtimes (locked stale watchdog ≠ apply).
+pub fn debug_newer_server(repo_root: &Path) -> bool {
+    debug_newer_bin(repo_root, server_exe_name())
+}
+
+/// Watchdog hop driver — live `gsv-watchdog` mtime vs debug.
+pub fn debug_newer_watchdog(repo_root: &Path) -> bool {
+    debug_newer_bin(repo_root, watchdog_exe_name())
+}
+
+/// Any of server / MCP / watchdog debug is newer than live (Galaxy `debug_newer`).
+pub fn debug_newer_than_live(repo_root: &Path) -> bool {
+    [server_exe_name(), mcp_exe_name(), watchdog_exe_name()]
+        .into_iter()
+        .any(|name| debug_newer_bin(repo_root, name))
 }
 
 /// Recopy/apply when debug is newer or health reports version lag, after cooldown.
@@ -482,6 +594,8 @@ pub fn wire(repo_root: &Path) -> Value {
                 "consecutive_failures": hb.consecutive_failures,
                 "pid": hb.pid,
                 "debug_newer": debug_newer_than_live(repo_root),
+                "server_debug_newer": debug_newer_server(repo_root),
+                "watchdog_debug_newer": debug_newer_watchdog(repo_root),
                 "last_apply_status": hb.last_apply_status,
                 "lockstep_note": hb.lockstep_note,
                 "bin_version": hb.bin_version,
@@ -497,6 +611,8 @@ pub fn wire(repo_root: &Path) -> Value {
                 "path": display,
                 "age_secs": Value::Null,
                 "debug_newer": debug_newer_than_live(repo_root),
+                "server_debug_newer": debug_newer_server(repo_root),
+                "watchdog_debug_newer": debug_newer_watchdog(repo_root),
                 "last_apply_status": 0,
                 "lockstep_note": "",
                 "bin_version": "",

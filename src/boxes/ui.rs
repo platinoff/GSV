@@ -1637,6 +1637,30 @@ pub fn render_watchdog(d: &Value) -> String {
                     b(&d["debug_newer"])
                 ),
             ],
+            vec![
+                "server_debug_newer".into(),
+                format!(
+                    "<span class='{}'>{}</span>",
+                    if b(&d["server_debug_newer"]) {
+                        "warn"
+                    } else {
+                        "ok"
+                    },
+                    b(&d["server_debug_newer"])
+                ),
+            ],
+            vec![
+                "watchdog_debug_newer".into(),
+                format!(
+                    "<span class='{}'>{}</span>",
+                    if b(&d["watchdog_debug_newer"]) {
+                        "warn"
+                    } else {
+                        "ok"
+                    },
+                    b(&d["watchdog_debug_newer"])
+                ),
+            ],
             vec!["last_apply_status".into(), {
                 let st = u(&d["last_apply_status"]);
                 if st == 0 {
