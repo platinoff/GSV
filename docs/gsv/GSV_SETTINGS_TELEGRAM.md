@@ -1,6 +1,6 @@
 # GSV settings, Telegram Godfather, tickets, MCP bot bus
 
-**Status:** Landed band **178** (scenario benchmark — `abrakadabra-session` Instant timings) · **band 177 ✅** roadmap/plan MCP hook-up — `run mcp bot hook up scenario` · **band 176 ✅** visible MCP session walk · **band 175 ✅** MDS scenario band + solo walk + Telegram `kind:sync` · **band 174 ✅** solo Telegram tickets · **band 173 ✅** vision queue close-lockstep · **band 172 ✅** live crate lockstep · bands **166–171 ✅** · **next drain:** owner pick after a warnings-first scan  
+**Status:** Landed band **179** (Godfather inbound poller — `getUpdates` loop in `gsv-server`) · **band 178 ✅** scenario benchmark — `abrakadabra-session` Instant timings · **band 177 ✅** roadmap/plan MCP hook-up — `run mcp bot hook up scenario` · **band 176 ✅** visible MCP session walk · **band 175 ✅** MDS scenario band + solo walk + Telegram `kind:sync` · **band 174 ✅** solo Telegram tickets · **band 173 ✅** vision queue close-lockstep · **band 172 ✅** live crate lockstep · bands **166–171 ✅** · **next drain:** owner pick after a warnings-first scan  
 **Date:** 2026-08-19  
 **Deciders:** owner  
 **Owner ask:** GSV settings; Telegram channels; MCP bots talk to each other through a Telegram tunnel; a ticket board for people who want to join; MCP claims tickets and marks `in_progress` the same way fingerprints sync; server settings hold **Godfather** data (which channel, how secrets are stored, co-workflows). Next session starts with `абракадабра`.
@@ -19,7 +19,7 @@ Cost of leaving it: the next drain invents a one-off Telegram script, leaks a bo
 1. Owner configures GSV on the live Galaxy **Settings** card (Godfather channel, co-workflows, secret policy) without putting tokens in git.
 2. Joiners see a **ticket board**; MCP bots **claim** a ticket, mark `in_progress`, and leave a fingerprint-class row (actor / IDE / model / time).
 3. Two (or more) `gsv_mcp_openbot` clients can exchange short control messages over a **Telegram channel bus** once Godfather is bound — not a public Cloudflare hop.
-4. Band **178** is landed: Instant `abrakadabra-session` walk timings persist to `docs/gsv/scenario_bench.json` and show on Godfather / Galaxy / MCP. Bands **166–178** are landed. Next drain: owner pick after a warnings-first scan.
+4. Band **179** is landed: `gsv-server` polls Godfather inbound (`/ticket` / hook / bus JSON) when `telegram-relay` or `godfather.poll` is on. Bands **166–179** are landed. Next drain: owner pick after a warnings-first scan.
 5. Ratio stays `gsv-loc-audit --stretch-96` ≥ 96%. No Python. Secrets never in MCP/HTTP JSON.
 
 ## Non-goals
@@ -191,6 +191,18 @@ Owner pick (`абракадабра` gsv): the Godfather bench line was reading 
 | Galaxy | Last bench on tickets card + record button. `CARD_NAMES` **40**. |
 | xtask | `cargo xtask record-scenario-bench`. |
 
+### P2 — Should (band 179) — Godfather inbound poller ✅
+
+Owner pick (`абракадабра` gsv): `poller_wanted` was status-only. Always-on `gsv-server` now `getUpdates` when `godfather.poll` or `telegram-relay` is on. Cargo tests stay dry-run (stub queue, no sockets). Stdio `gsv-mcp` does **not** spawn the loop (shared offset file).
+
+| Piece | Acceptance |
+|-------|------------|
+| Classify | `classify_inbound`: hook phrase · bus/sync JSON · `/ticket` / `{kind:ticket}`. Skip plain chat and outbound session lines (`solo claimed …`, `bench gsv_dev …`, `hook … n=`). |
+| Loop | `spawn_poll_loop` from `gsv-server` after `enable_live_api`. 1/s. No-op when live API is off (cargo test). |
+| Offset | `data/telegram_offset.json` (gitignored). |
+| HTTP / MCP | `POST /api/telegram/poll`. MCP `gsv_telegram_poll` → **53** tools. CSRF. Never `bot_token`. |
+| Galaxy | Telegram card: poll loop / last poll / last ingest + **poll now**. `CARD_NAMES` **40**. |
+
 ## Security (how we store)
 
 | Layer | Rule |
@@ -200,7 +212,7 @@ Owner pick (`абракадабра` gsv): the Godfather bench line was reading 
 | Env | `GSV_TELEGRAM_BOT_TOKEN` overrides file; process env is not dumped to `/api/*`. |
 | API / MCP / logs | Redact. `token_set` only. Preview confine still cannot read `../` or `file://`. |
 | Telegram | v1 poll from the server process; no public webhook URL. Godfather channel is private/invite. |
-| MCP write | Band 166: settings **read**. Band 168: ticket **claim**. Band 170: ticket **create/done/error/presence**. Band 171: ticket **reclaim**. Band 175: ticket **walk**. Band 177: ticket **hook** (catalog / roadmap / plan). Band 178: ticket **bench** (throwaway kit; persist JSON). Never `update/apply` / tunnel start. |
+| MCP write | Band 166: settings **read**. Band 168: ticket **claim**. Band 170: ticket **create/done/error/presence**. Band 171: ticket **reclaim**. Band 175: ticket **walk**. Band 177: ticket **hook** (catalog / roadmap / plan). Band 178: ticket **bench** (throwaway kit; persist JSON). Band 179: Telegram **poll** (one `getUpdates` pass; loop is `gsv-server` only). Never `update/apply` / tunnel start. |
 
 ## Co-workflows (v1 ids)
 
@@ -224,6 +236,7 @@ Unknown ids in the file are kept but ignored (forward compatible).
 - Band 176: Godfather (live) or bus queue (dry-run) shows session lines for solo, squad, and bench; scenario `abrakadabra-session`; `--stretch-96` ≥ 96%.
 - Band 177: phrase `run mcp bot hook up scenario band 177` places ≤10 tickets from the roadmap; catalog/plan sources work; idempotent re-hook; MCP `gsv_tickets_hook`; `--stretch-96` ≥ 96%.
 - Band 178: `GET /api/tickets/bench` empty-ok; `POST {run:true}` writes `scenario_bench.json`; Godfather line includes `session=`; MCP `gsv_tickets_bench`; `--stretch-96` ≥ 96%.
+- Band 179: `POST /api/telegram/poll` classifies stub/live updates; MCP `gsv_telegram_poll`; `gsv-server` loop when live; offset in `data/telegram_offset.json`; `--stretch-96` ≥ 96%.
 
 ## Open questions (non-blocking)
 
@@ -245,6 +258,7 @@ Unknown ids in the file are kept but ignored (forward compatible).
 | **176** | S2399–S2408 | Visible MCP session walk (solo / squad / bench on Godfather) | **✅ this drain** |
 | **177** | S2409–S2418 | Roadmap/plan hook-up (`run mcp bot hook up scenario`) | **✅ this drain** |
 | **178** | S2419–S2428 | Scenario benchmark (`abrakadabra-session` Instant timings) | **✅ this drain** |
+| **179** | S2429–S2438 | Godfather inbound poller (`getUpdates` loop + `gsv_telegram_poll`) | **✅ this drain** |
 
 Next drain: **owner pick** after a warnings-first scan.
 

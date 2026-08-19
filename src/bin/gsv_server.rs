@@ -83,6 +83,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let state = AppState::new(repo_root.clone(), data_dir.clone(), tx);
 
     gsv::boxes::telegram::enable_live_api();
+    gsv::boxes::telegram::spawn_poll_loop(
+        (*state.repo_root).clone(),
+        (*state.data_dir).clone(),
+        state.ticket_presence.clone(),
+    );
 
     let addr: SocketAddr = format!("{host}:{port}").parse()?;
     let app = gsv::server::router(state.clone());

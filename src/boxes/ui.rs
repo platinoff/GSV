@@ -1166,9 +1166,37 @@ pub fn render_telegram(d: &Value) -> String {
                     format!("<kbd>{}</kbd>", esc(&id))
                 }
             }],
+            vec![
+                "poll loop".into(),
+                format!(
+                    "<span class='{}'>{}</span>",
+                    if b(&d["poll_alive"]) { "ok" } else { "dim" },
+                    if b(&d["poll_alive"]) { "alive" } else { "off" }
+                ),
+            ],
+            vec!["last poll".into(), {
+                let ts = s(&d["last_poll_ts"]);
+                if ts.is_empty() {
+                    "<span class='dim'>—</span>".into()
+                } else {
+                    esc(&ts)
+                }
+            }],
+            vec!["last ingest".into(), {
+                let kind = s(&d["last_ingest_kind"]);
+                let id = s(&d["last_ingest_id"]);
+                if kind.is_empty() {
+                    "<span class='dim'>—</span>".into()
+                } else if id.is_empty() {
+                    format!("<kbd>{}</kbd>", esc(&kind))
+                } else {
+                    format!("<kbd>{}</kbd> {}", esc(&kind), esc(&id))
+                }
+            }],
         ],
     ));
-    out.push_str("<div class='dim'>solo bot · MCP <kbd>gsv_telegram_ticket</kbd> · <kbd>/ticket</kbd> title</div>");
+    out.push_str("<div class='dim'>solo bot · MCP <kbd>gsv_telegram_ticket</kbd> · <kbd>/ticket</kbd> title · inbound <kbd>gsv_telegram_poll</kbd></div>");
+    out.push_str("<p><button type='button' data-action='telegram-poll'>poll now</button></p>");
     out
 }
 
@@ -2567,6 +2595,8 @@ mod tests {
         }));
         assert!(tg_ok.contains("t-174"), "{tg_ok}");
         assert!(tg_ok.contains("gsv_telegram_ticket"), "{tg_ok}");
+        assert!(tg_ok.contains("data-action='telegram-poll'"), "{tg_ok}");
+        assert!(tg_ok.contains("gsv_telegram_poll"), "{tg_ok}");
         assert!(render_telegram(&serde_json::json!({ "ok": false, "error": "io" })).contains("io"));
         let tickets = render_tickets(&serde_json::json!({ "ok": true, "tickets": [] }));
         assert!(tickets.contains("tickets — no data"), "{tickets}");

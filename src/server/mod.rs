@@ -104,6 +104,7 @@ pub fn router(state: AppState) -> Router {
             get(api_telegram_bus).post(api_telegram_bus_post),
         )
         .route("/api/telegram/ticket", post(api_telegram_ticket))
+        .route("/api/telegram/poll", post(api_telegram_poll))
         .route("/api/tickets", get(api_tickets).post(api_tickets_post))
         .route("/api/tickets/claim", post(api_tickets_claim))
         .route("/api/tickets/done", post(api_tickets_done))
@@ -375,6 +376,23 @@ async fn api_telegram_ticket(
             &state.data_dir,
             dry,
             &body,
+            Some(&state.ticket_presence),
+        )
+        .await,
+    )
+}
+
+async fn api_telegram_poll(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(_body): Json<Value>,
+) -> Json<Value> {
+    let dry = crate::boxes::telegram::header_dry_run(&headers);
+    Json(
+        crate::boxes::telegram::poll_once(
+            &state.repo_root,
+            &state.data_dir,
+            dry,
             Some(&state.ticket_presence),
         )
         .await,
@@ -696,7 +714,7 @@ async fn api_index() -> Json<Value> {
         "categories": [
             "/api/vision/", "/api/ui/", "/api/ratio/", "/api/toolchain/",
             "/api/ide/", "/api/omni/", "/api/sli", "/api/tracker", "/api/products",
-            "/api/fingerprints", "/api/sw", "/api/watchdog", "/api/usage", "/api/settings", "/api/telegram", "/api/telegram/bus", "/api/telegram/ticket", "/api/tickets", "/api/mds", "/api/xtask", "/api/disk", "/sw.js",
+            "/api/fingerprints", "/api/sw", "/api/watchdog", "/api/usage", "/api/settings", "/api/telegram", "/api/telegram/bus", "/api/telegram/ticket", "/api/telegram/poll", "/api/tickets", "/api/mds", "/api/xtask", "/api/disk", "/sw.js",
             "/api/hooks/", "/api/preview", "/api/terminal", "/data/", "/mcp"
         ],
         "example": "/api/vision",

@@ -1,9 +1,12 @@
 //! Godfather Telegram channel bind (band 167) + MCP bus (band 169) +
-//! ticket ingest (band 174).
+//! ticket ingest (band 174) + inbound poll loop (band 179).
 //!
 //! On-demand `getMe` + `getChat`. Tests and `X-Telegram-Dry-Run: 1` use an
 //! in-process stub (no sockets). Live Bot API is enabled only from `gsv-server`
 //! / `gsv-mcp` via [`enable_live_api`]. Poller default off — no boot probe.
+//! Band **179**: `gsv-server` runs [`spawn_poll_loop`] when live API is on;
+//! `getUpdates` classifies `/ticket` / hook / bus JSON. Offset persists in
+//! `data/telegram_offset.json` (gitignored). Cargo tests stay dry-run.
 //!
 //! Band 169 bus: JSON envelopes on the Godfather channel. No public webhook,
 //! no Cloudflare. Dry-run uses a process-local queue.
@@ -14,9 +17,10 @@
 //! Band 178: Godfather bench line reads `docs/gsv/scenario_bench.json` (session walk).
 
 use std::collections::VecDeque;
-use std::path::Path;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use axum::http::HeaderMap;
@@ -36,10 +40,19 @@ const STUB_CHAT: &str = "GSV Godfather (dry-run)";
 const API_ROOT: &str = "https://api.telegram.org";
 
 static LIVE_API: AtomicBool = AtomicBool::new(false);
+static POLL_LOOP: AtomicBool = AtomicBool::new(false);
+
+/// Durable getUpdates offset under `data/` (gitignored via `/data/*`).
+pub const OFFSET_FILE: &str = "telegram_offset.json";
 
 /// Allow outbound Bot API (call from `gsv-server` / `gsv-mcp` mains only).
 pub fn enable_live_api() {
     LIVE_API.store(true, Ordering::SeqCst);
+}
+
+/// True while [`spawn_poll_loop`] is running in this process (`gsv-server`).
+pub fn poll_loop_alive() -> bool {
+    POLL_LOOP.load(Ordering::SeqCst)
 }
 
 /// True after [`enable_live_api`]. Cargo tests leave this false.
@@ -313,13 +326,29 @@ pub struct BusEnvelope {
     pub body: String,
 }
 
+/// Dry-run / test fake of one `getUpdates` item.
+#[derive(Clone, Debug)]
+pub struct InboundUpdate {
+    pub update_id: i64,
+    pub text: String,
+    pub chat_id: String,
+    pub chat_username: String,
+    pub from: String,
+    pub from_username: String,
+}
+
 struct BusInner {
     queue: VecDeque<BusEnvelope>,
+    inbound: VecDeque<InboundUpdate>,
     last_send: Option<Instant>,
     last_bus_ts: String,
     last_bus_error: String,
     last_bus_ok: bool,
     last_ticket_id: String,
+    last_poll_ts: String,
+    last_poll_n: usize,
+    last_ingest_kind: String,
+    last_ingest_id: String,
     update_offset: i64,
 }
 
@@ -327,11 +356,16 @@ impl BusInner {
     const fn new() -> Self {
         Self {
             queue: VecDeque::new(),
+            inbound: VecDeque::new(),
             last_send: None,
             last_bus_ts: String::new(),
             last_bus_error: String::new(),
             last_bus_ok: false,
             last_ticket_id: String::new(),
+            last_poll_ts: String::new(),
+            last_poll_n: 0,
+            last_ingest_kind: String::new(),
+            last_ingest_id: String::new(),
             update_offset: 0,
         }
     }
@@ -354,13 +388,18 @@ pub fn bus_clear_rate_limit() {
 }
 
 fn merge_last_bus(v: &mut Value) {
-    let (ok, ts, err, ticket) = {
+    let (ok, ts, err, ticket, poll_ts, poll_n, ingest_kind, ingest_id, offset) = {
         let g = bus();
         (
             g.last_bus_ok,
             g.last_bus_ts.clone(),
             g.last_bus_error.clone(),
             g.last_ticket_id.clone(),
+            g.last_poll_ts.clone(),
+            g.last_poll_n,
+            g.last_ingest_kind.clone(),
+            g.last_ingest_id.clone(),
+            g.update_offset,
         )
     };
     if let Some(obj) = v.as_object_mut() {
@@ -368,6 +407,12 @@ fn merge_last_bus(v: &mut Value) {
         obj.insert("last_bus_ts".into(), json!(ts));
         obj.insert("last_bus_error".into(), json!(err));
         obj.insert("last_ticket_id".into(), json!(ticket));
+        obj.insert("poll_alive".into(), json!(poll_loop_alive()));
+        obj.insert("last_poll_ts".into(), json!(poll_ts));
+        obj.insert("last_poll_n".into(), json!(poll_n));
+        obj.insert("last_ingest_kind".into(), json!(ingest_kind));
+        obj.insert("last_ingest_id".into(), json!(ingest_id));
+        obj.insert("update_offset".into(), json!(offset));
     }
 }
 
@@ -798,6 +843,266 @@ pub fn parse_channel_ticket(text: &str) -> Option<(String, String)> {
         .map(title_body)
 }
 
+/// Classify a Godfather channel body for the inbound poller (band 179).
+///
+/// Hook phrases win, then bus/sync JSON, then `/ticket` / `{kind:ticket}`.
+/// Plain chat is `skip` so the poller does not turn every post into a ticket.
+pub fn classify_inbound(text: &str) -> &'static str {
+    let t = text.trim();
+    if t.is_empty() {
+        return "skip";
+    }
+    if is_own_session_line(t) {
+        return "skip";
+    }
+    if tickets::parse_hook_phrase(t).is_some() {
+        return "hook";
+    }
+    if let Ok(v) = serde_json::from_str::<Value>(t) {
+        if parse_envelope(&v).is_ok() {
+            return "bus";
+        }
+    }
+    if parse_channel_ticket(t).is_some() {
+        return "ticket";
+    }
+    "skip"
+}
+
+/// Outbound Godfather session lines must not be re-ingested (echo loop).
+pub fn is_own_session_line(text: &str) -> bool {
+    let t = text.trim();
+    t.starts_with("solo claimed ")
+        || t.starts_with("solo done ")
+        || t.starts_with("squad assigned ")
+        || t.starts_with("bench gsv_dev ")
+        || (t.starts_with("hook ") && t.contains(" n="))
+}
+
+/// Queue a dry-run `getUpdates` item for [`poll_once`].
+pub fn push_inbound_stub(
+    update_id: i64,
+    text: &str,
+    chat_id: &str,
+    chat_username: &str,
+    from: &str,
+) {
+    let mut g = bus();
+    g.inbound.push_back(InboundUpdate {
+        update_id,
+        text: text.to_string(),
+        chat_id: chat_id.to_string(),
+        chat_username: chat_username.to_string(),
+        from: from.to_string(),
+        from_username: from.to_string(),
+    });
+}
+
+fn offset_path(data_dir: &Path) -> PathBuf {
+    data_dir.join(OFFSET_FILE)
+}
+
+fn load_offset(data_dir: &Path) -> i64 {
+    let mem = bus().update_offset;
+    if mem > 0 {
+        return mem;
+    }
+    let Ok(raw) = fs::read_to_string(offset_path(data_dir)) else {
+        return 0;
+    };
+    serde_json::from_str::<Value>(&raw)
+        .ok()
+        .and_then(|v| v.get("offset").and_then(Value::as_i64))
+        .unwrap_or(0)
+}
+
+fn save_offset(data_dir: &Path, offset: i64) {
+    bus().update_offset = offset;
+    let body = json!({ "offset": offset });
+    if let Ok(s) = serde_json::to_string(&body) {
+        let _ = fs::write(offset_path(data_dir), s);
+    }
+}
+
+fn drain_inbound_stubs() -> Vec<InboundUpdate> {
+    let mut out = Vec::new();
+    let mut g = bus();
+    while let Some(item) = g.inbound.pop_front() {
+        out.push(item);
+    }
+    out
+}
+
+fn enqueue_inbound_bus(env: BusEnvelope) {
+    let mut g = bus();
+    g.queue.push_back(env);
+    g.last_bus_ok = true;
+    g.last_bus_ts = now_rfc3339();
+    g.last_bus_error.clear();
+}
+
+/// Background `getUpdates` loop. No-op in cargo tests (`live_api` off).
+///
+/// Only `gsv-server` should call this so stdio `gsv-mcp` does not steal the
+/// offset. Each tick no-ops unless [`poller_wanted`].
+pub fn spawn_poll_loop(
+    repo_root: PathBuf,
+    data_dir: PathBuf,
+    presence: Arc<tickets::PresenceStore>,
+) {
+    if !live_api_enabled() {
+        return;
+    }
+    POLL_LOOP.store(true, Ordering::SeqCst);
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            let file = settings::load_result(&data_dir).unwrap_or_default();
+            if !poller_wanted(&file) {
+                continue;
+            }
+            if resolved_token(&file).is_none() {
+                continue;
+            }
+            let _ = poll_once(&repo_root, &data_dir, false, Some(presence.as_ref())).await;
+        }
+    });
+}
+
+/// One inbound pass: dry-run stub queue or live `getUpdates`.
+///
+/// Classifies Godfather posts into bus / ticket / hook. Never returns `bot_token`.
+pub async fn poll_once(
+    repo_root: &Path,
+    data_dir: &Path,
+    explicit_dry: bool,
+    presence: Option<&tickets::PresenceStore>,
+) -> Value {
+    let dry = use_stub(explicit_dry);
+    let file = match settings::load_result(data_dir) {
+        Ok(f) => f,
+        Err(e) => {
+            record_last(false, &e);
+            return bus_fail(&e, "");
+        }
+    };
+    let token = resolved_token(&file).unwrap_or_default();
+    if !poller_wanted(&file) {
+        let err = "poller is off (godfather.poll or telegram-relay)";
+        record_last(false, err);
+        return bus_fail(err, &token);
+    }
+    let channel = file.godfather.channel_id.trim().to_string();
+    if channel.is_empty() {
+        let err = "godfather channel_id is not set";
+        record_last(false, err);
+        return bus_fail(err, &token);
+    }
+    let items = if dry {
+        drain_inbound_stubs()
+    } else {
+        if token.is_empty() {
+            let err = "godfather bot token is not set";
+            record_last(false, err);
+            return bus_fail(err, "");
+        }
+        match fetch_inbound_live(&token, data_dir).await {
+            Ok(v) => v,
+            Err(v) => return v,
+        }
+    };
+    let mut n_bus = 0usize;
+    let mut n_ticket = 0usize;
+    let mut n_hook = 0usize;
+    let mut n_skip = 0usize;
+    let mut ingested = Vec::new();
+    let mut max_id = load_offset(data_dir);
+    for item in items {
+        if item.update_id >= max_id {
+            max_id = item.update_id + 1;
+        }
+        if item.from_username.eq_ignore_ascii_case(STUB_BOT) {
+            n_skip += 1;
+            continue;
+        }
+        if !chat_is_godfather(&channel, &item.chat_id, &item.chat_username) {
+            n_skip += 1;
+            continue;
+        }
+        let kind = classify_inbound(&item.text);
+        match kind {
+            "bus" => {
+                if let Ok(v) = serde_json::from_str::<Value>(&item.text) {
+                    if let Ok(env) = parse_envelope(&v) {
+                        enqueue_inbound_bus(env);
+                        n_bus += 1;
+                        ingested.push(json!({ "kind": "bus" }));
+                    } else {
+                        n_skip += 1;
+                    }
+                } else {
+                    n_skip += 1;
+                }
+            }
+            "ticket" | "hook" => {
+                let args = json!({
+                    "from": item.from,
+                    "body": item.text,
+                });
+                let v = ingest_channel_body(repo_root, data_dir, dry, &args, presence).await;
+                let ok = v.get("ok").and_then(Value::as_bool) == Some(true);
+                let id = v
+                    .pointer("/ticket/id")
+                    .and_then(Value::as_str)
+                    .or_else(|| v.get("scenario").and_then(Value::as_str))
+                    .unwrap_or("")
+                    .to_string();
+                if ok {
+                    if kind == "ticket" {
+                        n_ticket += 1;
+                    } else {
+                        n_hook += 1;
+                    }
+                    ingested.push(json!({ "kind": kind, "id": id, "ok": true }));
+                    {
+                        let mut g = bus();
+                        g.last_ingest_kind = kind.to_string();
+                        g.last_ingest_id = id;
+                    }
+                } else {
+                    n_skip += 1;
+                    ingested.push(json!({
+                        "kind": kind,
+                        "ok": false,
+                        "error": v.get("error").cloned().unwrap_or(json!("ingest failed")),
+                    }));
+                }
+            }
+            _ => n_skip += 1,
+        }
+    }
+    save_offset(data_dir, max_id);
+    let n = n_bus + n_ticket + n_hook + n_skip;
+    {
+        let mut g = bus();
+        g.last_poll_ts = now_rfc3339();
+        g.last_poll_n = n;
+    }
+    record_last(true, "");
+    json!({
+        "ok": true,
+        "dry_run": dry,
+        "n": n,
+        "bus": n_bus,
+        "ticket": n_ticket,
+        "hook": n_hook,
+        "skip": n_skip,
+        "ingested": ingested,
+        "update_offset": max_id,
+        "poll_alive": poll_loop_alive(),
+    })
+}
+
 /// Explicit ticket body: channel forms plus any non-empty plain text.
 pub fn parse_ticket_body(text: &str) -> Result<(String, String), String> {
     let t = text.trim();
@@ -1088,7 +1393,7 @@ pub async fn bus_poll(data_dir: &Path, explicit_dry: bool, limit: Option<usize>)
     if !settings::telegram_relay_enabled(&file) {
         return bus_fail("telegram-relay workflow is off", &token);
     }
-    if dry {
+    if dry || poll_loop_alive() {
         let mut messages = Vec::new();
         {
             let mut g = bus();
@@ -1101,7 +1406,7 @@ pub async fn bus_poll(data_dir: &Path, explicit_dry: bool, limit: Option<usize>)
         }
         return json!({
             "ok": true,
-            "dry_run": true,
+            "dry_run": dry,
             "messages": messages,
         });
     }
@@ -1112,7 +1417,7 @@ pub async fn bus_poll(data_dir: &Path, explicit_dry: bool, limit: Option<usize>)
     if token.is_empty() {
         return bus_fail("godfather bot token is not set", "");
     }
-    bus_poll_live(&token, &channel, n).await
+    bus_poll_live(&token, &channel, n, data_dir).await
 }
 
 /// Telegram `chat.id` as a decimal string (`-100…`).
@@ -1122,6 +1427,90 @@ fn json_id(v: Option<&Value>) -> String {
         Some(Value::String(s)) => s.clone(),
         _ => String::new(),
     }
+}
+
+fn inbound_from_tg_update(item: &Value) -> InboundUpdate {
+    let update_id = item.get("update_id").and_then(Value::as_i64).unwrap_or(0);
+    let text = item
+        .pointer("/message/text")
+        .or_else(|| item.pointer("/channel_post/text"))
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    let chat_id = json_id(
+        item.pointer("/message/chat/id")
+            .or_else(|| item.pointer("/channel_post/chat/id")),
+    );
+    let chat_username = item
+        .pointer("/message/chat/username")
+        .or_else(|| item.pointer("/channel_post/chat/username"))
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    let from_id = json_id(item.pointer("/message/from/id"));
+    let from_username = item
+        .pointer("/message/from/username")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    let from = if !from_id.is_empty() {
+        from_id
+    } else if !from_username.is_empty() {
+        from_username.clone()
+    } else {
+        "godfather".into()
+    };
+    InboundUpdate {
+        update_id,
+        text,
+        chat_id,
+        chat_username,
+        from,
+        from_username,
+    }
+}
+
+async fn fetch_inbound_live(token: &str, data_dir: &Path) -> Result<Vec<InboundUpdate>, Value> {
+    let offset = load_offset(data_dir);
+    let client = match reqwest::Client::builder()
+        .timeout(Duration::from_secs(3))
+        .build()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            let v = bus_fail(&format!("telegram client: {e}"), token);
+            return Err(v);
+        }
+    };
+    let url = format!("{API_ROOT}/bot{token}/getUpdates");
+    let offset_s = offset.to_string();
+    let got = match client
+        .get(&url)
+        .query(&[("offset", offset_s.as_str()), ("timeout", "0")])
+        .send()
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => return Err(bus_fail(&format!("getUpdates: {e}"), token)),
+    };
+    let body = match got.json::<Value>().await {
+        Ok(v) => v,
+        Err(e) => return Err(bus_fail(&format!("getUpdates body: {e}"), token)),
+    };
+    if body.get("ok").and_then(Value::as_bool) != Some(true) {
+        let desc = body
+            .get("description")
+            .and_then(Value::as_str)
+            .unwrap_or("getUpdates failed");
+        return Err(bus_fail(desc, token));
+    }
+    let mut items = Vec::new();
+    if let Some(arr) = body.get("result").and_then(Value::as_array) {
+        for item in arr {
+            items.push(inbound_from_tg_update(item));
+        }
+    }
+    Ok(items)
 }
 
 /// Godfather channel may be stored as `@GSV_OFFICIAL`; getUpdates uses numeric id.
@@ -1138,8 +1527,8 @@ fn chat_is_godfather(channel: &str, chat_id: &str, chat_username: &str) -> bool 
     !want.is_empty() && !got.is_empty() && want.eq_ignore_ascii_case(got)
 }
 
-async fn bus_poll_live(token: &str, channel: &str, limit: usize) -> Value {
-    let offset = bus().update_offset;
+async fn bus_poll_live(token: &str, channel: &str, limit: usize, data_dir: &Path) -> Value {
+    let offset = load_offset(data_dir);
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(3))
         .build()
@@ -1206,7 +1595,7 @@ async fn bus_poll_live(token: &str, channel: &str, limit: usize) -> Value {
             }
         }
     }
-    bus().update_offset = max_id;
+    save_offset(data_dir, max_id);
     json!({
         "ok": true,
         "dry_run": false,
@@ -1222,6 +1611,31 @@ mod tests {
     fn live_api_off_in_lib_tests() {
         assert!(!live_api_enabled());
         assert!(!boot_should_probe());
+        assert!(!poll_loop_alive());
+    }
+
+    #[test]
+    fn classify_inbound_hook_bus_ticket_skip() {
+        assert_eq!(
+            classify_inbound("run mcp bot hook up scenario band 177"),
+            "hook"
+        );
+        assert_eq!(
+            classify_inbound(r#"{"v":1,"kind":"bus","from":"a","body":"x"}"#),
+            "bus"
+        );
+        assert_eq!(classify_inbound("/ticket Fix poller"), "ticket");
+        assert_eq!(
+            classify_inbound(r#"{"v":1,"kind":"ticket","body":"Join"}"#),
+            "ticket"
+        );
+        assert_eq!(classify_inbound("hello channel"), "skip");
+        assert_eq!(classify_inbound("solo claimed Session: S0 disk"), "skip");
+        assert_eq!(
+            classify_inbound("bench gsv_dev create=1 walk=2 mds=3 enqueue=4 session=5 ns"),
+            "skip"
+        );
+        assert!(is_own_session_line("hook band 177 n=10"));
     }
 
     #[test]

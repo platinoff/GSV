@@ -100,6 +100,7 @@ fn main() {
         ("tickets_create_claim_done", 64usize),
         ("tickets_list", 64usize),
         ("telegram_parse_ticket", 10_000usize),
+        ("telegram_classify_inbound", 10_000usize),
         ("scenario_band_create", 16usize),
         ("solo_walk_mds", 8usize),
         ("mds_report", 8usize),
@@ -133,6 +134,9 @@ fn main() {
                 }
                 "telegram_parse_ticket" => {
                     let _ = telegram::parse_ticket_body("/ticket bench title");
+                }
+                "telegram_classify_inbound" => {
+                    let _ = telegram::classify_inbound("/ticket bench title");
                 }
                 "scenario_band_create" => {
                     let _ = tickets::create_band_from_scenario(

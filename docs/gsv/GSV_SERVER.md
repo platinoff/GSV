@@ -45,10 +45,11 @@
 | GET | `/api/usage` | per-session token totals (OmniRouter + MCP + OmniRoute pull; `data/gsv_usage.json`) |
 | GET | `/api/settings` | Godfather settings (redacted: `token_set`, never `bot_token`; `data/gsv_settings.json`) |
 | POST | `/api/settings` | owner write (loopback CSRF); stores posted token; response redacted |
-| GET | `/api/telegram` | Godfather bind status (`ok`, `channel_id`, `token_set`, `bot_username`, `chat_title`, `last_probe`, `polling`, `last_bus_ts`, `last_bus_error`; never `bot_token`). `X-Telegram-Dry-Run: 1` forces the in-process stub. |
+| GET | `/api/telegram` | Godfather bind status (`ok`, `channel_id`, `token_set`, `bot_username`, `chat_title`, `last_probe`, `polling`, `poll_alive`, `last_poll_ts`, `last_ingest_kind`, `last_bus_ts`, `last_bus_error`; never `bot_token`). `X-Telegram-Dry-Run: 1` forces the in-process stub. |
 | GET | `/api/telegram/bus` | Poll bus envelopes (`messages`; requires `telegram-relay`; dry-run queue in tests). |
 | POST | `/api/telegram/bus` | Send a bus envelope `{from,to?,ticket_id?,body}` (CSRF; body cap 2 KiB; never `bot_token`). |
 | POST | `/api/telegram/ticket` | Ingest a Godfather message as a ticket (`{from,body,product?}`; `/ticket` or `{kind:ticket}`). Solo MCP auto-claims when online. Requires `telegram-relay` + `ticket-claim`. CSRF; never `bot_token`. |
+| POST | `/api/telegram/poll` | One inbound `getUpdates` pass (`ticket`/`hook`/`bus`/`skip` counts). CSRF; dry-run stub queue in tests. Requires `godfather.poll` or `telegram-relay`. Never `bot_token`. |
 | GET | `/api/tickets` | Ticket board (`ok`, `tickets[]`, `mode`, `lease_secs`, `online`, `scenarios`, `events`; missing JSONL empty-ok; expired WIP auto-reclaimed) |
 | POST | `/api/tickets` | create `{title,body?,product?}` or `{scenario_id}` (loopback CSRF); registered product only; may auto-assign |
 | POST | `/api/tickets/claim` | `{id}` → `open`→`in_progress` + `claimed_by` + append `docs/gsv/ticket_claims.jsonl`; unknown id → 404; `ticket-claim` off → 403 |
@@ -62,7 +63,7 @@
 | POST | `/api/tickets/bench` | `{run:true}` times a throwaway session walk and persists JSON. CSRF. Default `{run:false}` is a read. |
 | GET | `/api/mds` | Light memory / disk / speed report (`gsv-mds`) |
 | GET | `/api/health` | health-чек (`crate_version`, `version_lag`, `update_available` matches Update box) |
-| GET | `/mcp` | MCP discovery (`gsv_mcp_openbot` + `sandbox` GSV crate path + 52 tools + 11 resources + 3 prompts + `stdio`/`stdio_live`/`http`/`http_url`/`version`/`http_csrf`/`tool_count`/`resource_count`/`prompt_count`/`logging`/`completions`/`log_level`/`subscribe`/`subscription_count`/`sse`/`streamable`/`sessions`/`session_count`); sessionless `Accept: text/event-stream` flushes pending notifications as finite SSE; **GET with `Mcp-Session-Id` holds** the stream; unknown `Mcp-Session-Id` → 404 |
+| GET | `/mcp` | MCP discovery (`gsv_mcp_openbot` + `sandbox` GSV crate path + 53 tools + 11 resources + 3 prompts + `stdio`/`stdio_live`/`http`/`http_url`/`version`/`http_csrf`/`tool_count`/`resource_count`/`prompt_count`/`logging`/`completions`/`log_level`/`subscribe`/`subscription_count`/`sse`/`streamable`/`sessions`/`session_count`); sessionless `Accept: text/event-stream` flushes pending notifications as finite SSE; **GET with `Mcp-Session-Id` holds** the stream; unknown `Mcp-Session-Id` → 404 |
 | POST | `/mcp` | MCP JSON-RPC (initialize / tools/* / resources/* including subscribe/unsubscribe / prompts/* / logging/setLevel / completion/complete); skips browser CSRF (bots); `initialize` issues `Mcp-Session-Id`; unknown id → 404; `Accept: text/event-stream` → SSE notifications then result; stdio twin is `target/live/gsv-mcp.exe` |
 | DELETE | `/mcp` | End HTTP MCP session (`Mcp-Session-Id` required; missing → 400; unknown → 404) |
 | GET | `/api/ui/layout` | grouped IA (ops/vision/sprint/studio) + `chrome` (8) + `html` (sidebar nav) + `header` (GPU/Auto/Power) |

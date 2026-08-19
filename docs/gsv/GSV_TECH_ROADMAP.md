@@ -63,6 +63,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 176** (visible MCP session walk) **✅** ·
 **band 177** (roadmap/plan hook-up) **✅** ·
 **band 178** (scenario benchmark) **✅** ·
+**band 179** (Godfather inbound poller) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -1248,6 +1249,23 @@ Owner pick (`абракадабра` gsv): persist Instant timings for an `abrak
 | **PH-S2426** | xtask | `cargo xtask record-scenario-bench` — **✅** |
 | **PH-S2427** | Tests | contracts + dry-run; `--stretch-96` — **✅** |
 | **PH-S2428** | Band close | `--band 178` + fingerprint; recopy live; one commit + push — **✅** |
+
+## Спринти (band 179) — Godfather inbound poller ✅
+
+Owner pick (`абракадабра` gsv): `poller_wanted` was a status flag only — Galaxy did not `getUpdates` unless an MCP client called `gsv_telegram_bus_poll`, and that path accepted bus JSON only. Always-on `gsv-server` now loops inbound: `/ticket`, hook phrase, bus JSON. Offset in `data/telegram_offset.json`. Spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md).
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2429** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2429`; `last_sprint_closed` = `PH-S2428` — **✅** |
+| **PH-S2430** | Classify | `classify_inbound`: hook / bus / `/ticket`; skip plain + own session lines — **✅** |
+| **PH-S2431** | Dry-run | `push_inbound_stub` + `poll_once` (no sockets) — **✅** |
+| **PH-S2432** | Loop | `spawn_poll_loop` in `gsv-server` only; 1/s; no-op in cargo tests — **✅** |
+| **PH-S2433** | Offset | `data/telegram_offset.json`; shared with on-demand bus poll — **✅** |
+| **PH-S2434** | HTTP / MCP | `POST /api/telegram/poll`; `gsv_telegram_poll` → **53** tools — **✅** |
+| **PH-S2435** | Galaxy | poll rows + `poll now`; `CARD_NAMES` **40** — **✅** |
+| **PH-S2436** | Contracts | CSRF; ticket+bus+skip; MCP dry-run; no token — **✅** |
+| **PH-S2437** | Bench | `gsv_dev` `telegram_classify_inbound` — **✅** |
+| **PH-S2438** | Band close | `--band 179` + fingerprint; recopy live; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

@@ -90,11 +90,14 @@ fn assert_no_secret(json: &Value, secret: &str) {
 
 #[tokio::test]
 async fn missing_channel_or_token_is_ok_false_without_secrets() {
+    let _g = bus_guard().await;
+    telegram::bus_reset();
     let data = temp_data("missing");
+    let _ = std::fs::remove_file(data.join("gsv_settings.json"));
     let w = telegram::status(&data, true).await;
-    assert_eq!(w["ok"], false);
-    assert_eq!(w["token_set"], false);
-    assert_eq!(w["polling"], false);
+    assert_eq!(w["ok"], false, "{w}");
+    assert_eq!(w["token_set"], false, "{w}");
+    assert_eq!(w["polling"], false, "{w}");
     assert!(!w["error"].as_str().unwrap_or_default().is_empty());
     assert_no_secret(&w, "123:secret-token");
 
@@ -239,8 +242,9 @@ async fn mcp_telegram_is_read_only_status() {
     assert!(mcp::tool_names().contains(&"gsv_telegram_bus_send"));
     assert!(mcp::tool_names().contains(&"gsv_telegram_bus_poll"));
     assert!(mcp::tool_names().contains(&"gsv_telegram_ticket"));
+    assert!(mcp::tool_names().contains(&"gsv_telegram_poll"));
     assert!(!mcp::tool_names().contains(&"gsv_telegram_create_ticket"));
-    assert_eq!(mcp::tool_names().len(), 52);
+    assert_eq!(mcp::tool_names().len(), 53);
 }
 
 async fn bus_guard() -> tokio::sync::MutexGuard<'static, ()> {
@@ -906,4 +910,115 @@ async fn hook_phrase_ingests_catalog_band() {
     assert_eq!(v["source"], "scenario", "{v}");
     assert_eq!(v["tickets"].as_array().expect("t").len(), 2, "{v}");
     assert_no_secret(&v, "123:hook-secret");
+}
+
+#[tokio::test]
+async fn poll_once_classifies_ticket_bus_hook_and_skip() {
+    let _g = bus_guard().await;
+    telegram::bus_reset();
+    let kit = temp_kit("poll");
+    let data = kit.join("data");
+    save_solo_relay(&data, "-100poll", "123:poll-secret", &[]);
+    telegram::push_inbound_stub(1, "hello channel", "-100poll", "", "42");
+    telegram::push_inbound_stub(
+        2,
+        r#"{"v":1,"kind":"bus","from":"cursor","body":"ping"}"#,
+        "-100poll",
+        "",
+        "42",
+    );
+    telegram::push_inbound_stub(3, "/ticket Poll ingest", "-100poll", "", "42");
+    telegram::push_inbound_stub(4, "solo claimed Session: S0 disk", "-100poll", "", "42");
+    let v = telegram::poll_once(&kit, &data, true, None).await;
+    assert_eq!(v["ok"], true, "{v}");
+    assert_eq!(v["dry_run"], true, "{v}");
+    assert_eq!(v["bus"], 1, "{v}");
+    assert_eq!(v["ticket"], 1, "{v}");
+    assert_eq!(v["skip"], 2, "{v}");
+    assert_eq!(v["poll_alive"], false, "{v}");
+    assert!(v["update_offset"].as_i64().unwrap_or(0) >= 4, "{v}");
+    assert_no_secret(&v, "123:poll-secret");
+    let bus = telegram::bus_poll(&data, true, Some(8)).await;
+    assert_eq!(bus["ok"], true, "{bus}");
+    let msgs = bus["messages"].as_array().expect("msgs");
+    assert!(
+        msgs.iter()
+            .any(|m| m["kind"] == "bus" && m["body"] == "ping"),
+        "{bus}"
+    );
+}
+
+#[tokio::test]
+async fn http_telegram_poll_csrf_and_dry_run() {
+    let _g = bus_guard().await;
+    telegram::bus_reset();
+    let kit = temp_kit("http-poll");
+    save_solo_relay(&kit.join("data"), "-100hp", "123:http-poll-secret", &[]);
+    telegram::push_inbound_stub(11, "/ticket HTTP poll", "-100hp", "", "42");
+    let app = app_kit(kit);
+    let (cross, cjson) = post_json(
+        &app,
+        "/api/telegram/poll",
+        json!({}),
+        Some("https://example.com"),
+        Some("cross-site"),
+    )
+    .await;
+    assert_eq!(cross, StatusCode::FORBIDDEN, "{cjson}");
+    let (status, sent) = post_json(
+        &app,
+        "/api/telegram/poll",
+        json!({}),
+        Some("http://127.0.0.1:9999"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{sent}");
+    assert_eq!(sent["ok"], true, "{sent}");
+    assert_eq!(sent["ticket"], 1, "{sent}");
+    assert_no_secret(&sent, "123:http-poll-secret");
+}
+
+#[tokio::test]
+async fn mcp_telegram_poll_dry_run() {
+    let _g = bus_guard().await;
+    telegram::bus_reset();
+    let kit = temp_kit("mcp-poll");
+    save_solo_relay(&kit.join("data"), "-100mp", "mcp-poll-secret-token", &[]);
+    telegram::push_inbound_stub(21, "/ticket MCP poll", "-100mp", "", "42");
+    let app = app_kit(kit);
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::POST)
+                .header(header::CONTENT_TYPE, "application/json")
+                .header("x-telegram-dry-run", "1")
+                .body(Body::from(
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": 8,
+                        "method": "tools/call",
+                        "params": { "name": "gsv_telegram_poll", "arguments": {} }
+                    })
+                    .to_string(),
+                ))
+                .expect("req"),
+        )
+        .await
+        .expect("resp");
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .expect("body");
+    let json: Value = serde_json::from_slice(&bytes).expect("json");
+    assert_eq!(json["result"]["isError"], false, "{json}");
+    let text = json["result"]["content"][0]["text"].as_str().unwrap_or("");
+    assert!(
+        text.contains("\"ticket\":1") || text.contains("MCP poll"),
+        "{text}"
+    );
+    assert!(!text.contains("bot_token"), "{text}");
+    assert!(!text.contains("mcp-poll-secret-token"), "{text}");
 }
