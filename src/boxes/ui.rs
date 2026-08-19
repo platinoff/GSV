@@ -1514,13 +1514,14 @@ pub fn render_watchdog(d: &Value) -> String {
         "—".into()
     };
     let action = s(&d["last_action"]);
-    let action_cls = if action == "lockstep-fail" || action == "lockstep-err" {
-        "warn"
-    } else if action == "lockstep-apply" {
-        "ok"
-    } else {
-        ""
-    };
+    let action_cls =
+        if action == "lockstep-fail" || action == "lockstep-err" || action == "lockstep-wait" {
+            "warn"
+        } else if action == "lockstep-apply" {
+            "ok"
+        } else {
+            ""
+        };
     let action_html = if action.is_empty() {
         "—".into()
     } else if action_cls.is_empty() {
@@ -1540,6 +1541,30 @@ pub fn render_watchdog(d: &Value) -> String {
                 ),
             ],
             vec!["pid".into(), pid],
+            vec!["bin_version".into(), {
+                let v = s(&d["bin_version"]);
+                if v.is_empty() {
+                    "—".into()
+                } else {
+                    esc(&v)
+                }
+            }],
+            vec!["crate_version".into(), {
+                let v = s(&d["crate_version"]);
+                if v.is_empty() {
+                    "—".into()
+                } else {
+                    esc(&v)
+                }
+            }],
+            vec![
+                "version_lag".into(),
+                format!(
+                    "<span class='{}'>{}</span>",
+                    if b(&d["version_lag"]) { "warn" } else { "ok" },
+                    b(&d["version_lag"])
+                ),
+            ],
             vec!["age_secs".into(), age],
             vec!["last_action".into(), action_html],
             vec![

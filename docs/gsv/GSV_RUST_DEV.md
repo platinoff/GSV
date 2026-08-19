@@ -14,10 +14,10 @@ JSON remains **data or host protocol** (vision snapshots, MCP client configs, `C
 | Abracadabra Step 0 | `cargo xtask products` |
 | S0 disk | `cargo xtask disk` (`--enforce`; `--clean` deletes debug cache and **keeps** `target/live`) |
 | Always-on UI | `cargo build --bin gsv-server --bin gsv-mcp --bin gsv-live --bin gsv-watchdog` then `cargo xtask live` (copies server + mcp + watchdog) |
-| Outer watchdog | `cargo xtask watchdog` / `cargo xtask watchdog-install` (spawn/persist `target/live/gsv-watchdog.exe`) |
+| Outer watchdog | `cargo xtask watchdog` / `cargo xtask watchdog-install` (spawn/persist `target/live/gsv-watchdog.exe`; successor hop if that exe is stale) |
 | Speeds / Clippy panels | `cargo xtask record-speed` / `cargo xtask record-rust` |
 | Vision close | `cargo xtask sync` then `cargo xtask sync --check` |
-| Band close | `cargo xtask bump --band N` (semver minor = band **and** vision queue last/next/active) then rebuild `gsv-server`/`gsv-mcp` then `cargo xtask fingerprint` (optional `--model`). Watchdog lockstep recopies live when debug is newer. |
+| Band close | `cargo xtask bump --band N` (semver minor = band **and** vision queue last/next/active) then rebuild `gsv-server`/`gsv-mcp`/`gsv-watchdog` then `cargo xtask fingerprint` (optional `--model`). Recopy live in the same session (`cargo xtask live` or watchdog lockstep). Watchdog lockstep recopies when debug is newer **or** health `version_lag`; `lockstep-wait` is not `probe-ok`. |
 | Skill mirrors | `cargo xtask mirrors` |
 | Push after commit | `cargo xtask git push` (alias `cargo xtask push`) |
 | Commit (message file) | `cargo xtask git commit --file comitmsg/<name>.md` |

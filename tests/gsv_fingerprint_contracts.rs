@@ -363,6 +363,13 @@ fn bump_lockstep_queue_ids_for_band_164() {
 }
 
 #[test]
+fn bump_lockstep_queue_ids_for_band_172() {
+    let (last, next) = gsv::boxes::vision::queue_ids_for_band(172).expect("172");
+    assert_eq!(last, "PH-S2358");
+    assert_eq!(next, "PH-S2359");
+}
+
+#[test]
 fn bump_version_sets_minor_to_band() {
     let dir = std::env::temp_dir().join(format!("gsv-bump-band-{}", std::process::id()));
     let toml = write_pkg_toml(&dir, "0.1.3");

@@ -56,6 +56,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 169** (Telegram bus between MCP bots) **✅** ·
 **band 170** (ticket scenarios + solo/squad MCP) **✅** ·
 **band 171** (ticket lease + stale reclaim) **✅** ·
+**band 172** (live crate lockstep) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -1122,6 +1123,23 @@ Owner pick 2026-08-19: `in_progress` tickets get a lease (`lease_until`); heartb
 | **PH-S2356** | Contracts | expire / renew / unexpired / MCP reclaim — **✅** |
 | **PH-S2357** | Ratio + tests | fmt/clippy/`cargo test`/`--stretch-96`; keep live — **✅** |
 | **PH-S2358** | Band close | `--band 171` + fingerprint; one commit + push; next = owner pick — **✅** |
+
+## Спринти (band 172) — live crate lockstep ✅
+
+Owner pick (`абракадабра` gsv / live-lockstep): crate **0.171.0** vs running **0.170.0**, `debug_newer=true`, heartbeat stayed `probe-ok` with `last_apply_status=0`. Scan: a fresh heartbeat from a **dead** peer pid made `cargo xtask watchdog` oneshot-and-exit; oneshot ignored health `version_lag`; cooldown-needed lockstep stayed silent `probe-ok`.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2359** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2359`; `last_sprint_closed` = `PH-S2358` — **✅** |
+| **PH-S2360** | Heartbeat | `bin_version`; wire `crate_version` + watchdog `version_lag` — **✅** |
+| **PH-S2361** | Oneshot | probe health; lockstep on `debug_newer` **or** `version_lag` — **✅** |
+| **PH-S2362** | Peer pid | yield only if heartbeat is fresh **and** the pid is alive — **✅** |
+| **PH-S2363** | Wait + successor | `lockstep-wait` during cooldown; stale exe hops debug → live — **✅** |
+| **PH-S2364** | Galaxy + MCP | card rows; `gsv_drain` names band 172 lockstep — **✅** |
+| **PH-S2365** | Contracts | pid/self, successor, wait action, version_lag empty-bin — **✅** |
+| **PH-S2366** | Docs | BOXES / SERVER / RUST_DEV / MCP / HANDOFF / NEXT / MEMORY / roadmap — **✅** |
+| **PH-S2367** | Ratio + tests | fmt/clippy/`cargo test`/`--stretch-96`; keep live — **✅** |
+| **PH-S2368** | Band close | `--band 172` + fingerprint; recopy live; one commit + push; next = owner pick — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

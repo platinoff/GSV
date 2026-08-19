@@ -7,8 +7,11 @@
 //! health `version_lag`) than a healthy live copy, POST `/api/update/apply` so
 //! the running binary exits and the next miss recopies (Windows cannot overwrite
 //! a locked exe). Failed apply is `last_action=lockstep-fail` (never silent
-//! `probe-ok`). `cargo xtask watchdog` copies `gsv-watchdog` to `target/live/`
-//! so cargo can overwrite debug.
+//! `probe-ok`). Cooldown while still needed is `lockstep-wait`, not `probe-ok`.
+//! A second process oneshot-applies on debug-newer **or** health lag, and only
+//! yields if the peer pid is still alive. A stale watchdog exe spawns a
+//! successor (debug → live hop) then exits. `cargo xtask watchdog` copies
+//! `gsv-watchdog` to `target/live/` so cargo can overwrite debug.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -63,6 +66,9 @@ pub struct Heartbeat {
     /// Truncated apply body or skip reason. Old JSON omits this.
     #[serde(default)]
     pub lockstep_note: String,
+    /// `CARGO_PKG_VERSION` of the writing watchdog. Old JSON omits this.
+    #[serde(default)]
+    pub bin_version: String,
 }
 
 /// Canon health URL.
@@ -133,9 +139,150 @@ pub fn lockstep_action(apply_ok: bool) -> &'static str {
     }
 }
 
-/// A second watchdog process should still POST apply when debug is newer.
-pub fn should_oneshot_apply(peer_running: bool, needs_lockstep: bool) -> bool {
-    peer_running && needs_lockstep
+/// A second watchdog process should still POST apply when debug is newer
+/// **or** health reports crate/binary `version_lag`.
+pub fn should_oneshot_apply(peer_running: bool, needs: bool) -> bool {
+    peer_running && needs
+}
+
+/// Recopy/apply when debug is newer or the running server lags the crate.
+pub fn needs_lockstep(debug_newer: bool, version_lag: bool) -> bool {
+    debug_newer || version_lag
+}
+
+/// Heartbeat `last_action` while lockstep is needed but cooldown blocks.
+pub fn lockstep_wait_action() -> &'static str {
+    "lockstep-wait"
+}
+
+/// Heartbeat note while waiting for cooldown.
+pub fn lockstep_wait_note() -> &'static str {
+    "cooldown"
+}
+
+/// Whether another watchdog process still holds the loop (fresh heartbeat + live pid).
+pub fn peer_watchdog_running(hb: &Heartbeat, now: u64, my_pid: u32) -> bool {
+    hb.pid != my_pid && heartbeat_fresh(hb, now, DEFAULT_MAX_AGE_SECS) && pid_is_alive(hb.pid)
+}
+
+/// True when `pid` still has an OS process (Windows `STILL_ACTIVE` / POSIX `kill 0`).
+pub fn pid_is_alive(pid: u32) -> bool {
+    if pid == 0 {
+        return false;
+    }
+    #[cfg(windows)]
+    {
+        pid_is_alive_windows(pid)
+    }
+    #[cfg(not(windows))]
+    {
+        pid_is_alive_unix(pid)
+    }
+}
+
+#[cfg(windows)]
+fn pid_is_alive_windows(pid: u32) -> bool {
+    const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
+    const STILL_ACTIVE: u32 = 259;
+    extern "system" {
+        fn OpenProcess(access: u32, inherit: i32, pid: u32) -> *mut std::ffi::c_void;
+        fn CloseHandle(handle: *mut std::ffi::c_void) -> i32;
+        fn GetExitCodeProcess(handle: *mut std::ffi::c_void, code: *mut u32) -> i32;
+    }
+    unsafe {
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if handle.is_null() {
+            return false;
+        }
+        let mut code = 0u32;
+        let ok = GetExitCodeProcess(handle, &mut code);
+        CloseHandle(handle);
+        ok != 0 && code == STILL_ACTIVE
+    }
+}
+
+#[cfg(not(windows))]
+fn pid_is_alive_unix(pid: u32) -> bool {
+    let proc = Path::new("/proc").join(pid.to_string());
+    if proc.exists() {
+        return true;
+    }
+    Command::new("kill")
+        .args(["-0", &pid.to_string()])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+/// Hop to a newer watchdog binary (debug if live is stale; live after a copy).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Successor {
+    Stay,
+    Spawn(PathBuf),
+}
+
+/// If `current_exe` is older than `target/debug/gsv-watchdog`, spawn that (or
+/// hop debug → live after a successful copy). Tests never spawn.
+pub fn successor_plan(current_exe: &Path, repo_root: &Path) -> Successor {
+    let debug = repo_root.join("target/debug").join(watchdog_exe_name());
+    let live = repo_root.join("target/live").join(watchdog_exe_name());
+    if !debug.is_file() {
+        return Successor::Stay;
+    }
+    let me_mtime = file_mtime_secs(current_exe);
+    let debug_mtime = file_mtime_secs(&debug);
+    if update::path_is_live_copy(current_exe) {
+        if debug_mtime > me_mtime {
+            return Successor::Spawn(debug);
+        }
+        return Successor::Stay;
+    }
+    let _ = copy_debug_bin_to_live(repo_root, watchdog_exe_name());
+    if live.is_file() && file_mtime_secs(&live) >= debug_mtime {
+        let live_canon = live.canonicalize().unwrap_or_else(|_| live.clone());
+        let me_canon = current_exe
+            .canonicalize()
+            .unwrap_or_else(|_| current_exe.to_path_buf());
+        if live_canon != me_canon {
+            return Successor::Spawn(live);
+        }
+    }
+    Successor::Stay
+}
+
+/// Detach `exe --repo-root <repo>`. No-op under the cargo-test harness.
+pub fn spawn_watchdog_process(exe: &Path, repo_root: &Path) -> Result<(), String> {
+    if update::is_cargo_test_harness() {
+        return Ok(());
+    }
+    if !exe.is_file() {
+        return Err(format!("missing {}", exe.display()));
+    }
+    let mut cmd = Command::new(exe);
+    cmd.arg("--repo-root")
+        .arg(repo_root)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(SPAWN_LIVE_WINDOWS_FLAGS);
+    }
+    cmd.spawn().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Watchdog heartbeat version vs on-disk crate (empty heartbeat version = lag).
+pub fn watchdog_version_lag(crate_ver: Option<&str>, bin_version: &str) -> bool {
+    match crate_ver {
+        Some(c) if bin_version.is_empty() => true,
+        Some(c) => c != bin_version,
+        None => false,
+    }
 }
 
 /// Truncate apply body for the heartbeat (no secrets; JSON error strings only).
@@ -324,6 +471,7 @@ pub fn wire(repo_root: &Path) -> Value {
     match read_heartbeat(&path) {
         Some(hb) => {
             let now = epoch_now();
+            let crate_ver = update::crate_version(repo_root);
             json!({
                 "ok": true,
                 "alive": heartbeat_fresh(&hb, now, DEFAULT_MAX_AGE_SECS),
@@ -336,16 +484,25 @@ pub fn wire(repo_root: &Path) -> Value {
                 "debug_newer": debug_newer_than_live(repo_root),
                 "last_apply_status": hb.last_apply_status,
                 "lockstep_note": hb.lockstep_note,
+                "bin_version": hb.bin_version,
+                "crate_version": crate_ver,
+                "version_lag": watchdog_version_lag(crate_ver.as_deref(), &hb.bin_version),
             })
         }
-        None => json!({
-            "ok": true,
-            "alive": false,
-            "path": display,
-            "age_secs": Value::Null,
-            "debug_newer": debug_newer_than_live(repo_root),
-            "last_apply_status": 0,
-            "lockstep_note": "",
-        }),
+        None => {
+            let crate_ver = update::crate_version(repo_root);
+            json!({
+                "ok": true,
+                "alive": false,
+                "path": display,
+                "age_secs": Value::Null,
+                "debug_newer": debug_newer_than_live(repo_root),
+                "last_apply_status": 0,
+                "lockstep_note": "",
+                "bin_version": "",
+                "crate_version": crate_ver,
+                "version_lag": watchdog_version_lag(crate_ver.as_deref(), ""),
+            })
+        }
     }
 }

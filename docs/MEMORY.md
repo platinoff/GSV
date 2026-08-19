@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-19 · band 172 ✅)
+
+- **Band 172:** Live crate lockstep. Heartbeat `bin_version` · `GET /api/watchdog` crate/`version_lag` · oneshot apply on debug-newer **or** health lag · yield only if peer pid is alive · `lockstep-wait` during cooldown · stale watchdog exe hops debug → live. Recopy live after bump so MCP catalog matches the crate.
+- **Canon:** [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md) · [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+- **Next drain:** owner pick after warnings-first scan.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.35%** (rust 30540 / product 30740) · **575** tests · clippy 0
+
 ## Стан (2026-08-19 · band 171 ✅)
 
 - **Band 171:** Ticket lease + stale reclaim. `lease_until` on `in_progress` · settings `tickets.lease_secs` default 300s (clamp 60–3600) · presence renews holder leases · GET list / claim auto-reclaim expired → `open` + `kind:reclaimed` · HTTP `POST /api/tickets/reclaim` · MCP `gsv_tickets_reclaim` (**47** tools). `CARD_NAMES` **40**.

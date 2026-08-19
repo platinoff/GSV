@@ -1136,6 +1136,8 @@ async fn drain_prompt_names_always_on_tools() {
     assert!(text.contains("gsv_tickets_reclaim"), "{text}");
     assert!(text.contains("gsv://docs/settings-telegram"), "{text}");
     assert!(text.contains("Band 171"), "{text}");
+    assert!(text.contains("Band 172"), "{text}");
+    assert!(text.contains("lockstep-wait"), "{text}");
     assert!(text.contains("gsv://docs/next"), "{text}");
     assert!(text.contains("http://127.0.0.1:9999/mcp"), "{text}");
     assert!(text.contains("S:/rust/GSV"), "{text}");

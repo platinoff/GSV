@@ -5,9 +5,11 @@
 //! listener. When the live process is healthy but debug is newer (or health
 //! reports `version_lag`), POSTs `/api/update/apply` (lockstep) so the
 //! supervisor or the next fail-ticks recopy. Apply failures are recorded on
-//! the heartbeat (`lockstep-fail` + status/note). `--once` still locksteps.
-//! A second process that sees a live peer still oneshot-applies when debug is
-//! newer, then exits.
+//! the heartbeat (`lockstep-fail` + status/note). Cooldown while still needed
+//! is `lockstep-wait`. `--once` still locksteps. A second process oneshot-applies
+//! on debug-newer **or** health lag, and only yields if the peer pid is alive
+//! and its `bin_version` matches the crate (otherwise it takes over the loop).
+//! A stale exe spawns a successor then exits.
 //!
 //! ```text
 //! cargo run --quiet --bin gsv-watchdog
@@ -20,9 +22,8 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use gsv::boxes::watchdog::{
-    self, epoch_now, heartbeat_fresh, heartbeat_path, read_heartbeat, write_heartbeat, Heartbeat,
-    SpawnOutcome, DEFAULT_COOLDOWN_SECS, DEFAULT_FAIL_THRESHOLD, DEFAULT_INTERVAL_SECS,
-    DEFAULT_MAX_AGE_SECS,
+    self, epoch_now, heartbeat_path, read_heartbeat, write_heartbeat, Heartbeat, SpawnOutcome,
+    Successor, DEFAULT_COOLDOWN_SECS, DEFAULT_FAIL_THRESHOLD, DEFAULT_INTERVAL_SECS,
 };
 use gsv::{DEFAULT_HOST, DEFAULT_PORT};
 
@@ -125,17 +126,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let url = watchdog::health_url(&cfg.host, cfg.port);
     let hb_path = heartbeat_path(&cfg.repo_root);
     let now = epoch_now();
+    let my_pid = std::process::id();
+    let bin_version = env!("CARGO_PKG_VERSION").to_string();
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(2))
         .no_proxy()
         .build()?;
+    if !cfg.once {
+        if let Ok(exe) = std::env::current_exe() {
+            if let Successor::Spawn(path) = watchdog::successor_plan(&exe, &cfg.repo_root) {
+                match watchdog::spawn_watchdog_process(&path, &cfg.repo_root) {
+                    Ok(()) => {
+                        eprintln!("gsv-watchdog: successor {}", path.display());
+                        return Ok(());
+                    }
+                    Err(e) => eprintln!("gsv-watchdog: successor spawn failed: {e}"),
+                }
+            }
+        }
+    }
     if let Some(existing) = read_heartbeat(&hb_path) {
-        if heartbeat_fresh(&existing, now, DEFAULT_MAX_AGE_SECS)
-            && existing.pid != std::process::id()
-            && !cfg.once
-        {
-            let debug_newer = watchdog::debug_newer_than_live(&cfg.repo_root);
-            if watchdog::should_oneshot_apply(true, debug_newer) {
+        if watchdog::peer_watchdog_running(&existing, now, my_pid) && !cfg.once {
+            let probe = probe(&client, &url).await;
+            let needs = watchdog::needs_lockstep(
+                watchdog::debug_newer_than_live(&cfg.repo_root),
+                probe.version_lag,
+            );
+            if watchdog::should_oneshot_apply(true, needs) {
                 let (apply_ok, status, note) = post_apply(&client, &cfg.host, cfg.port).await;
                 let action = watchdog::lockstep_action(apply_ok);
                 let hb = Heartbeat {
@@ -149,6 +166,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     port: cfg.port,
                     last_apply_status: status,
                     lockstep_note: note.clone(),
+                    bin_version: existing.bin_version.clone(),
                 };
                 let _ = write_heartbeat(&hb_path, &hb);
                 eprintln!(
@@ -162,7 +180,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     now.saturating_sub(existing.epoch_secs)
                 );
             }
-            return Ok(());
+            let crate_ver = gsv::boxes::update::crate_version(&cfg.repo_root);
+            if watchdog::watchdog_version_lag(crate_ver.as_deref(), &existing.bin_version) {
+                eprintln!(
+                    "gsv-watchdog: taking over stale peer {} bin={}",
+                    existing.pid, existing.bin_version
+                );
+            } else {
+                return Ok(());
+            }
         }
     }
 
@@ -178,8 +204,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let now = epoch_now();
         let mut action = if ok { "probe-ok" } else { "probe-fail" };
         let debug_newer = watchdog::debug_newer_than_live(&cfg.repo_root);
-        let needs_lockstep = debug_newer || probe.version_lag;
-        if ok && watchdog::should_lockstep(needs_lockstep, last_respawn, now, cfg.cooldown) {
+        let needs = watchdog::needs_lockstep(debug_newer, probe.version_lag);
+        if ok && watchdog::should_lockstep(needs, last_respawn, now, cfg.cooldown) {
             let (apply_ok, status, note) = post_apply(&client, &cfg.host, cfg.port).await;
             last_apply_status = status;
             lockstep_note = note;
@@ -195,6 +221,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "gsv-watchdog: lockstep apply failed status={status} note={lockstep_note}"
                 );
             }
+        } else if ok && needs {
+            action = watchdog::lockstep_wait_action();
+            lockstep_note = watchdog::lockstep_wait_note().into();
+            eprintln!("gsv-watchdog: lockstep-wait ({lockstep_note})");
         } else if t.respawn
             && watchdog::should_respawn(failures, cfg.threshold, last_respawn, now, cfg.cooldown)
         {
@@ -224,7 +254,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let hb = Heartbeat {
             ts: gsv::vision::rfc3339_now(),
             epoch_secs: now,
-            pid: std::process::id(),
+            pid: my_pid,
             last_ok: ok,
             consecutive_failures: failures,
             last_action: action.into(),
@@ -232,6 +262,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             port: cfg.port,
             last_apply_status,
             lockstep_note: lockstep_note.clone(),
+            bin_version: bin_version.clone(),
         };
         if let Err(e) = write_heartbeat(&hb_path, &hb) {
             eprintln!("gsv-watchdog: heartbeat: {e}");

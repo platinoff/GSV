@@ -134,6 +134,78 @@ fn oneshot_apply_when_peer_running_and_newer() {
 }
 
 #[test]
+fn needs_lockstep_is_newer_or_lag() {
+    assert!(watchdog::needs_lockstep(true, false));
+    assert!(watchdog::needs_lockstep(false, true));
+    assert!(watchdog::needs_lockstep(true, true));
+    assert!(!watchdog::needs_lockstep(false, false));
+}
+
+#[test]
+fn lockstep_wait_is_not_probe_ok() {
+    assert_eq!(watchdog::lockstep_wait_action(), "lockstep-wait");
+    assert_eq!(watchdog::lockstep_wait_note(), "cooldown");
+    assert_ne!(watchdog::lockstep_wait_action(), "probe-ok");
+}
+
+#[test]
+fn watchdog_version_lag_treats_empty_bin_as_lag() {
+    assert!(watchdog::watchdog_version_lag(Some("0.172.0"), ""));
+    assert!(watchdog::watchdog_version_lag(Some("0.172.0"), "0.170.0"));
+    assert!(!watchdog::watchdog_version_lag(Some("0.172.0"), "0.172.0"));
+    assert!(!watchdog::watchdog_version_lag(None, "0.170.0"));
+}
+
+#[test]
+fn pid_is_alive_for_self() {
+    assert!(watchdog::pid_is_alive(std::process::id()));
+    assert!(!watchdog::pid_is_alive(0));
+}
+
+#[test]
+fn peer_watchdog_running_rejects_self_pid() {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let me = std::process::id();
+    let mine = Heartbeat {
+        ts: "t".into(),
+        epoch_secs: now,
+        pid: me,
+        last_ok: true,
+        consecutive_failures: 0,
+        last_action: "probe-ok".into(),
+        host: "127.0.0.1".into(),
+        port: 9999,
+        last_apply_status: 0,
+        lockstep_note: String::new(),
+        bin_version: "0.172.0".into(),
+    };
+    assert!(!watchdog::peer_watchdog_running(&mine, now, me));
+}
+
+#[test]
+fn successor_plan_spawns_debug_when_live_stale() {
+    let dir = std::env::temp_dir().join(format!("gsv-wd-succ-{}", std::process::id()));
+    let debug_dir = dir.join("target/debug");
+    let live_dir = dir.join("target/live");
+    std::fs::create_dir_all(&debug_dir).expect("debug dir");
+    std::fs::create_dir_all(&live_dir).expect("live dir");
+    let live = live_dir.join(watchdog::watchdog_exe_name());
+    let debug = debug_dir.join(watchdog::watchdog_exe_name());
+    std::fs::write(&live, b"old").expect("live");
+    std::thread::sleep(std::time::Duration::from_millis(1100));
+    std::fs::write(&debug, b"new").expect("debug");
+    match watchdog::successor_plan(&live, &dir) {
+        watchdog::Successor::Spawn(path) => {
+            assert_eq!(path, debug, "stale live must hop to debug");
+        }
+        watchdog::Successor::Stay => panic!("expected spawn"),
+    }
+}
+
+#[test]
 fn apply_origin_is_loopback_http() {
     assert_eq!(
         watchdog::apply_origin("127.0.0.1", 9999),
@@ -155,6 +227,7 @@ fn heartbeat_reads_old_json_without_lockstep_fields() {
     assert_eq!(got.pid, 7);
     assert_eq!(got.last_apply_status, 0);
     assert!(got.lockstep_note.is_empty());
+    assert!(got.bin_version.is_empty());
 }
 
 #[test]
@@ -202,6 +275,7 @@ fn heartbeat_roundtrip_and_freshness() {
         port: 9999,
         last_apply_status: 0,
         lockstep_note: String::new(),
+        bin_version: String::new(),
     };
     watchdog::write_heartbeat(&path, &hb).expect("write");
     let got = watchdog::read_heartbeat(&path).expect("read");
@@ -301,6 +375,11 @@ async fn api_watchdog_and_health_expose_alive() {
         .unwrap_or_default()
         .contains("watchdog.json"));
     assert!(json["debug_newer"].is_boolean(), "{json}");
+    assert!(
+        json["crate_version"].is_string() || json["crate_version"].is_null(),
+        "{json}"
+    );
+    assert!(json["version_lag"].is_boolean(), "{json}");
 
     let (status, json) = get_json(&app, "/api/health").await;
     assert_eq!(status, StatusCode::OK);
@@ -346,7 +425,10 @@ fn render_watchdog_lists_heartbeat() {
             "debug_newer": true,
             "last_apply_status": 403,
             "lockstep_note": "cross-site POST rejected",
-            "last_action": "lockstep-fail"
+            "last_action": "lockstep-fail",
+            "bin_version": "0.170.0",
+            "crate_version": "0.172.0",
+            "version_lag": true
         }),
     )
     .expect("watchdog card");
@@ -357,6 +439,9 @@ fn render_watchdog_lists_heartbeat() {
     assert!(html.contains("last_apply_status"), "{html}");
     assert!(html.contains("403"), "{html}");
     assert!(html.contains("cross-site POST rejected"), "{html}");
+    assert!(html.contains("bin_version"), "{html}");
+    assert!(html.contains("0.170.0"), "{html}");
+    assert!(html.contains("version_lag"), "{html}");
 }
 
 #[test]
