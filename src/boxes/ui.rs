@@ -929,9 +929,22 @@ pub fn render_mcp(d: &Value) -> String {
         ));
     }
     if !version.is_empty() || !http_url.is_empty() {
+        let crate_ver = s(&d["crate_version"]);
+        let lag = b(&d["version_lag"]);
+        let crate_bit = if crate_ver.is_empty() {
+            String::new()
+        } else if lag {
+            format!(
+                " · crate <kbd>{}</kbd> <span class='warn'>lag</span>",
+                esc(&crate_ver)
+            )
+        } else {
+            format!(" · crate <kbd>{}</kbd>", esc(&crate_ver))
+        };
         out.push_str(&format!(
-            "<div>ver <kbd>{}</kbd> · url <kbd>{}</kbd></div>",
+            "<div>ver <kbd>{}</kbd>{} · url <kbd>{}</kbd></div>",
             esc(if version.is_empty() { "—" } else { &version }),
+            crate_bit,
             esc(if http_url.is_empty() {
                 "—"
             } else {
@@ -990,6 +1003,22 @@ pub fn render_health(d: &Value) -> String {
             vec!["name".into(), esc(&s(&d["name"]))],
             vec!["product".into(), esc(&s(&d["product"]))],
             vec!["version".into(), esc(&s(&d["version"]))],
+            vec!["crate_version".into(), {
+                let v = s(&d["crate_version"]);
+                if v.is_empty() {
+                    "—".into()
+                } else {
+                    esc(&v)
+                }
+            }],
+            vec![
+                "version_lag".into(),
+                format!(
+                    "<span class='{}'>{}</span>",
+                    if b(&d["version_lag"]) { "warn" } else { "ok" },
+                    b(&d["version_lag"])
+                ),
+            ],
             vec!["selected".into(), {
                 let sel = s(&d["selected_product"]);
                 if sel.is_empty() {
@@ -1245,6 +1274,14 @@ pub fn render_watchdog(d: &Value) -> String {
                 "consecutive_failures".into(),
                 u(&d["consecutive_failures"]).to_string(),
             ],
+            vec![
+                "debug_newer".into(),
+                format!(
+                    "<span class='{}'>{}</span>",
+                    if b(&d["debug_newer"]) { "warn" } else { "ok" },
+                    b(&d["debug_newer"])
+                ),
+            ],
         ],
     ));
     out
@@ -1281,6 +1318,22 @@ pub fn render_update(d: &Value) -> String {
         &["field", "value"],
         vec![
             vec!["version".into(), esc(&s(&d["version"]))],
+            vec!["crate_version".into(), {
+                let v = s(&d["crate_version"]);
+                if v.is_empty() {
+                    "—".into()
+                } else {
+                    esc(&v)
+                }
+            }],
+            vec![
+                "version_lag".into(),
+                format!(
+                    "<span class='{}'>{}</span>",
+                    if b(&d["version_lag"]) { "warn" } else { "ok" },
+                    b(&d["version_lag"])
+                ),
+            ],
             vec![
                 "git_head".into(),
                 esc(if head.is_empty() { "—" } else { &head }),
@@ -2087,6 +2140,8 @@ mod tests {
             "http": "/mcp",
             "http_url": "http://127.0.0.1:9999/mcp",
             "version": "0.159.0",
+            "crate_version": "0.161.0",
+            "version_lag": true,
             "sandbox": "S:/rust/GSV",
             "tool_count": 2,
             "tools": ["gsv_health", "gsv_update"],
@@ -2122,6 +2177,8 @@ mod tests {
             "{mcp}"
         );
         assert!(mcp.contains("ver <kbd>0.159.0</kbd>"), "{mcp}");
+        assert!(mcp.contains("crate <kbd>0.161.0</kbd>"), "{mcp}");
+        assert!(mcp.contains("lag"), "{mcp}");
         assert!(
             mcp.contains("url <kbd>http://127.0.0.1:9999/mcp</kbd>"),
             "{mcp}"

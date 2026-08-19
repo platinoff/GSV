@@ -144,12 +144,12 @@ fn vision_extensions_reads_real_workspace() {
 }
 
 #[test]
-fn vision_queue_lockstep_ph_s2249() {
+fn vision_queue_lockstep_ph_s2259() {
     let m = vision::read_manifest(&repo_root()).expect("manifest");
     let e = vision::read_extensions(&repo_root()).expect("extensions");
-    assert_eq!(m.next_sprint, "PH-S2249", "manifest next_sprint");
-    assert_eq!(e.active_sprint, "PH-S2249", "extensions active_sprint");
-    assert_eq!(m.last_sprint_closed, "PH-S2248", "last closed is band 160");
+    assert_eq!(m.next_sprint, "PH-S2259", "manifest next_sprint");
+    assert_eq!(e.active_sprint, "PH-S2259", "extensions active_sprint");
+    assert_eq!(m.last_sprint_closed, "PH-S2258", "last closed is band 161");
 }
 
 #[test]

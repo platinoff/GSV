@@ -2,8 +2,8 @@
 //!
 //! Probes `GET /api/health`. After consecutive failures, copies
 //! `target/debug/gsv-server.exe` → `target/live/` and spawns a detached
-//! listener. Writes `target/live/watchdog.json` so Galaxy health can show
-//! `watchdog_alive`.
+//! listener. When the live process is healthy but debug is newer, POSTs
+//! `/api/update/apply` (lockstep) so the supervisor or the next fail-ticks recopy.
 //!
 //! ```text
 //! cargo run --quiet --bin gsv-watchdog
@@ -128,7 +128,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         failures = t.consecutive_failures;
         let now = epoch_now();
         let mut action = if ok { "probe-ok" } else { "probe-fail" };
-        if t.respawn
+        let debug_newer = watchdog::debug_newer_than_live(&cfg.repo_root);
+        if !cfg.once
+            && ok
+            && watchdog::should_lockstep(debug_newer, last_respawn, now, cfg.cooldown)
+        {
+            let apply = watchdog::apply_url(&cfg.host, cfg.port);
+            match client.post(&apply).send().await {
+                Ok(res) => {
+                    let status = res.status().as_u16();
+                    let body = res.text().await.unwrap_or_default();
+                    if watchdog::parse_apply_ok(status, &body) {
+                        action = "lockstep-apply";
+                        last_respawn = now;
+                        eprintln!(
+                            "gsv-watchdog: live debug is newer; apply on {}:{}",
+                            cfg.host, cfg.port
+                        );
+                    }
+                }
+                Err(e) => {
+                    action = "lockstep-err";
+                    eprintln!("gsv-watchdog: lockstep apply failed: {e}");
+                }
+            }
+        } else if t.respawn
             && watchdog::should_respawn(failures, cfg.threshold, last_respawn, now, cfg.cooldown)
         {
             match watchdog::spawn_live(&cfg.repo_root, &cfg.host, cfg.port) {

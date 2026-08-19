@@ -53,6 +53,10 @@ fn health_url_is_canon_loopback() {
         watchdog::health_url(gsv::DEFAULT_HOST, gsv::DEFAULT_PORT),
         "http://127.0.0.1:9999/api/health"
     );
+    assert_eq!(
+        watchdog::apply_url(gsv::DEFAULT_HOST, gsv::DEFAULT_PORT),
+        "http://127.0.0.1:9999/api/update/apply"
+    );
 }
 
 #[test]
@@ -86,6 +90,44 @@ fn parse_health_ok_requires_200_and_ok_true() {
     assert!(!watchdog::parse_health_ok(200, r#"{"ok":false}"#));
     assert!(!watchdog::parse_health_ok(503, r#"{"ok":true}"#));
     assert!(!watchdog::parse_health_ok(200, "not-json"));
+}
+
+#[test]
+fn parse_apply_ok_requires_applying() {
+    assert!(watchdog::parse_apply_ok(
+        200,
+        r#"{"ok":true,"applying":true}"#
+    ));
+    assert!(!watchdog::parse_apply_ok(200, r#"{"ok":true}"#));
+    assert!(!watchdog::parse_apply_ok(
+        200,
+        r#"{"ok":false,"applying":true}"#
+    ));
+}
+
+#[test]
+fn lockstep_cooldown_matches_respawn() {
+    assert!(watchdog::should_lockstep(true, 100, 120, 10));
+    assert!(!watchdog::should_lockstep(true, 100, 105, 10));
+    assert!(!watchdog::should_lockstep(false, 0, 1_000, 10));
+}
+
+#[test]
+fn debug_newer_than_live_when_debug_mtime_greater() {
+    let dir = std::env::temp_dir().join(format!("gsv-wd-newer-{}", std::process::id()));
+    let debug_dir = dir.join("target/debug");
+    let live_dir = dir.join("target/live");
+    std::fs::create_dir_all(&debug_dir).expect("debug dir");
+    std::fs::create_dir_all(&live_dir).expect("live dir");
+    let debug = debug_dir.join("gsv-server.exe");
+    let live = live_dir.join("gsv-server.exe");
+    std::fs::write(&live, b"old").expect("live");
+    std::thread::sleep(std::time::Duration::from_millis(1100));
+    std::fs::write(&debug, b"new").expect("debug");
+    assert!(
+        watchdog::debug_newer_than_live(&dir),
+        "debug mtime must beat live"
+    );
 }
 
 #[test]
@@ -192,11 +234,14 @@ async fn api_watchdog_and_health_expose_alive() {
         .as_str()
         .unwrap_or_default()
         .contains("watchdog.json"));
+    assert!(json["debug_newer"].is_boolean(), "{json}");
 
     let (status, json) = get_json(&app, "/api/health").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(json["ok"], true);
     assert!(json["watchdog_alive"].is_boolean(), "{json}");
+    assert!(json["crate_version"].is_string(), "{json}");
+    assert!(json["version_lag"].is_boolean(), "{json}");
 }
 
 #[test]
@@ -207,6 +252,8 @@ fn health_card_lists_watchdog() {
             "ok": true,
             "name": "Galaxy StarWalker Vision",
             "version": "0.149.0",
+            "crate_version": "0.161.0",
+            "version_lag": true,
             "uptime_secs": 1,
             "update_available": false,
             "watchdog_alive": true
@@ -214,6 +261,8 @@ fn health_card_lists_watchdog() {
     )
     .expect("health card");
     assert!(html.contains("watchdog"), "{html}");
+    assert!(html.contains("crate_version"), "{html}");
+    assert!(html.contains("version_lag"), "{html}");
 }
 
 #[test]
@@ -228,13 +277,15 @@ fn render_watchdog_lists_heartbeat() {
             "age_secs": 3,
             "last_action": "probe",
             "consecutive_failures": 0,
-            "pid": 4242
+            "pid": 4242,
+            "debug_newer": true
         }),
     )
     .expect("watchdog card");
     assert!(html.contains("watchdog.json"), "{html}");
     assert!(html.contains("probe"), "{html}");
     assert!(html.contains("4242"), "{html}");
+    assert!(html.contains("debug_newer"), "{html}");
     assert!(html.contains("class='ok'>true"), "{html}");
 }
 

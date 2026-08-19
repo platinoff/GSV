@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-18 (**band 161 ✅ · next gsv drain = scan / owner pick**)
+**Оновлено:** 2026-08-18 (**band 162 ✅ · next gsv drain = scan / owner pick**)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -20,7 +20,7 @@ abrakadabra
 project scan (**warnings first**) → drain наступного band (**без** mid-push) →
 Speeds · Rust panel → vision-sync → **один** commit → **`git push` + самарі**.
 
-Якщо **gsv:** always-on Galaxy (**bands 143–147 ✅**) + SW cache (**band 148 ✅**) + omniroute/semver (**band 149 ✅**) + live watchdog (**band 150 ✅**) + MCP catch-up (**band 151 ✅**) + MCP products select (**band 152 ✅**) + rust-first xtask (**band 153 ✅**) + watchdog ops card (**band 154 ✅**) + session token usage (**band 155 ✅**) + streaming usage / VDT git / owner tunnel (**band 156 ✅**) + OmniRouter catalog / quota timers (**band 157 ✅**) + live MCP stdio / sync check (**band 158 ✅**) + Cursor HTTP MCP / session SSE hold (**band 159 ✅**) + GSV sandbox MCP / no User leak (**band 160 ✅**) + vision lockstep + disk MiB (**band 161 ✅**) are closed.
+Якщо **gsv:** always-on Galaxy (**bands 143–147 ✅**) + SW cache (**band 148 ✅**) + omniroute/semver (**band 149 ✅**) + live watchdog (**band 150 ✅**) + MCP catch-up (**band 151 ✅**) + MCP products select (**band 152 ✅**) + rust-first xtask (**band 153 ✅**) + watchdog ops card (**band 154 ✅**) + session token usage (**band 155 ✅**) + streaming usage / VDT git / owner tunnel (**band 156 ✅**) + OmniRouter catalog / quota timers (**band 157 ✅**) + live MCP stdio / sync check (**band 158 ✅**) + Cursor HTTP MCP / session SSE hold (**band 159 ✅**) + GSV sandbox MCP / no User leak (**band 160 ✅**) + vision lockstep + disk MiB (**band 161 ✅**) + live crate/version lockstep (**band 162 ✅**) are closed.
 **Next drain = scan / owner pick**.
 Canon [`GSV_OMNI_CATALOG.md`](gsv/GSV_OMNI_CATALOG.md) · [`GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md) · [`GSV_POST_ALWAYS_ON.md`](gsv/GSV_POST_ALWAYS_ON.md).
 `cargo xtask git commit --file comitmsg/<name>.md` then `cargo xtask git push`. Grok Bot tunnel: `cargo xtask tunnel` (not on by default).
@@ -214,6 +214,7 @@ Close: `cargo xtask bump --band N` then `cargo xtask fingerprint` in the same co
   **band 159** (PH-S2229…S2238) ✅ — Cursor HTTP MCP + session SSE hold.
   **band 160** (PH-S2239…S2248) ✅ — GSV sandbox MCP / no User leak.
   **band 161** (PH-S2249…S2258) ✅ — vision lockstep PH-S2249 + disk MiB + `disk --clean` keep-live.
+  **band 162** (PH-S2259…S2268) ✅ — live crate/version lockstep (health/update `crate_version`; watchdog apply when debug newer).
   **Наступний drain:** scan / owner pick.
 
 ## Канон GSV
@@ -269,6 +270,7 @@ band 158 ✅ (live MCP stdio + sync check) ·
 band 159 ✅ (Cursor HTTP MCP + session SSE hold) ·
 band 160 ✅ (GSV sandbox MCP · no User leak into PoolAI) ·
 band 161 ✅ (vision lockstep PH-S2249 + disk MiB + `--clean` keep-live) ·
+band 162 ✅ (live crate/version lockstep · watchdog apply when debug newer) ·
 не комітити kit-only в PoolAI як «замість» GSV drain ·
 staging `GSV/data/*` / `certs/*.pem` /
 `.env` · mid-push · `cargo test` while `target/debug/gsv-server.exe` is the listener · обхід ratio-смуги Rust-кодом замість compact UI ·

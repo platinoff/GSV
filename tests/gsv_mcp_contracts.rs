@@ -90,6 +90,8 @@ async fn get_mcp_discovers_openbot() {
     assert_eq!(json["http"], "/mcp");
     assert_eq!(json["http_url"], gsv::mcp_http_url());
     assert_eq!(json["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(json["crate_version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(json["version_lag"], false);
     let sandbox = json["sandbox"].as_str().unwrap_or("").replace('\\', "/");
     assert!(
         sandbox.ends_with("/GSV"),

@@ -3,7 +3,9 @@
 //! `cargo xtask live` (`gsv-live`) only restarts while that process stays alive
 //! (Cursor aborting the terminal is the usual `:9999` offline). This box is the
 //! process-level loop: consecutive probe failures (grace for update-apply)
-//! copy debug → live and spawn a detached listener.
+//! copy debug → live and spawn a detached listener. When debug is newer than a
+//! healthy live copy, POST `/api/update/apply` so the running binary exits and
+//! the next miss recopies (Windows cannot overwrite a locked exe).
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -57,6 +59,11 @@ pub struct Heartbeat {
 /// Canon health URL.
 pub fn health_url(host: &str, port: u16) -> String {
     format!("http://{host}:{port}/api/health")
+}
+
+/// Apply URL — watchdog POSTs this when debug is newer than a healthy live copy.
+pub fn apply_url(host: &str, port: u16) -> String {
+    format!("http://{host}:{port}/api/update/apply")
 }
 
 /// Platform live/debug server file name.
@@ -127,6 +134,53 @@ pub fn parse_health_ok(status: u16, body: &str) -> bool {
         .ok()
         .and_then(|v| v.get("ok").and_then(Value::as_bool))
         .unwrap_or(false)
+}
+
+/// HTTP 200 + JSON `{ok:true, applying:true}` from `POST /api/update/apply`.
+pub fn parse_apply_ok(status: u16, body: &str) -> bool {
+    if status != 200 {
+        return false;
+    }
+    let v = match serde_json::from_str::<Value>(body) {
+        Ok(v) => v,
+        Err(_) => return false,
+    };
+    v.get("ok").and_then(Value::as_bool).unwrap_or(false)
+        && v.get("applying").and_then(Value::as_bool).unwrap_or(false)
+}
+
+fn file_mtime_secs(path: &Path) -> u64 {
+    path.metadata()
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+/// `target/debug/{gsv-server,gsv-mcp}` is newer than the live copy (or live missing).
+pub fn debug_newer_than_live(repo_root: &Path) -> bool {
+    for name in [server_exe_name(), mcp_exe_name()] {
+        let debug = repo_root.join("target/debug").join(name);
+        if !debug.is_file() {
+            continue;
+        }
+        let live = repo_root.join("target/live").join(name);
+        if !live.is_file() || file_mtime_secs(&debug) > file_mtime_secs(&live) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Recopy/apply when debug is newer, after the same cooldown as a crash respawn.
+pub fn should_lockstep(
+    debug_newer: bool,
+    last_respawn_epoch: u64,
+    now: u64,
+    cooldown_secs: u64,
+) -> bool {
+    debug_newer && now.saturating_sub(last_respawn_epoch) >= cooldown_secs
 }
 
 pub fn heartbeat_fresh(hb: &Heartbeat, now: u64, max_age_secs: u64) -> bool {
@@ -219,6 +273,7 @@ pub fn wire(repo_root: &Path) -> Value {
                 "last_action": hb.last_action,
                 "consecutive_failures": hb.consecutive_failures,
                 "pid": hb.pid,
+                "debug_newer": debug_newer_than_live(repo_root),
             })
         }
         None => json!({
@@ -226,6 +281,7 @@ pub fn wire(repo_root: &Path) -> Value {
             "alive": false,
             "path": display,
             "age_secs": Value::Null,
+            "debug_newer": debug_newer_than_live(repo_root),
         }),
     }
 }

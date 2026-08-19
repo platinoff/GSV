@@ -423,7 +423,7 @@ const PROMPTS: &[PromptSpec] = &[
     PromptSpec {
         name: "gsv_drain",
         description: "Start a VDT drain: next PH-S* band after the last closed sprint.",
-        text: "Start a GSV VDT drain. Sandbox is this GSV repo (S:/rust/GSV): preview, terminal, vision, and xtask stay inside it. Registered VDT products (poolai, omniroute, …) are reached only via gsv_products / gsv_products_select / gsv_products_scan (unknown id is a tool error; no gsv_products_open). Do not install gsv_mcp_openbot as Cursor User MCP — that leaks into PoolAI windows. Keep it in GSV/.cursor/mcp.json (folder scope GSV). Read gsv://docs/next, gsv://docs/rust-dev, and gsv://docs/post-always-on. Call gsv_xtask (task=products) or gsv_products, then gsv_products_select with the owner pick, then gsv_products_scan (id optional after select), gsv_disk, gsv_watchdog, gsv_usage, and gsv_xtask task=sync (read-only vision drift). gsv_vision_sync remirrors snapshots and notifies subscribed gsv:// resources. For model routing call gsv_omni_route (task=rust|web, prefer_free) so cooldown timers skip exhausted free hosts. Cursor attaches over HTTP url http://127.0.0.1:9999/mcp (live gsv-server). Check GET /mcp version against the crate; a stale live copy is why tools go missing. Stdio MCP is target/live/gsv-mcp.exe for OpenCode/Grok (cargo xtask live copies it; do not cargo run --bin gsv-mcp). Product tests/benches/scripts are cargo xtask / tests/*.rs / benches/*.rs — do not add .sh/.ps1/JSON harnesses. Propose the next ≤10 PH-S* after the last closed band. Do not push mid-drain. Invoke cargo via MSYS2 bash.",
+        text: "Start a GSV VDT drain. Sandbox is this GSV repo (S:/rust/GSV): preview, terminal, vision, and xtask stay inside it. Registered VDT products (poolai, omniroute, …) are reached only via gsv_products / gsv_products_select / gsv_products_scan (unknown id is a tool error; no gsv_products_open). Do not install gsv_mcp_openbot as Cursor User MCP — that leaks into PoolAI windows. Keep it in GSV/.cursor/mcp.json (folder scope GSV). Read gsv://docs/next, gsv://docs/rust-dev, and gsv://docs/post-always-on. Call gsv_xtask (task=products) or gsv_products, then gsv_products_select with the owner pick, then gsv_products_scan (id optional after select), gsv_disk, gsv_watchdog, gsv_usage, and gsv_xtask task=sync (read-only vision drift). gsv_vision_sync remirrors snapshots and notifies subscribed gsv:// resources. For model routing call gsv_omni_route (task=rust|web, prefer_free) so cooldown timers skip exhausted free hosts. Cursor attaches over HTTP url http://127.0.0.1:9999/mcp (live gsv-server). Check GET /mcp crate_version vs version (version_lag); a stale live copy is why tools go missing. gsv_watchdog debug_newer means recopy after cargo test (do not kill target/live before tests). Stdio MCP is target/live/gsv-mcp.exe for OpenCode/Grok (cargo xtask live copies it; do not cargo run --bin gsv-mcp). Product tests/benches/scripts are cargo xtask / tests/*.rs / benches/*.rs — do not add .sh/.ps1/JSON harnesses. Propose the next ≤10 PH-S* after the last closed band. Do not push mid-drain. Invoke cargo via MSYS2 bash.",
     },
 ];
 
@@ -575,6 +575,8 @@ pub fn http_info(state: &AppState) -> Value {
         "protocol": PROTOCOL_VERSION,
         "transport": "streamable-http",
         "version": &*state.version,
+        "crate_version": crate::boxes::update::crate_version(&state.repo_root),
+        "version_lag": crate::boxes::update::version_lag(&state.repo_root, state.version.as_ref()),
         "sandbox": crate::boxes::products::display_path(&state.repo_root),
         "stdio": "gsv-mcp",
         "stdio_live": stdio_live_rel(),
@@ -1107,8 +1109,10 @@ fn health_payload(state: &AppState) -> Value {
         "name": GSV_SERVER_NAME,
         "server": SERVER_ID,
         "version": *state.version,
+        "crate_version": crate::boxes::update::crate_version(&state.repo_root),
+        "version_lag": crate::boxes::update::version_lag(&state.repo_root, state.version.as_ref()),
         "uptime_secs": state.started_at.elapsed().map(|d| d.as_secs()).unwrap_or(0),
-        "update_available": state.update_available(),
+        "update_available": crate::boxes::update::effective_available(state),
     })
 }
 
@@ -1569,6 +1573,8 @@ mod tests {
         assert_eq!(info["http_url"], http_url());
         assert_eq!(info["http_url"], "http://127.0.0.1:9999/mcp");
         assert_eq!(info["version"], *state().version);
+        assert_eq!(info["crate_version"], *state().version);
+        assert_eq!(info["version_lag"], false);
         assert_eq!(info["http_csrf"], false);
         let sandbox = info["sandbox"].as_str().unwrap_or("");
         assert!(
@@ -2134,6 +2140,8 @@ mod tests {
         assert!(text.contains("gsv_omni_route"), "{text}");
         assert!(text.contains("gsv://docs/next"), "{text}");
         assert!(text.contains("gsv://docs/rust-dev"), "{text}");
+        assert!(text.contains("crate_version"), "{text}");
+        assert!(text.contains("debug_newer"), "{text}");
         assert!(text.contains("mid-drain"), "{text}");
     }
 

@@ -1,6 +1,6 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-08-18 (band 161 ✅ · vision lockstep + disk MiB / `--clean` keep-live)
+**Оновлено:** 2026-08-18 (band 162 ✅ · live crate/version lockstep)
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
 **`абракадабра` / `abrakadabra`** → `cargo xtask products` → **AskQuestion на проєкти з environment**
@@ -15,16 +15,17 @@ watchdog card **154 ✅**; session token usage **155 ✅**; streaming + VDT git 
 OmniRouter catalog + quota timers **157 ✅**; live MCP stdio + sync check **158 ✅**;
 Cursor HTTP MCP + session SSE hold **159 ✅**;
 GSV sandbox MCP / no User leak **160 ✅**;
-vision lockstep + disk MiB **161 ✅**). MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+vision lockstep + disk MiB **161 ✅**;
+live crate/version lockstep **162 ✅**). MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
 Omni catalog: [`gsv/GSV_OMNI_CATALOG.md`](gsv/GSV_OMNI_CATALOG.md).
 Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 Канон ролей: [`GSV_ROLES.md`](GSV_ROLES.md). Реєстр: [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
 
 ## Стан зараз
 
-- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–160 · **161 ✅**.
-- **Next drain (gsv):** scan / owner pick. Band **161** vision queue is `PH-S2249`; `cargo xtask disk --clean` keeps `target/live`; `gsv_disk` reports `free_mb` so sub-GiB is not `0 GiB`.
-- **Band 161:** `docs/vision` `next_sprint`/`active_sprint` = `PH-S2249`; `last_sprint_closed` = `PH-S2248`; `DiskReport.free_mb`; CLI `--clean`.
+- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–161 · **162 ✅**.
+- **Next drain (gsv):** scan / owner pick. Band **162** vision queue is `PH-S2259`; health/update expose `crate_version`/`version_lag`; watchdog POSTs apply when `debug_newer`.
+- **Band 162:** live crate vs running version lockstep; `GET /mcp` `crate_version`; watchdog recopy via apply when debug is newer than live.
 - **Band 160:** `GET /mcp` `sandbox`; no `gsv_products_open` / tunnel / apply on MCP; preview cannot `../poolAI`.
 - **Band 159:** `.cursor/mcp.json` talks to live `gsv-server` (not a second stdio `gsv-mcp`). Stdio stays `.mcp.json` / OpenCode / Grok. Recopy `target/live/gsv-server.exe` after drains.
 - **Band 158:** `copy_debug_to_live` also copies `gsv-mcp`; `.mcp.json` / OpenCode / Grok spawn the live exe; `gsv_xtask` MCP tasks **catalog|products|disk|sync**.
@@ -58,7 +59,7 @@ Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 - **Band 134:** HTTP response hardening — CSP / nosniff / DENY / no-store / COOP+CORP; POST 256 KiB cap → 413 `{ok:false}`.
 - **VDT kit (band 127):** shared `.agents/skills/` + generic `.cursor/rules/` + `gsv.code-workspace` + `PRODUCTS.md`.
   Discover: `cargo xtask products` (не hardcoded `gsv | poolai`).
-- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.25%** (rust 24989 / product 25179) · **481** green · clippy 0 · fmt clean.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.25%** (rust 25225 / product 25415) · **485** tests · clippy 0 · fmt clean.
 - **Сервер:** canon порт **9999** (`DEFAULT_PORT`; 8765 — Hyper-V reserved range).
 - **Vision rev:** **516** (band 161 `cargo xtask sync`; next `PH-S2259`).
 - **Live UI** — `gsv-server` → `http://127.0.0.1:9999/`. MCP stdio — `target/live/gsv-mcp.exe` (`cargo xtask live`).

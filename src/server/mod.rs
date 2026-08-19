@@ -54,7 +54,9 @@ fn health(state: &AppState) -> Value {
         "product": "gsv",
         "ok": true,
         "uptime_secs": state.started_at.elapsed().map(|d| d.as_secs()).unwrap_or(0),
-        "update_available": state.update_available(),
+        "update_available": crate::boxes::update::effective_available(state),
+        "crate_version": crate::boxes::update::crate_version(&state.repo_root),
+        "version_lag": crate::boxes::update::version_lag(&state.repo_root, state.version.as_ref()),
         "watchdog_alive": crate::boxes::watchdog::wire(&state.repo_root)
             .get("alive")
             .and_then(Value::as_bool)

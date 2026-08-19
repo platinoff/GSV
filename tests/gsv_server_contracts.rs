@@ -109,6 +109,8 @@ async fn health_returns_ok() {
         .unwrap_or_default()
         .contains("StarWalker"));
     assert!(json["version"].as_str().is_some());
+    assert_eq!(json["crate_version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(json["version_lag"], false);
 }
 
 #[tokio::test]
@@ -170,6 +172,8 @@ async fn update_wire_reports_version() {
     assert_eq!(status, StatusCode::OK);
     assert!(json["version"].as_str().is_some());
     assert!(json["update_available"].is_boolean());
+    assert_eq!(json["crate_version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(json["version_lag"], false);
 }
 
 #[tokio::test]

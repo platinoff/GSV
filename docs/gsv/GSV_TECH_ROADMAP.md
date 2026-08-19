@@ -46,6 +46,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 159** (Cursor HTTP MCP + session SSE hold) **✅** ·
 **band 160** (GSV sandbox MCP · no User leak into PoolAI) **✅** ·
 **band 161** (vision lockstep PH-S2249 + disk MiB + `--clean` keep-live) **✅** ·
+**band 162** (live crate/version lockstep) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -946,6 +947,23 @@ Owner pick (`абракадабра` gsv / lockstep): Galaxy queue stuck on PH-S
 | **PH-S2256** | (reserve) | — **✅** |
 | **PH-S2257** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy — **✅** |
 | **PH-S2258** | Band close | tests **481** green; `--stretch-96` **99.25%**; `--band 161` + fingerprint; one commit + push — **✅** |
+
+## Спринти (band 162) — live crate/version lockstep ✅
+
+Owner pick (`абракадабра` gsv / live-lockstep): live `gsv-server` was **0.160.0** while crate **0.161.0**; `gsv_update.update_available` true (src mtime) but `gsv_health.update_available` false (notify flag only); MCP `gsv_disk` missed `free_mb` because live MCP lagged.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2259** | Scope + queue | this band; `active_sprint` / `next_sprint` = `PH-S2259`; `last_sprint_closed` = `PH-S2258` — **✅** |
+| **PH-S2260** | Update wire | `crate_version` / `version_lag`; lag or src mtime → `update_available` — **✅** |
+| **PH-S2261** | Health wire | same `effective_available` as Update; expose crate vs running — **✅** |
+| **PH-S2262** | Watchdog lockstep | `debug_newer_than_live`; POST `/api/update/apply` when healthy + debug newer (cooldown); miss path still recopies — **✅** |
+| **PH-S2263** | MCP | `GET /mcp` + `gsv_health` `crate_version` / `version_lag`; drain prompt names lag — **✅** |
+| **PH-S2264** | Galaxy cards | health / update / watchdog / mcp show crate + lag / `debug_newer` — **✅** |
+| **PH-S2265** | Contracts | update/health/watchdog/mcp/vision PH-S2259 — **✅** |
+| **PH-S2266** | Docs | SERVER / BOXES / RUST_DEV / HANDOFF / NEXT / MEMORY / MCP_OPENBOT — **✅** |
+| **PH-S2267** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy — **✅** |
+| **PH-S2268** | Band close | tests **485** green; `--stretch-96` **99.25%**; `--band 162` + fingerprint; recopy live; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

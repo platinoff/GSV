@@ -4,11 +4,10 @@
 //! an update message. The UI shows an **Update** badge instead of auto-reload; the
 //! page survives offline and re-syncs all metrics on reconnect.
 //!
-//! Detection (self-contained): if the newest `GSV/src/**` source file is newer than
-//! the running binary (i.e. a rebuild is pending on disk), or an explicit
-//! `POST /api/update/notify` arrived, `update_available` is `true`.
+//! Detection (self-contained): newest `src/**` newer than the running binary,
+//! on-disk `Cargo.toml` version ahead of this build, or `POST /api/update/notify`.
 //! `POST /api/update/apply` emits SSE `offline` and (outside tests) exits so
-//! `cargo xtask live` can recopy `target/debug/` → `target/live/` and restart.
+//! `cargo xtask live` / the watchdog can recopy `target/debug/` → `target/live/`.
 
 use std::path::Path;
 
@@ -21,7 +20,12 @@ use crate::vision;
 /// `/api/update` response wire.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateWire {
+    /// Running binary (`CARGO_PKG_VERSION`).
     pub version: String,
+    /// `[package] version` on disk (`Cargo.toml`).
+    pub crate_version: Option<String>,
+    /// `crate_version` differs from this build.
+    pub version_lag: bool,
     pub update_available: bool,
     pub git_head: Option<String>,
     pub started_at: String,
@@ -125,14 +129,44 @@ pub fn apply_update(state: &AppState) -> Value {
     json!({ "ok": true, "applying": true })
 }
 
+/// `[package] version` from the product `Cargo.toml` (or `package.json`).
+pub fn crate_version(repo_root: &Path) -> Option<String> {
+    crate::boxes::fingerprint::pkg_version(repo_root)
+}
+
+/// True when on-disk crate version is ahead of (or differs from) this build.
+pub fn version_lag(repo_root: &Path, running: &str) -> bool {
+    crate_version(repo_root)
+        .map(|v| v != running)
+        .unwrap_or(false)
+}
+
+/// Newest `src/` mtime is newer than the running binary.
+pub fn pending_rebuild(repo_root: &Path) -> bool {
+    newest_src_mtime(repo_root) > binary_mtime()
+}
+
+/// Notify flag, pending rebuild, or crate/binary version lag.
+pub fn effective_available(state: &AppState) -> bool {
+    state.update_available()
+        || pending_rebuild(&state.repo_root)
+        || version_lag(&state.repo_root, state.version.as_ref())
+}
+
 /// Build the update wire for the current state.
 pub fn wire(state: &AppState) -> UpdateWire {
-    let newest = newest_src_mtime(Path::new(env!("CARGO_MANIFEST_DIR")));
+    let newest = newest_src_mtime(&state.repo_root);
     let bin = binary_mtime();
-    let pending_rebuild = newest > bin;
+    let crate_ver = crate_version(&state.repo_root);
+    let lag = crate_ver
+        .as_deref()
+        .map(|v| v != state.version.as_ref())
+        .unwrap_or(false);
     UpdateWire {
         version: state.version.to_string(),
-        update_available: state.update_available() || pending_rebuild,
+        crate_version: crate_ver,
+        version_lag: lag,
+        update_available: effective_available(state),
         git_head: vision::git_head(&state.repo_root),
         started_at: crate::vision::system_to_rfc3339(state.started_at),
         binary_mtime: bin,
@@ -175,6 +209,17 @@ mod tests {
     fn apply_should_exit_is_false_under_cfg_test() {
         assert!(!apply_should_exit());
         assert!(is_cargo_test_harness());
+    }
+
+    #[test]
+    fn crate_version_matches_this_package() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        assert_eq!(
+            crate_version(root).as_deref(),
+            Some(env!("CARGO_PKG_VERSION"))
+        );
+        assert!(!version_lag(root, env!("CARGO_PKG_VERSION")));
+        assert!(version_lag(root, "0.0.0"));
     }
 
     #[test]

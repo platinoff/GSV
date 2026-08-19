@@ -25,10 +25,10 @@
 | GET | `/api/products/scan` | selected product: git HEAD/status, kind, registered, HANDOFF/NEXT (`AGENTS.md` / `docs/ROADMAP.md` fallback), `cargo_name` |
 | GET | `/api/fingerprints` | drain fingerprints (`ok`, `path`, `count`, `fingerprints`; `?limit=` default 20, cap 100) |
 | GET | `/sw.js` | Rust-rendered Service Worker (shell Cache API; `Service-Worker-Allowed: /`) |
-| GET | `/api/watchdog` | live watchdog heartbeat (`ok`, `alive`, `path`, `last_action`) |
+| GET | `/api/watchdog` | live watchdog heartbeat (`ok`, `alive`, `path`, `last_action`, `debug_newer`) |
 | GET | `/api/xtask` | cargo xtask catalog (`?task=catalog\|products\|disk`; mutating names → 400) |
 | GET | `/api/disk` | S0 disk guard (`ok`, `free_gb`, `target_gb`; `?enforce=true`) |
-| GET | `/api/update` | статус оновлення (Update box; `live_copy` if running from `target/live/`) |
+| GET | `/api/update` | статус оновлення (Update box; `live_copy`; `crate_version` / `version_lag`) |
 | POST | `/api/update/notify` | виставити `update_available` + SSE |
 | POST | `/api/update/apply` | SSE `offline` + `{ok,applying}`; process exit unless `GSV_UPDATE_APPLY_EXIT=0` |
 | GET | `/api/preview` | превʼю з Rust-синтаксис-кольорами |
@@ -43,7 +43,7 @@
 | POST | `/api/omni/v1/chat/completions` | OpenAI-сумісний proxy (dry-run через `X-Omni-Dry-Run: 1`) |
 | GET | `/api/omni/test` | connectivity check провайдера (`GET {base}/models`) |
 | GET | `/api/usage` | per-session token totals (OmniRouter + MCP + OmniRoute pull; `data/gsv_usage.json`) |
-| GET | `/api/health` | health-чек |
+| GET | `/api/health` | health-чек (`crate_version`, `version_lag`, `update_available` matches Update box) |
 | GET | `/mcp` | MCP discovery (`gsv_mcp_openbot` + `sandbox` GSV crate path + 36 tools + 10 resources + 3 prompts + `stdio`/`stdio_live`/`http`/`http_url`/`version`/`http_csrf`/`tool_count`/`resource_count`/`prompt_count`/`logging`/`completions`/`log_level`/`subscribe`/`subscription_count`/`sse`/`streamable`/`sessions`/`session_count`); sessionless `Accept: text/event-stream` flushes pending notifications as finite SSE; **GET with `Mcp-Session-Id` holds** the stream; unknown `Mcp-Session-Id` → 404 |
 | POST | `/mcp` | MCP JSON-RPC (initialize / tools/* / resources/* including subscribe/unsubscribe / prompts/* / logging/setLevel / completion/complete); skips browser CSRF (bots); `initialize` issues `Mcp-Session-Id`; unknown id → 404; `Accept: text/event-stream` → SSE notifications then result; stdio twin is `target/live/gsv-mcp.exe` |
 | DELETE | `/mcp` | End HTTP MCP session (`Mcp-Session-Id` required; missing → 400; unknown → 404) |
@@ -107,7 +107,7 @@ cargo run --manifest-path GSV/Cargo.toml --bin gsv-http-stand-smoke -- --base-ur
 3. Вебсторінка **не падає** при офлайн — переходить у стан «offline».
 4. Після відновлення зв’язку **всі метрики синхронізуються** (resync).
 
-**Always-on (band 144 + watchdog + band 153 rust live):** run a live copy (`target/live/gsv-server.exe` via `cargo xtask live`) so `cargo test`/`build` does not lock the listening process. `POST /api/update/apply` emits SSE `offline` and exits (gated by `GSV_UPDATE_APPLY_EXIT`); the supervisor recopies debug → live and rebinds `:9999`; the page stays **offline** until SSE `onopen` then resyncs. If the supervisor process dies (Cursor abort), `gsv-watchdog` probes `/api/health` and respawns the live copy. Do **not** kill the live copy before `cargo test`. Spec: [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md).
+**Always-on (band 144 + watchdog + band 153 rust live):** run a live copy (`target/live/gsv-server.exe` via `cargo xtask live`) so `cargo test`/`build` does not lock the listening process. `POST /api/update/apply` emits SSE `offline` and exits (gated by `GSV_UPDATE_APPLY_EXIT`); the supervisor recopies debug → live and rebinds `:9999`; the page stays **offline** until SSE `onopen` then resyncs. If the supervisor process dies (Cursor abort), `gsv-watchdog` probes `/api/health` and respawns the live copy. When debug is newer than a healthy live copy, the watchdog POSTs `/api/update/apply` (lockstep) so Windows can recopy after exit. Do **not** kill the live copy before `cargo test`. Spec: [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md).
 
 Реалізація (Rust):
 - Сервер тримає `update_flag` (AtomicBool) + версію бінарника.
