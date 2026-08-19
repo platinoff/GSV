@@ -60,6 +60,11 @@ pub struct Workflows {
     pub enabled: Vec<String>,
 }
 
+/// Band 168: MCP/HTTP claim is allowed only when `ticket-claim` is enabled.
+pub fn ticket_claim_enabled(file: &SettingsFile) -> bool {
+    file.workflows.enabled.iter().any(|id| id == "ticket-claim")
+}
+
 fn default_redact() -> bool {
     true
 }

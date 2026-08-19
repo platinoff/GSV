@@ -46,12 +46,15 @@
 | GET | `/api/settings` | Godfather settings (redacted: `token_set`, never `bot_token`; `data/gsv_settings.json`) |
 | POST | `/api/settings` | owner write (loopback CSRF); stores posted token; response redacted |
 | GET | `/api/telegram` | Godfather bind status (`ok`, `channel_id`, `token_set`, `bot_username`, `chat_title`, `last_probe`, `polling`; never `bot_token`). `X-Telegram-Dry-Run: 1` forces the in-process stub. |
+| GET | `/api/tickets` | Ticket board (`ok`, `tickets[]` from `docs/gsv/tickets.jsonl`; missing file empty-ok) |
+| POST | `/api/tickets` | create `{title,body?,product?}` (loopback CSRF); status `open` |
+| POST | `/api/tickets/claim` | `{id}` → `open`→`in_progress` + `claimed_by` + append `docs/gsv/ticket_claims.jsonl`; unknown id → 404; `ticket-claim` off → 403 |
 | GET | `/api/health` | health-чек (`crate_version`, `version_lag`, `update_available` matches Update box) |
-| GET | `/mcp` | MCP discovery (`gsv_mcp_openbot` + `sandbox` GSV crate path + 38 tools + 11 resources + 3 prompts + `stdio`/`stdio_live`/`http`/`http_url`/`version`/`http_csrf`/`tool_count`/`resource_count`/`prompt_count`/`logging`/`completions`/`log_level`/`subscribe`/`subscription_count`/`sse`/`streamable`/`sessions`/`session_count`); sessionless `Accept: text/event-stream` flushes pending notifications as finite SSE; **GET with `Mcp-Session-Id` holds** the stream; unknown `Mcp-Session-Id` → 404 |
+| GET | `/mcp` | MCP discovery (`gsv_mcp_openbot` + `sandbox` GSV crate path + 40 tools + 11 resources + 3 prompts + `stdio`/`stdio_live`/`http`/`http_url`/`version`/`http_csrf`/`tool_count`/`resource_count`/`prompt_count`/`logging`/`completions`/`log_level`/`subscribe`/`subscription_count`/`sse`/`streamable`/`sessions`/`session_count`); sessionless `Accept: text/event-stream` flushes pending notifications as finite SSE; **GET with `Mcp-Session-Id` holds** the stream; unknown `Mcp-Session-Id` → 404 |
 | POST | `/mcp` | MCP JSON-RPC (initialize / tools/* / resources/* including subscribe/unsubscribe / prompts/* / logging/setLevel / completion/complete); skips browser CSRF (bots); `initialize` issues `Mcp-Session-Id`; unknown id → 404; `Accept: text/event-stream` → SSE notifications then result; stdio twin is `target/live/gsv-mcp.exe` |
 | DELETE | `/mcp` | End HTTP MCP session (`Mcp-Session-Id` required; missing → 400; unknown → 404) |
 | GET | `/api/ui/layout` | grouped IA (ops/vision/sprint/studio) + `chrome` (8) + `html` (sidebar nav) + `header` (GPU/Auto/Power) |
-| GET | `/api/ui/card/:name` | Rust-rendered card body HTML (`CARD_NAMES` 39, incl. `telegram` + `settings` + `usage` + `watchdog` + `sw` + `products` + `fingerprints`) |
+| GET | `/api/ui/card/:name` | Rust-rendered card body HTML (`CARD_NAMES` 40, incl. `tickets` + `telegram` + `settings` + `usage` + `watchdog` + `sw` + `products` + `fingerprints`) |
 | GET | `/api/ui/load-palette` | live Galaxy `:root` CSS (`GalaxyPalette::as_css_root`) |
 | GET | `/api/ui/load-theme` | live sprint `:root` CSS (`SprintThemeReport::as_css_root`) |
 | GET | `/data/{file}` | allowlisted JSON snapshot under `data/` (no `omni.toml`) |

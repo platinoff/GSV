@@ -1,14 +1,14 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-08-19 (band 167 ✅ · next = **168** ticket board + MCP claim)
+**Оновлено:** 2026-08-19 (band 168 ✅ · next = **169** Telegram bus)
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
 **`абракадабра` / `abrakadabra`** → `cargo xtask products` → **AskQuestion на проєкти з environment**
 (не `gsv | poolai` з голови) → S0 диск/git → project scan (warnings first) →
-якщо **gsv:** drain **band 168** (`PH-S2319…S2328`) from the **full** tables in
+якщо **gsv:** drain **band 169** (`PH-S2329…S2338`) from the **full** tables in
 [`superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md`](superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md)
 (spec [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md)).
-Owner 2026-08-19: **168–169 are fully specified** — one band per drain (≤10 PH-S*); then 169. Do **not** invent 170.
+Owner 2026-08-19: **169 is fully specified** — one band per drain (≤10 PH-S*). Do **not** invent 170.
 Speeds + Rust panel → vision-sync → **один commit** → **`git push` + самарі**.
 
 Якщо вибір **gsv:** scan [`GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) first
@@ -24,16 +24,16 @@ vision queue lockstep + bump auto-advance **163 ✅**;
 Cursor 3.16.29 kit lockstep **164 ✅**;
 watchdog live copy + lockstep observability **165 ✅**;
 **band 166 ✅** settings / Godfather — [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md);
-**band 167 ✅** Telegram bind · **168–169** full PH-S in the same plan. MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+**band 167 ✅** Telegram bind · **band 168 ✅** ticket board + MCP claim · **169** bus in the same plan. MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
 Omni catalog: [`gsv/GSV_OMNI_CATALOG.md`](gsv/GSV_OMNI_CATALOG.md).
 Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 Канон ролей: [`GSV_ROLES.md`](GSV_ROLES.md). Реєстр: [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
 
 ## Стан зараз
 
-- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–166 · **167 ✅**.
-- **Next drain (gsv):** **band 168** (`PH-S2319…S2328`) — ticket board + MCP claim. Full tasks in the plan file (168–169). Then **169** bus. `cargo xtask bump --band N` locksteps last/next/active.
-- **Band 167:** Telegram Godfather channel bind — `boxes/telegram.rs` `GET /api/telegram` (getMe+getChat); dry-run stub under cargo test / `X-Telegram-Dry-Run: 1`; poller default off (`telegram-relay` or `godfather.poll`); Galaxy ops card `telegram` (`CARD_NAMES` **39**); MCP `gsv_telegram` read-only (**38** tools). No bus, no tickets.jsonl.
+- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–167 · **168 ✅**.
+- **Next drain (gsv):** **band 169** (`PH-S2329…S2338`) — Telegram bus between MCP bots. Full tasks in the plan file. `cargo xtask bump --band N` locksteps last/next/active.
+- **Band 168:** Ticket board + MCP claim — `boxes/tickets.rs`; `docs/gsv/tickets.jsonl` + `ticket_claims.jsonl`; `GET`/`POST /api/tickets` + `POST /api/tickets/claim` (CSRF; unknown 404; `ticket-claim` off 403); Galaxy ops card `tickets` (`CARD_NAMES` **40**); MCP `gsv_tickets` + `gsv_tickets_claim` (**40** tools). No bus.
 - **Band 166:** Settings box + Godfather secret store — `data/gsv_settings.json` (gitignored); `GET`/`POST /api/settings` redacts `bot_token`; env `GSV_TELEGRAM_BOT_TOKEN` wins; Galaxy ops card `settings`; MCP `gsv_settings` read-only + `gsv://docs/settings-telegram`.
 - **Band 165:** watchdog live copy (`target/live/gsv-watchdog.exe`) + lockstep observability (`lockstep-fail`, `last_apply_status`, oneshot apply, health `version_lag`).
 - **Band 164:** Cursor desktop **3.16.29** kit lockstep — rules pin, toolchain `cursor` probe, folder MCP `type:http` stays, never User MCP, no Origin-host.
@@ -71,7 +71,7 @@ Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 - **Band 134:** HTTP response hardening — CSP / nosniff / DENY / no-store / COOP+CORP; POST 256 KiB cap → 413 `{ok:false}`.
 - **VDT kit (band 127):** shared `.agents/skills/` + generic `.cursor/rules/` + `gsv.code-workspace` + `PRODUCTS.md`.
   Discover: `cargo xtask products` (не hardcoded `gsv | poolai`).
-- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.28%** (rust 26604 / product 26796) · **528** tests · clippy 0 · fmt clean.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.29%** (rust 27234 / product 27429) · **542** tests · clippy 0 · fmt clean.
 - **Сервер:** canon порт **9999** (`DEFAULT_PORT`; 8765 — Hyper-V reserved range).
 - **Vision rev:** **516** (band 164 `cargo xtask sync`; next `PH-S2279`).
 - **Live UI** — `gsv-server` → `http://127.0.0.1:9999/`. MCP stdio — `target/live/gsv-mcp.exe` (`cargo xtask live`).

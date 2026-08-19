@@ -175,7 +175,7 @@ fn error_mapper_strips_token() {
 #[test]
 fn card_telegram_in_registry() {
     assert!(CARD_NAMES.contains(&"telegram"));
-    assert_eq!(CARD_NAMES.len(), 39);
+    assert_eq!(CARD_NAMES.len(), 40);
     let empty = render_card(
         "telegram",
         &json!({
@@ -232,13 +232,4 @@ async fn mcp_telegram_is_read_only_status() {
     assert!(mcp::tool_names().contains(&"gsv_telegram"));
     assert!(!mcp::tool_names().contains(&"gsv_telegram_bus_send"));
     assert!(!mcp::tool_names().contains(&"gsv_telegram_bus_poll"));
-}
-
-#[test]
-fn no_tickets_jsonl_in_band_167() {
-    let path = kit_root().join("docs/gsv/tickets.jsonl");
-    assert!(
-        !path.exists(),
-        "tickets.jsonl is band 168 — must not exist in 167"
-    );
 }

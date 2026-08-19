@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-19 · band 168 ✅)
+
+- **Band 168:** Ticket board + MCP claim. `boxes/tickets.rs` · `docs/gsv/tickets.jsonl` + sibling `ticket_claims.jsonl` · `GET`/`POST /api/tickets` · `POST /api/tickets/claim` (CSRF; unknown 404; `ticket-claim` off 403) · Galaxy ops card `tickets` (`CARD_NAMES` **40**) · MCP `gsv_tickets` + `gsv_tickets_claim` (**40** tools · **11** resources). No Telegram bus.
+- **Canon:** [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md) · plan [`superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md`](superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md).
+- **Next drain:** band **169** (`PH-S2329…S2338`) Telegram bus. Do not invent 170.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.29%** (rust 27234 / product 27429) · **542** tests · clippy 0
+
 ## Стан (2026-08-19 · band 167 ✅)
 
 - **Band 167:** Godfather Telegram channel bind. `boxes/telegram.rs` · `GET /api/telegram` (getMe+getChat; never `bot_token`) · dry-run stub under cargo test / `X-Telegram-Dry-Run: 1` · poller default off (`godfather.poll` or `telegram-relay`) · Galaxy ops card `telegram` (`CARD_NAMES` **39**) · MCP `gsv_telegram` read-only (**38** tools · **11** resources). No bus, no `tickets.jsonl`.

@@ -42,8 +42,9 @@
 | `usage/` | session token usage (`GET /api/usage`) — OmniRouter + MCP bot + OmniRoute; Galaxy studio card `usage` (band **155 ✅**) |
 | `settings/` | Godfather settings (`GET`/`POST /api/settings`) — redacted token; Galaxy ops card `settings` (band **166 ✅**) |
 | `telegram/` | Godfather bind (`GET /api/telegram`) — dry-run stub in tests; Galaxy ops card `telegram` (band **167 ✅**) |
+| `tickets/` | Ticket board (`GET`/`POST /api/tickets` · `POST /api/tickets/claim`) — `docs/gsv/tickets.jsonl` + `ticket_claims.jsonl`; Galaxy ops card `tickets` (band **168 ✅**) |
 | `update/` | перевірка оновлення бінарника; сигнал «Update»; offline resync |
-| `mcp/` | `gsv_mcp_openbot` JSON-RPC (stdio `target/live/gsv-mcp.exe` + Cursor HTTP `http://127.0.0.1:9999/mcp`); **38** tools + **11** `gsv://` (band **167 ✅** `gsv_telegram`; **166 ✅** `gsv_settings`; **164 ✅** Cursor 3.16.29 kit lockstep; **159 ✅** Cursor HTTP + session SSE hold; **158 ✅** live copy + sync `--check`; **157 ✅** omni route) |
+| `mcp/` | `gsv_mcp_openbot` JSON-RPC (stdio `target/live/gsv-mcp.exe` + Cursor HTTP `http://127.0.0.1:9999/mcp`); **40** tools + **11** `gsv://` (band **168 ✅** `gsv_tickets` + `gsv_tickets_claim`; **167 ✅** `gsv_telegram`; **166 ✅** `gsv_settings`; **164 ✅** Cursor 3.16.29 kit lockstep; **159 ✅** Cursor HTTP + session SSE hold; **158 ✅** live copy + sync `--check`; **157 ✅** omni route) |
 
 ### UI (тонкий JS glue)
 
@@ -71,8 +72,8 @@
 | Метрики (speed, rust diagnostics) | `speed_index.json`, `rust_diagnostics.json` | `docs/vision/` (сирці) → `GSV/data/gsv_*.json` |
 | Session token usage | `gsv_usage.json` | `GSV/data/` (OmniRouter + MCP + OmniRoute pull) |
 | Settings / Godfather token | `gsv_settings.json` | `GSV/data/` (gitignored; **band 166 ✅**; API/MCP redact `bot_token`; env `GSV_TELEGRAM_BOT_TOKEN` wins) |
-| Tickets / claims | `tickets.jsonl` / `ticket_claims.jsonl` | `docs/gsv/` git-tracked (**band 168** in plan; no secrets) |
+| Tickets / claims | `tickets.jsonl` / `ticket_claims.jsonl` | `docs/gsv/` git-tracked (**band 168 ✅**; no secrets) |
 
 ## Порядок реалізації (коротко)
 
-Повний порядок зі спринтами — [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md). Логіка: **docs/architecture → server scaffold → SLI console + Tracker → Toolchain → IDE → Update/offline → Preview + SLI terminal → Tests/bench hooks → band close**. MCP: [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) (band 135–**167 ✅**: Godfather bind + settings store · watchdog live copy + lockstep observability · vision queue lockstep + bump auto-advance · GSV sandbox `S:/rust/GSV` + folder MCP only + live stdio `gsv-mcp` + `/mcp` CSRF skip + `gsv_xtask` `sync` `--check` + notify all subscribed `gsv://` + Galaxy card + **38** tools + **11** resources). Next gsv drain: **band 168** ticket board + MCP claim — [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md).
+Повний порядок зі спринтами — [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md). Логіка: **docs/architecture → server scaffold → SLI console + Tracker → Toolchain → IDE → Update/offline → Preview + SLI terminal → Tests/bench hooks → band close**. MCP: [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) (band 135–**168 ✅**: ticket board + MCP claim · Godfather bind + settings store · watchdog live copy + lockstep observability · vision queue lockstep + bump auto-advance · GSV sandbox `S:/rust/GSV` + folder MCP only + live stdio `gsv-mcp` + `/mcp` CSRF skip + `gsv_xtask` `sync` `--check` + notify all subscribed `gsv://` + Galaxy card + **40** tools + **11** resources). Next gsv drain: **band 169** Telegram bus — [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md).

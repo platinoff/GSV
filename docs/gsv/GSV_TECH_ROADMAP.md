@@ -52,7 +52,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 165** (watchdog live copy + lockstep observability) **✅** ·
 **band 166** (GSV settings + Godfather secret store) **✅** ·
 **band 167** (Telegram Godfather channel bind) **✅** ·
-**band 168** (ticket board + MCP claim) **queued** ·
+**band 168** (ticket board + MCP claim) **✅** ·
 **band 169** (Telegram bus between MCP bots) **queued** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
@@ -1025,7 +1025,7 @@ Owner pick (`абракадабра` gsv / scan): live crate **0.164.0** vs runn
 
 ## Спринти (band 166) — GSV settings + Godfather store ✅
 
-Owner pick 2026-08-19: Settings card; Godfather channel + token store; co-workflows; later Telegram + ticket board + MCP bus. Spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md). Plan: [`docs/superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md`](../superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md). **Next `абракадабра` gsv = band 168.** Remaining **168–169** have full PH-S tables (one band per drain).
+Owner pick 2026-08-19: Settings card; Godfather channel + token store; co-workflows; later Telegram + ticket board + MCP bus. Spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md). Plan: [`docs/superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md`](../superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md). **Next `абракадабра` gsv = band 169.** Remaining **169** has a full PH-S table.
 
 | Sprint | Фокус | Acceptance (ключ) |
 |--------|-------|-------------------|
@@ -1057,20 +1057,20 @@ Owner 2026-08-19: remaining plan **168–169 fully specified**. Next `абрак
 | **PH-S2317** | Ratio + tests | fmt/clippy/`cargo test`/`--stretch-96`; keep live — **✅** |
 | **PH-S2318** | Band close | `--band 167` + fingerprint; next = **168** — **✅** |
 
-## Спринти (band 168) — ticket board + MCP claim · queued (after 167)
+## Спринти (band 168) — ticket board + MCP claim ✅
 
 | Sprint | Фокус | Acceptance (ключ) |
 |--------|-------|-------------------|
-| **PH-S2319** | Scope | sibling `ticket_claims.jsonl`; no Telegram create-ticket |
-| **PH-S2320** | JSONL | `docs/gsv/tickets.jsonl` + claims; missing file empty-ok |
-| **PH-S2321** | HTTP | GET list; POST create; POST claim; CSRF; workflow `ticket-claim` |
-| **PH-S2322** | Galaxy | card `tickets`; `CARD_NAMES` 40 |
-| **PH-S2323** | MCP | `gsv_tickets` + `gsv_tickets_claim`; unknown id → tool error |
-| **PH-S2324** | Claim row | append claims JSONL; `open`→`in_progress` + `claimed_by` |
-| **PH-S2325** | Contracts | claim round-trip; CSRF; no secrets |
-| **PH-S2326** | Docs | BOXES / spec Landed 168; next = **169** |
-| **PH-S2327** | Ratio + tests | fmt/clippy/`cargo test`/`--stretch-96` |
-| **PH-S2328** | Band close | `--band 168` + fingerprint + push |
+| **PH-S2319** | Scope | sibling `ticket_claims.jsonl`; no Telegram create-ticket — **✅** |
+| **PH-S2320** | JSONL | `docs/gsv/tickets.jsonl` + claims; missing file empty-ok — **✅** |
+| **PH-S2321** | HTTP | GET list; POST create; POST claim; CSRF; workflow `ticket-claim` — **✅** |
+| **PH-S2322** | Galaxy | card `tickets`; `CARD_NAMES` 40 — **✅** |
+| **PH-S2323** | MCP | `gsv_tickets` + `gsv_tickets_claim`; unknown id → tool error — **✅** |
+| **PH-S2324** | Claim row | append claims JSONL; `open`→`in_progress` + `claimed_by` — **✅** |
+| **PH-S2325** | Contracts | claim round-trip; CSRF; no secrets — **✅** |
+| **PH-S2326** | Docs | BOXES / spec Landed 168; next = **169** — **✅** |
+| **PH-S2327** | Ratio + tests | fmt/clippy/`cargo test`/`--stretch-96` — **✅** |
+| **PH-S2328** | Band close | `--band 168` + fingerprint + push — **✅** |
 
 ## Спринти (band 169) — Telegram bus between MCP bots · queued (after 168)
 

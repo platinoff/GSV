@@ -117,6 +117,7 @@ pub const UI_GROUPS: [UiGroup; 4] = [
             "mcp",
             "settings",
             "telegram",
+            "tickets",
             "update",
             "tracker",
             "sli",
@@ -1144,6 +1145,46 @@ pub fn render_telegram(d: &Value) -> String {
     out
 }
 
+/// Ticket board card (`/api/tickets`) — open tickets are the board.
+pub fn render_tickets(d: &Value) -> String {
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let tickets = arr(&d["tickets"]);
+    let mut out = String::from("<div class='dim'>open tickets are the board</div>");
+    if tickets.is_empty() {
+        out.push_str(&empty_html("tickets"));
+    }
+    for col in ["open", "in_progress", "done"] {
+        let rows: Vec<Vec<String>> = tickets
+            .iter()
+            .filter(|t| s(&t["status"]) == col)
+            .map(|t| {
+                let id = s(&t["id"]);
+                let title = s(&t["title"]);
+                let action = if col == "open" && !id.is_empty() {
+                    format!(
+                        "<button type='button' data-action='tickets-claim' data-ticket-id='{}'>claim</button>",
+                        esc(&id)
+                    )
+                } else {
+                    format!("<kbd>{}</kbd>", esc(&id))
+                };
+                vec![esc(&title), action]
+            })
+            .collect();
+        out.push_str(&format!("<div class='dim'>{col}</div>"));
+        out.push_str(&tab(&["title", "id"], rows));
+    }
+    out.push_str(
+        "<div class='dim'>create</div>\
+<input id='tixTitle' type='text' value='' placeholder='ticket title' aria-label='ticket title'>\
+<input id='tixBody' type='text' value='' placeholder='body' aria-label='ticket body'>\
+<button type='button' data-action='tickets-create'>Create</button>",
+    );
+    out
+}
+
 /// Health card (`/api/health`).
 pub fn render_health(d: &Value) -> String {
     if let Some(msg) = not_ok(d) {
@@ -1862,6 +1903,7 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
         "mcp" => Some(render_mcp(d)),
         "settings" => Some(render_settings(d)),
         "telegram" => Some(render_telegram(d)),
+        "tickets" => Some(render_tickets(d)),
         "update" => Some(render_update(d)),
         "ide" => Some(render_ide(d)),
         "vision" => Some(render_vision(d)),
@@ -1884,7 +1926,7 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
 }
 
 /// Server-rendered card names (stable contract for `/api/ui/card/:name`).
-pub const CARD_NAMES: [&str; 39] = [
+pub const CARD_NAMES: [&str; 40] = [
     "tracker",
     "sli",
     "toolchain",
@@ -1907,6 +1949,7 @@ pub const CARD_NAMES: [&str; 39] = [
     "mcp",
     "settings",
     "telegram",
+    "tickets",
     "update",
     "ide",
     "vision",
@@ -2300,10 +2343,11 @@ mod tests {
         assert!(render_card("mcp", &d).is_some());
         assert!(render_card("settings", &d).is_some());
         assert!(render_card("telegram", &d).is_some());
+        assert!(render_card("tickets", &d).is_some());
         assert!(render_card("products", &d).is_some());
         assert!(render_card("fingerprints", &d).is_some());
         assert!(render_card("nope", &d).is_none());
-        assert_eq!(CARD_NAMES.len(), 39);
+        assert_eq!(CARD_NAMES.len(), 40);
         assert!(render_card("usage", &d).is_some());
         assert!(render_card("sw", &d).is_some());
         assert!(render_card("watchdog", &d).is_some());
@@ -2392,6 +2436,14 @@ mod tests {
         assert!(telegram.contains("telegram — no data"), "{telegram}");
         assert!(!telegram.contains("bot_token"), "{telegram}");
         assert!(render_telegram(&serde_json::json!({ "ok": false, "error": "io" })).contains("io"));
+        let tickets = render_tickets(&serde_json::json!({ "ok": true, "tickets": [] }));
+        assert!(tickets.contains("tickets — no data"), "{tickets}");
+        assert!(tickets.contains("open tickets are the board"), "{tickets}");
+        assert!(
+            tickets.contains("data-action='tickets-create'"),
+            "{tickets}"
+        );
+        assert!(render_tickets(&serde_json::json!({ "ok": false, "error": "io" })).contains("io"));
     }
 
     #[test]

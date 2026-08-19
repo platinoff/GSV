@@ -21,6 +21,7 @@
 //! | Usage | `usage` | `/api/usage` | per-session token counts (OmniRouter + MCP + OmniRoute) |
 //! | Settings | `settings` | `/api/settings` | Godfather channel + redacted token + co-workflows |
 //! | Telegram | `telegram` | `/api/telegram` | Godfather bind (getMe+getChat; dry-run stub in tests) |
+//! | Tickets | `tickets` | `/api/tickets` · `/api/tickets/claim` | git JSONL board + MCP claim |
 //! | Xtask | `xtask` | `/api/xtask` · `/api/disk` | `cargo xtask` product automation (no `.sh`) |
 
 pub mod fingerprint;
@@ -36,6 +37,7 @@ pub mod sli;
 pub mod sw;
 pub mod telegram;
 pub mod terminal;
+pub mod tickets;
 pub mod toolchain;
 pub mod ui;
 pub mod update;

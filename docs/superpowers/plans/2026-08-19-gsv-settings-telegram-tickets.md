@@ -1,6 +1,6 @@
 # GSV settings / Telegram / tickets Implementation Plan
 
-> **For agentic workers:** Owner 2026-08-19: remaining work **168–169 is fully specified below**. Next `абракадабра` on **gsv** drains **band 168 only** (`PH-S2319…S2328`). Then **169** from this file. ≤10 PH-S* per drain; one commit + push per band. Do not invent band 170. Spec travels with the plan: [`GSV_SETTINGS_TELEGRAM.md`](../gsv/GSV_SETTINGS_TELEGRAM.md).
+> **For agentic workers:** Owner 2026-08-19: remaining work **169 is fully specified below**. Next `абракадабра` on **gsv** drains **band 169 only** (`PH-S2329…S2338`). ≤10 PH-S* per drain; one commit + push per band. Do not invent band 170. Spec travels with the plan: [`GSV_SETTINGS_TELEGRAM.md`](../gsv/GSV_SETTINGS_TELEGRAM.md).
 
 **Goal:** Queue owner-picked GSV settings (Godfather channel + secret store + co-workflows), then Telegram bind, ticket board with MCP claim, then MCP-to-MCP Telegram bus. Band **166** is settings only so secrets land correctly before any Bot API call.
 
@@ -161,7 +161,7 @@ Landed this `абракадабра` on **gsv**. Do not skip to 168.
 
 # Band 168 — Ticket board + MCP claim (PH-S2319…S2328)
 
-**Next `абракадабра` on gsv.** After 167. Git-tracked JSONL like fingerprints. Claim **is** allowed on MCP. Co-workflow `ticket-claim` must be enabled or claim errors. Default claim log = sibling `docs/gsv/ticket_claims.jsonl` (do not mix into drain `fingerprints.jsonl`).
+Landed this `абракадабра` on **gsv**. Do not skip to 169.
 
 ## File map (band 168)
 
@@ -182,49 +182,49 @@ Landed this `абракадабра` on **gsv**. Do not skip to 168.
 
 ### Task 1: Scope (PH-S2319)
 
-- [ ] Confirm sibling `ticket_claims.jsonl` (spec default). No Telegram create-ticket. No bus.
+- [x] Confirm sibling `ticket_claims.jsonl` (spec default). No Telegram create-ticket. No bus.
 
 ### Task 2: JSONL schema (PH-S2320)
 
-- [ ] Ticket: `id`, `ts`, `title`, `body`, `status` (`open`/`in_progress`/`done`/`blocked`), `claimed_by` optional `{actor,ide,model,agent}`, `product`.
-- [ ] Claim row: `ticket_id`, `ts`, `actor`, `ide`, `model`, `agent`.
-- [ ] Missing files → empty list `{ok:true,tickets:[]}`. Never create under `data/` as source of truth.
+- [x] Ticket: `id`, `ts`, `title`, `body`, `status` (`open`/`in_progress`/`done`/`blocked`), `claimed_by` optional `{actor,ide,model,agent}`, `product`.
+- [x] Claim row: `ticket_id`, `ts`, `actor`, `ide`, `model`, `agent`.
+- [x] Missing files → empty list `{ok:true,tickets:[]}`. Never create under `data/` as source of truth.
 
 ### Task 3: HTTP (PH-S2321)
 
-- [ ] GET list. POST create (loopback CSRF). POST claim `{id}` → `open`→`in_progress`, set `claimed_by` from fingerprint-style resolve (`GSV_MODEL` / Cursor session / `unknown`).
-- [ ] Unknown id → 404 `{ok:false}`. Claim without `ticket-claim` enabled → 403 `{ok:false}`.
+- [x] GET list. POST create (loopback CSRF). POST claim `{id}` → `open`→`in_progress`, set `claimed_by` from fingerprint-style resolve (`GSV_MODEL` / Cursor session / `unknown`).
+- [x] Unknown id → 404 `{ok:false}`. Claim without `ticket-claim` enabled → 403 `{ok:false}`.
 
 ### Task 4: Galaxy card (PH-S2322)
 
-- [ ] `render_tickets`: open / in_progress / done columns (join copy: open tickets are the board). Empty/error HTML.
+- [x] `render_tickets`: open / in_progress / done columns (join copy: open tickets are the board). Empty/error HTML.
 
 ### Task 5: MCP (PH-S2323)
 
-- [ ] `gsv_tickets` list. `gsv_tickets_claim` `{id}` allowed. Unknown id → tool error. Workflow off → tool error.
-- [ ] Drain prompt names claim + 168; bus is 169.
+- [x] `gsv_tickets` list. `gsv_tickets_claim` `{id}` allowed. Unknown id → tool error. Workflow off → tool error.
+- [x] Drain prompt names claim + 168; bus is 169.
 
 ### Task 6: Claim append (PH-S2324)
 
-- [ ] Successful claim appends `ticket_claims.jsonl` and rewrites the ticket line (or rewrite-all JSONL — pick append+rewrite file, keep tests deterministic).
-- [ ] Do not stage `data/*`. JSONL under `docs/gsv/` is committable (no secrets).
+- [x] Successful claim appends `ticket_claims.jsonl` and rewrites the ticket line (or rewrite-all JSONL — pick append+rewrite file, keep tests deterministic).
+- [x] Do not stage `data/*`. JSONL under `docs/gsv/` is committable (no secrets).
 
 ### Task 7: Contracts (PH-S2325)
 
-- [ ] Round-trip claim; CSRF; MCP claim; token/settings files untouched; `CARD_NAMES` / tool count lockstep.
+- [x] Round-trip claim; CSRF; MCP claim; token/settings files untouched; `CARD_NAMES` / tool count lockstep.
 
 ### Task 8: Docs (PH-S2326)
 
-- [ ] BOXES Tickets row **✅**; spec P1 168 Landed; HANDOFF next = **169**.
+- [x] BOXES Tickets row **✅**; spec P1 168 Landed; HANDOFF next = **169**.
 
 ### Task 9: Ratio + tests (PH-S2327)
 
-- [ ] fmt / clippy / `cargo test` / `--stretch-96` ≥ 96%. Keep live copy.
+- [x] fmt / clippy / `cargo test` (keep `target/live/`) / `--stretch-96` ≥ 96%.
 
 ### Task 10: Band close (PH-S2328)
 
-- [ ] `cargo xtask bump --band 168` + fingerprint + one commit + push.
-- [ ] NEXT: next = **169** (bus).
+- [x] `cargo xtask bump --band 168` + fingerprint + one commit + push.
+- [x] NEXT: next = **169** (bus).
 
 ---
 
