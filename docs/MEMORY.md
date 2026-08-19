@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-18 · band 165 ✅)
+
+- **Band 165:** watchdog live copy + lockstep observability. Scan found live **0.163.0** vs crate **0.164.0** with `debug_newer` while heartbeat stayed `probe-ok`. `cargo xtask watchdog` now copies `gsv-watchdog` to `target/live/`. Apply failures are `lockstep-fail` + `last_apply_status` / `lockstep_note`. `--once` locksteps. A second process oneshot-applies when debug is newer. Health `version_lag` also locksteps. Vision queue `PH-S2289` / last closed `PH-S2288`.
+- **Canon:** [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md) · [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+- **Next drain:** scan / owner pick.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.27%** (rust 25757 / product 25947) · **503** tests · clippy 0
+
 ## Стан (2026-08-18 · band 164 ✅)
 
 - **Band 164:** Cursor desktop **3.16.29** kit lockstep after the 3.13.21 pin. Folder MCP stays Streamable HTTP `type:http` → live `:9999/mcp` (36 tools). Never User MCP. Toolchain inventories `cursor` from `package.json`. Do not Origin-host this kit. Vision queue `PH-S2279` / last closed `PH-S2278`.

@@ -1253,6 +1253,20 @@ pub fn render_watchdog(d: &Value) -> String {
         "—".into()
     };
     let action = s(&d["last_action"]);
+    let action_cls = if action == "lockstep-fail" || action == "lockstep-err" {
+        "warn"
+    } else if action == "lockstep-apply" {
+        "ok"
+    } else {
+        ""
+    };
+    let action_html = if action.is_empty() {
+        "—".into()
+    } else if action_cls.is_empty() {
+        esc(&action)
+    } else {
+        format!("<span class='{action_cls}'>{}</span>", esc(&action))
+    };
     out.push_str(&tab(
         &["field", "value"],
         vec![
@@ -1266,10 +1280,7 @@ pub fn render_watchdog(d: &Value) -> String {
             ],
             vec!["pid".into(), pid],
             vec!["age_secs".into(), age],
-            vec![
-                "last_action".into(),
-                esc(if action.is_empty() { "—" } else { &action }),
-            ],
+            vec!["last_action".into(), action_html],
             vec![
                 "consecutive_failures".into(),
                 u(&d["consecutive_failures"]).to_string(),
@@ -1282,6 +1293,18 @@ pub fn render_watchdog(d: &Value) -> String {
                     b(&d["debug_newer"])
                 ),
             ],
+            vec!["last_apply_status".into(), {
+                let st = u(&d["last_apply_status"]);
+                if st == 0 {
+                    "—".into()
+                } else {
+                    st.to_string()
+                }
+            }],
+            vec!["lockstep_note".into(), {
+                let note = s(&d["lockstep_note"]);
+                esc(if note.is_empty() { "—" } else { &note })
+            }],
         ],
     ));
     out

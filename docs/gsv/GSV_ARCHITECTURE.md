@@ -25,7 +25,7 @@
 
 ### gsv-server (bin)
 
-`src/bin/gsv_server.rs`. Canon run is `cargo xtask live` (`gsv-live`): copies `target/debug/gsv-server.exe` → `target/live/gsv-server.exe` (and `gsv-mcp.exe` when built) and execs the server copy on `127.0.0.1:9999`. `cargo test` / `cargo build` may overwrite `target/debug/` without killing the listener. `POST /api/update/apply` exits so the supervisor recopies. `cargo run --bin gsv-server` still works but locks `target/debug/` on Windows. Spec: [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md).
+`src/bin/gsv_server.rs`. Canon run is `cargo xtask live` (`gsv-live`): copies `target/debug/gsv-server.exe` → `target/live/gsv-server.exe` (and `gsv-mcp.exe` / `gsv-watchdog.exe` when built) and execs the server copy on `127.0.0.1:9999`. `cargo test` / `cargo build` may overwrite `target/debug/` without killing the listener. `POST /api/update/apply` exits so the supervisor recopies. `cargo run --bin gsv-server` still works but locks `target/debug/` on Windows. Spec: [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md).
 
 | Модуль | Роль |
 |--------|------|
@@ -71,4 +71,4 @@
 
 ## Порядок реалізації (коротко)
 
-Повний порядок зі спринтами — [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md). Логіка: **docs/architecture → server scaffold → SLI console + Tracker → Toolchain → IDE → Update/offline → Preview + SLI terminal → Tests/bench hooks → band close**. MCP: [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) (band 135–**163 ✅**: vision queue lockstep + bump auto-advance · GSV sandbox `S:/rust/GSV` + folder MCP only + live stdio `gsv-mcp` + `/mcp` CSRF skip + `gsv_xtask` `sync` `--check` + notify all subscribed `gsv://` + Galaxy card + **36** tools + **10** resources). Next gsv drain: scan / owner pick.
+Повний порядок зі спринтами — [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md). Логіка: **docs/architecture → server scaffold → SLI console + Tracker → Toolchain → IDE → Update/offline → Preview + SLI terminal → Tests/bench hooks → band close**. MCP: [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) (band 135–**165 ✅**: watchdog live copy + lockstep observability · vision queue lockstep + bump auto-advance · GSV sandbox `S:/rust/GSV` + folder MCP only + live stdio `gsv-mcp` + `/mcp` CSRF skip + `gsv_xtask` `sync` `--check` + notify all subscribed `gsv://` + Galaxy card + **36** tools + **10** resources). Next gsv drain: scan / owner pick.

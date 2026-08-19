@@ -3,9 +3,12 @@
 //! `cargo xtask live` (`gsv-live`) only restarts while that process stays alive
 //! (Cursor aborting the terminal is the usual `:9999` offline). This box is the
 //! process-level loop: consecutive probe failures (grace for update-apply)
-//! copy debug → live and spawn a detached listener. When debug is newer than a
-//! healthy live copy, POST `/api/update/apply` so the running binary exits and
-//! the next miss recopies (Windows cannot overwrite a locked exe).
+//! copy debug → live and spawn a detached listener. When debug is newer (or
+//! health `version_lag`) than a healthy live copy, POST `/api/update/apply` so
+//! the running binary exits and the next miss recopies (Windows cannot overwrite
+//! a locked exe). Failed apply is `last_action=lockstep-fail` (never silent
+//! `probe-ok`). `cargo xtask watchdog` copies `gsv-watchdog` to `target/live/`
+//! so cargo can overwrite debug.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -54,6 +57,12 @@ pub struct Heartbeat {
     pub last_action: String,
     pub host: String,
     pub port: u16,
+    /// HTTP status of the last lockstep apply (0 = none). Old JSON omits this.
+    #[serde(default)]
+    pub last_apply_status: u16,
+    /// Truncated apply body or skip reason. Old JSON omits this.
+    #[serde(default)]
+    pub lockstep_note: String,
 }
 
 /// Canon health URL.
@@ -82,6 +91,56 @@ pub fn mcp_exe_name() -> &'static str {
     } else {
         "gsv-mcp"
     }
+}
+
+/// Platform live/debug watchdog file name.
+pub fn watchdog_exe_name() -> &'static str {
+    if cfg!(windows) {
+        "gsv-watchdog.exe"
+    } else {
+        "gsv-watchdog"
+    }
+}
+
+/// Loopback `Origin` for watchdog POSTs (CSRF allows missing; this is belt-and-braces).
+pub fn apply_origin(host: &str, port: u16) -> String {
+    format!("http://{host}:{port}")
+}
+
+/// Health probe: `ok` plus crate/binary `version_lag` when the wire includes it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HealthProbe {
+    pub ok: bool,
+    pub version_lag: bool,
+}
+
+/// Parse `/api/health` JSON for probe + lockstep (`version_lag`).
+pub fn parse_health_probe(status: u16, body: &str) -> HealthProbe {
+    let ok = parse_health_ok(status, body);
+    let version_lag = serde_json::from_str::<Value>(body)
+        .ok()
+        .and_then(|v| v.get("version_lag").and_then(Value::as_bool))
+        .unwrap_or(false);
+    HealthProbe { ok, version_lag }
+}
+
+/// Heartbeat `last_action` after an apply attempt (never stay on `probe-ok`).
+pub fn lockstep_action(apply_ok: bool) -> &'static str {
+    if apply_ok {
+        "lockstep-apply"
+    } else {
+        "lockstep-fail"
+    }
+}
+
+/// A second watchdog process should still POST apply when debug is newer.
+pub fn should_oneshot_apply(peer_running: bool, needs_lockstep: bool) -> bool {
+    peer_running && needs_lockstep
+}
+
+/// Truncate apply body for the heartbeat (no secrets; JSON error strings only).
+pub fn lockstep_note(body: &str) -> String {
+    body.chars().take(120).collect()
 }
 
 pub fn heartbeat_path(repo_root: &Path) -> PathBuf {
@@ -158,9 +217,9 @@ fn file_mtime_secs(path: &Path) -> u64 {
         .unwrap_or(0)
 }
 
-/// `target/debug/{gsv-server,gsv-mcp}` is newer than the live copy (or live missing).
+/// `target/debug/{gsv-server,gsv-mcp,gsv-watchdog}` is newer than live (or live missing).
 pub fn debug_newer_than_live(repo_root: &Path) -> bool {
-    for name in [server_exe_name(), mcp_exe_name()] {
+    for name in [server_exe_name(), mcp_exe_name(), watchdog_exe_name()] {
         let debug = repo_root.join("target/debug").join(name);
         if !debug.is_file() {
             continue;
@@ -173,14 +232,14 @@ pub fn debug_newer_than_live(repo_root: &Path) -> bool {
     false
 }
 
-/// Recopy/apply when debug is newer, after the same cooldown as a crash respawn.
+/// Recopy/apply when debug is newer or health reports version lag, after cooldown.
 pub fn should_lockstep(
-    debug_newer: bool,
+    needs_lockstep: bool,
     last_respawn_epoch: u64,
     now: u64,
     cooldown_secs: u64,
 ) -> bool {
-    debug_newer && now.saturating_sub(last_respawn_epoch) >= cooldown_secs
+    needs_lockstep && now.saturating_sub(last_respawn_epoch) >= cooldown_secs
 }
 
 pub fn heartbeat_fresh(hb: &Heartbeat, now: u64, max_age_secs: u64) -> bool {
@@ -213,10 +272,11 @@ pub fn copy_debug_bin_to_live(repo_root: &Path, exe_name: &str) -> Result<PathBu
     Ok(live)
 }
 
-/// Copy `gsv-server` (required) and `gsv-mcp` (best-effort if built) debug → live.
+/// Copy `gsv-server` (required) and `gsv-mcp` / `gsv-watchdog` (best-effort) debug → live.
 pub fn copy_debug_to_live(repo_root: &Path) -> Result<PathBuf, String> {
     let live = copy_debug_bin_to_live(repo_root, server_exe_name())?;
     let _ = copy_debug_bin_to_live(repo_root, mcp_exe_name());
+    let _ = copy_debug_bin_to_live(repo_root, watchdog_exe_name());
     Ok(live)
 }
 
@@ -274,6 +334,8 @@ pub fn wire(repo_root: &Path) -> Value {
                 "consecutive_failures": hb.consecutive_failures,
                 "pid": hb.pid,
                 "debug_newer": debug_newer_than_live(repo_root),
+                "last_apply_status": hb.last_apply_status,
+                "lockstep_note": hb.lockstep_note,
             })
         }
         None => json!({
@@ -282,6 +344,8 @@ pub fn wire(repo_root: &Path) -> Value {
             "path": display,
             "age_secs": Value::Null,
             "debug_newer": debug_newer_than_live(repo_root),
+            "last_apply_status": 0,
+            "lockstep_note": "",
         }),
     }
 }

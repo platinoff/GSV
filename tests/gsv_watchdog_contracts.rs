@@ -106,6 +106,58 @@ fn parse_apply_ok_requires_applying() {
 }
 
 #[test]
+fn parse_health_probe_reads_version_lag() {
+    let p = watchdog::parse_health_probe(
+        200,
+        r#"{"ok":true,"version_lag":true,"crate_version":"0.165.0"}"#,
+    );
+    assert!(p.ok);
+    assert!(p.version_lag);
+    let p = watchdog::parse_health_probe(200, r#"{"ok":true}"#);
+    assert!(p.ok);
+    assert!(!p.version_lag);
+    let p = watchdog::parse_health_probe(503, r#"{"ok":true,"version_lag":true}"#);
+    assert!(!p.ok);
+}
+
+#[test]
+fn lockstep_action_never_stays_probe_ok() {
+    assert_eq!(watchdog::lockstep_action(true), "lockstep-apply");
+    assert_eq!(watchdog::lockstep_action(false), "lockstep-fail");
+}
+
+#[test]
+fn oneshot_apply_when_peer_running_and_newer() {
+    assert!(watchdog::should_oneshot_apply(true, true));
+    assert!(!watchdog::should_oneshot_apply(true, false));
+    assert!(!watchdog::should_oneshot_apply(false, true));
+}
+
+#[test]
+fn apply_origin_is_loopback_http() {
+    assert_eq!(
+        watchdog::apply_origin("127.0.0.1", 9999),
+        "http://127.0.0.1:9999"
+    );
+}
+
+#[test]
+fn heartbeat_reads_old_json_without_lockstep_fields() {
+    let dir = std::env::temp_dir().join(format!("gsv-wd-oldjson-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("tmpdir");
+    let path = dir.join("watchdog.json");
+    std::fs::write(
+        &path,
+        r#"{"ts":"t","epoch_secs":1,"pid":7,"last_ok":true,"consecutive_failures":0,"last_action":"probe-ok","host":"127.0.0.1","port":9999}"#,
+    )
+    .expect("write old");
+    let got = watchdog::read_heartbeat(&path).expect("compat");
+    assert_eq!(got.pid, 7);
+    assert_eq!(got.last_apply_status, 0);
+    assert!(got.lockstep_note.is_empty());
+}
+
+#[test]
 fn lockstep_cooldown_matches_respawn() {
     assert!(watchdog::should_lockstep(true, 100, 120, 10));
     assert!(!watchdog::should_lockstep(true, 100, 105, 10));
@@ -148,6 +200,8 @@ fn heartbeat_roundtrip_and_freshness() {
         last_action: "probe-ok".into(),
         host: "127.0.0.1".into(),
         port: 9999,
+        last_apply_status: 0,
+        lockstep_note: String::new(),
     };
     watchdog::write_heartbeat(&path, &hb).expect("write");
     let got = watchdog::read_heartbeat(&path).expect("read");
@@ -180,6 +234,18 @@ fn copy_debug_to_live_copies_mcp_when_present() {
     assert_eq!(std::fs::read(&live).expect("read server"), b"server");
     let mcp_live = dir.join("target/live").join(watchdog::mcp_exe_name());
     assert_eq!(std::fs::read(&mcp_live).expect("read mcp"), b"mcp");
+}
+
+#[test]
+fn copy_debug_to_live_copies_watchdog_when_present() {
+    let dir = std::env::temp_dir().join(format!("gsv-wd-wdog-{}", std::process::id()));
+    let debug_dir = dir.join("target/debug");
+    std::fs::create_dir_all(&debug_dir).expect("debug dir");
+    std::fs::write(debug_dir.join("gsv-server.exe"), b"server").expect("server");
+    std::fs::write(debug_dir.join("gsv-watchdog.exe"), b"wdog").expect("watchdog");
+    let _ = watchdog::copy_debug_to_live(&dir).expect("copy");
+    let wd_live = dir.join("target/live").join(watchdog::watchdog_exe_name());
+    assert_eq!(std::fs::read(&wd_live).expect("read watchdog"), b"wdog");
 }
 
 #[test]
@@ -275,18 +341,22 @@ fn render_watchdog_lists_heartbeat() {
             "path": "S:/rust/GSV/target/live/watchdog.json",
             "epoch_secs": 1,
             "age_secs": 3,
-            "last_action": "probe",
             "consecutive_failures": 0,
             "pid": 4242,
-            "debug_newer": true
+            "debug_newer": true,
+            "last_apply_status": 403,
+            "lockstep_note": "cross-site POST rejected",
+            "last_action": "lockstep-fail"
         }),
     )
     .expect("watchdog card");
     assert!(html.contains("watchdog.json"), "{html}");
-    assert!(html.contains("probe"), "{html}");
+    assert!(html.contains("lockstep-fail"), "{html}");
     assert!(html.contains("4242"), "{html}");
     assert!(html.contains("debug_newer"), "{html}");
-    assert!(html.contains("class='ok'>true"), "{html}");
+    assert!(html.contains("last_apply_status"), "{html}");
+    assert!(html.contains("403"), "{html}");
+    assert!(html.contains("cross-site POST rejected"), "{html}");
 }
 
 #[test]

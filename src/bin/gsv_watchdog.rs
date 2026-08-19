@@ -2,8 +2,12 @@
 //!
 //! Probes `GET /api/health`. After consecutive failures, copies
 //! `target/debug/gsv-server.exe` → `target/live/` and spawns a detached
-//! listener. When the live process is healthy but debug is newer, POSTs
-//! `/api/update/apply` (lockstep) so the supervisor or the next fail-ticks recopy.
+//! listener. When the live process is healthy but debug is newer (or health
+//! reports `version_lag`), POSTs `/api/update/apply` (lockstep) so the
+//! supervisor or the next fail-ticks recopy. Apply failures are recorded on
+//! the heartbeat (`lockstep-fail` + status/note). `--once` still locksteps.
+//! A second process that sees a live peer still oneshot-applies when debug is
+//! newer, then exits.
 //!
 //! ```text
 //! cargo run --quiet --bin gsv-watchdog
@@ -84,14 +88,34 @@ fn parse_args() -> Cfg {
     }
 }
 
-async fn probe(client: &reqwest::Client, url: &str) -> bool {
+async fn probe(client: &reqwest::Client, url: &str) -> watchdog::HealthProbe {
     match client.get(url).send().await {
         Ok(res) => {
             let status = res.status().as_u16();
             let body = res.text().await.unwrap_or_default();
-            watchdog::parse_health_ok(status, &body)
+            watchdog::parse_health_probe(status, &body)
         }
-        Err(_) => false,
+        Err(_) => watchdog::HealthProbe {
+            ok: false,
+            version_lag: false,
+        },
+    }
+}
+
+async fn post_apply(client: &reqwest::Client, host: &str, port: u16) -> (bool, u16, String) {
+    let apply = watchdog::apply_url(host, port);
+    let origin = watchdog::apply_origin(host, port);
+    match client.post(&apply).header("Origin", origin).send().await {
+        Ok(res) => {
+            let status = res.status().as_u16();
+            let body = res.text().await.unwrap_or_default();
+            (
+                watchdog::parse_apply_ok(status, &body),
+                status,
+                watchdog::lockstep_note(&body),
+            )
+        }
+        Err(e) => (false, 0, watchdog::lockstep_note(&e.to_string())),
     }
 }
 
@@ -101,56 +125,75 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let url = watchdog::health_url(&cfg.host, cfg.port);
     let hb_path = heartbeat_path(&cfg.repo_root);
     let now = epoch_now();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(2))
+        .no_proxy()
+        .build()?;
     if let Some(existing) = read_heartbeat(&hb_path) {
         if heartbeat_fresh(&existing, now, DEFAULT_MAX_AGE_SECS)
             && existing.pid != std::process::id()
             && !cfg.once
         {
-            eprintln!(
-                "gsv-watchdog: already running (pid {} heartbeat {}s old)",
-                existing.pid,
-                now.saturating_sub(existing.epoch_secs)
-            );
+            let debug_newer = watchdog::debug_newer_than_live(&cfg.repo_root);
+            if watchdog::should_oneshot_apply(true, debug_newer) {
+                let (apply_ok, status, note) = post_apply(&client, &cfg.host, cfg.port).await;
+                let action = watchdog::lockstep_action(apply_ok);
+                let hb = Heartbeat {
+                    ts: gsv::vision::rfc3339_now(),
+                    epoch_secs: epoch_now(),
+                    pid: existing.pid,
+                    last_ok: existing.last_ok,
+                    consecutive_failures: existing.consecutive_failures,
+                    last_action: action.into(),
+                    host: cfg.host.clone(),
+                    port: cfg.port,
+                    last_apply_status: status,
+                    lockstep_note: note.clone(),
+                };
+                let _ = write_heartbeat(&hb_path, &hb);
+                eprintln!(
+                    "gsv-watchdog: already running (pid {}); oneshot {action} status={status} note={note}",
+                    existing.pid
+                );
+            } else {
+                eprintln!(
+                    "gsv-watchdog: already running (pid {} heartbeat {}s old)",
+                    existing.pid,
+                    now.saturating_sub(existing.epoch_secs)
+                );
+            }
             return Ok(());
         }
     }
 
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(2))
-        .no_proxy()
-        .build()?;
-
     let mut failures = 0u32;
     let mut last_respawn = 0u64;
+    let mut last_apply_status = 0u16;
+    let mut lockstep_note = String::new();
     loop {
-        let ok = probe(&client, &url).await;
+        let probe = probe(&client, &url).await;
+        let ok = probe.ok;
         let t = watchdog::tick(failures, ok, cfg.threshold);
         failures = t.consecutive_failures;
         let now = epoch_now();
         let mut action = if ok { "probe-ok" } else { "probe-fail" };
         let debug_newer = watchdog::debug_newer_than_live(&cfg.repo_root);
-        if !cfg.once
-            && ok
-            && watchdog::should_lockstep(debug_newer, last_respawn, now, cfg.cooldown)
-        {
-            let apply = watchdog::apply_url(&cfg.host, cfg.port);
-            match client.post(&apply).send().await {
-                Ok(res) => {
-                    let status = res.status().as_u16();
-                    let body = res.text().await.unwrap_or_default();
-                    if watchdog::parse_apply_ok(status, &body) {
-                        action = "lockstep-apply";
-                        last_respawn = now;
-                        eprintln!(
-                            "gsv-watchdog: live debug is newer; apply on {}:{}",
-                            cfg.host, cfg.port
-                        );
-                    }
-                }
-                Err(e) => {
-                    action = "lockstep-err";
-                    eprintln!("gsv-watchdog: lockstep apply failed: {e}");
-                }
+        let needs_lockstep = debug_newer || probe.version_lag;
+        if ok && watchdog::should_lockstep(needs_lockstep, last_respawn, now, cfg.cooldown) {
+            let (apply_ok, status, note) = post_apply(&client, &cfg.host, cfg.port).await;
+            last_apply_status = status;
+            lockstep_note = note;
+            action = watchdog::lockstep_action(apply_ok);
+            if apply_ok {
+                last_respawn = now;
+                eprintln!(
+                    "gsv-watchdog: live debug is newer; apply on {}:{}",
+                    cfg.host, cfg.port
+                );
+            } else {
+                eprintln!(
+                    "gsv-watchdog: lockstep apply failed status={status} note={lockstep_note}"
+                );
             }
         } else if t.respawn
             && watchdog::should_respawn(failures, cfg.threshold, last_respawn, now, cfg.cooldown)
@@ -187,6 +230,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             last_action: action.into(),
             host: cfg.host.clone(),
             port: cfg.port,
+            last_apply_status,
+            lockstep_note: lockstep_note.clone(),
         };
         if let Err(e) = write_heartbeat(&hb_path, &hb) {
             eprintln!("gsv-watchdog: heartbeat: {e}");

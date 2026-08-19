@@ -33,7 +33,10 @@ pub const TASKS: &[(&str, &str)] = &[
         "live",
         "Always-on supervisor: copy debug → live and loop :9999",
     ),
-    ("watchdog", "Detach gsv-watchdog (health probe + respawn)"),
+    (
+        "watchdog",
+        "Detach live gsv-watchdog (copy debug → live, health probe + respawn)",
+    ),
     (
         "watchdog-install",
         "Persist watchdog (schtasks ONLOGON / HKCU Run)",
@@ -318,12 +321,9 @@ pub fn run_live(repo_root: &Path, host: &str, port: u16) -> Result<(), String> {
     }
 }
 
-/// Spawn `target/debug/gsv-watchdog` detached (no cmd.exe).
+/// Spawn `target/live/gsv-watchdog` detached (copy from debug; no cmd.exe).
 pub fn detach_watchdog(repo_root: &Path) -> Result<String, String> {
-    let exe = debug_bin(repo_root, "gsv-watchdog");
-    if !exe.is_file() {
-        return Err("build first: cargo build --bin gsv-watchdog".into());
-    }
+    let exe = watchdog_spawn_exe(repo_root)?;
     let mut cmd = Command::new(&exe);
     cmd.arg("--repo-root")
         .arg(repo_root)
@@ -342,12 +342,9 @@ pub fn detach_watchdog(repo_root: &Path) -> Result<String, String> {
     ))
 }
 
-/// Persist watchdog across reboot (current user).
+/// Persist watchdog across reboot (current user). Prefers the live copy.
 pub fn install_watchdog(repo_root: &Path) -> Result<String, String> {
-    let exe = debug_bin(repo_root, "gsv-watchdog");
-    if !exe.is_file() {
-        return Err("build first: cargo build --bin gsv-watchdog".into());
-    }
+    let exe = watchdog_spawn_exe(repo_root)?;
     let win_exe = native_path(&exe);
     let win_root = native_path(repo_root);
     let tr = format!("{win_exe} --repo-root {win_root}");
@@ -525,6 +522,34 @@ pub fn debug_bin(repo_root: &Path, name: &str) -> PathBuf {
         name.to_string()
     };
     repo_root.join("target/debug").join(file)
+}
+
+pub fn live_bin(repo_root: &Path, name: &str) -> PathBuf {
+    let file = if cfg!(windows) {
+        format!("{name}.exe")
+    } else {
+        name.to_string()
+    };
+    repo_root.join("target/live").join(file)
+}
+
+/// Copy `gsv-watchdog` debug → live (cargo can then overwrite debug). Fall back if live is locked.
+pub fn watchdog_spawn_exe(repo_root: &Path) -> Result<PathBuf, String> {
+    match watchdog::copy_debug_bin_to_live(repo_root, watchdog::watchdog_exe_name()) {
+        Ok(p) => Ok(p),
+        Err(_) => {
+            let live = live_bin(repo_root, "gsv-watchdog");
+            if live.is_file() {
+                return Ok(live);
+            }
+            let debug = debug_bin(repo_root, "gsv-watchdog");
+            if debug.is_file() {
+                Ok(debug)
+            } else {
+                Err("build first: cargo build --bin gsv-watchdog".into())
+            }
+        }
+    }
 }
 
 fn native_path(p: &Path) -> String {
@@ -765,6 +790,29 @@ mod tests {
             root.join("debug/gsv-server.exe").is_file(),
             "debug exe must stay"
         );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn watchdog_spawn_exe_copies_debug_to_live() {
+        let root = std::env::temp_dir().join(format!(
+            "gsv-wd-spawn-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        fs::create_dir_all(root.join("target/debug")).expect("debug");
+        fs::write(
+            root.join("target/debug")
+                .join(watchdog::watchdog_exe_name()),
+            b"wdog",
+        )
+        .expect("debug watchdog");
+        let exe = watchdog_spawn_exe(&root).expect("spawn exe");
+        assert_eq!(exe, live_bin(&root, "gsv-watchdog"));
+        assert_eq!(fs::read(&exe).expect("read live"), b"wdog");
         let _ = fs::remove_dir_all(&root);
     }
 }

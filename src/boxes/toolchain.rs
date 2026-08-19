@@ -219,10 +219,7 @@ mod tests {
 
     #[test]
     fn kit_rust_toolchain_names_gnu_host() {
-        let raw = include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/rust-toolchain.toml"
-        ));
+        let raw = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/rust-toolchain.toml"));
         assert!(
             raw.contains("1.92.0-x86_64-pc-windows-gnu"),
             "channel must pin gnu host (msvc + MSYS2 link.exe breaks): {raw}"

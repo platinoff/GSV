@@ -107,7 +107,7 @@ cargo run --manifest-path GSV/Cargo.toml --bin gsv-http-stand-smoke -- --base-ur
 3. Вебсторінка **не падає** при офлайн — переходить у стан «offline».
 4. Після відновлення зв’язку **всі метрики синхронізуються** (resync).
 
-**Always-on (band 144 + watchdog + band 153 rust live):** run a live copy (`target/live/gsv-server.exe` via `cargo xtask live`) so `cargo test`/`build` does not lock the listening process. `POST /api/update/apply` emits SSE `offline` and exits (gated by `GSV_UPDATE_APPLY_EXIT`); the supervisor recopies debug → live and rebinds `:9999`; the page stays **offline** until SSE `onopen` then resyncs. If the supervisor process dies (Cursor abort), `gsv-watchdog` probes `/api/health` and respawns the live copy. When debug is newer than a healthy live copy, the watchdog POSTs `/api/update/apply` (lockstep) so Windows can recopy after exit. Do **not** kill the live copy before `cargo test`. Spec: [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md).
+**Always-on (band 144 + watchdog + band 153 rust live):** run a live copy (`target/live/gsv-server.exe` via `cargo xtask live`) so `cargo test`/`build` does not lock the listening process. `POST /api/update/apply` emits SSE `offline` and exits (gated by `GSV_UPDATE_APPLY_EXIT`); the supervisor recopies debug → live and rebinds `:9999`; the page stays **offline** until SSE `onopen` then resyncs. If the supervisor process dies (Cursor abort), `gsv-watchdog` probes `/api/health` and respawns the live copy. When debug is newer than a healthy live copy (or health `version_lag`), the watchdog POSTs `/api/update/apply` (lockstep) so Windows can recopy after exit. Failed apply is heartbeat `lockstep-fail` plus `last_apply_status` / `lockstep_note` (never silent `probe-ok`). `cargo xtask watchdog` copies `gsv-watchdog` to `target/live/` so cargo can overwrite debug. Do **not** kill the live copy before `cargo test`. Spec: [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md).
 
 Реалізація (Rust):
 - Сервер тримає `update_flag` (AtomicBool) + версію бінарника.
@@ -115,7 +115,7 @@ cargo run --manifest-path GSV/Cargo.toml --bin gsv-http-stand-smoke -- --base-ur
 - UI показує кнопку/бейдж **Update** замість auto-reload; `doUpdate()` POSTs `/api/update/apply`.
 - Клієнтський JS тримає стан offline; при SSE `onopen` робить full-resync (Tracker/SLI/toolchain/speed/rust diagnostics).
 
-**Horizon:** band **163** vision queue lockstep + `cargo xtask bump --band N` auto-advances last/next/active. Band **162 ✅** live crate/version lockstep. Next drain = scan / owner pick. Spec: [`GSV_OMNI_CATALOG.md`](./GSV_OMNI_CATALOG.md) · [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md).
+**Horizon:** band **165** watchdog live copy + lockstep observability (`lockstep-fail` on the heartbeat; `cargo xtask watchdog` copies `gsv-watchdog` to `target/live/`). Band **164 ✅** Cursor 3.16.29 kit. Next drain = scan / owner pick. Spec: [`GSV_OMNI_CATALOG.md`](./GSV_OMNI_CATALOG.md) · [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md).
 
 ## Live copy + apply (band 144)
 

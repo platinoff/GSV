@@ -13,8 +13,8 @@ JSON remains **data or host protocol** (vision snapshots, MCP client configs, `C
 |------|---------|
 | Abracadabra Step 0 | `cargo xtask products` |
 | S0 disk | `cargo xtask disk` (`--enforce`; `--clean` deletes debug cache and **keeps** `target/live`) |
-| Always-on UI | `cargo build --bin gsv-server --bin gsv-mcp --bin gsv-live --bin gsv-watchdog` then `cargo xtask live` (copies server + mcp) |
-| Outer watchdog | `cargo xtask watchdog` / `cargo xtask watchdog-install` |
+| Always-on UI | `cargo build --bin gsv-server --bin gsv-mcp --bin gsv-live --bin gsv-watchdog` then `cargo xtask live` (copies server + mcp + watchdog) |
+| Outer watchdog | `cargo xtask watchdog` / `cargo xtask watchdog-install` (spawn/persist `target/live/gsv-watchdog.exe`) |
 | Speeds / Clippy panels | `cargo xtask record-speed` / `cargo xtask record-rust` |
 | Vision close | `cargo xtask sync` then `cargo xtask sync --check` |
 | Band close | `cargo xtask bump --band N` (semver minor = band **and** vision queue last/next/active) then rebuild `gsv-server`/`gsv-mcp` then `cargo xtask fingerprint` (optional `--model`). Watchdog lockstep recopies live when debug is newer. |

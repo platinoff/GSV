@@ -49,6 +49,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 162** (live crate/version lockstep) **✅** ·
 **band 163** (vision queue lockstep + bump auto-advance) **✅** ·
 **band 164** (Cursor 3.16.29 kit lockstep — rules / tools / MCP / sync) **✅** ·
+**band 165** (watchdog live copy + lockstep observability) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -1000,6 +1001,23 @@ Owner pick (`абракадабра` gsv / Cursor version update): desktop jumpe
 | **PH-S2286** | Docs | BOXES / ARCHITECTURE / MCP_OPENBOT / HANDOFF / NEXT / MEMORY / roadmap — **✅** |
 | **PH-S2287** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy — **✅** |
 | **PH-S2288** | Band close | tests **496** green; `--stretch-96` **99.26%**; `--band 164` + fingerprint; one commit + push — **✅** |
+
+## Спринти (band 165) — watchdog live copy + lockstep observability ✅
+
+Owner pick (`абракадабра` gsv / scan): live crate **0.164.0** vs running **0.163.0**, `debug_newer=true`, but heartbeat stayed `probe-ok`. Watchdog spawned from `target/debug` (locks cargo) and swallowed non-`applying` apply responses. `--once` skipped lockstep.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2289** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2289`; `last_sprint_closed` = `PH-S2288` — **✅** |
+| **PH-S2290** | Heartbeat | `last_apply_status` + `lockstep_note`; old JSON still deserializes — **✅** |
+| **PH-S2291** | Apply visibility | `lockstep-fail` never silent `probe-ok`; `--once` locksteps; peer oneshot apply — **✅** |
+| **PH-S2292** | Probe | health `version_lag` also locksteps; POST `Origin` loopback — **✅** |
+| **PH-S2293** | Live copy | `copy_debug_to_live` copies `gsv-watchdog`; `cargo xtask watchdog` / install spawn live — **✅** |
+| **PH-S2294** | Galaxy card | watchdog rows `last_apply_status` / `lockstep_note`; warn on fail — **✅** |
+| **PH-S2295** | Contracts | heartbeat compat · oneshot · spawn-exe · render 403 note — **✅** |
+| **PH-S2296** | Docs | BOXES / SERVER / RUST_DEV / MCP / HANDOFF / NEXT / MEMORY / roadmap — **✅** |
+| **PH-S2297** | Ratio hold | `--stretch-96` ≥96%; fmt/clippy — **✅** |
+| **PH-S2298** | Band close | tests **503** green; `--stretch-96` **99.27%**; `--band 165` + fingerprint; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
