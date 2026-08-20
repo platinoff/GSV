@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/presentations/gsv-hero.png" alt="GSV — Galaxy StarWalker Vision" width="100%">
+  <img src="docs/assets/presentations/gsv-hero.svg" alt="GSV — Galaxy StarWalker Vision. Rust-first vision server, live at 127.0.0.1:9999." width="100%">
 </p>
 
 <p align="center">
@@ -17,11 +17,11 @@
 </p>
 
 <p align="center">
-  <a href="#-quick-start">Quick start</a> ·
-  <a href="#-presentations">Presentations</a> ·
+  <a href="#-install-the-server">Install</a> ·
+  <a href="#-what-to-do">What to do</a> ·
   <a href="#-boxes">Boxes</a> ·
-  <a href="#-omnirouter">OmniRouter</a> ·
-  <a href="#-абракадабра">абракадабра / abrakadabra</a> ·
+  <a href="#-mcp--gsv_mcp_openbot">MCP</a> ·
+  <a href="#-абракадабра">абракадабра</a> ·
   <a href="#-support--donate">Donate</a>
 </p>
 
@@ -34,9 +34,97 @@ GSV is a standalone crate (`S:\rust\GSV`, sibling of PoolAI — not a subfolder)
 | | |
 |---|---|
 | **Live dashboard** | `gsv-server` → [http://127.0.0.1:9999/](http://127.0.0.1:9999/) (SSE, offline-safe, Update instead of reload) |
+| **Always-on** | `cargo xtask live` copies `target/debug` → `target/live` so `cargo test` does not kill the listener |
 | **Ratio gate** | `gsv-loc-audit --stretch-96` — Rust **95–100%** (stretch ≥96%) |
-| **VDT entry** | Open this folder in Cursor / OpenCode, type `абракадабра` or `abrakadabra` — the agent lists **environment projects**, then asks which one to work with |
+| **VDT entry** | Open this folder in Cursor / OpenCode, type `абракадабра` or `abrakadabra` — the agent lists **environment projects**, then asks which one |
 | **MCP** | [`gsv_mcp_openbot`](docs/gsv/GSV_MCP_OPENBOT.md) — one MCP server for OpenCode, Cursor, Grok CLI, and Grok Bot |
+
+The hero / install / flow tiles below are **SMIL SVG** (no JS). GitHub plays `<animate>` inside an `<img>`; that is why they move. Canon: [`docs/assets/presentations/README.md`](docs/assets/presentations/README.md).
+
+---
+
+## 🚀 Install the server
+
+<p align="center">
+  <img src="docs/assets/presentations/gsv-install.svg" alt="Install GSV: MSYS2 and rustup, clone, cargo xtask live, open port 9999." width="100%">
+</p>
+
+**Canon shell is MSYS2 bash**, not PowerShell and not `cmd`. Port **9999** is canon (`8765` sits in a Hyper-V reserved range).
+
+### 1. Prereqs (once)
+
+- [MSYS2](https://www.msys2.org/) UCRT64
+- [rustup](https://rustup.rs/) — this repo pins **rustc 1.92.0** `x86_64-pc-windows-gnu` in [`rust-toolchain.toml`](rust-toolchain.toml) (channel-only `1.92.0` follows rustup’s **msvc** host and the MSYS2 linker breaks)
+
+```bash
+# UCRT64 terminal
+pacman -S --needed git mingw-w64-ucrt-x86_64-gcc
+rustup toolchain install stable-x86_64-pc-windows-gnu
+rustup component add rustfmt clippy --toolchain stable-x86_64-pc-windows-gnu
+```
+
+### 2. Clone
+
+```bash
+git clone https://github.com/platinoff/GSV.git /s/rust/GSV
+cd /s/rust/GSV
+```
+
+Put the kit next to other products (`S:/rust/poolAI`, …). GSV is **not** a PoolAI subfolder.
+
+### 3. PATH + first build
+
+Every session, in MSYS2 bash:
+
+```bash
+export PATH="/c/Users/${USER:-${USERNAME}}/.cargo/bin:$HOME/.cargo/bin:/ucrt64/bin:/usr/bin:$PATH"
+export RUSTUP_TOOLCHAIN="stable-x86_64-pc-windows-gnu"
+cd /s/rust/GSV
+unset CARGO_TARGET_DIR
+
+cargo build --bin gsv-server --bin gsv-mcp --bin gsv-live --bin gsv-watchdog
+cargo xtask live
+```
+
+`cargo xtask live` copies those bins into `target/live/` and keeps `gsv-server` bound to `:9999`. `cargo run --bin gsv-server` still works but **locks** `target/debug/` on Windows, so tests cannot rebuild.
+
+### 4. Watchdog (second terminal)
+
+```bash
+export PATH="/c/Users/${USER:-${USERNAME}}/.cargo/bin:$HOME/.cargo/bin:/ucrt64/bin:/usr/bin:$PATH"
+export RUSTUP_TOOLCHAIN="stable-x86_64-pc-windows-gnu"
+cd /s/rust/GSV
+unset CARGO_TARGET_DIR
+cargo xtask watchdog
+```
+
+The watchdog probes `GET /api/health` and respawns the live copy if Cursor (or anything else) kills the supervisor. Optional persist: `cargo xtask watchdog-install`.
+
+### 5. Open
+
+Browser: [http://127.0.0.1:9999/](http://127.0.0.1:9999/).
+
+You should see Galaxy chrome (RSS ticker, cards, sprint board). If the page is empty, the live binary is not the crate you just built — recopy with `cargo xtask live` after the build finishes.
+
+**Do not** kill `target/live/gsv-server.exe` before `cargo test` / `cargo build`. Only stop `target/debug/gsv-server.exe` if *that* file is still the listener.
+
+---
+
+## 🧭 What to do
+
+<p align="center">
+  <img src="docs/assets/presentations/gsv-flow.svg" alt="After install: Galaxy UI, MCP, абракадабра, pick a product, drain." width="100%">
+</p>
+
+| Step | You do | What happens |
+|------|--------|----------------|
+| 1 | Open [http://127.0.0.1:9999/](http://127.0.0.1:9999/) | Galaxy UI: Tracker, SLI, OmniRouter, vision maps, tickets |
+| 2 | Keep this folder as the Cursor / OpenCode workspace | MCP auto-registers. Cursor talks HTTP `http://127.0.0.1:9999/mcp`. OpenCode / Grok spawn `target/live/gsv-mcp.exe` |
+| 3 | Type **`абракадабра`** or **`abrakadabra`** in the agent chat | Agent runs `cargo xtask products` and **asks** which environment project to drain |
+| 4 | Click a product | S0 disk → warnings-first scan → band → tests → **one** commit + push |
+| 5 | Optional: Settings card | Bind Godfather Telegram (`data/gsv_settings.json` is gitignored). Never commit the bot token |
+
+The window being GSV does **not** mean the drain target is GSV. Pick `gsv`, `poolai`, `omniroute`, or whatever the scan listed.
 
 ```mermaid
 flowchart LR
@@ -50,58 +138,17 @@ flowchart LR
   GSV --> MCP[gsv_mcp_openbot]
 ```
 
----
-
-## 🎬 Presentations
-
-Click a tile. These are the product shots for GitHub — the live UI is still the server on port **9999**.
-
-<p align="center">
-  <a href="docs/assets/presentations/gsv-galaxy-ui.png">
-    <img src="docs/assets/presentations/gsv-galaxy-ui.png" alt="Galaxy UI presentation" width="48%">
-  </a>
-  <a href="docs/assets/presentations/gsv-boxes.png">
-    <img src="docs/assets/presentations/gsv-boxes.png" alt="GSV boxes presentation" width="48%">
-  </a>
-</p>
-
-| Tile | What you are looking at |
-|------|-------------------------|
-| **Hero** | Vision dashboard + sprint board + 96% ratio ring + OmniRouter |
-| **Galaxy UI** | Sidebar, RSS ticker, node map, sprint + speed chrome |
-| **Boxes** | Tracker · SLI · Toolchain · IDE · Products · OmniRouter · Ratio · Vision Map · Update · Terminal |
-
-Made a walkthrough of GSV? Open an [issue](https://github.com/platinoff/GSV/issues) with the link and we will hang it here.
-
----
-
-## 🚀 Quick start
-
-MSYS2 bash (not PowerShell):
-
-```bash
-export PATH="/c/Users/${USER:-${USERNAME}}/.cargo/bin:$HOME/.cargo/bin:/ucrt64/bin:/usr/bin:$PATH"
-export RUSTUP_TOOLCHAIN="stable-x86_64-pc-windows-gnu"
-cd /s/rust/GSV
-unset CARGO_TARGET_DIR
-
-cargo build --bin gsv-server --bin gsv-mcp --bin gsv-live --bin gsv-watchdog
-cargo xtask live                 # copies target/debug → target/live (server + gsv-mcp), loop restart
-# other terminal:
-cargo xtask watchdog             # keep :9999 up if the live process dies
-```
-
-Open [http://127.0.0.1:9999/](http://127.0.0.1:9999/). The supervisor copies `target/debug/gsv-server.exe` → `target/live/` (and `gsv-mcp.exe` when built) so `cargo test` / `cargo build` do not lock the listener. `gsv-watchdog` probes `/api/health` and respawns the live copy if Cursor (or anything else) kills the supervisor. `cargo run --bin gsv-server` still works but **locks** `target/debug/` on Windows.
+### Product tests (when draining **gsv**)
 
 ```bash
 cargo fmt -- --check
 cargo clippy --all-targets
-cargo test                          # keep target/live/ running; do not lock debug exe as listener
+cargo test                          # keep target/live/ running
 cargo run --bin gsv-loc-audit -- --stretch-96
 cargo run --bin gsv-http-stand-smoke
 ```
 
-**Port 9999** is canon. `8765` sits in a Hyper-V reserved range.
+More commands: [`docs/gsv/GSV_RUST_DEV.md`](docs/gsv/GSV_RUST_DEV.md). Disk guard: `cargo xtask disk`.
 
 ---
 
@@ -115,45 +162,16 @@ Live panels served by Rust (`src/boxes/`), not a port of legacy `vision.js`.
 | **SLI console** | Commands actually used + catalog from `src/bin/` · `cargo xtask` |
 | **Toolchain** | rustc / cargo / clippy / MSYS2 inventory |
 | **IDE** | OpenCode + Cursor sessions; pick which host you are on |
-| **Update** | Bin rebuild → UI shows **Update** instead of reload; page survives offline; metrics resync |
+| **Update** | Bin rebuild → UI shows **Update** instead of reload; page survives offline |
 | **Preview** | Rust syntax colors; path confined to the repo |
 | **SLI terminal** | Agent-sent commands through a cargo/git allowlist |
 | **Hooks** | Tests / bench against `target/` without a rebuild |
 | **Ratio** | LOC audit → `data/rust_ratio.json` · `GET /api/ratio` |
 | **OmniRouter** | OpenAI-compatible proxy across the provider catalog |
 | **Vision** | Manifest, feed, maps, sprint board, speed + rust-diagnostics charts (SVG from Rust) |
+| **Products / Watchdog / Settings / Tickets** | VDT picker, live supervisor, Godfather, claim board |
 
 Localhost hardening is on: loopback bind, CSRF on mutating POST, CSP / nosniff / DENY / no-store, 256 KiB body cap. LAN bind needs `--allow-lan`.
-
----
-
-## 🧭 OmniRouter
-
-Rust AI proxy (`src/boxes/omni/`). Catalog (Aug 2026): GPT 5.2 · GPT 5.2 Codex · Claude Opus 4.5 · Claude Sonnet 4.5 · Gemini 3 Pro · MiniMax M2.1, plus DeepSeek / Kimi / GLM / Qwen and free hosts (OpenRouter, Groq, Cerebras, NVIDIA, Hugging Face).
-
-```
-GET  /api/omni
-GET  /api/omni/route
-GET  /api/omni/v1/models
-POST /api/omni/v1/chat/completions
-```
-
-Config: `data/omni.toml` (keys redacted in the UI). Env overrides: `OMNI_<PROVIDER>_API_KEY`.
-
----
-
-## ✨ абракадабра
-
-GSV is also the **VDT kit** (rules, skills, drain loop). Opening this folder does **not** mean the product is GSV.
-
-Same trigger in Latin: **`abrakadabra`**. Either spelling starts the same drain (`abracadabra` is the skill folder name).
-
-1. Owner types `абракадабра` or `abrakadabra`.
-2. Agent runs `cargo xtask products` — workspace folders **and** sibling git repos under `S:/rust` (today that is GSV, PoolAI, omniroute, …).
-3. AskQuestion / OpenCode `question`: **which of those do we work with?**
-4. S0 disk → warnings-first scan → drain ≤10 PH-S* → one commit + push.
-
-Canon: [`docs/gsv/GSV_VDT_KIT.md`](docs/gsv/GSV_VDT_KIT.md) · registry (enrichment only): [`docs/gsv/PRODUCTS.md`](docs/gsv/PRODUCTS.md).
 
 ---
 
@@ -166,9 +184,39 @@ One MCP server GSV owns; OpenCode / Cursor / Grok CLI / Grok Bot are **clients**
 S:/rust/GSV/target/live/gsv-mcp.exe --repo-root S:/rust/GSV
 ```
 
-Auto-register: `.mcp.json` · `opencode.json` · `.grok/config.toml` spawn **that live binary** (not `cargo run`). **Cursor** `.cursor/mcp.json` uses HTTP `url: http://127.0.0.1:9999/mcp` (live `gsv-server`, **folder GSV only** — never User MCP). HTTP twin: `GET`/`POST`/`DELETE http://127.0.0.1:9999/mcp` (loopback; LAN needs `--allow-lan`; POST `/mcp` skips browser CSRF; session GET SSE **holds**; `initialize` issues `Mcp-Session-Id`). Galaxy card: `/api/ui/card/mcp`. **55 tools** + **12 `gsv://` resources** + **3 prompts** + **logging** + **completions** + **subscribe** + **SSE** + **HTTP sessions**. Band **183**: squad next-action (`gsv_tickets_next`) + MCP `tools.listChanged`. Band **182**: MCP-readable Godfather envelopes (`gsv_telegram_decode`). Band **181**: Galaxy glue + S0 `disk_ok` on health. Band **180**: watchdog process lockstep (`hop_successor` each tick). Band **179**: Godfather inbound poller (`gsv_telegram_poll`). Band **178**: scenario benchmark (`gsv_tickets_bench`). Band **177**: roadmap/plan hook-up (`gsv_tickets_hook`). Band **175**: MDS scenario band + solo walk (`gsv_tickets_walk`, `gsv_mds`). Band **174**: solo Telegram tickets (`gsv_telegram_ticket`). Band **171**: ticket lease + stale reclaim (`gsv_tickets_reclaim`). Band **170**: ticket scenarios + solo/squad (`gsv_tickets_create` / `_done` / `_error` / `_presence`). Band **169**: Telegram bus (`gsv_telegram_bus_send`, `gsv_telegram_bus_poll`). Band **168**: ticket board (`gsv_tickets`, `gsv_tickets_claim`). Band **167**: Telegram bind (`gsv_telegram`). Band **166**: Settings / Godfather (`gsv_settings`, `gsv://docs/settings-telegram`). Band **160**: GSV sandbox (`GET /mcp` `sandbox`) + no User leak + no MCP open/apply/tunnel. Band **159**: Cursor HTTP attach + session SSE hold + `version`/`http_url` on discovery. Band **158**: live stdio + `gsv_xtask` `sync` `--check`. Band **157**: OmniRouter catalog — [`GSV_OMNI_CATALOG.md`](docs/gsv/GSV_OMNI_CATALOG.md).
+- **Cursor** (this repo only): `.cursor/mcp.json` → `url: http://127.0.0.1:9999/mcp`. Never User MCP (`%USERPROFILE%/.cursor/mcp.json`) — it leaks into PoolAI windows.
+- **OpenCode / Grok:** `.mcp.json` / `opencode.json` spawn **`target/live/gsv-mcp.exe`**, not `cargo run`.
+- **55 tools** · **12 `gsv://` resources** · **3 prompts**. If the catalog looks stale after a drain, **restart Cursor** (agent refresh only resubscribes resources).
 
 Canon: [`docs/gsv/GSV_MCP_OPENBOT.md`](docs/gsv/GSV_MCP_OPENBOT.md).
+
+---
+
+## ✨ абракадабра
+
+GSV is also the **VDT kit** (rules, skills, drain loop). Same trigger in Latin: **`abrakadabra`**. Either spelling starts the same drain (`abracadabra` is the skill folder name).
+
+1. Owner types `абракадабра` or `abrakadabra`.
+2. Agent runs `cargo xtask products` — workspace folders **and** sibling git repos under `S:/rust`.
+3. AskQuestion / OpenCode `question`: **which of those do we work with?**
+4. S0 disk → warnings-first scan → drain ≤10 PH-S* → one commit + push.
+
+Canon: [`docs/gsv/GSV_VDT_KIT.md`](docs/gsv/GSV_VDT_KIT.md) · registry (enrichment only): [`docs/gsv/PRODUCTS.md`](docs/gsv/PRODUCTS.md).
+
+---
+
+## 🧭 OmniRouter
+
+Rust AI proxy (`src/boxes/omni/`). Config: `data/omni.toml` (keys redacted in the UI). Env overrides: `OMNI_<PROVIDER>_API_KEY`.
+
+```
+GET  /api/omni
+GET  /api/omni/route
+GET  /api/omni/v1/models
+POST /api/omni/v1/chat/completions
+```
+
+Catalog: [`docs/gsv/GSV_OMNI_CATALOG.md`](docs/gsv/GSV_OMNI_CATALOG.md).
 
 ---
 
@@ -184,7 +232,7 @@ GSV/
 ├── src/boxes/                Tracker, SLI, OmniRouter, Vision, …
 ├── ui/                       thin HTML/CSS/JS glue
 ├── docs/gsv/                 architecture, boxes, roadmap, VDT kit
-├── docs/assets/presentations/  README shots
+├── docs/assets/presentations/  SMIL SVG for GitHub README
 └── .agents/skills/           abracadabra + generic VDT skills
 ```
 
@@ -194,14 +242,17 @@ GSV/
 
 | Doc | What |
 |-----|------|
+| [`docs/gsv/README.md`](docs/gsv/README.md) | Docs index (this crate — not a PoolAI subfolder) |
 | [`docs/gsv/GSV_ARCHITECTURE.md`](docs/gsv/GSV_ARCHITECTURE.md) | Server + boxes, Rust / wasm split |
 | [`docs/gsv/GSV_SERVER.md`](docs/gsv/GSV_SERVER.md) | Endpoints, update, offline |
 | [`docs/gsv/GSV_BOXES.md`](docs/gsv/GSV_BOXES.md) | Box spec |
-| [`docs/gsv/GSV_TECH_ROADMAP.md`](docs/gsv/GSV_TECH_ROADMAP.md) | Sprint order (always-on 143–147 ✅) |
-| [`docs/gsv/GSV_ALWAYS_ON_UI.md`](docs/gsv/GSV_ALWAYS_ON_UI.md) | Always-on server, chrome, products, fingerprints |
+| [`docs/gsv/GSV_RUST_DEV.md`](docs/gsv/GSV_RUST_DEV.md) | `cargo xtask` catalog |
+| [`docs/gsv/GSV_TECH_ROADMAP.md`](docs/gsv/GSV_TECH_ROADMAP.md) | Sprint order |
+| [`docs/gsv/GSV_ALWAYS_ON_UI.md`](docs/gsv/GSV_ALWAYS_ON_UI.md) | Always-on server, chrome, fingerprints |
 | [`docs/gsv/GSV_VDT_KIT.md`](docs/gsv/GSV_VDT_KIT.md) | Shared kit vs product |
 | [`docs/gsv/GSV_MCP_OPENBOT.md`](docs/gsv/GSV_MCP_OPENBOT.md) | MCP plan |
 | [`docs/GSV_ROLES.md`](docs/GSV_ROLES.md) | Owner / orchestrator / subagents |
+| [`docs/assets/presentations/README.md`](docs/assets/presentations/README.md) | Why README animation is SMIL |
 
 ---
 

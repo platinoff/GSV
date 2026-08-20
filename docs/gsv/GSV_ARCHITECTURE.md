@@ -5,7 +5,7 @@
 ## Принципи
 
 - **Rust 95–100%** — runtime, API, ML, tools, бокси, сервер.
-- **WebAssembly 0–5%** — лише горизонт (за потреби — маленькі wasm-модулі з `crates/poolai-ui-wasm`).
+- **WebAssembly 0–5%** — горизонт. This crate has **no** `crates/poolai-ui-wasm` member; charts are Rust-rendered SVG in `boxes/vision.rs`.
 - **UI** — тонкий JS/DOM glue поверх Rust API; сторінка оновлюється через серверні події (SSE/WS), а не через перезавантаження.
 - **Bind** — default `127.0.0.1:9999`; `--allow-lan` required to listen beyond loopback. Mutating POSTs from a non-local Origin are rejected. Responses carry CSP (`worker-src 'self'`) / `X-Content-Type-Options: nosniff` / `X-Frame-Options: DENY` / `Cache-Control: no-store`; POST bodies are capped at 256 KiB.
 - **Без Python/Java.** Bins — лише `src/bin/`.
@@ -18,8 +18,8 @@
 | L1 | Operations | workflow/спринти (FM §5.12 band 102), HANDOFF/NEXT |
 | L2 | Catalog | FM, DIGEST — джерела для Tracker/SLI console |
 | L3 | Code | `src/` сервера GSV (бокси, sli, toolchain, tracker, ide, update) |
-| L4 | Lib roots | `src/lib.rs`, `crates/poolai-ui-core`, `crates/poolai-ui-wasm` |
-| L5 | Workspace | `GSV/Cargo.toml`, `Cargo.toml` (workspace) |
+| L4 | Lib roots | `src/lib.rs` (this crate) |
+| L5 | Workspace | `Cargo.toml` (standalone; `S:/rust/GSV`, not a PoolAI member) |
 
 ## Компоненти (Rust)
 
@@ -59,7 +59,7 @@
 | SLI-парсинг, toolchain-інвентар | ✅ 100% | — |
 | Tracker-зберігання | ✅ 100% | — |
 | Update/offline-механіка | ✅ 100% | — |
-| Форматування чисел/дати в UI | — | ⏳ 0–5% (horizon, `poolai-ui-wasm`) |
+| Форматування чисел/дати в UI | ✅ (Rust cards) | ⏳ 0–5% horizon (not a crate member) |
 | AI-чати (IDE box) | ✅ (читання) | — |
 
 ## Дані / зберігання

@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-20 (**band 187 · next gsv drain = owner pick**)
+**Оновлено:** 2026-08-20 (**band 188 · next gsv drain = owner pick**)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -20,7 +20,7 @@ abrakadabra
 project scan (**warnings first**) → drain наступного band (**без** mid-push) →
 Speeds · Rust panel → vision-sync → **один** commit → **`git push` + самарі**.
 
-Якщо **gsv:** always-on Galaxy (**bands 143–147 ✅**) + SW cache (**band 148 ✅**) + omniroute/semver (**band 149 ✅**) + live watchdog (**band 150 ✅**) + MCP catch-up (**band 151 ✅**) + MCP products select (**band 152 ✅**) + rust-first xtask (**band 153 ✅**) + watchdog ops card (**band 154 ✅**) + session token usage (**band 155 ✅**) + streaming usage / VDT git / owner tunnel (**band 156 ✅**) + OmniRouter catalog / quota timers (**band 157 ✅**) + live MCP stdio / sync check (**band 158 ✅**) + Cursor HTTP MCP / session SSE hold (**band 159 ✅**) + GSV sandbox MCP / no User leak (**band 160 ✅**) + vision lockstep + disk MiB (**band 161 ✅**) + live crate/version lockstep (**band 162 ✅**) + vision queue lockstep + bump auto-advance (**band 163 ✅**) + Cursor 3.16.29 kit lockstep (**band 164 ✅**) + watchdog live copy + lockstep observability (**band 165 ✅**) + settings / Godfather (**band 166 ✅**) + Telegram bind (**band 167 ✅**) + ticket board + MCP claim (**band 168 ✅**) + Telegram bus (**band 169 ✅**) + ticket scenarios / solo-squad (**band 170 ✅**) + ticket lease / stale reclaim (**band 171 ✅**) + live crate lockstep (**band 172 ✅**) + vision queue close-lockstep (**band 173 ✅**) + solo Telegram tickets (**band 174 ✅**) + MDS scenario band / solo walk / Telegram sync (**band 175 ✅**) + visible MCP session walk (**band 176 ✅**) + roadmap/plan hook-up (**band 177 ✅**) + scenario benchmark (**band 178 ✅**) + Godfather inbound poller (**band 179 ✅**) + watchdog process lockstep (**band 180 ✅**) + Galaxy glue + S0 disk on health (**band 181 ✅**) + MCP-readable Godfather envelopes + Galaxy MCP signal (**band 182 ✅**) + squad next-action + MCP catalog lockstep (**band 183 ✅**) + MCP session catalog lockstep (**band 184 ✅**) + Cursor catalog restart lockstep (**band 185 ✅**) + solo/squad/jail (**band 186 ✅**) + live Godfather member_count (**band 187 ✅**) are closed.
+Якщо **gsv:** always-on Galaxy (**bands 143–147 ✅**) + SW cache (**band 148 ✅**) + omniroute/semver (**band 149 ✅**) + live watchdog (**band 150 ✅**) + MCP catch-up (**band 151 ✅**) + MCP products select (**band 152 ✅**) + rust-first xtask (**band 153 ✅**) + watchdog ops card (**band 154 ✅**) + session token usage (**band 155 ✅**) + streaming usage / VDT git / owner tunnel (**band 156 ✅**) + OmniRouter catalog / quota timers (**band 157 ✅**) + live MCP stdio / sync check (**band 158 ✅**) + Cursor HTTP MCP / session SSE hold (**band 159 ✅**) + GSV sandbox MCP / no User leak (**band 160 ✅**) + vision lockstep + disk MiB (**band 161 ✅**) + live crate/version lockstep (**band 162 ✅**) + vision queue lockstep + bump auto-advance (**band 163 ✅**) + Cursor 3.16.29 kit lockstep (**band 164 ✅**) + watchdog live copy + lockstep observability (**band 165 ✅**) + settings / Godfather (**band 166 ✅**) + Telegram bind (**band 167 ✅**) + ticket board + MCP claim (**band 168 ✅**) + Telegram bus (**band 169 ✅**) + ticket scenarios / solo-squad (**band 170 ✅**) + ticket lease / stale reclaim (**band 171 ✅**) + live crate lockstep (**band 172 ✅**) + vision queue close-lockstep (**band 173 ✅**) + solo Telegram tickets (**band 174 ✅**) + MDS scenario band / solo walk / Telegram sync (**band 175 ✅**) + visible MCP session walk (**band 176 ✅**) + roadmap/plan hook-up (**band 177 ✅**) + scenario benchmark (**band 178 ✅**) + Godfather inbound poller (**band 179 ✅**) + watchdog process lockstep (**band 180 ✅**) + Galaxy glue + S0 disk on health (**band 181 ✅**) + MCP-readable Godfather envelopes + Galaxy MCP signal (**band 182 ✅**) + squad next-action + MCP catalog lockstep (**band 183 ✅**) + MCP session catalog lockstep (**band 184 ✅**) + Cursor catalog restart lockstep (**band 185 ✅**) + solo/squad/jail (**band 186 ✅**) + live Godfather member_count (**band 187 ✅**) + README SMIL presentations + docs tidy (**band 188 ✅**) are closed.
 **Next drain = owner pick** after a warnings-first scan. Spec [`GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md) · [`GSV_SOLO_SQUAD_JAIL.md`](gsv/GSV_SOLO_SQUAD_JAIL.md).
 Canon [`GSV_OMNI_CATALOG.md`](gsv/GSV_OMNI_CATALOG.md) · [`GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md) · [`GSV_POST_ALWAYS_ON.md`](gsv/GSV_POST_ALWAYS_ON.md).
 `cargo xtask git commit --file comitmsg/<name>.md` then `cargo xtask git push`. Grok Bot tunnel: `cargo xtask tunnel` (not on by default).
@@ -257,6 +257,7 @@ Close: `cargo xtask bump --band N` (semver **and** vision queue **close of N**: 
   **band 186** (PH-S2499…S2508) ✅ — solo/squad/jail (`jail.id` · squad_cap = channel members · join env).
   Spec [`GSV_SOLO_SQUAD_JAIL.md`](gsv/GSV_SOLO_SQUAD_JAIL.md).
   **band 187** (PH-S2509…S2518) ✅ — live Godfather member_count (`getChatMemberCount` fills `tickets.member_count`).
+  **band 188** (PH-S2519…S2528) ✅ — README SMIL presentations + docs tidy (install / what-to-do).
   **Наступний drain:** owner pick after a warnings-first scan.
 
 ## Канон GSV
@@ -337,6 +338,7 @@ band 184 ✅ (MCP session catalog lockstep) ·
 band 185 ✅ (Cursor catalog restart lockstep) ·
 band 186 ✅ (solo/squad/jail — federated join + Git worktrees + Telegram caps) ·
 band 187 ✅ (live Godfather member_count — getChatMemberCount) ·
+band 188 ✅ (README SMIL presentations + docs tidy) ·
 наступний drain = **owner pick** ·
 не комітити `data/gsv_settings.json` / bot token ·
 не комітити kit-only в PoolAI як «замість» GSV drain ·

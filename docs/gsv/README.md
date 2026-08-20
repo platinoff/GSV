@@ -1,48 +1,43 @@
 # GSV docs — Galaxy StarWalker Vision
 
-Документація окремого проєкту **GSV (Galaxy StarWalker Vision)** — самостійної Rust-first vision-системи, мігрованої з `GSV/docs/vision/` у окремий проєкт `GSV/` репо PoolAI.
+Канон окремого Rust-first репо **`S:\rust\GSV`** ([github.com/platinoff/GSV](https://github.com/platinoff/GSV)). Sibling of PoolAI — **not** a subfolder. Live UI: [http://127.0.0.1:9999/](http://127.0.0.1:9999/).
 
-**Rust 95–100% · WebAssembly 0–5% (завжди) · без Python/Java.**
+**Rust 95–100% · WebAssembly 0–5% (horizon) · без Python/Java.** Product tests/benches/scripts = `.rs` (`cargo xtask`).
+
+Install + what to do: root [`README.md`](../../README.md). SMIL tiles: [`../assets/presentations/README.md`](../assets/presentations/README.md). Session memory: [`../MEMORY.md`](../MEMORY.md).
 
 ## Документи
 
 | Файл | Призначення |
 |------|-------------|
 | [`GSV_ARCHITECTURE.md`](./GSV_ARCHITECTURE.md) | Архітектура сервера + боксів; Rust/wasm split; шари L0–L5 |
-| [`GSV_SERVER.md`](./GSV_SERVER.md) | **exe/bin сервер** «Galaxy StarWalker Vision»: endpoints, update-повідомлення, offline-стійкість, metrics resync |
-| [`GSV_BOXES.md`](./GSV_BOXES.md) | **Специфікація боксів**: Tracker · SLI console · Toolchain · IDE · Update · Box preview · SLI terminal · Rust tests/benchmarks hook |
-| [`GSV_MIGRATION.md`](./GSV_MIGRATION.md) | Міграція з `GSV/docs/vision/` + `src/` у GSV: що переносимо, що лишається, як |
-| [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) | **TechPreroadMap**: логічний порядок → sprints (bands 143–**187 ✅**; next = owner pick) |
-| [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md) | Always-on live binary, chrome bugs, products, version/fingerprints (spec, **143–150 ✅**) |
-| [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md) | After always-on: MCP catch-up (**band 151–165 ✅**) |
-| [`GSV_VDT_KIT.md`](./GSV_VDT_KIT.md) | GSV як точка входу: shared rules/skills vs product canon (Accepted, band 127) |
+| [`GSV_SERVER.md`](./GSV_SERVER.md) | `gsv-server`: endpoints, update, offline, metrics resync |
+| [`GSV_BOXES.md`](./GSV_BOXES.md) | Специфікація боксів |
+| [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) | TechPreroadMap (bands 102–**188**; next = owner pick) |
+| [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md) | Always-on live binary, chrome, products, fingerprints (**143–150 ✅**) |
+| [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md) | After always-on: MCP catch-up (**151–165 ✅**) |
+| [`GSV_VDT_KIT.md`](./GSV_VDT_KIT.md) | Shared rules/skills vs product canon (Accepted, band 127) |
 | [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md) | Rust-first tests/benches/scripts (`cargo xtask`; band **153 ✅**) |
-| [`GSV_OMNI_CATALOG.md`](./GSV_OMNI_CATALOG.md) | Shared OmniRouter / Cursor / OpenCode / Grok models + free timers (band **157**) |
+| [`GSV_OMNI_CATALOG.md`](./GSV_OMNI_CATALOG.md) | OmniRouter / Cursor / OpenCode / Grok models (band **157**) |
 | [`PRODUCTS.md`](./PRODUCTS.md) | Enrichment-реєстр; discover = `cargo xtask products` |
-| [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) | MCP `gsv_mcp_openbot` (band 135–**186 ✅**) |
-| [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md) | Settings + Godfather + tickets + MCP Telegram bus (**bands 166–186 ✅**) |
-| [`GSV_SOLO_SQUAD_JAIL.md`](./GSV_SOLO_SQUAD_JAIL.md) | Solo vs squad vs federated jail join (band **186 ✅**) |
-| [`../GSV/docs/GSV_ROLES.md`](../GSV_ROLES.md) | Ролі GSV VDT + канон сесії + Rust ratio gate (band 108) |
+| [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) | MCP `gsv_mcp_openbot` (band 135–**187 ✅**) |
+| [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md) | Settings + Godfather + tickets (**166–187 ✅**) |
+| [`GSV_SOLO_SQUAD_JAIL.md`](./GSV_SOLO_SQUAD_JAIL.md) | Solo vs squad vs federated jail (band **186 ✅**) |
+| [`GSV_MIGRATION.md`](./GSV_MIGRATION.md) | Історична міграція з `docs/vision/` (закрито) |
+| [`../GSV_ROLES.md`](../GSV_ROLES.md) | Ролі VDT + канон сесії + ratio gate |
+| [`../HANDOFF_NEW_SESSION.md`](../HANDOFF_NEW_SESSION.md) | Операційний зріз |
+| [`../NEXT_SESSION_PROMPT.md`](../NEXT_SESSION_PROMPT.md) | Промпт наступної сесії |
 
-## Зв’язок з PoolAI docs
-
-- Vision-UI-спадкоємець: **GSV** (`http://127.0.0.1:9999/`) — Rust-сервер з боксами; legacy [`GSV/docs/vision/index.html`](../vision/index.html) деактивований (band 117, 2026-08-07) — вказівник на GSV.
-- Черга sprints: [`docs/catalog/FUNCTION_MANAGEMENT.md`](../../docs/catalog/FUNCTION_MANAGEMENT.md) §5.12 (band 102 ✅ · band 108 ✅ §5.89).
-- Концепт: [`docs/concept/poolAI_concept_root.txt`](../../docs/concept/poolAI_concept_root.txt) · [`docs/concept/POOLAI_GALAXY_GRID.md`](../../docs/concept/POOLAI_GALAXY_GRID.md).
-- Воркфлоу: [`docs/development/HANDOFF_NEW_SESSION.md`](../../docs/development/HANDOFF_NEW_SESSION.md) · [`docs/development/NEXT_SESSION_PROMPT.md`](../../docs/development/NEXT_SESSION_PROMPT.md).
-- Пам'ять GSV: [`GSV/docs/MEMORY.md`](../MEMORY.md) · HANDOFF/NEXT: [`GSV/docs/`](../README.md).
+PoolAI FM / concept живуть у **`S:/rust/poolAI`**. Цей репо не тримає `docs/catalog/FUNCTION_MANAGEMENT.md`.
 
 ## Правила (коротко)
 
 1. **Rust-only** для runtime/API/tools; bins — лише `src/bin/`.
 2. Python заборонено (0× `.py`). Java немає.
-3. UI — vanilla HTML+CSS+JS; WASM — горизонт.
-4. Бокси — панелі/можливості сервера GSV (детально в `GSV_BOXES.md`).
-5. Кожен бінар — окремий Rust bin; тести — Rust (`tests/`), не нові Playwright API-специ.
+3. UI — vanilla HTML+CSS+JS; WASM — горизонт (charts уже Rust SVG).
+4. Бокси — панелі сервера (`GSV_BOXES.md`).
+5. Тести — Rust (`tests/`), не нові Playwright API-специ. Kit scripts — `cargo xtask`, не `.sh`.
 
 ## Статус
 
-- **2026-08-05:** **band 108 roles/ratio canon ✅** (`PH-S1719…S1728` у FM §5.12 §5.89): `GSV/docs/GSV_ROLES.md` (roles + session canon + ratio gate), `gsv-loc-audit` bin + Ratio box (`GET /api/ratio` + UI card), `tests/gsv_ratio_contracts.rs` (7), memory/HANDOFF/NEXT, poolAI docs parity. Ratio **95.52%** (gate ≥95% ✅), **87 tests green** (46 unit + 18 contracts + 8 omni + 7 ratio + 8 update), clippy 0.
-- **2026-08-05:** **OmniRouter box** (`GSV/src/boxes/omni/`) — Rust AI-проксі/роутер за шітом «AI providers by opencode» (Aug 2026): 17 провайдерів + 25 моделей (рекомендований список GPT 5.2 · GPT 5.2 Codex · Claude Opus 4.5 · Claude Sonnet 4.5 · Gemini 3 Pro · MiniMax M2.1), OpenAI-сумісний proxy + redacted конфіг `omni.toml`.
-- **2026-08-02:** band 102 **реалізовано** (`PH-S1659…S1668` ✅ у FM §5.12 §5.83): `GSV/` окремий Rust-проєкт (gsv-server + бокси + single-page UI), **52 tests green**, clippy 0, live-smoke ок, timestamps RFC3339. Міграція docs/vision → GSV — ⏳ future.
-- **2026-08-01:** архітектура + docs створено; GSV зареєстровано як band 102 (`PH-S1659…S1668`) у FM §5.12. Реалізація — future.
+Лічильники (tests, ratio, vision rev) — у [`MEMORY.md`](../MEMORY.md), не дублювати тут. **Next drain = owner pick** after a warnings-first scan.

@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 340" width="1280" height="340" role="img" aria-labelledby="gsvInstTitle gsvInstDesc">
+  <title id="gsvInstTitle">Install GSV in four steps</title>
+  <desc id="gsvInstDesc">MSYS2 + rustup, clone the repo, cargo xtask live, open the Galaxy UI on port 9999. SMIL staggered cards.</desc>
+  <defs>
+    <linearGradient id="gsvInstBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#06080f"/>
+      <stop offset="100%" stop-color="#0a0e18"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="340" fill="url(#gsvInstBg)"/>
+  <text x="48" y="46" font-family="ui-sans-serif, system-ui, Segoe UI, sans-serif" font-size="22" fill="#e8eef8">Install the always-on server</text>
+  <text x="48" y="72" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#7c8ba3">Windows canon  |  MSYS2 bash  |  not PowerShell  |  port 9999</text>
+  <g transform="translate(48 100)">
+    <rect width="280" height="196" rx="14" fill="#101624" stroke="#7eb8ff" stroke-opacity="0.28">
+      <animate attributeName="stroke-opacity" values="0.18;0.55;0.18" dur="8s" begin="0s" repeatCount="indefinite"/>
+    </rect>
+    <circle cx="28" cy="30" r="14" fill="#7eb8ff"/>
+    <text x="28" y="35" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" font-weight="700" fill="#06080f">1</text>
+    <text x="56" y="36" font-family="ui-sans-serif, system-ui, Segoe UI, sans-serif" font-size="16" fill="#e8eef8">Prereqs</text>
+    <text x="20" y="72" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#9aa8bd">MSYS2 UCRT64</text>
+    <text x="20" y="94" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#9aa8bd">rustup  |  rustc 1.92.0</text>
+    <text x="20" y="116" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#9aa8bd">x86_64-pc-windows-gnu</text>
+    <text x="20" y="138" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#9aa8bd">git + clippy + rustfmt</text>
+    <text x="20" y="172" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#5b6b82">pinned in rust-toolchain.toml</text>
+  </g>
+  <g transform="translate(348 100)">
+    <rect width="280" height="196" rx="14" fill="#101624" stroke="#c4a5ff" stroke-opacity="0.28">
+      <animate attributeName="stroke-opacity" values="0.18;0.55;0.18" dur="8s" begin="0.5s" repeatCount="indefinite"/>
+    </rect>
+    <circle cx="28" cy="30" r="14" fill="#c4a5ff"/>
+    <text x="28" y="35" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" font-weight="700" fill="#06080f">2</text>
+    <text x="56" y="36" font-family="ui-sans-serif, system-ui, Segoe UI, sans-serif" font-size="16" fill="#e8eef8">Clone</text>
+    <text x="20" y="72" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#9aa8bd">git clone</text>
+    <text x="20" y="94" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#7eb8ff">github.com/platinoff/GSV</text>
+    <text x="20" y="128" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#9aa8bd">cd /s/rust/GSV</text>
+    <text x="20" y="150" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#9aa8bd">unset CARGO_TARGET_DIR</text>
+    <text x="20" y="172" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#5b6b82">sibling of PoolAI, not a subfolder</text>
+  </g>
+  <g transform="translate(648 100)">
+    <rect width="280" height="196" rx="14" fill="#101624" stroke="#22d3ee" stroke-opacity="0.28">
+      <animate attributeName="stroke-opacity" values="0.18;0.55;0.18" dur="8s" begin="1s" repeatCount="indefinite"/>
+    </rect>
+    <circle cx="28" cy="30" r="14" fill="#22d3ee"/>
+    <text x="28" y="35" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" font-weight="700" fill="#06080f">3</text>
+    <text x="56" y="36" font-family="ui-sans-serif, system-ui, Segoe UI, sans-serif" font-size="16" fill="#e8eef8">Live copy</text>
+    <text x="20" y="72" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#9aa8bd">cargo build --bin gsv-server</text>
+    <text x="20" y="94" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#9aa8bd">         --bin gsv-mcp</text>
+    <text x="20" y="116" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#9aa8bd">         --bin gsv-live</text>
+    <text x="20" y="138" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#9aa8bd">         --bin gsv-watchdog</text>
+    <text x="20" y="172" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#22d3ee">cargo xtask live</text>
+  </g>
+  <g transform="translate(948 100)">
+    <rect width="284" height="196" rx="14" fill="#101624" stroke="#e8eef8" stroke-opacity="0.18">
+      <animate attributeName="stroke-opacity" values="0.12;0.5;0.12" dur="8s" begin="1.5s" repeatCount="indefinite"/>
+    </rect>
+    <circle cx="28" cy="30" r="14" fill="#e8eef8"/>
+    <text x="28" y="35" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" font-weight="700" fill="#06080f">4</text>
+    <text x="56" y="36" font-family="ui-sans-serif, system-ui, Segoe UI, sans-serif" font-size="16" fill="#e8eef8">Open</text>
+    <text x="20" y="72" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#9aa8bd">other terminal:</text>
+    <text x="20" y="94" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#c4a5ff">cargo xtask watchdog</text>
+    <text x="20" y="128" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#9aa8bd">browser:</text>
+    <text x="20" y="150" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#22d3ee">http://127.0.0.1:9999/</text>
+    <text x="20" y="172" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#5b6b82">keep target/live/ running</text>
+  </g>
+</svg>

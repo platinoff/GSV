@@ -1,29 +1,20 @@
 # GSV docs — індекс
 
-Канонічна документація проєкту **Galaxy StarWalker Vision** (окремий Rust-first проєкт
-у `GSV/` репо PoolAI). Архітектурні файли `GSV/docs/gsv/` живуть у репо PoolAI; внутрішні
-канон-файли GSV — тут, у `GSV/docs/`.
+Канонічна документація **Galaxy StarWalker Vision** — standalone Rust-first репо
+`S:\rust\GSV` ([github.com/platinoff/GSV](https://github.com/platinoff/GSV)). Sibling of PoolAI,
+не підпапка. Install: root [`README.md`](../README.md).
 
 | Файл | Призначення |
 |------|-------------|
 | [`GSV_ROLES.md`](GSV_ROLES.md) | Ролі GSV VDT (Власник/Оркестратор/Субагенти), канон сесії, Rust ratio gate |
-| [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) | **Точка входу:** спільні rules/skills для будь-якого Rust-продукту (Accepted, band 127) |
-| [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md) | Реєстр продуктів (`gsv` · `poolai` · `omniroute`) для `абракадабра` / `abrakadabra` |
-| [`MEMORY.md`](MEMORY.md) | **Memory mark** — стан проєкту (bands 102 · 108 · 109), ключові факти, what/why |
-| [`VISION.md`](VISION.md) | **Vision box** — дзеркало poolAI vision canon (manifest/feed/sync) |
-| [`HANDOFF_NEW_SESSION.md`](HANDOFF_NEW_SESSION.md) | Операційний зріз для наступної сесії (S0, щоденники, тести) |
-| [`NEXT_SESSION_PROMPT.md`](NEXT_SESSION_PROMPT.md) | Copy-paste промпт наступної сесії GSV |
+| [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) | **Точка входу:** спільні rules/skills (Accepted, band 127) |
+| [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md) | Enrichment-реєстр; discover = `cargo xtask products` |
+| [`MEMORY.md`](MEMORY.md) | Memory mark — вимірюваний стан (не з голови) |
+| [`VISION.md`](VISION.md) | Vision box — manifest/feed/sync |
+| [`HANDOFF_NEW_SESSION.md`](HANDOFF_NEW_SESSION.md) | Операційний зріз для наступної сесії |
+| [`NEXT_SESSION_PROMPT.md`](NEXT_SESSION_PROMPT.md) | Copy-paste промпт наступної сесії |
+| [`assets/presentations/README.md`](assets/presentations/README.md) | SMIL SVG для GitHub README |
 
-Зовнішні посилання (репо PoolAI):
+Архітектура / сервер / бокси / roadmap — [`gsv/README.md`](gsv/README.md).
 
-| Файл | Призначення |
-|------|-------------|
-| [`GSV/docs/gsv/README.md`](gsv/README.md) | Індекс docs проєкту GSV (зовнішній) |
-| [`GSV/docs/gsv/GSV_ARCHITECTURE.md`](gsv/GSV_ARCHITECTURE.md) | Архітектура сервера + боксів |
-| [`GSV/docs/gsv/GSV_SERVER.md`](gsv/GSV_SERVER.md) | exe/bin сервер (endpoints, update, offline) |
-| [`GSV/docs/gsv/GSV_BOXES.md`](gsv/GSV_BOXES.md) | Специфікація боксів |
-| [`GSV/docs/gsv/GSV_MIGRATION.md`](gsv/GSV_MIGRATION.md) | Що мігруємо з `GSV/docs/vision/` / `src/` у GSV |
-| [`GSV/docs/gsv/GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) | TechPreroadMap → future sprints |
-
-Канон поведінки (roles/ratio/session) — [`GSV_ROLES.md`](GSV_ROLES.md); лічильники
-(кількість тестів, ratio) завжди вимірювати командами, не з пам'яті.
+Канон поведінки — [`GSV_ROLES.md`](GSV_ROLES.md). Лічильники завжди вимірювати командами.

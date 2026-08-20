@@ -2,7 +2,7 @@
 
 **Status:** Bands **143–147 ✅** (always-on Galaxy) · **148 ✅** (Service Worker shell cache) · **149 ✅** (omniroute PRODUCTS.md + semver minor = band) · **150 ✅** (live watchdog)  
 **Date:** 2026-08-18  
-**Owner ask:** Galaxy UI always reachable; page goes **offline** only during binary swap; debug collapse / fullscreen / power menu; typography + chart scale; pick a VDT project and open its folder; auto-parse what the dashboard needs; every commit bumps the crate version; fingerprint who did the work (IDE / bot / model / agent / time). Match the polish of [`README.md`](../../README.md) presentations.
+**Owner ask:** Galaxy UI always reachable; page goes **offline** only during binary swap; debug collapse / fullscreen / power menu; typography + chart scale; pick a VDT project and open its folder; auto-parse what the dashboard needs; every commit bumps the crate version; fingerprint who did the work (IDE / bot / model / agent / time). Match the polish of root [`README.md`](../../README.md) SMIL tiles (`docs/assets/presentations/`).
 
 **Plan:** [`docs/superpowers/plans/2026-08-17-always-on-galaxy.md`](../superpowers/plans/2026-08-17-always-on-galaxy.md)  
 **Roadmap:** bands **143–147** in [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md)

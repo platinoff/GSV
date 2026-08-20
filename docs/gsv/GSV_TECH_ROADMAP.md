@@ -72,6 +72,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 185** (Cursor catalog restart lockstep) **✅** ·
 **band 186** (solo/squad/jail) **✅** ·
 **band 187** (live Godfather member_count) **✅** ·
+**band 188** (README SMIL + docs tidy) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -1411,6 +1412,23 @@ Owner pick (`абракадабра` gsv / continue): band 186 left `member_coun
 | **PH-S2517** | Tests | fmt · clippy · `cargo test` · `--stretch-96` — **✅** |
 | **PH-S2518** | Band close | `--band 187` + fingerprint; recopy live; one commit + push — **✅** |
 
+## Спринти (band 188) — README SMIL presentations + docs tidy ✅
+
+Owner pick (`абракадабра` gsv): root README referenced PNG tiles that were never committed; docs still framed GSV as a PoolAI subfolder. Research: GitHub README animation that actually plays is **SMIL** in standalone `.svg` `<img>` files ([svg-motion-cookbook](https://github.com/WaterTian/svg-motion-cookbook)). Install + what-to-do belong on the landing page.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2519** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2519`; `last_sprint_closed` = `PH-S2518` — **✅** |
+| **PH-S2520** | Research | SMIL (not GIF/JS) for GitHub; Galaxy palette; one focal motion — **✅** |
+| **PH-S2521** | Assets | `docs/assets/presentations/{gsv-hero,gsv-install,gsv-flow}.svg` + presentations README — **✅** |
+| **PH-S2522** | Root README | install (MSYS2, clone, `cargo xtask live`, watchdog) + what to do — **✅** |
+| **PH-S2523** | Docs tidy | `docs/README.md` · `docs/gsv/README.md` drop PoolAI-subfolder / broken FM links — **✅** |
+| **PH-S2524** | Architecture | L4/L5 = this crate (no `poolai-ui-wasm` member); GSV_SERVER typo — **✅** |
+| **PH-S2525** | Rules | git-workflow `origin` is `platinoff/GSV` (no longer “optional remote”) — **✅** |
+| **PH-S2526** | Contracts | `tests/gsv_readme_contracts.rs` (SMIL, no `<script>`, no missing PNG) — **✅** |
+| **PH-S2527** | Tests | fmt · clippy · `cargo test` · `--stretch-96` — **✅** |
+| **PH-S2528** | Band close | `--band 188` + fingerprint; recopy live; one commit + push — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.
@@ -1432,4 +1450,4 @@ Owner pick (`абракадабра` gsv / continue): band 186 left `member_coun
 - Архітектура: [`GSV_ARCHITECTURE.md`](./GSV_ARCHITECTURE.md)
 - Міграція: [`GSV_MIGRATION.md`](./GSV_MIGRATION.md)
 - MCP horizon: [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md)
-- FM §5.12 band 102: [`../../docs/catalog/FUNCTION_MANAGEMENT.md`](../../docs/catalog/FUNCTION_MANAGEMENT.md)
+- PoolAI FM (sibling repo, not this tree): `S:/rust/poolAI/docs/catalog/FUNCTION_MANAGEMENT.md`

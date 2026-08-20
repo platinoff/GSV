@@ -1,8 +1,16 @@
 # GSV — Memory mark (what/why)
 
-Стан проєкту **Galaxy StarWalker Vision** — окремого Rust-first проєкту в `GSV/` репо PoolAI.
+Стан проєкту **Galaxy StarWalker Vision** — standalone Rust-first репо `S:\rust\GSV` (sibling of PoolAI, not a subfolder).
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
+
+## Стан (2026-08-20 · band 188)
+
+- **Band 188:** README SMIL presentations + docs tidy. `docs/assets/presentations/{gsv-hero,gsv-install,gsv-flow}.svg` (GitHub-safe SMIL; missing PNG tiles gone). Root README = install (`cargo xtask live`) + what to do. `docs/` no longer frames GSV as a PoolAI subfolder. git-workflow `origin` = `platinoff/GSV`.
+- **Canon:** [`../README.md`](../README.md) · [`assets/presentations/README.md`](assets/presentations/README.md).
+- **Next drain:** **owner pick** after a warnings-first scan.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.43%** (rust 36004 / product 36211) · clippy 0
 
 ## Стан (2026-08-20 · band 187)
 

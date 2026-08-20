@@ -6,7 +6,7 @@
 
 - **Bin/exe** «Galaxy StarWalker Vision» — canon always-on: `cargo xtask live` (`target/live/gsv-server.exe`). `cargo run --bin gsv-server` still works but **locks** `target/debug/` on Windows.
 - Віддає static UI (спадкоємець деактивованого legacy `GSV/docs/vision/index.html` — band 117) + REST API боксів + події (SSE).
-- Працює як **self-contained server**: доки + метрики + бокs — все в одному Rust бінарнику.
+- Працює як **self-contained server**: доки + метрики + бокси — все в одному Rust бінарнику.
 
 ## Endpoints
 
