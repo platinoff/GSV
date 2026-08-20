@@ -13,6 +13,8 @@
 //! Band 175: `kind:sync` envelopes on claim/done during a solo scenario walk.
 //! Band 176: session lines (`solo claimed …` / `squad assigned …` / `bench gsv_dev … ns`);
 //! live `sendMessage` 1/s when the token is set; cargo tests stay dry-run.
+//! Band 182: Godfather posts a human line plus JSON `{v:1,kind:sync,data}` so MCP
+//! clients can parse `hint` / `next` / disk / crate and steer the next drain.
 //! Band 177: `run mcp bot hook up scenario` (catalog / roadmap band / plan).
 //! Band 178: Godfather bench line reads `docs/gsv/scenario_bench.json` (session walk).
 
@@ -324,6 +326,35 @@ pub struct BusEnvelope {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ticket_id: Option<String>,
     pub body: String,
+    /// Machine fields for MCP-to-MCP correction (band 182). Absent on legacy bus.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data: Option<SyncData>,
+}
+
+/// Structured payload inside a `kind:sync` envelope.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct SyncData {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub product: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scenario: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub phase: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub actor: Option<String>,
+    #[serde(rename = "crate", default, skip_serializing_if = "Option::is_none")]
+    pub crate_version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub disk_ok: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub disk_free_gb: Option<u64>,
+    /// What the next MCP should do: `work-ticket` · `claim-next` · `work-assigned` · `record-bench` · `hook-placed`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hint: Option<String>,
 }
 
 /// Dry-run / test fake of one `getUpdates` item.
@@ -349,6 +380,9 @@ struct BusInner {
     last_poll_n: usize,
     last_ingest_kind: String,
     last_ingest_id: String,
+    last_sync_hint: String,
+    last_sync_next: String,
+    last_sync_body: String,
     update_offset: i64,
 }
 
@@ -366,6 +400,9 @@ impl BusInner {
             last_poll_n: 0,
             last_ingest_kind: String::new(),
             last_ingest_id: String::new(),
+            last_sync_hint: String::new(),
+            last_sync_next: String::new(),
+            last_sync_body: String::new(),
             update_offset: 0,
         }
     }
@@ -387,8 +424,21 @@ pub fn bus_clear_rate_limit() {
     bus().last_send = None;
 }
 
+fn record_signal(g: &mut BusInner, env: &BusEnvelope) {
+    if let Some(tid) = env.ticket_id.as_ref() {
+        if !tid.is_empty() {
+            g.last_ticket_id = tid.clone();
+        }
+    }
+    g.last_sync_body = env.body.clone();
+    if let Some(d) = env.data.as_ref() {
+        g.last_sync_hint = d.hint.clone().unwrap_or_default();
+        g.last_sync_next = d.next.clone().unwrap_or_default();
+    }
+}
+
 fn merge_last_bus(v: &mut Value) {
-    let (ok, ts, err, ticket, poll_ts, poll_n, ingest_kind, ingest_id, offset) = {
+    let (ok, ts, err, ticket, poll_ts, poll_n, ingest_kind, ingest_id, offset, hint, next, body) = {
         let g = bus();
         (
             g.last_bus_ok,
@@ -400,6 +450,9 @@ fn merge_last_bus(v: &mut Value) {
             g.last_ingest_kind.clone(),
             g.last_ingest_id.clone(),
             g.update_offset,
+            g.last_sync_hint.clone(),
+            g.last_sync_next.clone(),
+            g.last_sync_body.clone(),
         )
     };
     if let Some(obj) = v.as_object_mut() {
@@ -413,6 +466,9 @@ fn merge_last_bus(v: &mut Value) {
         obj.insert("last_ingest_kind".into(), json!(ingest_kind));
         obj.insert("last_ingest_id".into(), json!(ingest_id));
         obj.insert("update_offset".into(), json!(offset));
+        obj.insert("last_hint".into(), json!(hint));
+        obj.insert("last_next".into(), json!(next));
+        obj.insert("last_body".into(), json!(body));
     }
 }
 
@@ -468,7 +524,117 @@ pub fn parse_envelope(v: &Value) -> Result<BusEnvelope, String> {
     if env.body.len() > BODY_CAP {
         return Err("body exceeds 2 KiB".into());
     }
+    if let Some(data) = env.data.as_mut() {
+        data.product = empty_to_none(data.product.take());
+        data.scenario = empty_to_none(data.scenario.take());
+        data.phase = empty_to_none(data.phase.take());
+        data.mode = empty_to_none(data.mode.take());
+        data.actor = empty_to_none(data.actor.take());
+        data.crate_version = empty_to_none(data.crate_version.take());
+        data.next = empty_to_none(data.next.take());
+        data.hint = empty_to_none(data.hint.take());
+    }
     Ok(env)
+}
+
+/// Stable hint another MCP uses to pick the next action.
+pub fn sync_hint(mode: &str, phase: &str) -> &'static str {
+    match (mode.trim(), phase.trim()) {
+        ("squad", "assigned") | ("squad", "claimed") => "work-assigned",
+        ("bench", _) => "record-bench",
+        ("hook", _) => "hook-placed",
+        (_, "done") => "claim-next",
+        _ => "work-ticket",
+    }
+}
+
+/// Disk / crate / next-sprint snapshot for a session envelope.
+pub fn collect_sync_data(
+    repo_root: &Path,
+    scenario: &str,
+    phase: &str,
+    mode: &str,
+    actor: &str,
+) -> SyncData {
+    let disk = crate::boxes::xtask::health_disk(repo_root);
+    let next = crate::boxes::vision::read_manifest(repo_root)
+        .ok()
+        .map(|m| m.next_sprint)
+        .filter(|s| !s.is_empty());
+    SyncData {
+        product: Some("gsv".into()),
+        scenario: empty_to_none(Some(scenario.to_string())),
+        phase: empty_to_none(Some(phase.to_string())),
+        mode: empty_to_none(Some(mode.to_string())),
+        actor: empty_to_none(Some(actor.to_string())),
+        crate_version: Some(env!("CARGO_PKG_VERSION").into()),
+        next,
+        disk_ok: disk.get("disk_ok").and_then(Value::as_bool),
+        disk_free_gb: disk.get("disk_free_gb").and_then(Value::as_u64),
+        hint: Some(sync_hint(mode, phase).into()),
+    }
+}
+
+/// Pull a bus/sync envelope out of a Godfather body (JSON, `GSV1 ` prefix, or dual line+JSON).
+pub fn extract_envelope(text: &str) -> Result<BusEnvelope, String> {
+    let t = text.trim();
+    if t.is_empty() {
+        return Err("empty".into());
+    }
+    let json_slice = if let Some(rest) = t.strip_prefix("GSV1 ") {
+        rest.trim()
+    } else if t.starts_with('{') {
+        t
+    } else if let Some(i) = t.find('{') {
+        t[i..].trim()
+    } else {
+        return Err("no envelope".into());
+    };
+    let v: Value = serde_json::from_str(json_slice).map_err(|_| "invalid envelope".to_string())?;
+    parse_envelope(&v)
+}
+
+/// Human session line plus compact JSON so MCP can parse `data`.
+pub fn format_channel_message(env: &BusEnvelope) -> String {
+    let json = serde_json::to_string(env).unwrap_or_else(|_| "{}".into());
+    let body = env.body.trim();
+    if body.is_empty() {
+        return json;
+    }
+    let dual = format!("{body}\n{json}");
+    if dual.len() > 4096 {
+        json
+    } else {
+        dual
+    }
+}
+
+/// MCP / HTTP decode: structured envelope, never `bot_token`.
+pub fn decode_wire(text: &str) -> Value {
+    match extract_envelope(text) {
+        Ok(env) => {
+            let hint = env
+                .data
+                .as_ref()
+                .and_then(|d| d.hint.clone())
+                .unwrap_or_default();
+            let next = env
+                .data
+                .as_ref()
+                .and_then(|d| d.next.clone())
+                .unwrap_or_default();
+            json!({
+                "ok": true,
+                "kind": env.kind.clone(),
+                "body": env.body.clone(),
+                "hint": hint,
+                "next": next,
+                "data": env.data.clone(),
+                "envelope": env,
+            })
+        }
+        Err(e) => json!({ "ok": false, "error": e }),
+    }
 }
 
 /// Plain Godfather session line (band 176). Not `{phase} {id}`.
@@ -547,6 +713,16 @@ pub fn enqueue_sync(from: &str, ticket_id: &str, phase: &str) -> Result<BusEnvel
 
 /// Queue a `kind:sync` envelope with an explicit session-line body.
 pub fn enqueue_session(from: &str, ticket_id: &str, body: &str) -> Result<BusEnvelope, String> {
+    enqueue_session_data(from, ticket_id, body, None)
+}
+
+/// Queue a `kind:sync` envelope with optional MCP `data` fields.
+pub fn enqueue_session_data(
+    from: &str,
+    ticket_id: &str,
+    body: &str,
+    data: Option<SyncData>,
+) -> Result<BusEnvelope, String> {
     let from = from.trim();
     if from.is_empty() {
         return Err("from required".into());
@@ -569,6 +745,7 @@ pub fn enqueue_session(from: &str, ticket_id: &str, body: &str) -> Result<BusEnv
         to: None,
         ticket_id: Some(ticket_id.to_string()),
         body: body.to_string(),
+        data,
     };
     {
         let mut g = bus();
@@ -577,7 +754,7 @@ pub fn enqueue_session(from: &str, ticket_id: &str, body: &str) -> Result<BusEnv
         g.last_bus_ok = true;
         g.last_bus_ts = now_rfc3339();
         g.last_bus_error.clear();
-        g.last_ticket_id = ticket_id.to_string();
+        record_signal(&mut g, &envelope);
     }
     Ok(envelope)
 }
@@ -607,7 +784,7 @@ pub async fn sync_walk(
         .filter(|s| !s.is_empty())
         .unwrap_or("solo");
     report.telegram = 0;
-    let mut lines: Vec<String> = Vec::new();
+    let mut envelopes: Vec<BusEnvelope> = Vec::new();
     for step in &report.walked {
         let kind = if step.kind.is_empty() {
             "solo"
@@ -615,19 +792,21 @@ pub async fn sync_walk(
             step.kind.as_str()
         };
         let line = session_line(kind, &step.phase, &step.title, &step.actor);
-        if enqueue_session(from, &step.ticket_id, &line).is_ok() {
+        let data = collect_sync_data(repo_root, &report.scenario, &step.phase, kind, &step.actor);
+        if let Ok(env) = enqueue_session_data(from, &step.ticket_id, &line, Some(data)) {
             report.telegram += 1;
-            lines.push(line);
+            envelopes.push(env);
         }
     }
     let bench = bench_session_line(repo_root);
-    if enqueue_session(from, "gsv_dev", &bench).is_ok() {
+    let bench_data = collect_sync_data(repo_root, &report.scenario, "bench", "bench", "");
+    if let Ok(env) = enqueue_session_data(from, "gsv_dev", &bench, Some(bench_data)) {
         report.telegram += 1;
-        report.bench = bench.clone();
-        lines.push(bench);
+        report.bench = bench;
+        envelopes.push(env);
     }
     if !use_stub(explicit_dry) {
-        live_send_session_lines(&file, &lines).await;
+        live_send_envelopes(&file, &envelopes).await;
     }
     serde_json::to_value(&report)
         .map_err(|_| tickets::TicketError::Io("walk encode failed".into()))
@@ -662,19 +841,21 @@ pub async fn sync_hook(
         report.tickets.len()
     );
     let mut telegram = 0usize;
-    let mut lines: Vec<String> = Vec::new();
+    let mut envelopes: Vec<BusEnvelope> = Vec::new();
     if settings::telegram_relay_enabled(&file) {
         let tid = report
             .tickets
             .first()
             .map(|t| t.id.as_str())
             .unwrap_or("hook");
-        if enqueue_session(from, tid, &session_line("hook", "placed", &hook_line, "")).is_ok() {
+        let line = session_line("hook", "placed", &hook_line, "");
+        let data = collect_sync_data(repo_root, &report.scenario, "placed", "hook", from);
+        if let Ok(env) = enqueue_session_data(from, tid, &line, Some(data)) {
             telegram += 1;
-            lines.push(hook_line.clone());
+            envelopes.push(env);
         }
         if !use_stub(explicit_dry) {
-            live_send_session_lines(&file, &lines).await;
+            live_send_envelopes(&file, &envelopes).await;
         }
     }
     let mut walked = json!([]);
@@ -757,6 +938,11 @@ pub async fn ingest_channel_body(
         };
     }
     ticket_from_message(repo_root, data_dir, explicit_dry, args, presence)
+}
+
+async fn live_send_envelopes(file: &SettingsFile, envelopes: &[BusEnvelope]) {
+    let lines: Vec<String> = envelopes.iter().map(format_channel_message).collect();
+    live_send_session_lines(file, &lines).await;
 }
 
 async fn live_send_session_lines(file: &SettingsFile, lines: &[String]) {
@@ -845,23 +1031,21 @@ pub fn parse_channel_ticket(text: &str) -> Option<(String, String)> {
 
 /// Classify a Godfather channel body for the inbound poller (band 179).
 ///
-/// Hook phrases win, then bus/sync JSON, then `/ticket` / `{kind:ticket}`.
-/// Plain chat is `skip` so the poller does not turn every post into a ticket.
+/// MCP JSON envelopes (plain, `GSV1 `, or dual line+JSON) are `bus`. Hook
+/// phrases win over tickets. Legacy plain session lines stay `skip` (echo).
 pub fn classify_inbound(text: &str) -> &'static str {
     let t = text.trim();
     if t.is_empty() {
         return "skip";
+    }
+    if extract_envelope(t).is_ok() {
+        return "bus";
     }
     if is_own_session_line(t) {
         return "skip";
     }
     if tickets::parse_hook_phrase(t).is_some() {
         return "hook";
-    }
-    if let Ok(v) = serde_json::from_str::<Value>(t) {
-        if parse_envelope(&v).is_ok() {
-            return "bus";
-        }
     }
     if parse_channel_ticket(t).is_some() {
         return "ticket";
@@ -935,10 +1119,11 @@ fn drain_inbound_stubs() -> Vec<InboundUpdate> {
 
 fn enqueue_inbound_bus(env: BusEnvelope) {
     let mut g = bus();
-    g.queue.push_back(env);
+    g.queue.push_back(env.clone());
     g.last_bus_ok = true;
     g.last_bus_ts = now_rfc3339();
     g.last_bus_error.clear();
+    record_signal(&mut g, &env);
 }
 
 /// Background `getUpdates` loop. No-op in cargo tests (`live_api` off).
@@ -1031,19 +1216,14 @@ pub async fn poll_once(
         }
         let kind = classify_inbound(&item.text);
         match kind {
-            "bus" => {
-                if let Ok(v) = serde_json::from_str::<Value>(&item.text) {
-                    if let Ok(env) = parse_envelope(&v) {
-                        enqueue_inbound_bus(env);
-                        n_bus += 1;
-                        ingested.push(json!({ "kind": "bus" }));
-                    } else {
-                        n_skip += 1;
-                    }
-                } else {
-                    n_skip += 1;
+            "bus" => match extract_envelope(&item.text) {
+                Ok(env) => {
+                    enqueue_inbound_bus(env);
+                    n_bus += 1;
+                    ingested.push(json!({ "kind": "bus" }));
                 }
-            }
+                Err(_) => n_skip += 1,
+            },
             "ticket" | "hook" => {
                 let args = json!({
                     "from": item.from,
@@ -1212,6 +1392,7 @@ pub fn ticket_from_message(
         to: None,
         ticket_id: Some(ticket.id.clone()),
         body,
+        data: None,
     };
     {
         let mut g = bus();
@@ -1220,7 +1401,7 @@ pub fn ticket_from_message(
         g.last_bus_ok = true;
         g.last_bus_ts = now_rfc3339();
         g.last_bus_error.clear();
-        g.last_ticket_id = ticket.id.clone();
+        record_signal(&mut g, &envelope);
     }
     json!({
         "ok": true,
@@ -1584,10 +1765,7 @@ async fn bus_poll_live(token: &str, channel: &str, limit: usize, data_dir: &Path
             if !chat_is_godfather(channel, &chat_id, chat_username) {
                 continue;
             }
-            let Ok(parsed) = serde_json::from_str::<Value>(text) else {
-                continue;
-            };
-            if let Ok(env) = parse_envelope(&parsed) {
+            if let Ok(env) = extract_envelope(text) {
                 messages.push(env);
                 if messages.len() >= limit {
                     break;
@@ -1636,6 +1814,106 @@ mod tests {
             "skip"
         );
         assert!(is_own_session_line("hook band 177 n=10"));
+        let dual = format!(
+            "solo claimed Session: S0 disk\n{}",
+            r#"{"v":1,"kind":"sync","from":"solo","ticket_id":"t-1","body":"solo claimed Session: S0 disk","data":{"hint":"work-ticket","next":"PH-S2459"}}"#
+        );
+        assert_eq!(classify_inbound(&dual), "bus");
+        assert_eq!(
+            classify_inbound(
+                r#"GSV1 {"v":1,"kind":"sync","from":"solo","ticket_id":"t-1","body":"x"}"#
+            ),
+            "bus"
+        );
+    }
+
+    #[test]
+    fn extract_envelope_json_dual_and_prefix() {
+        let compact = r#"{"v":1,"kind":"sync","from":"solo","ticket_id":"t-1","body":"solo claimed Session: S0 disk","data":{"hint":"work-ticket","next":"PH-S2459","product":"gsv"}}"#;
+        let env = extract_envelope(compact).expect("compact");
+        assert_eq!(env.kind, "sync");
+        assert_eq!(
+            env.data.as_ref().and_then(|d| d.hint.as_deref()),
+            Some("work-ticket")
+        );
+        assert_eq!(
+            env.data.as_ref().and_then(|d| d.next.as_deref()),
+            Some("PH-S2459")
+        );
+        let dual = format!("solo claimed Session: S0 disk\n{compact}");
+        let from_dual = extract_envelope(&dual).expect("dual");
+        assert_eq!(from_dual.ticket_id.as_deref(), Some("t-1"));
+        let prefixed = format!("GSV1 {compact}");
+        assert!(extract_envelope(&prefixed).is_ok());
+        assert!(extract_envelope("solo claimed Session: S0 disk").is_err());
+        let decoded = decode_wire(&dual);
+        assert_eq!(decoded["ok"], true);
+        assert_eq!(decoded["hint"], "work-ticket");
+        assert_eq!(decoded["next"], "PH-S2459");
+        assert!(!decoded.to_string().contains("bot_token"));
+    }
+
+    #[test]
+    fn enqueue_session_data_records_mcp_signal() {
+        bus_reset();
+        let data = SyncData {
+            hint: Some("claim-next".into()),
+            next: Some("PH-S2459".into()),
+            ..Default::default()
+        };
+        enqueue_session_data("solo", "t-1", "solo done Session: close", Some(data)).unwrap();
+        let g = bus();
+        assert_eq!(g.last_sync_hint, "claim-next");
+        assert_eq!(g.last_sync_next, "PH-S2459");
+        assert_eq!(g.last_sync_body, "solo done Session: close");
+        assert_eq!(g.last_ticket_id, "t-1");
+    }
+
+    #[test]
+    fn format_channel_message_is_human_plus_json() {
+        let env = BusEnvelope {
+            v: 1,
+            kind: "sync".into(),
+            from: "solo".into(),
+            to: None,
+            ticket_id: Some("t-1".into()),
+            body: "solo claimed Session: S0 disk".into(),
+            data: Some(SyncData {
+                hint: Some("work-ticket".into()),
+                next: Some("PH-S2459".into()),
+                ..Default::default()
+            }),
+        };
+        let msg = format_channel_message(&env);
+        assert!(msg.starts_with("solo claimed Session: S0 disk\n{"), "{msg}");
+        let parsed = extract_envelope(&msg).expect("roundtrip");
+        assert_eq!(
+            parsed.data.as_ref().and_then(|d| d.hint.as_deref()),
+            Some("work-ticket")
+        );
+    }
+
+    #[test]
+    fn sync_hint_and_collect_data() {
+        assert_eq!(sync_hint("solo", "claimed"), "work-ticket");
+        assert_eq!(sync_hint("solo", "done"), "claim-next");
+        assert_eq!(sync_hint("squad", "assigned"), "work-assigned");
+        assert_eq!(sync_hint("bench", "bench"), "record-bench");
+        assert_eq!(sync_hint("hook", "placed"), "hook-placed");
+        let data = collect_sync_data(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")),
+            "abrakadabra-session",
+            "claimed",
+            "solo",
+            "agent",
+        );
+        assert_eq!(data.product.as_deref(), Some("gsv"));
+        assert_eq!(data.hint.as_deref(), Some("work-ticket"));
+        assert_eq!(
+            data.crate_version.as_deref(),
+            Some(env!("CARGO_PKG_VERSION"))
+        );
+        assert_eq!(data.scenario.as_deref(), Some("abrakadabra-session"));
     }
 
     #[test]

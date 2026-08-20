@@ -50,6 +50,7 @@
 | POST | `/api/telegram/bus` | Send a bus envelope `{from,to?,ticket_id?,body}` (CSRF; body cap 2 KiB; never `bot_token`). |
 | POST | `/api/telegram/ticket` | Ingest a Godfather message as a ticket (`{from,body,product?}`; `/ticket` or `{kind:ticket}`). Solo MCP auto-claims when online. Requires `telegram-relay` + `ticket-claim`. CSRF; never `bot_token`. |
 | POST | `/api/telegram/poll` | One inbound `getUpdates` pass (`ticket`/`hook`/`bus`/`skip` counts). CSRF; dry-run stub queue in tests. Requires `godfather.poll` or `telegram-relay`. Never `bot_token`. |
+| POST | `/api/telegram/decode` | Parse `{text}` into a GSV envelope (`hint`/`next`/`data`). CSRF. Never `bot_token`. No telegram-relay gate. |
 | GET | `/api/tickets` | Ticket board (`ok`, `tickets[]`, `mode`, `lease_secs`, `online`, `scenarios`, `events`; missing JSONL empty-ok; expired WIP auto-reclaimed) |
 | POST | `/api/tickets` | create `{title,body?,product?}` or `{scenario_id}` (loopback CSRF); registered product only; may auto-assign |
 | POST | `/api/tickets/claim` | `{id}` → `open`→`in_progress` + `claimed_by` + append `docs/gsv/ticket_claims.jsonl`; unknown id → 404; `ticket-claim` off → 403 |
@@ -57,13 +58,13 @@
 | POST | `/api/tickets/error` | `{id,note?}` → `in_progress`→`blocked` + event `kind:error` |
 | POST | `/api/tickets/presence` | heartbeat `{actor?,ide?,model?,agent?}` → `{ok,online}` + renew this worker's WIP leases |
 | POST | `/api/tickets/reclaim` | `{id?}` stale/explicit `in_progress` → `open` + event `kind:reclaimed`; empty id = all expired; CSRF; `ticket-claim` off → 403 |
-| POST | `/api/tickets/walk` | Walk `{scenario_id?,create?,from?}`: claim/assign→done + Godfather session lines (`solo claimed` / `squad assigned` / `bench gsv_dev`). Live `sendMessage` 1/s; tests dry-run. Requires `ticket-claim` + `telegram-relay`. CSRF. |
+| POST | `/api/tickets/walk` | Walk `{scenario_id?,create?,from?}`: claim/assign→done + Godfather dual session line + JSON `data` (`hint`/`next`/`disk`/`crate`). Live `sendMessage` 1/s; tests dry-run. Requires `ticket-claim` + `telegram-relay`. CSRF. |
 | POST | `/api/tickets/hook` | Hook `{phrase?|source+id,walk?,from?}`: place ≤10 tickets from catalog / roadmap band / superpowers plan. Phrase `run mcp bot hook up scenario …`. CSRF. |
 | GET | `/api/tickets/bench` | Last `abrakadabra-session` Instant timings (`docs/gsv/scenario_bench.json`; missing → `recorded:false` zeros) |
 | POST | `/api/tickets/bench` | `{run:true}` times a throwaway session walk and persists JSON. CSRF. Default `{run:false}` is a read. |
 | GET | `/api/mds` | Light memory / disk / speed report (`gsv-mds`) |
 | GET | `/api/health` | health-чек (`crate_version`, `version_lag`, `watchdog_alive`, `disk_ok` / `disk_violation` — process `ok` stays true on S0 disk trip; `update_available` matches Update box) |
-| GET | `/mcp` | MCP discovery (`gsv_mcp_openbot` + `sandbox` GSV crate path + 53 tools + 11 resources + 3 prompts + `stdio`/`stdio_live`/`http`/`http_url`/`version`/`http_csrf`/`tool_count`/`resource_count`/`prompt_count`/`logging`/`completions`/`log_level`/`subscribe`/`subscription_count`/`sse`/`streamable`/`sessions`/`session_count`); sessionless `Accept: text/event-stream` flushes pending notifications as finite SSE; **GET with `Mcp-Session-Id` holds** the stream; unknown `Mcp-Session-Id` → 404 |
+| GET | `/mcp` | MCP discovery (`gsv_mcp_openbot` + `sandbox` GSV crate path + 54 tools + 11 resources + 3 prompts + `stdio`/`stdio_live`/`http`/`http_url`/`version`/`http_csrf`/`tool_count`/`resource_count`/`prompt_count`/`logging`/`completions`/`log_level`/`subscribe`/`subscription_count`/`sse`/`streamable`/`sessions`/`session_count`); sessionless `Accept: text/event-stream` flushes pending notifications as finite SSE; **GET with `Mcp-Session-Id` holds** the stream; unknown `Mcp-Session-Id` → 404 |
 | POST | `/mcp` | MCP JSON-RPC (initialize / tools/* / resources/* including subscribe/unsubscribe / prompts/* / logging/setLevel / completion/complete); skips browser CSRF (bots); `initialize` issues `Mcp-Session-Id`; unknown id → 404; `Accept: text/event-stream` → SSE notifications then result; stdio twin is `target/live/gsv-mcp.exe` |
 | DELETE | `/mcp` | End HTTP MCP session (`Mcp-Session-Id` required; missing → 400; unknown → 404) |
 | GET | `/api/ui/layout` | grouped IA (ops/vision/sprint/studio) + `chrome` (8) + `html` (sidebar nav) + `header` (GPU/Auto/Power) |
@@ -134,7 +135,7 @@ cargo run --manifest-path GSV/Cargo.toml --bin gsv-http-stand-smoke -- --base-ur
 - UI показує кнопку/бейдж **Update** замість auto-reload; `doUpdate()` POSTs `/api/update/apply`.
 - Клієнтський JS тримає стан offline; при SSE `onopen` робить full-resync (Tracker/SLI/toolchain/speed/rust diagnostics).
 
-**Horizon:** band **181** Galaxy glue + S0 disk on health. Band **180** watchdog process lockstep (`hop_successor` each tick). Band **179** Godfather inbound poller. Band **174** solo Telegram tickets (`gsv_telegram_ticket` · `/ticket` ingest). Band **173** vision queue close-lockstep (`bump --band N` = last of N / first of N+1). Band **172** live crate lockstep. Settings/Telegram/tickets **166–171 ✅**. Next drain = **owner pick**. Spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md) · [`GSV_OMNI_CATALOG.md`](./GSV_OMNI_CATALOG.md) · [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md).
+**Horizon:** band **182** MCP-readable Godfather envelopes + Galaxy MCP signal. Band **181** Galaxy glue + S0 disk on health. Band **180** watchdog process lockstep (`hop_successor` each tick). Band **179** Godfather inbound poller. Band **174** solo Telegram tickets (`gsv_telegram_ticket` · `/ticket` ingest). Band **173** vision queue close-lockstep (`bump --band N` = last of N / first of N+1). Band **172** live crate lockstep. Settings/Telegram/tickets **166–171 ✅**. Next drain = **owner pick**. Spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md) · [`GSV_OMNI_CATALOG.md`](./GSV_OMNI_CATALOG.md) · [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md).
 
 ## Live copy + apply (band 144)
 

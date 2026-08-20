@@ -243,8 +243,9 @@ async fn mcp_telegram_is_read_only_status() {
     assert!(mcp::tool_names().contains(&"gsv_telegram_bus_poll"));
     assert!(mcp::tool_names().contains(&"gsv_telegram_ticket"));
     assert!(mcp::tool_names().contains(&"gsv_telegram_poll"));
+    assert!(mcp::tool_names().contains(&"gsv_telegram_decode"));
     assert!(!mcp::tool_names().contains(&"gsv_telegram_create_ticket"));
-    assert_eq!(mcp::tool_names().len(), 53);
+    assert_eq!(mcp::tool_names().len(), 54);
 }
 
 async fn bus_guard() -> tokio::sync::MutexGuard<'static, ()> {
@@ -473,7 +474,7 @@ fn card_telegram_shows_last_bus() {
     assert!(html.contains("2026-08-19T00:00:00Z"), "{html}");
     assert!(html.contains("rate limited"), "{html}");
     assert!(html.contains("t-174"), "{html}");
-    assert!(html.contains("gsv_telegram_ticket"), "{html}");
+    assert!(html.contains("gsv_telegram_decode"), "{html}");
     assert!(!html.contains("bot_token"), "{html}");
 }
 
@@ -929,14 +930,21 @@ async fn poll_once_classifies_ticket_bus_hook_and_skip() {
     );
     telegram::push_inbound_stub(3, "/ticket Poll ingest", "-100poll", "", "42");
     telegram::push_inbound_stub(4, "solo claimed Session: S0 disk", "-100poll", "", "42");
+    telegram::push_inbound_stub(
+        5,
+        "solo claimed Session: S0 disk\n{\"v\":1,\"kind\":\"sync\",\"from\":\"solo\",\"ticket_id\":\"t-1\",\"body\":\"solo claimed Session: S0 disk\",\"data\":{\"hint\":\"work-ticket\",\"next\":\"PH-S2459\"}}",
+        "-100poll",
+        "",
+        "42",
+    );
     let v = telegram::poll_once(&kit, &data, true, None).await;
     assert_eq!(v["ok"], true, "{v}");
     assert_eq!(v["dry_run"], true, "{v}");
-    assert_eq!(v["bus"], 1, "{v}");
+    assert_eq!(v["bus"], 2, "{v}");
     assert_eq!(v["ticket"], 1, "{v}");
     assert_eq!(v["skip"], 2, "{v}");
     assert_eq!(v["poll_alive"], false, "{v}");
-    assert!(v["update_offset"].as_i64().unwrap_or(0) >= 4, "{v}");
+    assert!(v["update_offset"].as_i64().unwrap_or(0) >= 5, "{v}");
     assert_no_secret(&v, "123:poll-secret");
     let bus = telegram::bus_poll(&data, true, Some(8)).await;
     assert_eq!(bus["ok"], true, "{bus}");
@@ -944,6 +952,12 @@ async fn poll_once_classifies_ticket_bus_hook_and_skip() {
     assert!(
         msgs.iter()
             .any(|m| m["kind"] == "bus" && m["body"] == "ping"),
+        "{bus}"
+    );
+    assert!(
+        msgs.iter().any(|m| m["kind"] == "sync"
+            && m["data"]["hint"] == "work-ticket"
+            && m["data"]["next"] == "PH-S2459"),
         "{bus}"
     );
 }
@@ -1021,4 +1035,72 @@ async fn mcp_telegram_poll_dry_run() {
     );
     assert!(!text.contains("bot_token"), "{text}");
     assert!(!text.contains("mcp-poll-secret-token"), "{text}");
+}
+
+#[tokio::test]
+async fn http_telegram_decode_csrf_and_hint() {
+    let app = app_with_data(temp_data("decode"));
+    let text = "solo claimed Session: S0 disk\n{\"v\":1,\"kind\":\"sync\",\"from\":\"solo\",\"ticket_id\":\"t-1\",\"body\":\"solo claimed Session: S0 disk\",\"data\":{\"hint\":\"work-ticket\",\"next\":\"PH-S2459\"}}";
+    let (cross, cjson) = post_json(
+        &app,
+        "/api/telegram/decode",
+        json!({ "text": text }),
+        Some("https://example.com"),
+        Some("cross-site"),
+    )
+    .await;
+    assert_eq!(cross, StatusCode::FORBIDDEN, "{cjson}");
+    let (status, sent) = post_json(
+        &app,
+        "/api/telegram/decode",
+        json!({ "text": text }),
+        Some("http://127.0.0.1:9999"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{sent}");
+    assert_eq!(sent["ok"], true, "{sent}");
+    assert_eq!(sent["hint"], "work-ticket", "{sent}");
+    assert_eq!(sent["next"], "PH-S2459", "{sent}");
+    assert!(!sent.to_string().contains("bot_token"), "{sent}");
+}
+
+#[tokio::test]
+async fn mcp_telegram_decode_returns_data() {
+    let app = app_with_data(temp_data("mcp-decode"));
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::POST)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": 9,
+                        "method": "tools/call",
+                        "params": {
+                            "name": "gsv_telegram_decode",
+                            "arguments": {
+                                "text": "{\"v\":1,\"kind\":\"sync\",\"from\":\"solo\",\"ticket_id\":\"t-1\",\"body\":\"solo done Session: close\",\"data\":{\"hint\":\"claim-next\",\"next\":\"PH-S2459\",\"crate\":\"0.181.0\"}}"
+                            }
+                        }
+                    })
+                    .to_string(),
+                ))
+                .expect("req"),
+        )
+        .await
+        .expect("resp");
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .expect("body");
+    let json: Value = serde_json::from_slice(&bytes).expect("json");
+    assert_eq!(json["result"]["isError"], false, "{json}");
+    let text = json["result"]["content"][0]["text"].as_str().unwrap_or("");
+    assert!(text.contains("claim-next"), "{text}");
+    assert!(text.contains("PH-S2459"), "{text}");
+    assert!(!text.contains("bot_token"), "{text}");
 }

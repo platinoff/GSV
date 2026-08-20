@@ -742,8 +742,9 @@ fn mcp_tools_include_tickets_not_bus() {
     assert!(mcp::tool_names().contains(&"gsv_telegram_bus_send"));
     assert!(mcp::tool_names().contains(&"gsv_telegram_ticket"));
     assert!(mcp::tool_names().contains(&"gsv_telegram_poll"));
+    assert!(mcp::tool_names().contains(&"gsv_telegram_decode"));
     assert!(!mcp::tool_names().contains(&"gsv_telegram_create_ticket"));
-    assert_eq!(mcp::tool_names().len(), 53);
+    assert_eq!(mcp::tool_names().len(), 54);
 }
 
 fn write_stale_wip(kit: &Path, id: &str, actor: &str, lease_until: u64) {
@@ -938,6 +939,27 @@ fn galaxy_glue_defines_reclaim_ticket() {
     assert!(
         gsv::server::INDEX_HTML.contains("async function reclaimTicket"),
         "tickets-reclaim button must have glue"
+    );
+}
+
+#[test]
+fn galaxy_glue_walk_refreshes_telegram_and_vision_sync_is_data_action() {
+    let html = gsv::server::INDEX_HTML;
+    assert!(
+        html.contains("async function syncVision"),
+        "vision remirror must be one glue function"
+    );
+    assert!(
+        html.contains("data-action=\"vision-sync\""),
+        "vision-sync button must use data-action"
+    );
+    assert!(
+        !html.contains("onclick=\"resyncVision()\""),
+        "vision-sync must not duplicate onclick"
+    );
+    assert!(
+        html.contains("await getText(\"telegram\")"),
+        "walk/hook/bench must refresh the Telegram MCP signal"
     );
 }
 

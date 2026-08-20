@@ -352,8 +352,19 @@ pub fn tools_list() -> Vec<Value> {
         ),
         tool(
             "gsv_telegram_poll",
-            "One inbound getUpdates pass on the Godfather channel: classify /ticket, hook phrase, and bus JSON. Dry-run uses the in-process stub queue (no sockets). Requires godfather.poll or telegram-relay. Never returns bot_token. The always-on loop runs only in gsv-server.",
+            "One inbound getUpdates pass on the Godfather channel: classify /ticket, hook phrase, and bus/sync JSON (including dual session-line + envelope). Dry-run uses the in-process stub queue (no sockets). Requires godfather.poll or telegram-relay. Never returns bot_token. The always-on loop runs only in gsv-server.",
             object_schema(),
+        ),
+        tool(
+            "gsv_telegram_decode",
+            "Parse a Godfather channel body into a GSV envelope. Accepts compact JSON, GSV1 prefix, or a human session line plus JSON. Returns kind, body, hint, next, data (product/scenario/phase/crate/disk). Never bot_token. No telegram-relay gate — any MCP can decode a pasted message.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "text": { "type": "string", "description": "Raw Godfather message (session line and/or JSON envelope)." }
+                },
+                "required": ["text"]
+            }),
         ),
         tool(
             "gsv_tickets",
@@ -433,7 +444,7 @@ pub fn tools_list() -> Vec<Value> {
         ),
         tool(
             "gsv_tickets_walk",
-            "Walk open tickets (optional scenario_id creates the band first). Posts Godfather session lines: solo claimed/done, squad assigned to {worker}, bench gsv_dev ns. Live sendMessage 1/s when token is set; dry-run queues only. Requires ticket-claim + telegram-relay.",
+            "Walk open tickets (optional scenario_id creates the band first). Posts Godfather dual messages: human session line plus JSON {v:1,kind:sync,data} with hint/next/disk/crate for MCP. Live sendMessage 1/s when token is set; dry-run queues only. Requires ticket-claim + telegram-relay.",
             json!({
                 "type": "object",
                 "properties": {
@@ -601,7 +612,7 @@ const PROMPTS: &[PromptSpec] = &[
     PromptSpec {
         name: "gsv_drain",
         description: "Start a VDT drain: next PH-S* band after the last closed sprint.",
-        text: "Start a GSV VDT drain. Sandbox is this GSV repo (S:/rust/GSV): preview, terminal, vision, and xtask stay inside it. Registered VDT products (poolai, omniroute, …) are reached only via gsv_products / gsv_products_select / gsv_products_scan (unknown id is a tool error; no gsv_products_open). Do not install gsv_mcp_openbot as Cursor User MCP — that leaks into PoolAI windows. Keep it in GSV/.cursor/mcp.json (folder scope GSV). Cursor 3.16 still uses Streamable HTTP type=http on that folder file (never User; do not Origin-host this kit). Read gsv://docs/next, gsv://docs/rust-dev, gsv://docs/post-always-on, and gsv://docs/settings-telegram. Call gsv_xtask (task=products) or gsv_products, then gsv_products_select with the owner pick, then gsv_products_scan (id optional after select), gsv_disk, gsv_watchdog, gsv_usage, gsv_settings (redacted read; no MCP write of tokens — HTTP POST /api/settings is the owner path), gsv_telegram (read-only Godfather bind status), gsv_telegram_bus_send / gsv_telegram_bus_poll (Godfather channel envelopes; requires telegram-relay; no webhook / no Cloudflare), gsv_telegram_ticket (ingest /ticket or {kind:ticket} as a board row; solo MCP auto-claims when online; requires telegram-relay + ticket-claim; also parses run mcp bot hook up scenario), gsv_telegram_poll (one inbound getUpdates pass; dry-run stub queue; gsv-server loop when live), gsv_tickets (list the join board + mode/online/scenarios), gsv_tickets_claim {id}, gsv_tickets_create (registered product or scenario_id; a scenario with tickets[] places a band; solo = one MCP, squad = random online), gsv_tickets_done / gsv_tickets_error, gsv_tickets_presence (heartbeat + lease renew), gsv_tickets_reclaim (stale in_progress → open), gsv_tickets_walk (solo claim/done with Telegram kind:sync; scenario memory-disk-speed), gsv_tickets_hook (parse run mcp bot hook up scenario <id|band N|plan stem> [walk]; place ≤10 tickets from catalog / GSV_TECH_ROADMAP.md / superpowers plan), and gsv_tickets_bench (read or run abrakadabra-session Instant timings; persist docs/gsv/scenario_bench.json). gsv_mds is the light memory-disk-speed app. Band 181 Galaxy glue + S0 disk on health is landed (selectProduct / reclaimTicket; health disk_ok does not fail the watchdog). Band 180 watchdog process lockstep is landed (successor hop each tick; POST apply only when gsv-server debug is newer; stop stale peer on takeover). Band 179 Godfather inbound poller is landed. Band 178 scenario benchmark is landed. Band 177 roadmap/plan hook-up is landed. Band 176 visible MCP session walk is landed. Band 175 MDS scenario walk is landed. Band 174 solo Telegram tickets: gsv_telegram_ticket turns a Godfather message into a board row and the one online MCP claims it. Band 171 ticket lease is landed. Band 172 live crate lockstep: recopy after bump; gsv_watchdog lockstep-wait / bin_version / version_lag; a dead peer pid must not block the loop. Band 173 vision queue close-lockstep: cargo xtask bump --band N must set last of N / first of N+1 (not reopen N's first sprint). Next drain: owner pick after a warnings-first scan. gsv_xtask task=sync (read-only vision drift). gsv_vision_sync remirrors snapshots and notifies subscribed gsv:// resources. For model routing call gsv_omni_route (task=rust|web, prefer_free) so cooldown timers skip exhausted free hosts. Cursor attaches over HTTP url http://127.0.0.1:9999/mcp (live gsv-server). Check GET /mcp crate_version vs version (version_lag); a stale live copy is why tools go missing. gsv_watchdog server_debug_newer means recopy the server after cargo test (do not kill target/live before tests); watchdog_debug_newer means hop the watchdog process. Stdio MCP is target/live/gsv-mcp.exe for OpenCode/Grok (cargo xtask live copies it; do not cargo run --bin gsv-mcp). Product tests/benches/scripts are cargo xtask / tests/*.rs / benches/*.rs — do not add .sh/.ps1/JSON harnesses. cargo xtask bump --band N locksteps the vision queue to the close of N (last of N / first of N+1). Propose the next ≤10 PH-S* after the last closed band. Do not push mid-drain. Invoke cargo via MSYS2 bash.",
+        text: "Start a GSV VDT drain. Sandbox is this GSV repo (S:/rust/GSV): preview, terminal, vision, and xtask stay inside it. Registered VDT products (poolai, omniroute, …) are reached only via gsv_products / gsv_products_select / gsv_products_scan (unknown id is a tool error; no gsv_products_open). Do not install gsv_mcp_openbot as Cursor User MCP — that leaks into PoolAI windows. Keep it in GSV/.cursor/mcp.json (folder scope GSV). Cursor 3.16 still uses Streamable HTTP type=http on that folder file (never User; do not Origin-host this kit). Read gsv://docs/next, gsv://docs/rust-dev, gsv://docs/post-always-on, and gsv://docs/settings-telegram. Call gsv_xtask (task=products) or gsv_products, then gsv_products_select with the owner pick, then gsv_products_scan (id optional after select), gsv_disk, gsv_watchdog, gsv_usage, gsv_settings (redacted read; no MCP write of tokens — HTTP POST /api/settings is the owner path), gsv_telegram (read-only Godfather bind status), gsv_telegram_bus_send / gsv_telegram_bus_poll (Godfather channel envelopes; requires telegram-relay; no webhook / no Cloudflare), gsv_telegram_ticket (ingest /ticket or {kind:ticket} as a board row; solo MCP auto-claims when online; requires telegram-relay + ticket-claim; also parses run mcp bot hook up scenario), gsv_telegram_poll (one inbound getUpdates pass; dry-run stub queue; gsv-server loop when live), gsv_telegram_decode (parse Godfather JSON envelope for hint/next/disk/crate; no token), gsv_tickets (list the join board + mode/online/scenarios), gsv_tickets_claim {id}, gsv_tickets_create (registered product or scenario_id; a scenario with tickets[] places a band; solo = one MCP, squad = random online), gsv_tickets_done / gsv_tickets_error, gsv_tickets_presence (heartbeat + lease renew), gsv_tickets_reclaim (stale in_progress → open), gsv_tickets_walk (solo claim/done with Telegram kind:sync; scenario memory-disk-speed), gsv_tickets_hook (parse run mcp bot hook up scenario <id|band N|plan stem> [walk]; place ≤10 tickets from catalog / GSV_TECH_ROADMAP.md / superpowers plan), and gsv_tickets_bench (read or run abrakadabra-session Instant timings; persist docs/gsv/scenario_bench.json). gsv_mds is the light memory-disk-speed app. Band 182 MCP-readable Godfather envelopes is landed (human line + JSON data.hint/next; gsv_telegram_decode). Band 181 Galaxy glue + S0 disk on health is landed (selectProduct / reclaimTicket; health disk_ok does not fail the watchdog). Band 180 watchdog process lockstep is landed (successor hop each tick; POST apply only when gsv-server debug is newer; stop stale peer on takeover). Band 179 Godfather inbound poller is landed. Band 178 scenario benchmark is landed. Band 177 roadmap/plan hook-up is landed. Band 176 visible MCP session walk is landed. Band 175 MDS scenario walk is landed. Band 174 solo Telegram tickets: gsv_telegram_ticket turns a Godfather message into a board row and the one online MCP claims it. Band 171 ticket lease is landed. Band 172 live crate lockstep: recopy after bump; gsv_watchdog lockstep-wait / bin_version / version_lag; a dead peer pid must not block the loop. Band 173 vision queue close-lockstep: cargo xtask bump --band N must set last of N / first of N+1 (not reopen N's first sprint). Next drain: owner pick after a warnings-first scan. gsv_xtask task=sync (read-only vision drift). gsv_vision_sync remirrors snapshots and notifies subscribed gsv:// resources. For model routing call gsv_omni_route (task=rust|web, prefer_free) so cooldown timers skip exhausted free hosts. Cursor attaches over HTTP url http://127.0.0.1:9999/mcp (live gsv-server). Check GET /mcp crate_version vs version (version_lag); a stale live copy is why tools go missing. gsv_watchdog server_debug_newer means recopy the server after cargo test (do not kill target/live before tests); watchdog_debug_newer means hop the watchdog process. Stdio MCP is target/live/gsv-mcp.exe for OpenCode/Grok (cargo xtask live copies it; do not cargo run --bin gsv-mcp). Product tests/benches/scripts are cargo xtask / tests/*.rs / benches/*.rs — do not add .sh/.ps1/JSON harnesses. cargo xtask bump --band N locksteps the vision queue to the close of N (last of N / first of N+1). Propose the next ≤10 PH-S* after the last closed band. Do not push mid-drain. Invoke cargo via MSYS2 bash.",
     },
 ];
 
@@ -658,6 +669,7 @@ const TOOL_NAMES: &[&str] = &[
     "gsv_telegram_bus_poll",
     "gsv_telegram_ticket",
     "gsv_telegram_poll",
+    "gsv_telegram_decode",
     "gsv_tickets",
     "gsv_tickets_claim",
     "gsv_tickets_create",
@@ -1367,6 +1379,19 @@ async fn call_tool(state: &AppState, params: &Value, session: Option<&str>) -> V
                 )
             }
         }
+        "gsv_telegram_decode" => {
+            let text = arg_str(&args, "text");
+            let v = crate::boxes::telegram::decode_wire(&text);
+            if v.get("ok").and_then(Value::as_bool) == Some(true) {
+                tool_ok(v)
+            } else {
+                tool_err(
+                    v.get("error")
+                        .and_then(Value::as_str)
+                        .unwrap_or("not a GSV envelope"),
+                )
+            }
+        }
         "gsv_tickets" => tool_ok(crate::boxes::tickets::wire_list(
             &state.repo_root,
             &state.data_dir,
@@ -1728,6 +1753,7 @@ mod tests {
             "gsv_telegram_bus_poll",
             "gsv_telegram_ticket",
             "gsv_telegram_poll",
+            "gsv_telegram_decode",
             "gsv_tickets",
             "gsv_tickets_claim",
             "gsv_tickets_create",
@@ -2538,6 +2564,8 @@ mod tests {
         assert!(text.contains("gsv_telegram_bus_poll"), "{text}");
         assert!(text.contains("gsv_telegram_ticket"), "{text}");
         assert!(text.contains("gsv_telegram_poll"), "{text}");
+        assert!(text.contains("gsv_telegram_decode"), "{text}");
+        assert!(text.contains("Band 182"), "{text}");
         assert!(text.contains("Band 179"), "{text}");
         assert!(text.contains("gsv_tickets"), "{text}");
         assert!(text.contains("gsv_tickets_claim"), "{text}");

@@ -108,6 +108,7 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/telegram/ticket", post(api_telegram_ticket))
         .route("/api/telegram/poll", post(api_telegram_poll))
+        .route("/api/telegram/decode", post(api_telegram_decode))
         .route("/api/tickets", get(api_tickets).post(api_tickets_post))
         .route("/api/tickets/claim", post(api_tickets_claim))
         .route("/api/tickets/done", post(api_tickets_done))
@@ -400,6 +401,11 @@ async fn api_telegram_poll(
         )
         .await,
     )
+}
+
+async fn api_telegram_decode(Json(body): Json<Value>) -> Json<Value> {
+    let text = body.get("text").and_then(Value::as_str).unwrap_or("");
+    Json(crate::boxes::telegram::decode_wire(text))
 }
 
 async fn api_tickets(State(state): State<AppState>) -> Json<Value> {
@@ -717,7 +723,7 @@ async fn api_index() -> Json<Value> {
         "categories": [
             "/api/vision/", "/api/ui/", "/api/ratio/", "/api/toolchain/",
             "/api/ide/", "/api/omni/", "/api/sli", "/api/tracker", "/api/products",
-            "/api/fingerprints", "/api/sw", "/api/watchdog", "/api/usage", "/api/settings", "/api/telegram", "/api/telegram/bus", "/api/telegram/ticket", "/api/telegram/poll", "/api/tickets", "/api/mds", "/api/xtask", "/api/disk", "/sw.js",
+            "/api/fingerprints", "/api/sw", "/api/watchdog", "/api/usage", "/api/settings", "/api/telegram", "/api/telegram/bus", "/api/telegram/ticket", "/api/telegram/poll", "/api/telegram/decode", "/api/tickets", "/api/mds", "/api/xtask", "/api/disk", "/sw.js",
             "/api/hooks/", "/api/preview", "/api/terminal", "/data/", "/mcp"
         ],
         "example": "/api/vision",

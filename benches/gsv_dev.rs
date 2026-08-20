@@ -101,6 +101,7 @@ fn main() {
         ("tickets_list", 64usize),
         ("telegram_parse_ticket", 10_000usize),
         ("telegram_classify_inbound", 10_000usize),
+        ("telegram_extract_envelope", 10_000usize),
         ("scenario_band_create", 16usize),
         ("solo_walk_mds", 8usize),
         ("mds_report", 8usize),
@@ -137,6 +138,11 @@ fn main() {
                 }
                 "telegram_classify_inbound" => {
                     let _ = telegram::classify_inbound("/ticket bench title");
+                }
+                "telegram_extract_envelope" => {
+                    let _ = telegram::extract_envelope(
+                        "solo claimed Session: S0 disk\n{\"v\":1,\"kind\":\"sync\",\"from\":\"solo\",\"ticket_id\":\"t-1\",\"body\":\"solo claimed Session: S0 disk\",\"data\":{\"hint\":\"work-ticket\"}}",
+                    );
                 }
                 "scenario_band_create" => {
                     let _ = tickets::create_band_from_scenario(

@@ -253,8 +253,8 @@ pub fn render_nav(active: &str) -> String {
 pub fn render_header() -> String {
     concat!(
         "<button id='btnGpu' class='badge gpu' title='GPU mode — Eco low GPU, FX full glow, Ms medium. Click → cycle' aria-label='GPU mode — cycle Eco, FX, Ms' type='button' data-action='gpu-cycle'>FX</button>",
-        "<button id='btnAuto' class='badge' title='Auto-reload when vision files change' aria-label='Toggle auto-reload' type='button' data-action='auto-toggle'>Auto</button>",
-        "<button type='button' data-action='resync'>Resync</button>",
+        "<button id='btnAuto' class='badge' title='Auto-refresh Galaxy cards every 60s. Telegram inbound poll is the Telegram card loop. Vision remirror is Power / Vision Sync.' aria-label='Toggle auto-refresh cards' type='button' data-action='auto-toggle'>Auto</button>",
+        "<button type='button' data-action='resync' title='Refresh Galaxy cards now'>Resync</button>",
         "<button type='button' data-action='notify-update'>notify update</button>",
         "<button id='btnPower' class='badge' title='Vision power — soft sync / reload' aria-haspopup='true' aria-expanded='false' aria-label='Vision power menu' type='button' data-action='power-toggle'>⏻ Power</button>",
         "<div id='powerMenu' class='power-menu' role='menu' aria-label='Vision power'>",
@@ -1193,9 +1193,29 @@ pub fn render_telegram(d: &Value) -> String {
                     format!("<kbd>{}</kbd> {}", esc(&kind), esc(&id))
                 }
             }],
+            vec!["MCP signal".into(), {
+                let hint = s(&d["last_hint"]);
+                let next = s(&d["last_next"]);
+                let body = s(&d["last_body"]);
+                if hint.is_empty() && next.is_empty() && body.is_empty() {
+                    "<span class='dim'>—</span>".into()
+                } else {
+                    let mut bits = Vec::new();
+                    if !hint.is_empty() {
+                        bits.push(format!("<kbd>{}</kbd>", esc(&hint)));
+                    }
+                    if !next.is_empty() {
+                        bits.push(format!("<kbd>{}</kbd>", esc(&next)));
+                    }
+                    if !body.is_empty() {
+                        bits.push(esc(&body));
+                    }
+                    bits.join(" · ")
+                }
+            }],
         ],
     ));
-    out.push_str("<div class='dim'>solo bot · MCP <kbd>gsv_telegram_ticket</kbd> · <kbd>/ticket</kbd> title · inbound <kbd>gsv_telegram_poll</kbd></div>");
+    out.push_str("<div class='dim'>inbound poll loop is the automation · MCP <kbd>gsv_telegram_decode</kbd></div>");
     out.push_str("<p><button type='button' data-action='telegram-poll'>poll now</button></p>");
     out
 }
@@ -1211,7 +1231,6 @@ pub fn render_tickets(d: &Value) -> String {
     let online = arr(&d["online"]);
     let scenarios = arr(&d["scenarios"]);
     let mut out = String::from("<div class='dim'>open tickets are the board</div>");
-    out.push_str("<div class='dim'>walk posts session lines · solo / squad / bench</div>");
     out.push_str(
         "<div class='dim'>hook · <kbd>run mcp bot hook up scenario</kbd> · band / plan</div>",
     );
@@ -2634,14 +2653,28 @@ mod tests {
             "last_ticket_id": "t-174"
         }));
         assert!(tg_ok.contains("t-174"), "{tg_ok}");
-        assert!(tg_ok.contains("gsv_telegram_ticket"), "{tg_ok}");
         assert!(tg_ok.contains("data-action='telegram-poll'"), "{tg_ok}");
-        assert!(tg_ok.contains("gsv_telegram_poll"), "{tg_ok}");
+        assert!(tg_ok.contains("gsv_telegram_decode"), "{tg_ok}");
+        assert!(
+            tg_ok.contains("inbound poll loop is the automation"),
+            "{tg_ok}"
+        );
+        let tg_sig = render_telegram(&serde_json::json!({
+            "ok": true,
+            "token_set": true,
+            "channel_id": "-100",
+            "last_hint": "claim-next",
+            "last_next": "PH-S2459",
+            "last_body": "solo done Session: close"
+        }));
+        assert!(tg_sig.contains("claim-next"), "{tg_sig}");
+        assert!(tg_sig.contains("PH-S2459"), "{tg_sig}");
+        assert!(tg_sig.contains("solo done Session: close"), "{tg_sig}");
         assert!(render_telegram(&serde_json::json!({ "ok": false, "error": "io" })).contains("io"));
         let tickets = render_tickets(&serde_json::json!({ "ok": true, "tickets": [] }));
         assert!(tickets.contains("tickets — no data"), "{tickets}");
         assert!(tickets.contains("open tickets are the board"), "{tickets}");
-        assert!(tickets.contains("session lines"), "{tickets}");
+        assert!(!tickets.contains("session lines"), "{tickets}");
         assert!(tickets.contains("data-action='tickets-hook'"), "{tickets}");
         assert!(tickets.contains("data-action='tickets-bench'"), "{tickets}");
         assert!(

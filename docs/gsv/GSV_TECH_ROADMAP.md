@@ -1303,6 +1303,23 @@ Owner pick (`абракадабра` gsv / продовжуй): S0 disk was **7 
 | **PH-S2457** | Docs / MCP | BOXES / SERVER / drain prompt names band 181 — **✅** |
 | **PH-S2458** | Band close | `--band 181` + fingerprint; recopy live; one commit + push — **✅** |
 
+## Спринти (band 182) — MCP-readable Godfather envelopes ✅
+
+Owner pick: Telegram walk comments must be JSON MCP can parse (`hint` / `next` / disk / crate). Galaxy shows one **MCP signal** row on the Telegram card (no envelope copy on tickets). Walk/hook/bench refresh Telegram. Vision remirror is one glue (`syncVision`). Spec: [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md).
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2459** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2459`; `last_sprint_closed` = `PH-S2458` — **✅** |
+| **PH-S2460** | Dual envelope | live body = human line + `{v:1,kind:sync,data}` — **✅** |
+| **PH-S2461** | Decode | `extract_envelope` · `POST /api/telegram/decode` · `gsv_telegram_decode` → **54** tools — **✅** |
+| **PH-S2462** | Signal | bus `last_hint` / `last_next` / `last_body`; Telegram card MCP signal row — **✅** |
+| **PH-S2463** | Glue | walk/hook/bench `getText(telegram)`; `data-action=vision-sync` = `syncVision` — **✅** |
+| **PH-S2464** | Dedup | tickets card drops envelope copy; Auto title = card refresh not vision remirror — **✅** |
+| **PH-S2465** | Docs | SETTINGS chronological 179 then 182; BOXES / SERVER / HANDOFF / NEXT / MEMORY — **✅** |
+| **PH-S2466** | Contracts | signal row · INDEX_HTML glue · enqueue records hint — **✅** |
+| **PH-S2467** | Tests | fmt · clippy · `cargo test` · `--stretch-96` — **✅** |
+| **PH-S2468** | Band close | `--band 182` + fingerprint; recopy live; one commit + push — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

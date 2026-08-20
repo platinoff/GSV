@@ -121,6 +121,8 @@ Do **not** `cargo run --bin gsv-mcp` from the client: it is slow, takes the carg
 | `gsv_telegram_bus_send` | Bus envelope send (`from`,`to?`,`ticket_id?`,`body`; requires `telegram-relay`; cap 2 KiB; never `bot_token`) |
 | `gsv_telegram_bus_poll` | Bus envelope poll (`limit?`; dry-run in-memory queue; no webhook) |
 | `gsv_telegram_ticket` | Ingest `/ticket` or `{kind:ticket}` as a board row; solo MCP auto-claims |
+| `gsv_telegram_poll` | One inbound `getUpdates` pass (`/ticket` / hook / bus JSON, including dual session+envelope) |
+| `gsv_telegram_decode` | Parse a Godfather body into `hint` / `next` / `data` (compact JSON, `GSV1 `, or line+JSON). Never `bot_token` |
 | `gsv_tickets` | Ticket board list (`docs/gsv/tickets.jsonl`) plus `mode` / `online` / `scenarios` / `events` |
 | `gsv_tickets_claim` | Claim ticket `{id}` (requires `ticket-claim`; unknown id is a tool error) |
 | `gsv_tickets_create` | Create `{title,body?,product?}` or `{scenario_id}` (a scenario with `tickets[]` places a band; single-ticket scenarios still auto-assign) |
@@ -128,7 +130,7 @@ Do **not** `cargo run --bin gsv-mcp` from the client: it is slow, takes the carg
 | `gsv_tickets_error` | `in_progress` → `blocked` + event `kind:error` |
 | `gsv_tickets_presence` | Heartbeat this MCP as online (TTL 120s) |
 | `gsv_tickets_reclaim` | Stale/explicit `in_progress` → `open` + `kind:reclaimed` |
-| `gsv_tickets_walk` | Walk open tickets (optional `scenario_id` creates the band); Godfather session lines (solo / squad / bench); live sendMessage 1/s |
+| `gsv_tickets_walk` | Walk open tickets (optional `scenario_id` creates the band); Godfather dual line+JSON envelopes (`hint`/`next`); live sendMessage 1/s |
 | `gsv_tickets_hook` | Parse `run mcp bot hook up scenario <id|band N|plan stem> [walk]` and place ≤10 tickets from catalog / roadmap / plan |
 | `gsv_tickets_bench` | Read or run Instant `abrakadabra-session` create+walk; persist `docs/gsv/scenario_bench.json` |
 | `gsv_mds` | Light memory / disk / speed report (`gsv-mds`) |
@@ -218,7 +220,7 @@ No secrets in tool output (`omni.toml` keys stay redacted). POST body cap and CS
 
 ## Horizon (band 160+)
 
-Band **166–171 ✅** settings · Godfather bind · tickets · Telegram bus · ticket scenarios/solo-squad · ticket lease/reclaim — [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md). Band **179 ✅** Godfather inbound poller (`gsv_telegram_poll`). Band **178 ✅** scenario benchmark (`gsv_tickets_bench`). Band **177 ✅** roadmap/plan hook-up (`gsv_tickets_hook`). Band **175 ✅** MDS scenario band + solo walk (`gsv_tickets_walk` · `gsv_mds`). Band **174 ✅** solo Telegram tickets (`gsv_telegram_ticket`). Band **173 ✅** vision queue close-lockstep (`bump --band N` = last of N / first of N+1). Still **not** on MCP: `products/open`, `update/apply`, starting Cloudflare tunnel. Next drain: owner pick after a warnings-first scan.
+Band **166–171 ✅** settings · Godfather bind · tickets · Telegram bus · ticket scenarios/solo-squad · ticket lease/reclaim — [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md). Band **182** MCP-readable Godfather envelopes (`gsv_telegram_decode`). Band **179 ✅** Godfather inbound poller (`gsv_telegram_poll`). Band **178 ✅** scenario benchmark (`gsv_tickets_bench`). Band **177 ✅** roadmap/plan hook-up (`gsv_tickets_hook`). Band **175 ✅** MDS scenario band + solo walk (`gsv_tickets_walk` · `gsv_mds`). Band **174 ✅** solo Telegram tickets (`gsv_telegram_ticket`). Band **173 ✅** vision queue close-lockstep (`bump --band N` = last of N / first of N+1). Still **not** on MCP: `products/open`, `update/apply`, starting Cloudflare tunnel. Next drain: owner pick after a warnings-first scan.
 
 Band **164** lockstepped the kit to Cursor desktop **3.16.29**: folder `.cursor/mcp.json` stays Streamable HTTP `type: http` + loopback `url`; toolchain inventories `cursor` from `package.json`; never User MCP; do not Origin-host this kit. Tools/sync unchanged (`gsv_xtask` `{task:sync}` is `--check`; remirror is `gsv_vision_sync`).
 

@@ -168,6 +168,7 @@ async fn post_initialize_and_tools_list() {
     assert!(names.contains(&"gsv_usage"));
     assert!(names.contains(&"gsv_settings"));
     assert!(names.contains(&"gsv_telegram"));
+    assert!(names.contains(&"gsv_telegram_decode"));
     assert!(names.contains(&"gsv_tickets"));
     assert!(names.contains(&"gsv_tickets_claim"));
     assert_eq!(names.len(), mcp::tool_names().len());
