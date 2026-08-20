@@ -68,6 +68,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 181** (Galaxy glue + S0 disk on health) **✅** ·
 **band 182** (MCP-readable Godfather envelopes) **✅** ·
 **band 183** (squad next-action + MCP catalog lockstep) **✅** ·
+**band 184** (MCP session catalog lockstep) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -1338,6 +1339,23 @@ Owner pick: project-logic scan found Cursor MCP catalog frozen at 36 tools while
 | **PH-S2476** | Contracts | next HTTP/MCP · INDEX_HTML glue · drain prompt Band 183 — **✅** |
 | **PH-S2477** | Tests | fmt · clippy · `cargo test` · `--stretch-96` — **✅** |
 | **PH-S2478** | Band close | `--band 183` + fingerprint; recopy live; one commit + push — **✅** |
+
+## Спринти (band 184) — MCP session catalog lockstep ✅
+
+Owner pick (`абракадабра` gsv / continue): Cursor agent toolkit still showed **36** tools while live crate **0.183.0** lists **55**. Band 183 queued `notifications/tools/list_changed` on `initialized`, but JSON `POST /mcp` drained that queue and dropped it before the Streamable HTTP GET hold. Cursor never re-called `tools/list`.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2479** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2479`; `last_sprint_closed` = `PH-S2478` — **✅** |
+| **PH-S2480** | Research | JSON POST drain-and-drop; SSE hold is the Cursor re-list path — **✅** |
+| **PH-S2481** | Initialize | `initialize` queues `tools/list_changed` (not only `initialized`) — **✅** |
+| **PH-S2482** | JSON keep | JSON `POST /mcp` does **not** drain the notification queue — **✅** |
+| **PH-S2483** | SSE hold | session GET hold queues `list_changed` then flushes — **✅** |
+| **PH-S2484** | Wire | GET `/mcp` `catalog_notify` / `listed_tool_count` / `session_listed`; `tools/list` records count — **✅** |
+| **PH-S2485** | Galaxy | MCP card `catalogNotify · listed n/55`; `CARD_NAMES` **40** — **✅** |
+| **PH-S2486** | Contracts | JSON keep-queue · initialize+hold `list_changed` · drain prompt Band 184 — **✅** |
+| **PH-S2487** | Tests | fmt · clippy · `cargo test` · `--stretch-96` — **✅** |
+| **PH-S2488** | Band close | `--band 184` + fingerprint; recopy live; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

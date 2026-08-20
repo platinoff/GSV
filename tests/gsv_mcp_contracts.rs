@@ -113,6 +113,9 @@ async fn get_mcp_discovers_openbot() {
     assert_eq!(json["streamable"], true);
     assert_eq!(json["sessions"], true);
     assert_eq!(json["session_count"], 0);
+    assert_eq!(json["catalog_notify"], true);
+    assert_eq!(json["listed_tool_count"], 0);
+    assert_eq!(json["session_listed"], 0);
 }
 
 #[tokio::test]
@@ -824,6 +827,77 @@ async fn get_mcp_sse_session_holds_and_emits() {
         "{text}"
     );
     assert!(text.contains("hold"), "{text}");
+}
+
+#[tokio::test]
+async fn json_post_does_not_drop_notification_queue() {
+    let (app, state) = app_with_state();
+    state.push_mcp_notification(json!({
+        "jsonrpc": "2.0",
+        "method": "notifications/message",
+        "params": { "level": "info", "logger": SERVER_ID, "data": { "event": "keep-me" } }
+    }));
+    let (status, _) = mcp_post(&app, json!({ "jsonrpc": "2.0", "id": 9, "method": "ping" })).await;
+    assert_eq!(status, StatusCode::OK);
+    let notes = state.drain_mcp_notifications();
+    assert!(
+        notes
+            .iter()
+            .any(|n| n["params"]["data"]["event"] == "keep-me"),
+        "{notes:?}"
+    );
+}
+
+#[tokio::test]
+async fn json_initialize_keeps_list_changed_for_session_sse() {
+    let app = app();
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::POST)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "method": "initialize",
+                        "params": {
+                            "protocolVersion": PROTOCOL_VERSION,
+                            "capabilities": {},
+                            "clientInfo": { "name": "gsv-test", "version": "0" }
+                        }
+                    })
+                    .to_string(),
+                ))
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(res.status(), StatusCode::OK);
+    let sid = session_header(&res).expect("Mcp-Session-Id");
+    let hold = app
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::GET)
+                .header(header::ACCEPT, "text/event-stream")
+                .header("mcp-session-id", &sid)
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(hold.status(), StatusCode::OK);
+    let mut stream = hold.into_body().into_data_stream();
+    let first = tokio::time::timeout(Duration::from_secs(2), stream.next())
+        .await
+        .expect("sse chunk timed out")
+        .expect("stream ended")
+        .expect("frame");
+    let text = String::from_utf8_lossy(&first);
+    assert!(text.contains("tools/list_changed"), "{text}");
 }
 
 fn session_header(res: &axum::http::Response<Body>) -> Option<String> {

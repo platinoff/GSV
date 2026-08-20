@@ -1,6 +1,6 @@
 # GSV settings, Telegram Godfather, tickets, MCP bot bus
 
-**Status:** Bands **166–183 ✅** (Telegram Godfather through squad next-action). Latest: **183** `gsv_tickets_next` + MCP `tools/list_changed`. **182** dual session line + JSON `data` / Galaxy MCP signal / `gsv_telegram_decode`. **180–181** are watchdog/health (roadmap). **Next drain:** owner pick after a warnings-first scan.  
+**Status:** Bands **166–184 ✅** (Telegram Godfather through MCP session catalog lockstep). Latest: **184** JSON POST keeps `tools/list_changed` for the SSE hold · `listed_tool_count`. **183** `gsv_tickets_next` + MCP `tools/list_changed`. **182** dual session line + JSON `data` / Galaxy MCP signal / `gsv_telegram_decode`. **180–181** are watchdog/health (roadmap). **Next drain:** owner pick after a warnings-first scan.  
 **Date:** 2026-08-20  
 **Deciders:** owner  
 **Owner ask:** GSV settings; Telegram channels; MCP bots talk to each other through a Telegram tunnel; a ticket board for people who want to join; MCP claims tickets and marks `in_progress` the same way fingerprints sync; server settings hold **Godfather** data (which channel, how secrets are stored, co-workflows). Next session starts with `абракадабра`.
@@ -19,7 +19,7 @@ Cost of leaving it: the next drain invents a one-off Telegram script, leaks a bo
 1. Owner configures GSV on the live Galaxy **Settings** card (Godfather channel, co-workflows, secret policy) without putting tokens in git.
 2. Joiners see a **ticket board**; MCP bots **claim** a ticket, mark `in_progress`, and leave a fingerprint-class row (actor / IDE / model / time).
 3. Two (or more) `gsv_mcp_openbot` clients can exchange short control messages over a **Telegram channel bus** once Godfather is bound — not a public Cloudflare hop.
-4. Band **183** is landed: squad next-action (`gsv_tickets_next`) + MCP `notifications/tools/list_changed`. Bands **166–183** are landed. Next drain: owner pick after a warnings-first scan.
+4. Band **184** is landed: MCP session catalog lockstep (JSON `POST /mcp` keeps `notifications/tools/list_changed` for Cursor's GET hold). Band **183** is landed: squad next-action (`gsv_tickets_next`) + MCP `notifications/tools/list_changed`. Bands **166–184** are landed. Next drain: owner pick after a warnings-first scan.
 5. Ratio stays `gsv-loc-audit --stretch-96` ≥ 96%. No Python. Secrets never in MCP/HTTP JSON.
 
 ## Non-goals
@@ -267,6 +267,7 @@ Unknown ids in the file are kept but ignored (forward compatible).
 - Bands 180–181: watchdog process lockstep and Galaxy glue / S0 `disk_ok` — roadmap only ([`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md)); no extra Telegram P2 copy here.
 - Band 182: walk posts human line + JSON `data`; MCP `gsv_telegram_decode`; Galaxy MCP signal row (no envelope copy on tickets); walk refreshes Telegram; `--stretch-96` ≥ 96%.
 - Band 183: `POST /api/tickets/next` + MCP `gsv_tickets_next` returns `hint`/`tool`/`ticket_id`; `initialize` advertises `tools.listChanged`; `notifications/initialized` emits `notifications/tools/list_changed`; `--stretch-96` ≥ 96%.
+- Band 184: JSON `POST /mcp` keeps the notification queue; session GET SSE hold emits `tools/list_changed`; GET `/mcp` `listed_tool_count` / `catalog_notify`; `--stretch-96` ≥ 96%.
 
 ## Open questions (non-blocking)
 
@@ -293,6 +294,7 @@ Unknown ids in the file are kept but ignored (forward compatible).
 | **181** | S2449–S2458 | Galaxy glue + S0 `disk_ok` (not Telegram — see roadmap) | **✅ landed** |
 | **182** | S2459–S2468 | MCP-readable Godfather envelopes (`gsv_telegram_decode`) + Galaxy MCP signal | **✅ this drain** |
 | **183** | S2469–S2478 | Squad next-action (`gsv_tickets_next`) + MCP `tools/list_changed` | **✅ this drain** |
+| **184** | S2479–S2488 | MCP session catalog lockstep (JSON POST keep-queue + SSE hold notify) | **✅ this drain** |
 
 Next drain: **owner pick** after a warnings-first scan.
 

@@ -910,6 +910,13 @@ pub fn render_mcp(d: &Value) -> String {
     if d["tools_list_changed"].as_bool().unwrap_or(false) {
         out.push_str(" · listChanged");
     }
+    if d["catalog_notify"].as_bool().unwrap_or(false) {
+        out.push_str(&format!(
+            " · catalogNotify · listed <kbd>{}</kbd>/<kbd>{}</kbd>",
+            u(&d["listed_tool_count"]),
+            count
+        ));
+    }
     if d["sessions"].as_bool().unwrap_or(false) {
         out.push_str(&format!(
             " · sessions <kbd>{}</kbd>",
@@ -2623,7 +2630,9 @@ mod tests {
             "sessions": true,
             "session_count": 3,
             "log_level": "info",
-            "tools_list_changed": true
+            "tools_list_changed": true,
+            "catalog_notify": true,
+            "listed_tool_count": 0
         }));
         assert!(mcp.contains("gsv_mcp_openbot"), "{mcp}");
         assert!(mcp.contains("tools 2"), "{mcp}");
@@ -2634,6 +2643,8 @@ mod tests {
         assert!(mcp.contains("subscribe <kbd>2</kbd>"), "{mcp}");
         assert!(mcp.contains(" · sse"), "{mcp}");
         assert!(mcp.contains("listChanged"), "{mcp}");
+        assert!(mcp.contains("catalogNotify"), "{mcp}");
+        assert!(mcp.contains("listed <kbd>0</kbd>/<kbd>2</kbd>"), "{mcp}");
         assert!(mcp.contains("sessions <kbd>3</kbd>"), "{mcp}");
         assert!(mcp.contains("<kbd>gsv_health</kbd>"), "{mcp}");
         assert!(mcp.contains("<kbd>gsv://vision/manifest</kbd>"), "{mcp}");

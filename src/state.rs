@@ -9,7 +9,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 
@@ -19,6 +19,15 @@ use tokio::sync::{broadcast, RwLock};
 use crate::boxes::omni::OmniRouter;
 use crate::boxes::usage::UsageStore;
 use crate::tracker::TrackerStore;
+
+/// Process-local HTTP MCP session (band 184: last `tools/list` count).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct McpHttpSession {
+    /// Issue sequence (oldest evicted first).
+    pub seq: u64,
+    /// `tools/list` length last seen for this session (`0` = never listed).
+    pub listed_tools: u32,
+}
 
 /// Shared application state for the GSV server.
 #[derive(Clone)]
@@ -49,8 +58,10 @@ pub struct AppState {
     pub mcp_subscriptions: Arc<std::sync::RwLock<BTreeSet<String>>>,
     /// Pending MCP notifications (`notifications/message`, `notifications/resources/updated`).
     pub mcp_notifications: Arc<Mutex<Vec<Value>>>,
-    /// HTTP Streamable MCP sessions (`Mcp-Session-Id` → issue seq). Process-local.
-    pub mcp_sessions: Arc<std::sync::RwLock<BTreeMap<String, u64>>>,
+    /// HTTP Streamable MCP sessions (`Mcp-Session-Id` → seq + listed count). Process-local.
+    pub mcp_sessions: Arc<std::sync::RwLock<BTreeMap<String, McpHttpSession>>>,
+    /// Last `tools/list` length this process served (`0` = client has not listed yet).
+    pub mcp_listed_tools: Arc<AtomicU32>,
     /// Ticket MCP presence (heartbeat). Isolated per process/`AppState`.
     pub ticket_presence: Arc<crate::boxes::tickets::PresenceStore>,
     /// Monotonic sequence for new HTTP MCP session ids.
@@ -90,6 +101,7 @@ impl AppState {
             mcp_subscriptions: Arc::new(std::sync::RwLock::new(BTreeSet::new())),
             mcp_notifications: Arc::new(Mutex::new(Vec::new())),
             mcp_sessions: Arc::new(std::sync::RwLock::new(BTreeMap::new())),
+            mcp_listed_tools: Arc::new(AtomicU32::new(0)),
             mcp_session_seq: Arc::new(AtomicU64::new(1)),
             ticket_presence: Arc::new(crate::boxes::tickets::new_presence_store()),
             events,
@@ -129,10 +141,19 @@ impl AppState {
         let seq = self.mcp_session_seq.fetch_add(1, Ordering::Relaxed);
         let id = crate::mcp::new_mcp_session_id(seq);
         if let Ok(mut map) = self.mcp_sessions.write() {
-            map.insert(id.clone(), seq);
+            map.insert(
+                id.clone(),
+                McpHttpSession {
+                    seq,
+                    listed_tools: 0,
+                },
+            );
             let cap = crate::mcp::MCP_SESSION_CAP;
             while map.len() > cap {
-                let oldest = map.iter().min_by_key(|(_, s)| *s).map(|(k, _)| k.clone());
+                let oldest = map
+                    .iter()
+                    .min_by_key(|(_, s)| s.seq)
+                    .map(|(k, _)| k.clone());
                 match oldest {
                     Some(k) => {
                         map.remove(&k);
@@ -165,6 +186,32 @@ impl AppState {
     /// Count of live HTTP MCP sessions.
     pub fn mcp_session_count(&self) -> usize {
         self.mcp_sessions.read().map(|m| m.len()).unwrap_or(0)
+    }
+
+    /// Record that `tools/list` returned `n` tools (process-wide + optional session).
+    pub fn mcp_mark_listed(&self, session: Option<&str>, n: u32) {
+        self.mcp_listed_tools.store(n, Ordering::Relaxed);
+        let Some(id) = session else {
+            return;
+        };
+        if let Ok(mut map) = self.mcp_sessions.write() {
+            if let Some(row) = map.get_mut(id) {
+                row.listed_tools = n;
+            }
+        }
+    }
+
+    /// Last `tools/list` length this process served (`0` = none yet).
+    pub fn mcp_listed_tool_count(&self) -> u32 {
+        self.mcp_listed_tools.load(Ordering::Relaxed)
+    }
+
+    /// How many HTTP sessions have called `tools/list`.
+    pub fn mcp_session_listed_count(&self) -> usize {
+        self.mcp_sessions
+            .read()
+            .map(|m| m.values().filter(|s| s.listed_tools > 0).count())
+            .unwrap_or(0)
     }
 
     /// Reset the update flag (used after a UI "Update" handshake).

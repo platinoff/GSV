@@ -643,6 +643,7 @@ async fn api_mcp_get(State(state): State<AppState>, headers: HeaderMap) -> Respo
 fn mcp_sse_hold(
     state: AppState,
 ) -> Sse<impl futures_util::Stream<Item = Result<Event, Infallible>>> {
+    crate::mcp::queue_tools_list_changed(&state);
     let initial = state.drain_mcp_notifications();
     let first = stream::iter(
         initial
@@ -691,28 +692,35 @@ async fn api_mcp_post(State(state): State<AppState>, headers: HeaderMap, body: B
             let session = crate::mcp::mcp_session_id_from_headers(&headers);
             match crate::mcp::handle_value_in(&state, v, session.as_deref()).await {
                 Some(out) => {
-                    let notes = state.drain_mcp_notifications();
-                    let mut res = if sse {
-                        mcp_sse_reply(notes, Some(out))
+                    if sse {
+                        let notes = state.drain_mcp_notifications();
+                        let mut res = mcp_sse_reply(notes, Some(out));
+                        attach_mcp_session(&mut res, issued.as_deref());
+                        res
                     } else {
-                        Json(out).into_response()
-                    };
-                    attach_mcp_session(&mut res, issued.as_deref());
-                    res
+                        // Keep the notification queue for the session GET hold
+                        // (Cursor Streamable HTTP). JSON POST used to drain-and-drop
+                        // `tools/list_changed`, which froze the client catalog at 36.
+                        let mut res = Json(out).into_response();
+                        attach_mcp_session(&mut res, issued.as_deref());
+                        res
+                    }
                 }
                 None => {
-                    let notes = state.drain_mcp_notifications();
-                    let mut res = if sse {
-                        if notes.is_empty() {
+                    if sse {
+                        let notes = state.drain_mcp_notifications();
+                        let mut res = if notes.is_empty() {
                             StatusCode::NO_CONTENT.into_response()
                         } else {
                             mcp_sse_reply(notes, None)
-                        }
+                        };
+                        attach_mcp_session(&mut res, issued.as_deref());
+                        res
                     } else {
-                        StatusCode::NO_CONTENT.into_response()
-                    };
-                    attach_mcp_session(&mut res, issued.as_deref());
-                    res
+                        let mut res = StatusCode::NO_CONTENT.into_response();
+                        attach_mcp_session(&mut res, issued.as_deref());
+                        res
+                    }
                 }
             }
         }
