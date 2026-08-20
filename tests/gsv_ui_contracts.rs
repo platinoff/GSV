@@ -179,6 +179,7 @@ async fn ui_card_mcp_renders_openbot_tools() {
     assert!(html.contains("subscribe <kbd>0</kbd>"), "subscribe: {html}");
     assert!(html.contains(" · sse"), "sse: {html}");
     assert!(html.contains("sessions <kbd>0</kbd>"), "sessions: {html}");
+    assert!(html.contains("catalogNotify"), "catalogNotify: {html}");
 }
 
 /// The rustCards the thin JS glue fetches via `getText` (mirror of

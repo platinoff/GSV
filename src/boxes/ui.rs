@@ -917,6 +917,9 @@ pub fn render_mcp(d: &Value) -> String {
             count
         ));
     }
+    if d["catalog_stale"].as_bool().unwrap_or(false) {
+        out.push_str(" · <span class='warn'>restart Cursor</span>");
+    }
     if d["sessions"].as_bool().unwrap_or(false) {
         out.push_str(&format!(
             " · sessions <kbd>{}</kbd>",
@@ -2632,7 +2635,9 @@ mod tests {
             "log_level": "info",
             "tools_list_changed": true,
             "catalog_notify": true,
-            "listed_tool_count": 0
+            "listed_tool_count": 0,
+            "catalog_stale": true,
+            "catalog_hint": "restart Cursor — agent refresh does not re-list tools"
         }));
         assert!(mcp.contains("gsv_mcp_openbot"), "{mcp}");
         assert!(mcp.contains("tools 2"), "{mcp}");
@@ -2645,6 +2650,7 @@ mod tests {
         assert!(mcp.contains("listChanged"), "{mcp}");
         assert!(mcp.contains("catalogNotify"), "{mcp}");
         assert!(mcp.contains("listed <kbd>0</kbd>/<kbd>2</kbd>"), "{mcp}");
+        assert!(mcp.contains("restart Cursor"), "{mcp}");
         assert!(mcp.contains("sessions <kbd>3</kbd>"), "{mcp}");
         assert!(mcp.contains("<kbd>gsv_health</kbd>"), "{mcp}");
         assert!(mcp.contains("<kbd>gsv://vision/manifest</kbd>"), "{mcp}");
@@ -2662,6 +2668,19 @@ mod tests {
             "{mcp}"
         );
         assert!(mcp.contains("sandbox <kbd>S:/rust/GSV</kbd>"), "{mcp}");
+        let mcp_listed = render_mcp(&serde_json::json!({
+            "ok": true,
+            "name": "gsv_mcp_openbot",
+            "tool_count": 55,
+            "listed_tool_count": 55,
+            "catalog_notify": true,
+            "catalog_stale": false
+        }));
+        assert!(
+            mcp_listed.contains("listed <kbd>55</kbd>/<kbd>55</kbd>"),
+            "{mcp_listed}"
+        );
+        assert!(!mcp_listed.contains("restart Cursor"), "{mcp_listed}");
         assert!(render_mcp(&serde_json::json!({ "ok": false, "error": "down" })).contains("down"));
         assert!(render_mcp(&serde_json::json!({})).contains("mcp — no data"));
         let settings = render_settings(&serde_json::json!({

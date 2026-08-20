@@ -1357,6 +1357,23 @@ Owner pick (`абракадабра` gsv / continue): Cursor agent toolkit still
 | **PH-S2487** | Tests | fmt · clippy · `cargo test` · `--stretch-96` — **✅** |
 | **PH-S2488** | Band close | `--band 184` + fingerprint; recopy live; one commit + push — **✅** |
 
+## Спринти (band 185) — Cursor catalog restart lockstep ✅
+
+Owner pick (`абракадабра` gsv): Cursor agent **Оновити** still showed **36** tools after bands 183–184. Live `GET /mcp` had `tool_count` **55** and `listed_tool_count` **0**. A full **Cursor restart** called `tools/list` (55 tools + 11 resources). Agent refresh only reconnects HTTP and resubscribes resources.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2489** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2489`; `last_sprint_closed` = `PH-S2488` — **✅** |
+| **PH-S2490** | Research | Cursor V2 caches tools; restart required; agent refresh ≠ `tools/list` — **✅** |
+| **PH-S2491** | Stale | `catalog_stale` when sessions exist and listed is 0, or listed ≠ `tool_count` — **✅** |
+| **PH-S2492** | Hint | `catalog_hint` = restart Cursor — agent refresh does not re-list tools — **✅** |
+| **PH-S2493** | Health | `gsv_health` `catalog_stale` / `catalog_hint` / `listed_tool_count` — **✅** |
+| **PH-S2494** | Galaxy | MCP card `<span class='warn'>restart Cursor</span>`; `CARD_NAMES` **40** — **✅** |
+| **PH-S2495** | Drain | `gsv_drain` names Band 185 + `catalog_stale` — **✅** |
+| **PH-S2496** | Docs | SETTINGS / MCP_OPENBOT / SERVER / BOXES / HANDOFF / NEXT / MEMORY — **✅** |
+| **PH-S2497** | Tests | fmt · clippy · `cargo test` · `--stretch-96` — **✅** |
+| **PH-S2498** | Band close | `--band 185` + fingerprint; recopy live; one commit + push — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-20 · band 185 ✅)
+
+- **Band 185:** Cursor catalog restart lockstep. GET `/mcp` `catalog_stale` / `catalog_hint` when a session exists but `tools/list` never ran (or listed ≠ tool_count) · Galaxy MCP card **restart Cursor** · `gsv_health` same fields. Agent refresh only resubscribes resources. `CARD_NAMES` **40**.
+- **Canon:** [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+- **Next drain:** **owner pick** after a warnings-first scan.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.42%** (rust 35469 / product 35676) · **633** tests · clippy 0
+
 ## Стан (2026-08-20 · band 184 ✅)
 
 - **Band 184:** MCP session catalog lockstep. JSON `POST /mcp` keeps `notifications/tools/list_changed` for the Streamable HTTP GET hold · `initialize` + SSE hold queue the notify · GET `/mcp` `catalog_notify` / `listed_tool_count`. `CARD_NAMES` **40**.

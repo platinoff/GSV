@@ -11,6 +11,7 @@
 //! Band 140: resources/subscribe+unsubscribe + logging notifications + resource updated.
 //! Band 141: HTTP SSE (`Accept: text/event-stream`) flushes the notification queue.
 //! Band 142: HTTP `Mcp-Session-Id` + `DELETE /mcp`.
+//! Band 185: `catalog_stale` / `catalog_hint` (restart Cursor when listed is 0).
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -51,6 +52,25 @@ async fn mcp_post(app: &axum::Router, body: Value) -> (StatusCode, Value) {
         .expect("body");
     let json = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
     (status, json)
+}
+
+async fn mcp_get(app: &axum::Router) -> Value {
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::GET)
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .expect("body");
+    serde_json::from_slice(&bytes).expect("json")
 }
 
 #[tokio::test]
@@ -115,6 +135,8 @@ async fn get_mcp_discovers_openbot() {
     assert_eq!(json["session_count"], 0);
     assert_eq!(json["catalog_notify"], true);
     assert_eq!(json["listed_tool_count"], 0);
+    assert_eq!(json["catalog_stale"], false);
+    assert_eq!(json["catalog_hint"], "");
     assert_eq!(json["session_listed"], 0);
 }
 
@@ -180,6 +202,50 @@ async fn post_initialize_and_tools_list() {
 }
 
 #[tokio::test]
+async fn catalog_stale_after_initialize_until_tools_list() {
+    let app = app();
+    let idle = mcp_get(&app).await;
+    assert_eq!(idle["catalog_stale"], false);
+    assert_eq!(idle["catalog_hint"], "");
+    let (status, _) = mcp_post(
+        &app,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": PROTOCOL_VERSION,
+                "capabilities": {},
+                "clientInfo": { "name": "gsv-test", "version": "0" }
+            }
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let stale = mcp_get(&app).await;
+    assert_eq!(stale["session_count"], 1);
+    assert_eq!(stale["listed_tool_count"], 0);
+    assert_eq!(stale["catalog_stale"], true);
+    assert!(
+        stale["catalog_hint"]
+            .as_str()
+            .unwrap_or("")
+            .contains("restart Cursor"),
+        "{}",
+        stale["catalog_hint"]
+    );
+    let (status, _) = mcp_post(
+        &app,
+        json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let listed = mcp_get(&app).await;
+    assert_eq!(listed["catalog_stale"], false);
+    assert_eq!(listed["listed_tool_count"], mcp::tool_names().len() as u64);
+}
+
+#[tokio::test]
 async fn post_health_and_vision_tools() {
     let app = app();
     let (status, health) = mcp_post(
@@ -198,6 +264,8 @@ async fn post_health_and_vision_tools() {
         .as_str()
         .unwrap_or("");
     assert!(text.contains("gsv_mcp_openbot"));
+    assert!(text.contains("catalog_stale"), "{text}");
+    assert!(text.contains("listed_tool_count"), "{text}");
 
     let (status, vis) = mcp_post(
         &app,
@@ -1221,6 +1289,9 @@ async fn drain_prompt_names_always_on_tools() {
     assert!(text.contains("Band 172"), "{text}");
     assert!(text.contains("Band 173"), "{text}");
     assert!(text.contains("Band 174"), "{text}");
+    assert!(text.contains("Band 185"), "{text}");
+    assert!(text.contains("catalog_stale"), "{text}");
+    assert!(text.contains("restart Cursor"), "{text}");
     assert!(text.contains("lockstep-wait"), "{text}");
     assert!(text.contains("gsv://docs/next"), "{text}");
     assert!(text.contains("http://127.0.0.1:9999/mcp"), "{text}");
