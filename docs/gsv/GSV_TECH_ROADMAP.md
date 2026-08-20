@@ -76,6 +76,8 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 189** (Settings Galaxy polish + scrollbars) **✅** ·
 **band 190** (Galaxy About + type + fullscreen chrome) **✅** ·
 **band 191** (channel roles + GitHub origin lockstep) **✅** ·
+**band 192** (ranks + no console flash) **✅** ·
+**band 193** (federated `kind:presence`) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -1499,6 +1501,23 @@ Owner pick: CMD windows flashing again; research a rewards/rank system like game
 | **PH-S2566** | Docs | RANKS / BOXES / SERVER / HANDOFF / NEXT / MEMORY — **✅** |
 | **PH-S2567** | Tests | fmt · clippy · `cargo test` · `--stretch-96` — **✅** |
 | **PH-S2568** | Band close | `--band 192` + fingerprint; recopy live; one commit + push — **✅** |
+
+## Спринти (band 193) — federated presence
+
+Owner pick: continue after ranks. Spec leftover from 186: cross-jail `PresenceStore` over Godfather `kind:presence`. Remote jails visible on the host board; local claim and `squad_cap` stay process-local.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2569** | Scope | this band; envelope `kind:presence`; Galaxy federation row — **✅** |
+| **PH-S2570** | Research | shared host bot vs own bot; echo skip by `jail.id`; guest mute — **✅** |
+| **PH-S2571** | Envelope | parse/classify `presence`; `SyncData` jail/rank; bus_send `kind` — **✅** |
+| **PH-S2572** | Store | `Presence.remote`; `online_local` / `federation_now`; echo skip — **✅** |
+| **PH-S2573** | Cap / pick | remote does not fill `squad_cap`; `try_dispatch` local only — **✅** |
+| **PH-S2574** | Heartbeat | host/mate enqueue (60s); guest refused; ranks badge on row — **✅** |
+| **PH-S2575** | Poller | inbound `presence` → `apply_presence_envelope` — **✅** |
+| **PH-S2576** | Galaxy / scenarios | tickets federation table; `federated-presence` — **✅** |
+| **PH-S2577** | Tests | fmt · clippy · `cargo test` · `--stretch-96` — **✅** |
+| **PH-S2578** | Band close | `--band 193` + fingerprint; recopy live; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

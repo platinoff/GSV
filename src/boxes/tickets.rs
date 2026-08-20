@@ -21,6 +21,8 @@
 //! Band 187: live `getChatMemberCount` fills `member_count` (dry-run does not persist).
 //! Band 191: channel role host/mate/guest/local; pick board then GitHub issues;
 //! origin probe when the local tree is not newer.
+//! Band 193: federated `kind:presence` on Godfather — remote jails visible,
+//! local claim/squad cap stay process-local.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -38,6 +40,7 @@ use super::github;
 use super::products;
 use super::ranks;
 use super::settings;
+use super::telegram;
 
 /// Process-local MCP presence (heartbeat). Isolated per [`crate::AppState`].
 pub type PresenceStore = Mutex<HashMap<String, Presence>>;
@@ -94,18 +97,35 @@ pub struct ClaimedBy {
 }
 
 /// Online MCP worker (same identity fields as a claim).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct Presence {
     pub actor: String,
     pub ide: String,
     pub model: String,
     pub agent: String,
     pub seen_unix: u64,
+    /// Jail nickname. Empty on legacy local heartbeats.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub jail_id: String,
+    /// True when this row arrived over Godfather `kind:presence`.
+    #[serde(default)]
+    pub remote: bool,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub rank_id: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub rank_title: String,
 }
 
 impl Presence {
     fn key(&self) -> String {
-        format!("{}|{}|{}", self.actor, self.ide, self.agent)
+        if self.remote {
+            format!(
+                "r:{}|{}|{}|{}",
+                self.jail_id, self.actor, self.ide, self.agent
+            )
+        } else {
+            format!("{}|{}|{}", self.actor, self.ide, self.agent)
+        }
     }
 
     fn from_who(who: &ClaimedBy, seen_unix: u64) -> Self {
@@ -115,6 +135,10 @@ impl Presence {
             model: who.model.clone(),
             agent: who.agent.clone(),
             seen_unix,
+            jail_id: String::new(),
+            remote: false,
+            rank_id: String::new(),
+            rank_title: String::new(),
         }
     }
 
@@ -495,12 +519,99 @@ pub fn online_now(store: &PresenceStore) -> Vec<Presence> {
     map.retain(|_, p| now.saturating_sub(p.seen_unix) <= PRESENCE_TTL_SECS);
     let mut out: Vec<Presence> = map.values().cloned().collect();
     out.sort_by(|a, b| {
-        a.actor
-            .cmp(&b.actor)
+        a.jail_id
+            .cmp(&b.jail_id)
+            .then(a.actor.cmp(&b.actor))
             .then(a.ide.cmp(&b.ide))
             .then(a.agent.cmp(&b.agent))
     });
     out
+}
+
+/// Process-local workers only (this jail's Cursor/OpenCode). Remote federation
+/// rows do not consume `squad_cap` and cannot claim this jail's tickets.
+pub fn online_local(store: &PresenceStore) -> Vec<Presence> {
+    online_now(store)
+        .into_iter()
+        .filter(|p| !p.remote)
+        .collect()
+}
+
+/// Remote jails that heartbeated over Godfather `kind:presence`.
+pub fn federation_now(store: &PresenceStore) -> Vec<Presence> {
+    online_now(store).into_iter().filter(|p| p.remote).collect()
+}
+
+/// Ingest a remote jail heartbeat. Echo of *this* jail is ignored.
+pub fn apply_remote_presence(
+    store: &PresenceStore,
+    jail_id: &str,
+    who: &ClaimedBy,
+    rank_id: &str,
+    rank_title: &str,
+    skip_jail: &str,
+) -> bool {
+    let jail = jail_id.trim();
+    if jail.is_empty() {
+        return false;
+    }
+    let skip = skip_jail.trim();
+    if !skip.is_empty() && jail.eq_ignore_ascii_case(skip) {
+        return false;
+    }
+    let row = Presence {
+        actor: who.actor.trim().to_string(),
+        ide: who.ide.trim().to_string(),
+        model: who.model.trim().to_string(),
+        agent: who.agent.trim().to_string(),
+        seen_unix: unix_now(),
+        jail_id: jail.to_string(),
+        remote: true,
+        rank_id: rank_id.trim().to_string(),
+        rank_title: rank_title.trim().to_string(),
+    };
+    if let Ok(mut map) = store.lock() {
+        map.insert(row.key(), row);
+    }
+    true
+}
+
+fn stamp_local(
+    store: &PresenceStore,
+    who: &ClaimedBy,
+    jail_id: &str,
+    rank_id: &str,
+    rank_title: &str,
+) {
+    let key = Presence::from_who(who, 0).key();
+    if let Ok(mut map) = store.lock() {
+        if let Some(row) = map.get_mut(&key) {
+            row.jail_id = jail_id.trim().to_string();
+            row.rank_id = rank_id.trim().to_string();
+            row.rank_title = rank_title.trim().to_string();
+            row.remote = false;
+        }
+    }
+}
+
+fn after_accepted_heartbeat(
+    repo_root: &Path,
+    data_dir: &Path,
+    presence: &PresenceStore,
+    who: &ClaimedBy,
+    file: &settings::SettingsFile,
+) {
+    let _ = renew_leases(repo_root, data_dir, who);
+    let host = settings::chat_role(file) == "host";
+    let (rank_id, rank_title) = ranks::badge_for(data_dir, &who.actor, &who.ide, &who.agent, host);
+    stamp_local(
+        presence,
+        who,
+        &settings::jail_id(file),
+        &rank_id,
+        &rank_title,
+    );
+    telegram::maybe_federate_presence(file, who, &rank_id, &rank_title);
 }
 
 /// Heartbeat: record `who` as online and return the current set.
@@ -525,21 +636,23 @@ fn heartbeat_for_settings(
 /// Heartbeat unless this is a **new** worker and the squad is already full.
 pub fn heartbeat_capped(store: &PresenceStore, who: &ClaimedBy, cap: u64) -> (Vec<Presence>, bool) {
     if cap == 0 {
-        return (heartbeat(store, who), true);
+        let _ = heartbeat(store, who);
+        return (online_local(store), true);
     }
     let incoming = Presence::from_who(who, unix_now());
-    let online = online_now(store);
-    let already = online.iter().any(|p| p.key() == incoming.key());
-    if !already && (online.len() as u64) >= cap {
-        return (online, false);
+    let local = online_local(store);
+    let already = local.iter().any(|p| p.key() == incoming.key());
+    if !already && (local.len() as u64) >= cap {
+        return (local, false);
     }
-    (heartbeat(store, who), true)
+    let _ = heartbeat(store, who);
+    (online_local(store), true)
 }
 
 /// Join / environment checklist for a self-installed jail (never `bot_token`).
 pub fn join_env(repo_root: &Path, data_dir: &Path, presence: &PresenceStore) -> Value {
     let file = settings::load_result(data_dir).unwrap_or_default();
-    let online = online_now(presence);
+    let online = online_local(presence);
     let cap = settings::squad_cap(&file);
     let env_set = settings::env_token().is_some();
     let file_set = !file.godfather.bot_token.trim().is_empty();
@@ -558,6 +671,7 @@ pub fn join_env(repo_root: &Path, data_dir: &Path, presence: &PresenceStore) -> 
         "member_count": file.tickets.member_count,
         "chat_kind": settings::chat_kind(&file),
         "online": online.len() as u64,
+        "federation": federation_now(presence).len() as u64,
         "squad_full": (online.len() as u64) >= cap,
         "chat_role": role,
         "role_hint": settings::role_hint(role),
@@ -691,7 +805,8 @@ pub fn wire_list_signaled(
     }
     let file = settings::load_result(data_dir).unwrap_or_default();
     let mode = resolve_mode(&file);
-    let online = online_now(presence);
+    let online = online_local(presence);
+    let federation = federation_now(presence);
     let mut events = read_claims(&claims_path(repo_root));
     if events.len() > 8 {
         events = events.split_off(events.len() - 8);
@@ -708,6 +823,7 @@ pub fn wire_list_signaled(
     v["mode"] = json!(mode.as_str());
     v["lease_secs"] = json!(settings::ticket_lease_secs(&file));
     v["online"] = json!(online);
+    v["federation"] = json!(federation);
     v["scenarios"] = json!(load_scenarios(repo_root));
     v["events"] = json!(events);
     v["bench"] = wire_bench(repo_root);
@@ -898,7 +1014,7 @@ pub fn wire_next(
     let file = settings::load_result(data_dir).unwrap_or_default();
     let (online, accepted) = heartbeat_for_settings(presence, &who, &file);
     if accepted {
-        let _ = renew_leases(repo_root, data_dir, &who);
+        after_accepted_heartbeat(repo_root, data_dir, presence, &who, &file);
     }
     let action = next_action(repo_root, data_dir, Some(presence), &who, hint, next);
     json!({
@@ -906,6 +1022,7 @@ pub fn wire_next(
         "accepted": accepted,
         "squad_cap": settings::squad_cap(&file),
         "online": online.len() as u64,
+        "federation": federation_now(presence).len() as u64,
         "hint": action.hint,
         "tool": action.tool,
         "ticket_id": action.ticket_id,
@@ -1698,7 +1815,7 @@ pub fn try_dispatch(
         return Ok(None);
     }
     let _ = reclaim_stale(repo_root, data_dir);
-    let online = online_now(presence);
+    let online = online_local(presence);
     let mode = resolve_mode(&file);
     let Some(who) = pick_assignee(mode, &online, seed).map(Presence::as_claimed) else {
         return Ok(None);
@@ -1864,7 +1981,7 @@ pub fn wire_presence(
     let cap = settings::squad_cap(&file);
     let (online, accepted) = heartbeat_capped(presence, &who, cap);
     if accepted {
-        let _ = renew_leases(repo_root, data_dir, &who);
+        after_accepted_heartbeat(repo_root, data_dir, presence, &who, &file);
     }
     json!({
         "ok": true,
@@ -1872,6 +1989,7 @@ pub fn wire_presence(
         "squad_cap": cap,
         "jail_id": settings::jail_id(&file),
         "online": online,
+        "federation": federation_now(presence),
         "error": if accepted { "" } else { "squad full" },
     })
 }
@@ -2209,6 +2327,7 @@ mod unit {
             model: "grok-4.6".into(),
             agent: "worker".into(),
             seen_unix: 1,
+            ..Default::default()
         }
     }
 
@@ -2268,6 +2387,57 @@ mod unit {
         let (again, still) = heartbeat_capped(&store, &a, 1);
         assert!(still);
         assert_eq!(again.len(), 1);
+    }
+
+    #[test]
+    fn remote_presence_does_not_fill_squad_or_pick() {
+        let store = new_presence_store();
+        let local = ClaimedBy {
+            actor: "host".into(),
+            ide: "cursor".into(),
+            model: "m".into(),
+            agent: "one".into(),
+        };
+        let remote = ClaimedBy {
+            actor: "alice".into(),
+            ide: "opencode".into(),
+            model: "m".into(),
+            agent: "bot".into(),
+        };
+        let (online, ok) = heartbeat_capped(&store, &local, 1);
+        assert!(ok, "{online:?}");
+        assert!(apply_remote_presence(
+            &store,
+            "alice-gsv",
+            &remote,
+            "jun-nub",
+            "Jun-nub",
+            "local",
+        ));
+        assert!(!apply_remote_presence(
+            &store, "local", &remote, "jun-nub", "Jun-nub", "local",
+        ));
+        assert_eq!(online_local(&store).len(), 1);
+        assert_eq!(federation_now(&store).len(), 1);
+        let (full, accepted) = heartbeat_capped(
+            &store,
+            &ClaimedBy {
+                actor: "other".into(),
+                ide: "cursor".into(),
+                model: "m".into(),
+                agent: "two".into(),
+            },
+            1,
+        );
+        assert!(!accepted);
+        assert_eq!(full.len(), 1);
+        let local_now = online_local(&store);
+        assert_eq!(
+            pick_assignee(TicketMode::Squad, &local_now, 0)
+                .expect("local")
+                .actor,
+            "host"
+        );
     }
 
     #[test]

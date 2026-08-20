@@ -308,6 +308,7 @@ Unknown ids in the file are kept but ignored (forward compatible).
 - Band 185: GET `/mcp` `catalog_stale` / `catalog_hint` when a session exists but `tools/list` is missing or short; Galaxy MCP card `restart Cursor`; agent refresh is not enough; `--stretch-96` ≥ 96%.
 - Band 186: jail id + `squad_cap` = member_count; presence `accepted`; tickets `env`; resource `gsv://docs/solo-squad-jail`; `--stretch-96` ≥ 96%.
 - Band 187: live `getChatMemberCount` fills `member_count`; dry-run stub n=3 does not persist; `--stretch-96` ≥ 96%.
+- Band 193: `kind:presence` federated jail heartbeats; guest mute; local squad_cap unchanged; `--stretch-96` ≥ 96%.
 
 ## Open questions (non-blocking)
 
@@ -339,6 +340,8 @@ Unknown ids in the file are kept but ignored (forward compatible).
 | **186** | S2499–S2508 | Solo/squad/jail (`jail.id` · squad_cap = members · join env) | **✅ this drain** |
 | **187** | S2509–S2518 | Live `getChatMemberCount` fills `member_count` / derived `squad_cap` | **✅ this drain** |
 | **191** | S2549–S2558 | Channel roles + GitHub origin lockstep + board/GitHub ticket pick | **✅ this drain** |
+| **192** | S2559–S2568 | Ranks + no CMD flash | **✅ this drain** |
+| **193** | S2569–S2578 | Federated `kind:presence` on Godfather | **✅ this drain** |
 
 Next drain: **owner pick** after a warnings-first scan.
 

@@ -164,6 +164,13 @@
       "body": "Merit ladder L0 jun-nub through L15 marshal-orchestrator (IT + army mix). Host of the Godfather channel displays marshal-orchestrator. Done tickets raise a rank; ticket error or cargo test fail after commit drops one. Floor is 0. Telegram from.id is redacted to a tail. Store data/gsv_ranks.json.",
       "workflow": "ticket-claim",
       "product": "gsv"
+    },
+    {
+      "id": "federated-presence",
+      "title": "Federated presence: remote jails on the host board",
+      "body": "Mate/host jails heartbeat kind:presence on Godfather (from=jail.id). Host Galaxy shows federation rows. Remote workers do not consume this jail squad_cap and cannot claim this jail tickets.jsonl. Guest stays solo and does not post presence. Echo of this jail is ignored.",
+      "workflow": "ticket-squad",
+      "product": "gsv"
     }
   ]
 }

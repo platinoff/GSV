@@ -350,6 +350,19 @@ fn parse_envelope_rejects_invalid_and_non_bus() {
     assert_eq!(ok.to.as_deref(), Some("opencode"));
     assert_eq!(ok.ticket_id.as_deref(), Some("t-1"));
     assert_eq!(ok.body, "ping");
+    let presence = telegram::parse_envelope(&json!({
+        "v": 1,
+        "kind": "presence",
+        "from": "alice-gsv",
+        "body": "alice-gsv heartbeat",
+        "data": { "actor": "alice", "ide": "cursor", "hint": "heartbeat" }
+    }))
+    .expect("presence");
+    assert_eq!(presence.kind, "presence");
+    assert_eq!(
+        telegram::classify_inbound(&serde_json::to_string(&presence).unwrap()),
+        "presence"
+    );
 }
 
 #[tokio::test]
@@ -974,6 +987,59 @@ async fn poll_once_classifies_ticket_bus_hook_and_skip() {
             && m["data"]["next"] == "PH-S2459"),
         "{bus}"
     );
+}
+
+#[tokio::test]
+async fn poll_once_ingests_federated_presence() {
+    let _g = bus_guard().await;
+    telegram::bus_reset();
+    let kit = temp_kit("poll-presence");
+    let data = kit.join("data");
+    save_solo_relay(&data, "-100fp", "123:fp-secret", &[]);
+    let store = tickets::new_presence_store();
+    telegram::push_inbound_stub(
+        31,
+        r#"{"v":1,"kind":"presence","from":"alice-gsv","body":"alice-gsv heartbeat","data":{"actor":"alice","ide":"opencode","agent":"bot","jail_id":"alice-gsv","rank_id":"jun-nub","rank_title":"Jun-nub","hint":"heartbeat"}}"#,
+        "-100fp",
+        "",
+        "99",
+    );
+    let v = telegram::poll_once(&kit, &data, true, Some(&store)).await;
+    assert_eq!(v["ok"], true, "{v}");
+    assert_eq!(v["presence"], 1, "{v}");
+    assert_eq!(tickets::federation_now(&store).len(), 1);
+    assert_eq!(tickets::online_local(&store).len(), 0);
+    let fed = &tickets::federation_now(&store)[0];
+    assert_eq!(fed.jail_id, "alice-gsv");
+    assert_eq!(fed.actor, "alice");
+    assert_eq!(fed.rank_title, "Jun-nub");
+    assert_no_secret(&v, "123:fp-secret");
+}
+
+#[test]
+fn guest_does_not_federate_presence() {
+    telegram::bus_reset();
+    let file = settings::SettingsFile {
+        godfather: settings::Godfather {
+            role: "guest".into(),
+            channel_id: "-100g".into(),
+            bot_token: "123:guest".into(),
+            ..Default::default()
+        },
+        workflows: settings::Workflows {
+            enabled: vec!["telegram-relay".into()],
+        },
+        ..Default::default()
+    };
+    let who = ClaimedBy {
+        actor: "guest".into(),
+        ide: "cursor".into(),
+        model: "m".into(),
+        agent: "bot".into(),
+    };
+    assert!(!telegram::maybe_federate_presence(
+        &file, &who, "jun-nub", "Jun-nub"
+    ));
 }
 
 #[tokio::test]

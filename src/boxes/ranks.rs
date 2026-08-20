@@ -169,6 +169,29 @@ pub fn def_for(level: u8) -> RankDef {
     LADDER[level.min(MAX_LEVEL) as usize]
 }
 
+/// Redacted badge for a fingerprint (host *displays* marshal-orchestrator).
+pub fn badge_for(
+    data_dir: &Path,
+    actor: &str,
+    ide: &str,
+    agent: &str,
+    host: bool,
+) -> (String, String) {
+    let file = load(&ranks_path(data_dir));
+    let level = file
+        .roster
+        .iter()
+        .find(|r| r.actor == actor && r.ide == ide && r.agent == agent)
+        .map(|r| r.level)
+        .unwrap_or(MIN_LEVEL);
+    let d = if host {
+        LADDER[MAX_LEVEL as usize]
+    } else {
+        def_for(level)
+    };
+    (d.id.to_string(), d.title.to_string())
+}
+
 /// Store path under the data dir (never `docs/`).
 pub fn ranks_path(data_dir: &Path) -> PathBuf {
     data_dir.join("gsv_ranks.json")

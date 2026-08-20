@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-20 · band 193)
+
+- **Band 193:** Federated presence. Godfather `kind:presence` (`from=jail.id`). Host Galaxy shows `federation` rows. Remote workers do not fill this jail’s `squad_cap` and cannot claim this jail’s tickets. Guest mute. Echo of this jail ignored. Scenario `federated-presence`.
+- **Canon:** [`gsv/GSV_SOLO_SQUAD_JAIL.md`](gsv/GSV_SOLO_SQUAD_JAIL.md).
+- **Next drain:** **owner pick** after a warnings-first scan.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.40%** (rust 39570 / product 39807) · **666** tests · clippy 0
+
 ## Стан (2026-08-20 · band 192)
 
 - **Band 192:** Ranks + no CMD flash. GitHub origin probe uses `vision::command(git)` (`CREATE_NO_WINDOW`). GET `/api/update` uses the cache unless `?check=true`. Merit ladder L0 **jun-nub** … L15 **marshal-orchestrator** (IT + army mix). Channel host *displays* marshal. Ticket done +1; ticket error or failed `cargo test` after commit −1 (fingerprint + Telegram tail). Floor 0. Store `data/gsv_ranks.json`. Scenario `rank-ladder`. MCP `gsv_ranks` (**56** tools). `CARD_NAMES` **42**.

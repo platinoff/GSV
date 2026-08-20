@@ -1658,6 +1658,24 @@ pub fn render_tickets(d: &Value) -> String {
         esc(jail_bit),
         u(&d["bot_slot_cap"])
     ));
+    let federation = arr(&d["federation"]);
+    if federation.is_empty() {
+        out.push_str("<div class='dim'>federation · heartbeats over Godfather <kbd>kind:presence</kbd></div>");
+    } else {
+        let rows: Vec<Vec<String>> = federation
+            .iter()
+            .map(|p| {
+                vec![
+                    esc(&s(&p["jail_id"])),
+                    esc(&s(&p["actor"])),
+                    esc(&s(&p["ide"])),
+                    esc(&s(&p["rank_title"])),
+                ]
+            })
+            .collect();
+        out.push_str("<div class='dim'>federation</div>");
+        out.push_str(&tab(&["jail", "actor", "ide", "rank"], rows));
+    }
     let env_hint = s(&d["env"]["hint"]);
     if !env_hint.is_empty() {
         out.push_str(&format!(

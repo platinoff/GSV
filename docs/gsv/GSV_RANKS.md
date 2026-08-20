@@ -50,3 +50,5 @@ Telegram ids are stored only under `data/` and redacted on the wire to a 4-chara
 - MCP `gsv_ranks` (same body)
 - Galaxy ops card `ranks` (`CARD_NAMES` 42)
 - Resource `gsv://docs/ranks` → this file
+
+Band **193:** host/mate heartbeats include the redacted rank badge on Godfather `kind:presence` (`rank_id` / `rank_title`). Guest does not post.

@@ -16,6 +16,7 @@ fn who(actor: &str) -> Presence {
         model: "grok-4.6".into(),
         agent: "worker".into(),
         seen_unix: 1,
+        ..Default::default()
     }
 }
 

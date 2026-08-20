@@ -18,7 +18,7 @@
 //! Band 182: Godfather posts a human line plus JSON `{v:1,kind:sync,data}` so MCP
 //! clients can parse `hint` / `next` / disk / crate and steer the next drain.
 //! Band 177: `run mcp bot hook up scenario` (catalog / roadmap band / plan).
-//! Band 178: Godfather bench line reads `docs/gsv/scenario_bench.json` (session walk).
+//! Band 193: `kind:presence` federated jail heartbeats (host/mate; guest refused).
 
 use std::collections::VecDeque;
 use std::fs;
@@ -50,6 +50,8 @@ const MEMBER_REFRESH: Duration = Duration::from_secs(60);
 static LIVE_API: AtomicBool = AtomicBool::new(false);
 static POLL_LOOP: AtomicBool = AtomicBool::new(false);
 static LAST_MEMBER_REFRESH: Mutex<Option<Instant>> = Mutex::new(None);
+static LAST_FEDERATE: Mutex<Option<Instant>> = Mutex::new(None);
+const FEDERATE_EVERY: Duration = Duration::from_secs(60);
 
 /// Durable getUpdates offset under `data/` (gitignored via `/data/*`).
 pub const OFFSET_FILE: &str = "telegram_offset.json";
@@ -435,7 +437,7 @@ const RATE_LIMIT: Duration = Duration::from_secs(1);
 const DEFAULT_POLL_LIMIT: usize = 8;
 const MAX_POLL_LIMIT: usize = 32;
 
-/// Channel-as-bus envelope (`kind` is `bus` or `sync`).
+/// Channel-as-bus envelope (`kind` is `bus`, `sync`, or `presence`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BusEnvelope {
     pub v: u32,
@@ -472,9 +474,19 @@ pub struct SyncData {
     pub disk_ok: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub disk_free_gb: Option<u64>,
-    /// What the next MCP should do: `work-ticket` · `claim-next` · `work-assigned` · `record-bench` · `hook-placed`.
+    /// What the next MCP should do: `work-ticket` · `claim-next` · `work-assigned` · `record-bench` · `hook-placed` · `heartbeat`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hint: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub jail_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ide: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rank_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rank_title: Option<String>,
 }
 
 /// Dry-run / test fake of one `getUpdates` item.
@@ -638,8 +650,8 @@ pub fn parse_envelope(v: &Value) -> Result<BusEnvelope, String> {
     if env.v != 1 {
         return Err("v must be 1".into());
     }
-    if env.kind != "bus" && env.kind != "sync" {
-        return Err("kind must be bus or sync".into());
+    if env.kind != "bus" && env.kind != "sync" && env.kind != "presence" {
+        return Err("kind must be bus, sync, or presence".into());
     }
     env.from = env.from.trim().to_string();
     if env.from.is_empty() {
@@ -659,6 +671,11 @@ pub fn parse_envelope(v: &Value) -> Result<BusEnvelope, String> {
         data.crate_version = empty_to_none(data.crate_version.take());
         data.next = empty_to_none(data.next.take());
         data.hint = empty_to_none(data.hint.take());
+        data.jail_id = empty_to_none(data.jail_id.take());
+        data.ide = empty_to_none(data.ide.take());
+        data.agent = empty_to_none(data.agent.take());
+        data.rank_id = empty_to_none(data.rank_id.take());
+        data.rank_title = empty_to_none(data.rank_title.take());
     }
     Ok(env)
 }
@@ -698,6 +715,7 @@ pub fn collect_sync_data(
         disk_ok: disk.get("disk_ok").and_then(Value::as_bool),
         disk_free_gb: disk.get("disk_free_gb").and_then(Value::as_u64),
         hint: Some(sync_hint(mode, phase).into()),
+        ..Default::default()
     }
 }
 
@@ -883,6 +901,119 @@ pub fn enqueue_session_data(
         record_signal(&mut g, &envelope);
     }
     Ok(envelope)
+}
+
+/// Queue a `kind:presence` envelope (federated jail heartbeat).
+pub fn enqueue_presence(
+    from: &str,
+    body: &str,
+    data: Option<SyncData>,
+) -> Result<BusEnvelope, String> {
+    let from = from.trim();
+    if from.is_empty() {
+        return Err("from required".into());
+    }
+    let body = body.trim();
+    if body.is_empty() {
+        return Err("body required".into());
+    }
+    if body.len() > BODY_CAP {
+        return Err("body exceeds 2 KiB".into());
+    }
+    let envelope = BusEnvelope {
+        v: 1,
+        kind: "presence".into(),
+        from: from.to_string(),
+        to: None,
+        ticket_id: None,
+        body: body.to_string(),
+        data,
+    };
+    {
+        let mut g = bus();
+        g.queue.push_back(envelope.clone());
+        g.last_send = Some(Instant::now());
+        g.last_bus_ok = true;
+        g.last_bus_ts = now_rfc3339();
+        g.last_bus_error.clear();
+        record_signal(&mut g, &envelope);
+    }
+    Ok(envelope)
+}
+
+/// Host/mate heartbeat → Godfather `kind:presence`. Guest never posts. 60s throttle
+/// (skipped in the cargo-test harness).
+pub fn maybe_federate_presence(
+    file: &SettingsFile,
+    who: &tickets::ClaimedBy,
+    rank_id: &str,
+    rank_title: &str,
+) -> bool {
+    if !settings::telegram_relay_enabled(file) {
+        return false;
+    }
+    if settings::chat_role(file) == "guest" {
+        return false;
+    }
+    if super::update::is_cargo_test_harness() {
+        return false;
+    }
+    if let Ok(mut g) = LAST_FEDERATE.lock() {
+        if let Some(prev) = *g {
+            if prev.elapsed() < FEDERATE_EVERY {
+                return false;
+            }
+        }
+        *g = Some(Instant::now());
+    }
+    let jail = settings::jail_id(file);
+    let from = if jail.is_empty() {
+        "local"
+    } else {
+        jail.as_str()
+    };
+    let data = SyncData {
+        product: Some("gsv".into()),
+        actor: Some(who.actor.clone()),
+        ide: Some(who.ide.clone()),
+        agent: Some(who.agent.clone()),
+        jail_id: Some(from.to_string()),
+        rank_id: empty_to_none(Some(rank_id.to_string())),
+        rank_title: empty_to_none(Some(rank_title.to_string())),
+        crate_version: Some(env!("CARGO_PKG_VERSION").into()),
+        hint: Some("heartbeat".into()),
+        ..Default::default()
+    };
+    let body = format!("{from} heartbeat");
+    enqueue_presence(from, &body, Some(data)).is_ok()
+}
+
+/// Apply an inbound `kind:presence` envelope onto the host board.
+pub fn apply_presence_envelope(
+    data_dir: &Path,
+    store: &tickets::PresenceStore,
+    env: &BusEnvelope,
+) -> bool {
+    if env.kind != "presence" {
+        return false;
+    }
+    let file = settings::load_result(data_dir).unwrap_or_default();
+    let skip = settings::jail_id(&file);
+    let data = env.data.clone().unwrap_or_default();
+    let who = tickets::ClaimedBy {
+        actor: data.actor.clone().unwrap_or_else(|| env.from.clone()),
+        ide: data.ide.clone().unwrap_or_else(|| "cursor".into()),
+        model: String::new(),
+        agent: data.agent.clone().unwrap_or_else(|| "orchestrator".into()),
+    };
+    tickets::apply_remote_presence(
+        store,
+        data.jail_id.as_deref().unwrap_or(env.from.as_str()),
+        &who,
+        data.rank_id.as_deref().unwrap_or(""),
+        data.rank_title.as_deref().unwrap_or(""),
+        &skip,
+    )
 }
 
 /// Walk open tickets, enqueue session lines, optionally live-send 1/s.
@@ -1164,8 +1295,12 @@ pub fn classify_inbound(text: &str) -> &'static str {
     if t.is_empty() {
         return "skip";
     }
-    if extract_envelope(t).is_ok() {
-        return "bus";
+    if let Ok(env) = extract_envelope(t) {
+        return if env.kind == "presence" {
+            "presence"
+        } else {
+            "bus"
+        };
     }
     if is_own_session_line(t) {
         return "skip";
@@ -1325,6 +1460,7 @@ pub async fn poll_once(
     let mut n_bus = 0usize;
     let mut n_ticket = 0usize;
     let mut n_hook = 0usize;
+    let mut n_presence = 0usize;
     let mut n_skip = 0usize;
     let mut ingested = Vec::new();
     let mut max_id = load_offset(data_dir);
@@ -1342,6 +1478,17 @@ pub async fn poll_once(
         }
         let kind = classify_inbound(&item.text);
         match kind {
+            "presence" => match extract_envelope(&item.text) {
+                Ok(env) => {
+                    enqueue_inbound_bus(env.clone());
+                    if let Some(store) = presence {
+                        let _ = apply_presence_envelope(data_dir, store, &env);
+                    }
+                    n_presence += 1;
+                    ingested.push(json!({ "kind": "presence", "from": env.from }));
+                }
+                Err(_) => n_skip += 1,
+            },
             "bus" => match extract_envelope(&item.text) {
                 Ok(env) => {
                     enqueue_inbound_bus(env);
@@ -1391,7 +1538,7 @@ pub async fn poll_once(
     if !dry && !token.is_empty() {
         refresh_members_throttled(data_dir, &token, &channel).await;
     }
-    let n = n_bus + n_ticket + n_hook + n_skip;
+    let n = n_bus + n_ticket + n_hook + n_presence + n_skip;
     {
         let mut g = bus();
         g.last_poll_ts = now_rfc3339();
@@ -1403,6 +1550,7 @@ pub async fn poll_once(
         "dry_run": dry,
         "n": n,
         "bus": n_bus,
+        "presence": n_presence,
         "ticket": n_ticket,
         "hook": n_hook,
         "skip": n_skip,
@@ -1428,7 +1576,9 @@ pub fn parse_ticket_body(text: &str) -> Result<(String, String), String> {
                     Ok(title_body(body))
                 }
             }
-            Some("bus") => Err("bus envelope is not a ticket".into()),
+            Some("bus") | Some("sync") | Some("presence") => {
+                Err("bus envelope is not a ticket".into())
+            }
             _ => Err("kind must be ticket".into()),
         };
     }
@@ -1586,15 +1736,36 @@ pub async fn bus_send(data_dir: &Path, explicit_dry: bool, args: &Value) -> Valu
         record_last(false, err);
         return bus_fail(err, &token);
     }
-    let body = args.get("body").and_then(Value::as_str).unwrap_or("");
-    let built = json!({
+    let kind = opt_arg(args, "kind").unwrap_or_else(|| "bus".into());
+    let mut body = args
+        .get("body")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    if kind == "presence" && body.trim().is_empty() {
+        body = format!("{from} heartbeat");
+    }
+    let mut built = json!({
         "v": 1,
-        "kind": "bus",
+        "kind": kind,
         "from": from,
         "to": opt_arg(args, "to"),
         "ticket_id": opt_arg(args, "ticket_id"),
         "body": body,
     });
+    if kind == "presence" {
+        built["data"] = json!({
+            "actor": opt_arg(args, "actor"),
+            "ide": opt_arg(args, "ide"),
+            "agent": opt_arg(args, "agent"),
+            "jail_id": opt_arg(args, "jail_id").or(Some(from.clone())),
+            "rank_id": opt_arg(args, "rank_id"),
+            "rank_title": opt_arg(args, "rank_title"),
+            "hint": "heartbeat",
+            "product": "gsv",
+            "crate": env!("CARGO_PKG_VERSION"),
+        });
+    }
     let envelope = match parse_envelope(&built) {
         Ok(e) => e,
         Err(e) => {
