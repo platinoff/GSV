@@ -1,6 +1,6 @@
 # Solo / squad / jail — federated GSV MCP
 
-**Status:** Band **186** (schema + env check + docs). Bands **166–185 ✅**.  
+**Status:** Band **186** schema + **187** live `getChatMemberCount`. Bands **166–185 ✅**.  
 **Date:** 2026-08-20  
 **Deciders:** owner  
 **Owner ask:** update + security check; Git workflow research; align solo vs squad; environment checks for a joiner who installed their own `gsv-server`; how that MCP joins a squad; host bot-admin on a channel vs own channel + own bot + invite others; squad bot cap = channel user cap; apps built inside a per-server MCP jail.
@@ -129,7 +129,7 @@ Band **160** already named the crate path `sandbox` on `GET /mcp`. A **jail** in
 
 - `jail.id` empty → wire `local`.
 - `tickets.squad_cap` `0` → use `member_count` if set, else `bot_slot_cap` (50 channel / 20 group).
-- `member_count` is **not** a Telegram live probe in 186 (owner-set). Later bands may fill it from `getChatMemberCount`.
+- `member_count` is filled from Telegram `getChatMemberCount` on live bind/poll (band **187**). Owner POST still works; a failed probe does not wipe a stored count. Dry-run stub is `3` and does not persist.
 - Redacted GET/MCP includes these fields; never `bot_token`.
 
 Presence: `POST /api/tickets/presence` / `gsv_tickets_presence` / `gsv_tickets_next` / claim / walk all use `heartbeat_capped`. A **new** worker is refused when `online >= squad_cap`. Renewing an existing heartbeat still works.
@@ -140,9 +140,8 @@ Presence: `POST /api/tickets/presence` / `gsv_tickets_presence` / `gsv_tickets_n
 
 Catalog ids: `federated-join` · `own-channel` · `jail-app` (plus existing `squad-dev` / `telegram-solo` / `abrakadabra-session`).
 
-## Non-goals (186)
+## Non-goals (186–187)
 
-- Live `getChatMemberCount` fill of `member_count`.
 - Cross-process federated `PresenceStore` over Telegram (`kind:presence`).
 - Public `/mcp` mesh / Cloudflare on MCP.
 - Sharing one `bot_token` as a “join code”.

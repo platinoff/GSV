@@ -115,7 +115,8 @@ pub struct TicketsSettings {
     /// Owner override for MCP jail workers. `0` → derive from `member_count` / bot slots.
     #[serde(default)]
     pub squad_cap: u64,
-    /// Godfather chat member/subscriber count (owner-set in band 186; not a secret).
+    /// Godfather chat member/subscriber count (owner-set, or live
+    /// `getChatMemberCount` in band 187). Not a secret.
     #[serde(default)]
     pub member_count: u64,
     /// `channel` | `group` | `supergroup`.
@@ -376,6 +377,38 @@ pub fn redacted_wire(file: &SettingsFile, env: Option<&str>) -> Value {
     })
 }
 
+/// Persist Telegram `getChatMemberCount` / `getChat.type`. A `0` count is
+/// ignored so a failed probe does not wipe an owner-set value.
+pub fn apply_live_chat_meta(
+    data_dir: &Path,
+    member_count: u64,
+    chat_kind: Option<&str>,
+) -> Result<bool, String> {
+    let mut file = load_result(data_dir)?;
+    let mut changed = false;
+    let n = clamp_count(member_count);
+    if n > 0 && file.tickets.member_count != n {
+        file.tickets.member_count = n;
+        changed = true;
+    }
+    if let Some(raw) = chat_kind {
+        let k = match raw.trim().to_ascii_lowercase().as_str() {
+            "group" => "group",
+            "supergroup" => "supergroup",
+            "channel" => "channel",
+            _ => "",
+        };
+        if !k.is_empty() && file.tickets.chat_kind != k {
+            file.tickets.chat_kind = k.to_string();
+            changed = true;
+        }
+    }
+    if changed {
+        save(data_dir, &file)?;
+    }
+    Ok(changed)
+}
+
 /// `GET /api/settings` / MCP `gsv_settings`.
 pub fn wire(data_dir: &Path) -> Value {
     match load_result(data_dir) {
@@ -571,6 +604,21 @@ mod tests {
         assert_eq!(w["jail"]["id"], "local");
         assert_eq!(w["tickets"]["bot_slot_cap"], TG_CHANNEL_ADMINS_MAX);
         assert!(!json_has_bot_token(&w), "{w}");
+    }
+
+    #[test]
+    fn apply_live_chat_meta_sets_count_and_kind() {
+        let dir = temp("live-meta");
+        assert!(!apply_live_chat_meta(&dir, 0, None).expect("zero"));
+        assert_eq!(load_result(&dir).expect("load").tickets.member_count, 0);
+        assert!(apply_live_chat_meta(&dir, 7, Some("supergroup")).expect("set"));
+        let file = load_result(&dir).expect("reload");
+        assert_eq!(file.tickets.member_count, 7);
+        assert_eq!(file.tickets.chat_kind, "supergroup");
+        assert_eq!(squad_cap(&file), 7);
+        assert!(!apply_live_chat_meta(&dir, 7, Some("supergroup")).expect("same"));
+        assert!(!apply_live_chat_meta(&dir, 0, Some("nope")).expect("ignore"));
+        assert_eq!(load_result(&dir).expect("keep").tickets.member_count, 7);
     }
 
     #[test]

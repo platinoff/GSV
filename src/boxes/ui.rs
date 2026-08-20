@@ -1173,6 +1173,14 @@ pub fn render_telegram(d: &Value) -> String {
                     esc(&title)
                 },
             ],
+            vec!["members".into(), {
+                let n = u(&d["member_count"]);
+                if n == 0 {
+                    "<span class='dim'>—</span>".into()
+                } else {
+                    format!("<kbd>{}</kbd>", n)
+                }
+            }],
             vec![
                 "last probe".into(),
                 if probe.is_empty() {
@@ -2764,9 +2772,11 @@ mod tests {
             "channel_id": "-100",
             "polling": false,
             "dry_run": true,
-            "last_ticket_id": "t-174"
+            "last_ticket_id": "t-174",
+            "member_count": 3
         }));
         assert!(tg_ok.contains("t-174"), "{tg_ok}");
+        assert!(tg_ok.contains("<kbd>3</kbd>"), "{tg_ok}");
         assert!(tg_ok.contains("data-action='telegram-poll'"), "{tg_ok}");
         assert!(tg_ok.contains("gsv_telegram_decode"), "{tg_ok}");
         assert!(

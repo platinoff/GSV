@@ -1,9 +1,10 @@
 //! Godfather Telegram channel bind (band 167) + MCP bus (band 169) +
 //! ticket ingest (band 174) + inbound poll loop (band 179).
 //!
-//! On-demand `getMe` + `getChat`. Tests and `X-Telegram-Dry-Run: 1` use an
-//! in-process stub (no sockets). Live Bot API is enabled only from `gsv-server`
-//! / `gsv-mcp` via [`enable_live_api`]. Poller default off — no boot probe.
+//! On-demand `getMe` + `getChat` + `getChatMemberCount` (band **187** fills
+//! `tickets.member_count` / derived `squad_cap`). Tests and `X-Telegram-Dry-Run: 1`
+//! use an in-process stub (no sockets). Live Bot API is enabled only from
+//! `gsv-server` / `gsv-mcp` via [`enable_live_api`]. Poller default off — no boot probe.
 //! Band **179**: `gsv-server` runs [`spawn_poll_loop`] when live API is on;
 //! `getUpdates` classifies `/ticket` / hook / bus JSON. Offset persists in
 //! `data/telegram_offset.json` (gitignored). Cargo tests stay dry-run.
@@ -39,10 +40,15 @@ pub const DRY_RUN_ENV: &str = "GSV_TELEGRAM_DRY_RUN";
 
 const STUB_BOT: &str = "gsv_godfather_bot";
 const STUB_CHAT: &str = "GSV Godfather (dry-run)";
+/// Dry-run member count — distinct from bot-slot fallbacks (50 / 20).
+const STUB_MEMBERS: u64 = 3;
+const STUB_CHAT_KIND: &str = "channel";
 const API_ROOT: &str = "https://api.telegram.org";
+const MEMBER_REFRESH: Duration = Duration::from_secs(60);
 
 static LIVE_API: AtomicBool = AtomicBool::new(false);
 static POLL_LOOP: AtomicBool = AtomicBool::new(false);
+static LAST_MEMBER_REFRESH: Mutex<Option<Instant>> = Mutex::new(None);
 
 /// Durable getUpdates offset under `data/` (gitignored via `/data/*`).
 pub const OFFSET_FILE: &str = "telegram_offset.json";
@@ -151,9 +157,82 @@ fn stub_ok(channel_id: &str, polling: bool) -> Value {
         "token_set": true,
         "bot_username": STUB_BOT,
         "chat_title": STUB_CHAT,
+        "member_count": STUB_MEMBERS,
+        "chat_kind": STUB_CHAT_KIND,
         "last_probe": now_rfc3339(),
         "polling": polling,
     })
+}
+
+fn map_chat_kind(tg_type: &str) -> Option<&'static str> {
+    match tg_type {
+        "group" => Some("group"),
+        "supergroup" => Some("supergroup"),
+        "channel" => Some("channel"),
+        _ => None,
+    }
+}
+
+fn json_count(v: &Value) -> u64 {
+    v.as_u64()
+        .or_else(|| v.as_i64().and_then(|n| u64::try_from(n).ok()))
+        .unwrap_or(0)
+}
+
+fn persist_probe_meta(data_dir: &Path, v: &Value) {
+    if v.get("ok").and_then(Value::as_bool) != Some(true) {
+        return;
+    }
+    if v.get("dry_run").and_then(Value::as_bool) == Some(true) {
+        return;
+    }
+    let n = v.get("member_count").and_then(Value::as_u64).unwrap_or(0);
+    let kind = v.get("chat_kind").and_then(Value::as_str);
+    let _ = settings::apply_live_chat_meta(data_dir, n, kind);
+}
+
+async fn fetch_member_count(client: &reqwest::Client, token: &str, channel: &str) -> u64 {
+    let url = format!("{API_ROOT}/bot{token}/getChatMemberCount");
+    let resp = match client.get(&url).query(&[("chat_id", channel)]).send().await {
+        Ok(r) => r,
+        Err(_) => return 0,
+    };
+    let body = match resp.json::<Value>().await {
+        Ok(v) => v,
+        Err(_) => return 0,
+    };
+    if body.get("ok").and_then(Value::as_bool) != Some(true) {
+        return 0;
+    }
+    json_count(&body["result"])
+}
+
+fn should_refresh_members() -> bool {
+    let Ok(mut g) = LAST_MEMBER_REFRESH.lock() else {
+        return false;
+    };
+    if let Some(t) = *g {
+        if t.elapsed() < MEMBER_REFRESH {
+            return false;
+        }
+    }
+    *g = Some(Instant::now());
+    true
+}
+
+async fn refresh_members_throttled(data_dir: &Path, token: &str, channel: &str) {
+    if token.is_empty() || channel.is_empty() || !should_refresh_members() {
+        return;
+    }
+    let client = match reqwest::Client::builder()
+        .timeout(Duration::from_secs(3))
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    let n = fetch_member_count(&client, token, channel).await;
+    let _ = settings::apply_live_chat_meta(data_dir, n, None);
 }
 
 fn use_stub(explicit_dry_run: bool) -> bool {
@@ -166,6 +245,7 @@ pub async fn status(data_dir: &Path, dry_run: bool) -> Value {
         Ok(file) => status_loaded(&file, dry_run).await,
         Err(e) => fail(&e, "", false, false, use_stub(dry_run), ""),
     };
+    persist_probe_meta(data_dir, &v);
     merge_last_bus(&mut v);
     v
 }
@@ -296,6 +376,8 @@ async fn probe_live(token: &str, channel: &str, polling: bool) -> Value {
     } else {
         title.to_string()
     };
+    let chat_kind = map_chat_kind(chat_json["result"]["type"].as_str().unwrap_or(""));
+    let member_count = fetch_member_count(&client, token, channel).await;
     json!({
         "ok": true,
         "dry_run": false,
@@ -303,6 +385,8 @@ async fn probe_live(token: &str, channel: &str, polling: bool) -> Value {
         "token_set": true,
         "bot_username": bot_username,
         "chat_title": chat_title,
+        "member_count": member_count,
+        "chat_kind": chat_kind.unwrap_or(""),
         "last_probe": now_rfc3339(),
         "polling": polling,
     })
@@ -1268,6 +1352,9 @@ pub async fn poll_once(
         }
     }
     save_offset(data_dir, max_id);
+    if !dry && !token.is_empty() {
+        refresh_members_throttled(data_dir, &token, &channel).await;
+    }
     let n = n_bus + n_ticket + n_hook + n_skip;
     {
         let mut g = bus();
@@ -1796,6 +1883,12 @@ mod tests {
         assert!(!live_api_enabled());
         assert!(!boot_should_probe());
         assert!(!poll_loop_alive());
+        assert_eq!(map_chat_kind("channel"), Some("channel"));
+        assert_eq!(map_chat_kind("group"), Some("group"));
+        assert_eq!(map_chat_kind("supergroup"), Some("supergroup"));
+        assert_eq!(map_chat_kind("private"), None);
+        assert_eq!(json_count(&json!(3)), 3);
+        assert_eq!(json_count(&json!(-1)), 0);
     }
 
     #[test]

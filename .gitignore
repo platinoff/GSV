@@ -9,6 +9,9 @@
 /data/*
 !/data/.gitkeep
 
+# Runtime claim/event log (append-only, no secrets). The board is tickets.jsonl.
+/docs/gsv/ticket_claims.jsonl
+
 # Secrets
 .env
 .env.*

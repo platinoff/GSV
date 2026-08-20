@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-20 · band 187)
+
+- **Band 187:** live Godfather member_count. `getChatMemberCount` fills `tickets.member_count` / derived `squad_cap` (dry-run stub n=3 does not persist; poller ≥60s). Telegram card members row. `ticket_claims.jsonl` gitignored. `CARD_NAMES` **40**.
+- **Canon:** [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md) · [`gsv/GSV_SOLO_SQUAD_JAIL.md`](gsv/GSV_SOLO_SQUAD_JAIL.md).
+- **Next drain:** **owner pick** after a warnings-first scan.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.43%** (rust 36003 / product 36210) · **638** tests · clippy 0
+
 ## Стан (2026-08-20 · band 186 ✅)
 
 - **Band 186:** solo/squad/jail. `jail.id` · `squad_cap` = Godfather `member_count` · `bot_slot_cap` 50 channel / 20 group · join `env` on tickets · presence cap · `gsv://docs/solo-squad-jail` (**12** resources). Spec [`gsv/GSV_SOLO_SQUAD_JAIL.md`](gsv/GSV_SOLO_SQUAD_JAIL.md). `CARD_NAMES` **40**.

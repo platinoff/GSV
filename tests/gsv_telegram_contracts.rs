@@ -127,6 +127,16 @@ async fn dry_run_stub_returns_fake_bot_and_chat() {
     assert_eq!(w["polling"], false);
     assert_eq!(w["bot_username"], "gsv_godfather_bot");
     assert_eq!(w["chat_title"], "GSV Godfather (dry-run)");
+    assert_eq!(w["member_count"], 3);
+    assert_eq!(w["chat_kind"], "channel");
+    assert_eq!(
+        settings::load_result(&data)
+            .expect("settings")
+            .tickets
+            .member_count,
+        0,
+        "dry-run must not persist stub member_count"
+    );
     assert!(
         w["last_probe"].as_str().unwrap_or_default().len() > 8,
         "{w}"

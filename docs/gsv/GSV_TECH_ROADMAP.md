@@ -71,6 +71,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 184** (MCP session catalog lockstep) **✅** ·
 **band 185** (Cursor catalog restart lockstep) **✅** ·
 **band 186** (solo/squad/jail) **✅** ·
+**band 187** (live Godfather member_count) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -1392,6 +1393,23 @@ Owner pick: GSV update + security check; Git workflow research (worktrees / sequ
 | **PH-S2506** | Docs | SETTINGS / MCP_OPENBOT / SERVER / BOXES / HANDOFF / NEXT / MEMORY — **✅** |
 | **PH-S2507** | Tests | fmt · clippy · `cargo test` · `--stretch-96` — **✅** |
 | **PH-S2508** | Band close | `--band 186` + fingerprint; recopy live; one commit + push — **✅** |
+
+## Спринти (band 187) — live Godfather member_count ✅
+
+Owner pick (`абракадабра` gsv / continue): band 186 left `member_count` owner-set. Live Godfather was bound (`token_set`) but `member_count` stayed **0**, so `squad_cap` fell back to bot slots (50). Fill from Telegram `getChatMemberCount`. Runtime `ticket_claims.jsonl` dirtied git — gitignore it (board stays `tickets.jsonl`).
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2509** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2509`; `last_sprint_closed` = `PH-S2508` — **✅** |
+| **PH-S2510** | Probe | live `getChatMemberCount` + `getChat.type` on `GET /api/telegram` / `gsv_telegram` — **✅** |
+| **PH-S2511** | Stub | dry-run `member_count` **3** / `chat_kind` channel; **does not** persist — **✅** |
+| **PH-S2512** | Persist | live probe writes `tickets.member_count` (0 ignored); `squad_cap` follows unless override — **✅** |
+| **PH-S2513** | Poller | `poll_once` live refreshes members ≥60s — **✅** |
+| **PH-S2514** | Galaxy | Telegram card **members** row; `CARD_NAMES` **40** — **✅** |
+| **PH-S2515** | Hygiene | gitignore `docs/gsv/ticket_claims.jsonl` (runtime claims) — **✅** |
+| **PH-S2516** | MCP / drain | `gsv_telegram` + `gsv_drain` name Band 187 / `getChatMemberCount` — **✅** |
+| **PH-S2517** | Tests | fmt · clippy · `cargo test` · `--stretch-96` — **✅** |
+| **PH-S2518** | Band close | `--band 187` + fingerprint; recopy live; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

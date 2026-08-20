@@ -18,6 +18,7 @@
 //! does not invent the next step; MCP `gsv_tickets_next`.
 //! Band 186: jail id + squad_cap (channel members) + join `env` checklist;
 //! presence refuses a *new* worker when the squad is full.
+//! Band 187: live `getChatMemberCount` fills `member_count` (dry-run does not persist).
 
 use std::collections::HashMap;
 use std::fmt;
