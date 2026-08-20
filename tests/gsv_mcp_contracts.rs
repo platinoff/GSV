@@ -647,7 +647,7 @@ async fn logging_and_completion_over_http() {
     let values = complete["result"]["completion"]["values"]
         .as_array()
         .expect("values");
-    assert_eq!(values.len(), 8);
+    assert_eq!(values.len(), 9);
     assert!(values
         .iter()
         .all(|v| v.as_str().unwrap_or("").starts_with("gsv://docs/")));
@@ -660,6 +660,9 @@ async fn logging_and_completion_over_http() {
     assert!(values
         .iter()
         .any(|v| v.as_str() == Some("gsv://docs/settings-telegram")));
+    assert!(values
+        .iter()
+        .any(|v| v.as_str() == Some("gsv://docs/solo-squad-jail")));
 
     let (status, rejected) = mcp_post(
         &app,
@@ -1290,6 +1293,8 @@ async fn drain_prompt_names_always_on_tools() {
     assert!(text.contains("Band 173"), "{text}");
     assert!(text.contains("Band 174"), "{text}");
     assert!(text.contains("Band 185"), "{text}");
+    assert!(text.contains("Band 186"), "{text}");
+    assert!(text.contains("gsv://docs/solo-squad-jail"), "{text}");
     assert!(text.contains("catalog_stale"), "{text}");
     assert!(text.contains("restart Cursor"), "{text}");
     assert!(text.contains("lockstep-wait"), "{text}");

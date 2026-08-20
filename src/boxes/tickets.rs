@@ -16,6 +16,8 @@
 //! persist `docs/gsv/scenario_bench.json` (Godfather line + Galaxy + MCP).
 //! Band 183: A2A-style [`next_action`] inbox (`hint` → tool) so a squad MCP
 //! does not invent the next step; MCP `gsv_tickets_next`.
+//! Band 186: jail id + squad_cap (channel members) + join `env` checklist;
+//! presence refuses a *new* worker when the squad is full.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -29,6 +31,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use super::fingerprint;
+use super::products;
 use super::settings;
 
 /// Process-local MCP presence (heartbeat). Isolated per [`crate::AppState`].
@@ -505,6 +508,55 @@ pub fn heartbeat(store: &PresenceStore, who: &ClaimedBy) -> Vec<Presence> {
     online_now(store)
 }
 
+/// Heartbeat using the settings-derived squad cap.
+fn heartbeat_for_settings(
+    store: &PresenceStore,
+    who: &ClaimedBy,
+    file: &settings::SettingsFile,
+) -> (Vec<Presence>, bool) {
+    heartbeat_capped(store, who, settings::squad_cap(file))
+}
+
+/// Heartbeat unless this is a **new** worker and the squad is already full.
+pub fn heartbeat_capped(store: &PresenceStore, who: &ClaimedBy, cap: u64) -> (Vec<Presence>, bool) {
+    if cap == 0 {
+        return (heartbeat(store, who), true);
+    }
+    let incoming = Presence::from_who(who, unix_now());
+    let online = online_now(store);
+    let already = online.iter().any(|p| p.key() == incoming.key());
+    if !already && (online.len() as u64) >= cap {
+        return (online, false);
+    }
+    (heartbeat(store, who), true)
+}
+
+/// Join / environment checklist for a self-installed jail (never `bot_token`).
+pub fn join_env(repo_root: &Path, data_dir: &Path, presence: &PresenceStore) -> Value {
+    let file = settings::load_result(data_dir).unwrap_or_default();
+    let online = online_now(presence);
+    let cap = settings::squad_cap(&file);
+    let env_set = settings::env_token().is_some();
+    let file_set = !file.godfather.bot_token.trim().is_empty();
+    json!({
+        "ok": true,
+        "jail_id": settings::jail_id(&file),
+        "sandbox": products::display_path(repo_root),
+        "crate_version": env!("CARGO_PKG_VERSION"),
+        "loopback_mcp": "http://127.0.0.1:9999/mcp",
+        "token_set": env_set || file_set,
+        "channel_set": !file.godfather.channel_id.trim().is_empty(),
+        "mode": settings::ticket_mode(&file),
+        "squad_cap": cap,
+        "bot_slot_cap": settings::bot_slot_cap(&file),
+        "member_count": file.tickets.member_count,
+        "chat_kind": settings::chat_kind(&file),
+        "online": online.len() as u64,
+        "squad_full": (online.len() as u64) >= cap,
+        "hint": "Wire folder MCP to YOUR live gsv-server. Join the Godfather channel. Heartbeat presence. Do not share the Telegram token. Do not point MCP at a remote /mcp.",
+    })
+}
+
 /// Pick who gets the ticket. Solo = lexicographic first. Squad = `seed % n`.
 pub fn pick_assignee(mode: TicketMode, online: &[Presence], seed: u64) -> Option<&Presence> {
     if online.is_empty() {
@@ -649,6 +701,12 @@ pub fn wire_list_signaled(
     v["bench"] = wire_bench(repo_root);
     v["workflows"] = json!(file.workflows.enabled);
     v["next"] = json!(next);
+    v["jail_id"] = json!(settings::jail_id(&file));
+    v["squad_cap"] = json!(settings::squad_cap(&file));
+    v["bot_slot_cap"] = json!(settings::bot_slot_cap(&file));
+    v["member_count"] = json!(file.tickets.member_count);
+    v["chat_kind"] = json!(settings::chat_kind(&file));
+    v["env"] = join_env(repo_root, data_dir, presence);
     v
 }
 
@@ -812,12 +870,17 @@ pub fn wire_next(
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .unwrap_or(last_next);
-    let _ = heartbeat(presence, &who);
-    let _ = renew_leases(repo_root, data_dir, &who);
-    let action = next_action(repo_root, data_dir, Some(presence), &who, hint, next);
     let file = settings::load_result(data_dir).unwrap_or_default();
+    let (online, accepted) = heartbeat_for_settings(presence, &who, &file);
+    if accepted {
+        let _ = renew_leases(repo_root, data_dir, &who);
+    }
+    let action = next_action(repo_root, data_dir, Some(presence), &who, hint, next);
     json!({
         "ok": action.ok,
+        "accepted": accepted,
+        "squad_cap": settings::squad_cap(&file),
+        "online": online.len() as u64,
         "hint": action.hint,
         "tool": action.tool,
         "ticket_id": action.ticket_id,
@@ -1442,7 +1505,7 @@ fn set_status(
     write_tickets(&path, &tickets)?;
     append_event(repo_root, &updated.id, &who, step.kind, step.note)?;
     if let Some(store) = presence {
-        let _ = heartbeat(store, &who);
+        let _ = heartbeat_for_settings(store, &who, &file);
     }
     Ok(updated)
 }
@@ -1698,9 +1761,20 @@ pub fn wire_presence(
             who.agent = a.trim().to_string();
         }
     }
-    let online = heartbeat(presence, &who);
-    let _ = renew_leases(repo_root, data_dir, &who);
-    json!({ "ok": true, "online": online })
+    let file = settings::load_result(data_dir).unwrap_or_default();
+    let cap = settings::squad_cap(&file);
+    let (online, accepted) = heartbeat_capped(presence, &who, cap);
+    if accepted {
+        let _ = renew_leases(repo_root, data_dir, &who);
+    }
+    json!({
+        "ok": true,
+        "accepted": accepted,
+        "squad_cap": cap,
+        "jail_id": settings::jail_id(&file),
+        "online": online,
+        "error": if accepted { "" } else { "squad full" },
+    })
 }
 
 /// HTTP POST reclaim wire. Empty id → all stale. Else that `in_progress` row.
@@ -1757,7 +1831,7 @@ pub fn solo_walk(
         return Err(TicketError::Forbidden);
     }
     if let Some(store) = presence {
-        let _ = heartbeat(store, &who);
+        let _ = heartbeat_for_settings(store, &who, &file);
         let _ = renew_leases(repo_root, data_dir, &who);
     }
     let _ = reclaim_stale(repo_root, data_dir);
@@ -2065,6 +2139,32 @@ mod unit {
             "c"
         );
         assert!(pick_assignee(TicketMode::Squad, &[], 0).is_none());
+    }
+
+    #[test]
+    fn heartbeat_capped_rejects_new_when_full() {
+        let store = new_presence_store();
+        let a = ClaimedBy {
+            actor: "a".into(),
+            ide: "cursor".into(),
+            model: "m".into(),
+            agent: "one".into(),
+        };
+        let b = ClaimedBy {
+            actor: "b".into(),
+            ide: "cursor".into(),
+            model: "m".into(),
+            agent: "two".into(),
+        };
+        let (online, ok) = heartbeat_capped(&store, &a, 1);
+        assert!(ok, "{online:?}");
+        assert_eq!(online.len(), 1);
+        let (full, accepted) = heartbeat_capped(&store, &b, 1);
+        assert!(!accepted);
+        assert_eq!(full.len(), 1);
+        let (again, still) = heartbeat_capped(&store, &a, 1);
+        assert!(still);
+        assert_eq!(again.len(), 1);
     }
 
     #[test]

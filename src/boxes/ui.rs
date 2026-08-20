@@ -1017,6 +1017,11 @@ pub fn render_settings(d: &Value) -> String {
     let channel = s(&d["godfather"]["channel_id"]);
     let users = arr(&d["godfather"]["allowed_user_ids"]);
     let enabled = arr(&d["workflows"]["enabled"]);
+    let jail = s(&d["jail"]["id"]);
+    let squad_cap = u(&d["tickets"]["squad_cap"]);
+    let member_count = u(&d["tickets"]["member_count"]);
+    let chat_kind = s(&d["tickets"]["chat_kind"]);
+    let bot_slot = u(&d["tickets"]["bot_slot_cap"]);
     let empty = !token_set && channel.is_empty();
     let mut out = String::new();
     if empty {
@@ -1066,6 +1071,27 @@ pub fn render_settings(d: &Value) -> String {
                     esc(&wf_join)
                 },
             ],
+            vec![
+                "jail".into(),
+                format!(
+                    "<kbd>{}</kbd>",
+                    esc(if jail.is_empty() { "local" } else { &jail })
+                ),
+            ],
+            vec![
+                "squad cap".into(),
+                format!(
+                    "<kbd>{}</kbd> · {} n=<kbd>{}</kbd> · bots <kbd>{}</kbd>",
+                    squad_cap,
+                    esc(if chat_kind.is_empty() {
+                        "channel"
+                    } else {
+                        &chat_kind
+                    }),
+                    member_count,
+                    bot_slot
+                ),
+            ],
         ],
     ));
     let tok_ph = if token_set {
@@ -1079,11 +1105,19 @@ pub fn render_settings(d: &Value) -> String {
 <input id='setUsers' type='text' value='{}' placeholder='allowed user ids' aria-label='allowed Telegram user ids'>\
 <input id='setToken' type='password' value='' placeholder='{}' aria-label='Godfather bot token' autocomplete='off'>\
 <input id='setWorkflows' type='text' value='{}' placeholder='drain, ticket-claim' aria-label='co-workflow ids'>\
+<input id='setJail' type='text' value='{}' placeholder='jail id' aria-label='jail id'>\
+<input id='setChatKind' type='text' value='{}' placeholder='channel, group, or supergroup' aria-label='Godfather chat kind'>\
+<input id='setMemberCount' type='number' min='0' value='{}' placeholder='channel members' aria-label='Godfather member count'>\
+<input id='setSquadCap' type='number' min='0' value='{}' placeholder='0 = members' aria-label='squad cap override'>\
 <button type='button' data-action='settings-save'>Save</button>",
         esc(&channel),
         esc(&user_join),
         esc(tok_ph),
-        esc(&wf_join)
+        esc(&wf_join),
+        esc(if jail.is_empty() { "local" } else { &jail }),
+        esc(if chat_kind.is_empty() { "channel" } else { &chat_kind }),
+        member_count,
+        squad_cap
     ));
     out
 }
@@ -1283,11 +1317,27 @@ pub fn render_tickets(d: &Value) -> String {
             format!(" data-ticket-id='{}'", esc(&next_id))
         }
     ));
+    let jail_id = s(&d["jail_id"]);
+    let jail_bit = if jail_id.is_empty() {
+        "local"
+    } else {
+        jail_id.as_str()
+    };
     out.push_str(&format!(
-        "<div class='dim'>mode <kbd>{}</kbd> · online <kbd>{}</kbd></div>",
+        "<div class='dim'>mode <kbd>{}</kbd> · online <kbd>{}</kbd>/<kbd>{}</kbd> · jail <kbd>{}</kbd> · bots <kbd>{}</kbd></div>",
         esc(mode_bit),
-        online.len()
+        online.len(),
+        u(&d["squad_cap"]),
+        esc(jail_bit),
+        u(&d["bot_slot_cap"])
     ));
+    let env_hint = s(&d["env"]["hint"]);
+    if !env_hint.is_empty() {
+        out.push_str(&format!(
+            "<div class='dim'>join <kbd>{}</kbd></div>",
+            esc(&env_hint)
+        ));
+    }
     if tickets.is_empty() {
         out.push_str(&empty_html("tickets"));
     }
@@ -2688,7 +2738,9 @@ mod tests {
             "token_set": false,
             "source": "none",
             "godfather": { "channel_id": "", "allowed_user_ids": [] },
-            "workflows": { "enabled": [] }
+            "workflows": { "enabled": [] },
+            "jail": { "id": "local" },
+            "tickets": { "squad_cap": 50, "member_count": 0, "chat_kind": "channel", "bot_slot_cap": 50 }
         }));
         assert!(settings.contains("settings — no data"), "{settings}");
         assert!(
@@ -2740,6 +2792,7 @@ mod tests {
         assert!(tickets.contains("data-action='tickets-hook'"), "{tickets}");
         assert!(tickets.contains("data-action='tickets-bench'"), "{tickets}");
         assert!(tickets.contains("data-action='tickets-next'"), "{tickets}");
+        assert!(tickets.contains("jail"), "{tickets}");
         let next_row = render_tickets(&serde_json::json!({
             "ok": true,
             "tickets": [],

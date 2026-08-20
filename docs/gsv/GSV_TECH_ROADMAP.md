@@ -69,6 +69,8 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 182** (MCP-readable Godfather envelopes) **✅** ·
 **band 183** (squad next-action + MCP catalog lockstep) **✅** ·
 **band 184** (MCP session catalog lockstep) **✅** ·
+**band 185** (Cursor catalog restart lockstep) **✅** ·
+**band 186** (solo/squad/jail) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -1373,6 +1375,23 @@ Owner pick (`абракадабра` gsv): Cursor agent **Оновити** still
 | **PH-S2496** | Docs | SETTINGS / MCP_OPENBOT / SERVER / BOXES / HANDOFF / NEXT / MEMORY — **✅** |
 | **PH-S2497** | Tests | fmt · clippy · `cargo test` · `--stretch-96` — **✅** |
 | **PH-S2498** | Band close | `--band 185` + fingerprint; recopy live; one commit + push — **✅** |
+
+## Спринти (band 186) — solo / squad / jail ✅
+
+Owner pick: GSV update + security check; Git workflow research (worktrees / sequential merge); federated join of a self-installed `gsv-server` MCP; host bot-admin vs own channel; squad cap = channel members; apps built inside a per-jail MCP sandbox. Spec: [`GSV_SOLO_SQUAD_JAIL.md`](./GSV_SOLO_SQUAD_JAIL.md).
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2499** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2499`; `last_sprint_closed` = `PH-S2498` — **✅** |
+| **PH-S2500** | Research | Git worktrees; Telegram 20/50/200k; no remote `/mcp` join — **✅** |
+| **PH-S2501** | Settings | `jail.id` · `squad_cap` / `member_count` / `chat_kind` · redacted wire — **✅** |
+| **PH-S2502** | Presence | `heartbeat_capped`; join `env` on tickets wire — **✅** |
+| **PH-S2503** | Galaxy | settings jail/cap inputs; tickets `online/cap`; `saveSettings` glue — **✅** |
+| **PH-S2504** | MCP | `gsv://docs/solo-squad-jail`; drain Band 186; **12** resources — **✅** |
+| **PH-S2505** | Scenarios | `federated-join` · `own-channel` · `jail-app` — **✅** |
+| **PH-S2506** | Docs | SETTINGS / MCP_OPENBOT / SERVER / BOXES / HANDOFF / NEXT / MEMORY — **✅** |
+| **PH-S2507** | Tests | fmt · clippy · `cargo test` · `--stretch-96` — **✅** |
+| **PH-S2508** | Band close | `--band 186` + fingerprint; recopy live; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

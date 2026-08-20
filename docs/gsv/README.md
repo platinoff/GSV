@@ -12,15 +12,16 @@
 | [`GSV_SERVER.md`](./GSV_SERVER.md) | **exe/bin сервер** «Galaxy StarWalker Vision»: endpoints, update-повідомлення, offline-стійкість, metrics resync |
 | [`GSV_BOXES.md`](./GSV_BOXES.md) | **Специфікація боксів**: Tracker · SLI console · Toolchain · IDE · Update · Box preview · SLI terminal · Rust tests/benchmarks hook |
 | [`GSV_MIGRATION.md`](./GSV_MIGRATION.md) | Міграція з `GSV/docs/vision/` + `src/` у GSV: що переносимо, що лишається, як |
-| [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) | **TechPreroadMap**: логічний порядок → sprints (bands 143–**184 ✅**; next = owner pick) |
+| [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) | **TechPreroadMap**: логічний порядок → sprints (bands 143–**186 ✅**; next = owner pick) |
 | [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md) | Always-on live binary, chrome bugs, products, version/fingerprints (spec, **143–150 ✅**) |
 | [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md) | After always-on: MCP catch-up (**band 151–165 ✅**) |
 | [`GSV_VDT_KIT.md`](./GSV_VDT_KIT.md) | GSV як точка входу: shared rules/skills vs product canon (Accepted, band 127) |
 | [`GSV_RUST_DEV.md`](./GSV_RUST_DEV.md) | Rust-first tests/benches/scripts (`cargo xtask`; band **153 ✅**) |
 | [`GSV_OMNI_CATALOG.md`](./GSV_OMNI_CATALOG.md) | Shared OmniRouter / Cursor / OpenCode / Grok models + free timers (band **157**) |
 | [`PRODUCTS.md`](./PRODUCTS.md) | Enrichment-реєстр; discover = `cargo xtask products` |
-| [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) | MCP `gsv_mcp_openbot` (band 135–**171 ✅**) |
-| [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md) | Settings + Godfather + tickets + MCP Telegram bus (**bands 166–171 ✅**) |
+| [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md) | MCP `gsv_mcp_openbot` (band 135–**186 ✅**) |
+| [`GSV_SETTINGS_TELEGRAM.md`](./GSV_SETTINGS_TELEGRAM.md) | Settings + Godfather + tickets + MCP Telegram bus (**bands 166–186 ✅**) |
+| [`GSV_SOLO_SQUAD_JAIL.md`](./GSV_SOLO_SQUAD_JAIL.md) | Solo vs squad vs federated jail join (band **186 ✅**) |
 | [`../GSV/docs/GSV_ROLES.md`](../GSV_ROLES.md) | Ролі GSV VDT + канон сесії + Rust ratio gate (band 108) |
 
 ## Зв’язок з PoolAI docs

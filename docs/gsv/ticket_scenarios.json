@@ -108,6 +108,27 @@
       "body": "run mcp bot hook up scenario <id|band N|plan stem> [walk]. Parses GSV_TECH_ROADMAP.md PH-S* rows or superpowers plan checkboxes into ≤10 board rows. MCP gsv_tickets_hook.",
       "workflow": "ticket-claim",
       "product": "gsv"
+    },
+    {
+      "id": "federated-join",
+      "title": "Join a squad with your own GSV jail",
+      "body": "Install gsv-server locally. Wire folder MCP to http://127.0.0.1:9999/mcp (never User MCP, never a remote /mcp). Join the host Godfather channel as a human. Heartbeat gsv_tickets_presence. Do not paste the Telegram token. Shared host bot uses from=jail_id; optional own bot consumes a Telegram admin slot.",
+      "workflow": "ticket-squad",
+      "product": "gsv"
+    },
+    {
+      "id": "own-channel",
+      "title": "Host your own Godfather channel",
+      "body": "Create a Telegram channel, add a BotFather bot as admin, invite humans. Squad MCP cap = member_count. BotFather bot slots = 50 channel admins or 20 group bots. Extra jails share this bot via from=jail_id. GitHub Flow: branch per ticket, sequential PR merge.",
+      "workflow": "ticket-squad",
+      "product": "gsv"
+    },
+    {
+      "id": "jail-app",
+      "title": "Build an app inside the GSV jail",
+      "body": "Solo or squad: product code stays in this crate sandbox (preview confine, SLI allowlist, no User MCP). Git: solo = one commit on main at drain close; squad = one worktree/branch per jail, sequential merge. Ticket board is A2A; git is the merge queue.",
+      "workflow": "ticket-claim",
+      "product": "gsv"
     }
   ]
 }

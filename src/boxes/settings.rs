@@ -1,9 +1,10 @@
 //! GSV settings + Godfather secret store (band 166).
 //!
-//! Public fields (channel id, co-workflows, `token_set`) vs secrets (`bot_token`).
-//! Disk: `data/gsv_settings.json` (gitignored). Env `GSV_TELEGRAM_BOT_TOKEN` wins
-//! over the file and is never written back unless the owner POSTs a token.
-//! HTTP/MCP wires omit `bot_token`. Telegram probe is `boxes/telegram` (band 167).
+//! Public fields (channel id, co-workflows, `token_set`, jail/squad caps) vs
+//! secrets (`bot_token`). Disk: `data/gsv_settings.json` (gitignored). Env
+//! `GSV_TELEGRAM_BOT_TOKEN` wins over the file and is never written back unless
+//! the owner POSTs a token. HTTP/MCP wires omit `bot_token`. Telegram probe is
+//! `boxes/telegram` (band 167). Jail / squad cap: band 186.
 
 use std::fmt;
 use std::fs;
@@ -88,9 +89,19 @@ pub const DEFAULT_TICKET_LEASE_SECS: u64 = 300;
 pub const MIN_TICKET_LEASE_SECS: u64 = 60;
 /// Cap for owner-configured lease.
 pub const MAX_TICKET_LEASE_SECS: u64 = 3600;
+/// Telegram group/supergroup bot ceiling (published limits, 2026).
+pub const TG_GROUP_BOTS_MAX: u64 = 20;
+/// Telegram channel admin ceiling including bots.
+pub const TG_CHANNEL_ADMINS_MAX: u64 = 50;
+/// Absolute MCP squad-worker clamp (Telegram supergroup membership ceiling).
+pub const SQUAD_CAP_HARD_MAX: u64 = 200_000;
 
 fn default_lease_secs() -> u64 {
     DEFAULT_TICKET_LEASE_SECS
+}
+
+fn default_chat_kind() -> String {
+    "channel".to_string()
 }
 
 /// Ticket collaboration mode (`solo` | `squad`). Default solo.
@@ -101,6 +112,15 @@ pub struct TicketsSettings {
     /// `in_progress` lease length. 0 / missing → [`DEFAULT_TICKET_LEASE_SECS`].
     #[serde(default = "default_lease_secs")]
     pub lease_secs: u64,
+    /// Owner override for MCP jail workers. `0` → derive from `member_count` / bot slots.
+    #[serde(default)]
+    pub squad_cap: u64,
+    /// Godfather chat member/subscriber count (owner-set in band 186; not a secret).
+    #[serde(default)]
+    pub member_count: u64,
+    /// `channel` | `group` | `supergroup`.
+    #[serde(default = "default_chat_kind")]
+    pub chat_kind: String,
 }
 
 impl Default for TicketsSettings {
@@ -108,8 +128,18 @@ impl Default for TicketsSettings {
         Self {
             mode: default_ticket_mode(),
             lease_secs: default_lease_secs(),
+            squad_cap: 0,
+            member_count: 0,
+            chat_kind: default_chat_kind(),
         }
     }
+}
+
+/// Public jail nickname. Empty on disk → wire `local`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct JailSettings {
+    #[serde(default)]
+    pub id: String,
 }
 
 /// Effective lease length, clamped.
@@ -129,6 +159,49 @@ pub fn ticket_mode(file: &SettingsFile) -> &'static str {
     } else {
         "solo"
     }
+}
+
+/// Jail id for wires (`local` when unset).
+pub fn jail_id(file: &SettingsFile) -> String {
+    let id = file.jail.id.trim();
+    if id.is_empty() {
+        "local".to_string()
+    } else {
+        id.to_string()
+    }
+}
+
+/// Normalized Godfather chat kind.
+pub fn chat_kind(file: &SettingsFile) -> &str {
+    match file.tickets.chat_kind.trim().to_ascii_lowercase().as_str() {
+        "group" => "group",
+        "supergroup" => "supergroup",
+        _ => "channel",
+    }
+}
+
+/// Telegram BotFather bot/admin slots for this chat kind.
+pub fn bot_slot_cap(file: &SettingsFile) -> u64 {
+    match chat_kind(file) {
+        "group" | "supergroup" => TG_GROUP_BOTS_MAX,
+        _ => TG_CHANNEL_ADMINS_MAX,
+    }
+}
+
+/// MCP jail-worker cap: owner policy = channel users (`member_count`).
+pub fn squad_cap(file: &SettingsFile) -> u64 {
+    let raw = if file.tickets.squad_cap > 0 {
+        file.tickets.squad_cap
+    } else if file.tickets.member_count > 0 {
+        file.tickets.member_count
+    } else {
+        bot_slot_cap(file)
+    };
+    raw.clamp(1, SQUAD_CAP_HARD_MAX)
+}
+
+fn clamp_count(n: u64) -> u64 {
+    n.min(SQUAD_CAP_HARD_MAX)
 }
 
 fn default_redact() -> bool {
@@ -159,6 +232,8 @@ pub struct SettingsFile {
     pub security: Security,
     #[serde(default)]
     pub tickets: TicketsSettings,
+    #[serde(default)]
+    pub jail: JailSettings,
 }
 
 /// `{data_dir}/gsv_settings.json`.
@@ -247,6 +322,23 @@ pub fn apply_patch(file: &mut SettingsFile, patch: &Value) {
                 secs.clamp(MIN_TICKET_LEASE_SECS, MAX_TICKET_LEASE_SECS)
             };
         }
+        if let Some(cap) = tix.get("squad_cap").and_then(Value::as_u64) {
+            file.tickets.squad_cap = clamp_count(cap);
+        }
+        if let Some(n) = tix.get("member_count").and_then(Value::as_u64) {
+            file.tickets.member_count = clamp_count(n);
+        }
+        if let Some(kind) = tix.get("chat_kind").and_then(Value::as_str) {
+            let k = kind.trim().to_ascii_lowercase();
+            if k == "channel" || k == "group" || k == "supergroup" {
+                file.tickets.chat_kind = k;
+            }
+        }
+    }
+    if let Some(jail) = patch.get("jail") {
+        if let Some(id) = jail.get("id").and_then(Value::as_str) {
+            file.jail.id = id.trim().to_string();
+        }
     }
 }
 
@@ -275,7 +367,12 @@ pub fn redacted_wire(file: &SettingsFile, env: Option<&str>) -> Value {
         "tickets": {
             "mode": file.tickets.mode,
             "lease_secs": ticket_lease_secs(file),
+            "squad_cap": squad_cap(file),
+            "member_count": file.tickets.member_count,
+            "chat_kind": chat_kind(file),
+            "bot_slot_cap": bot_slot_cap(file),
         },
+        "jail": { "id": jail_id(file) },
     })
 }
 
@@ -442,6 +539,38 @@ mod tests {
         assert_eq!(file.tickets.lease_secs, MIN_TICKET_LEASE_SECS);
         apply_patch(&mut file, &json!({ "tickets": { "lease_secs": 900 } }));
         assert_eq!(ticket_lease_secs(&file), 900);
+        apply_patch(
+            &mut file,
+            &json!({
+                "jail": { "id": " alice " },
+                "tickets": {
+                    "squad_cap": 0,
+                    "member_count": 12,
+                    "chat_kind": "channel"
+                }
+            }),
+        );
+        assert_eq!(jail_id(&file), "alice");
+        assert_eq!(squad_cap(&file), 12);
+        assert_eq!(bot_slot_cap(&file), TG_CHANNEL_ADMINS_MAX);
+        apply_patch(
+            &mut file,
+            &json!({ "tickets": { "chat_kind": "group", "member_count": 0, "squad_cap": 0 } }),
+        );
+        assert_eq!(bot_slot_cap(&file), TG_GROUP_BOTS_MAX);
+        assert_eq!(squad_cap(&file), TG_GROUP_BOTS_MAX);
+    }
+
+    #[test]
+    fn empty_jail_id_wires_local() {
+        let file = SettingsFile::default();
+        assert_eq!(jail_id(&file), "local");
+        assert_eq!(chat_kind(&file), "channel");
+        assert_eq!(squad_cap(&file), TG_CHANNEL_ADMINS_MAX);
+        let w = redacted_wire(&file, None);
+        assert_eq!(w["jail"]["id"], "local");
+        assert_eq!(w["tickets"]["bot_slot_cap"], TG_CHANNEL_ADMINS_MAX);
+        assert!(!json_has_bot_token(&w), "{w}");
     }
 
     #[test]

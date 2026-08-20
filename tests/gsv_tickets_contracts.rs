@@ -1349,3 +1349,87 @@ async fn next_action_http_and_mcp() {
     assert!(text.contains("claim-next"), "{text}");
     assert!(text.contains("gsv_tickets_claim"), "{text}");
 }
+
+#[test]
+fn join_env_and_presence_honor_squad_cap() {
+    let kit = temp_kit("jail-cap");
+    let data = kit.join("data");
+    settings::save(
+        &data,
+        &settings::SettingsFile {
+            jail: settings::JailSettings { id: "alice".into() },
+            tickets: settings::TicketsSettings {
+                mode: "squad".into(),
+                squad_cap: 1,
+                member_count: 1,
+                chat_kind: "channel".into(),
+                ..Default::default()
+            },
+            workflows: settings::Workflows {
+                enabled: vec!["ticket-claim".into(), "ticket-squad".into()],
+            },
+            ..Default::default()
+        },
+    )
+    .expect("save");
+    let store = tickets::new_presence_store();
+    let env = tickets::join_env(&kit, &data, &store);
+    assert_eq!(env["jail_id"], "alice");
+    assert_eq!(env["squad_cap"], 1);
+    assert_eq!(env["bot_slot_cap"], settings::TG_CHANNEL_ADMINS_MAX);
+    assert_eq!(env["loopback_mcp"], "http://127.0.0.1:9999/mcp");
+    assert!(
+        env["hint"]
+            .as_str()
+            .unwrap_or("")
+            .contains("Telegram token"),
+        "{env}"
+    );
+    assert!(!env.to_string().contains("bot_token"), "{env}");
+    let first = tickets::wire_presence(
+        &kit,
+        &data,
+        &store,
+        &json!({ "actor": "a", "ide": "cursor", "agent": "one" }),
+    );
+    assert_eq!(first["ok"], true);
+    assert_eq!(first["accepted"], true);
+    let second = tickets::wire_presence(
+        &kit,
+        &data,
+        &store,
+        &json!({ "actor": "b", "ide": "cursor", "agent": "two" }),
+    );
+    assert_eq!(second["ok"], true);
+    assert_eq!(second["accepted"], false);
+    assert_eq!(second["error"], "squad full");
+    let listed = tickets::wire_list(&kit, &data, &store);
+    assert_eq!(listed["jail_id"], "alice");
+    assert_eq!(listed["env"]["squad_full"], true);
+    let nxt = tickets::wire_next(
+        &kit,
+        &data,
+        &store,
+        &json!({ "actor": "c", "ide": "cursor", "agent": "three" }),
+        "",
+        "",
+    );
+    assert_eq!(nxt["accepted"], false);
+    assert_eq!(nxt["online"], 1);
+}
+
+#[test]
+fn galaxy_glue_saves_jail_and_squad_cap() {
+    assert!(
+        gsv::server::INDEX_HTML.contains("setJail"),
+        "settings jail input glue"
+    );
+    assert!(
+        gsv::server::INDEX_HTML.contains("setSquadCap"),
+        "settings squad cap glue"
+    );
+    assert!(
+        gsv::server::INDEX_HTML.contains("setMemberCount"),
+        "settings member count glue"
+    );
+}

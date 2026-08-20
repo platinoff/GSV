@@ -1,9 +1,9 @@
 # GSV settings, Telegram Godfather, tickets, MCP bot bus
 
-**Status:** Bands **166–185 ✅** (Telegram Godfather through Cursor catalog restart lockstep). Latest: **185** `catalog_stale` / Galaxy **restart Cursor** (agent refresh does not re-list). **184** JSON POST keeps `tools/list_changed` for the SSE hold · `listed_tool_count`. **183** `gsv_tickets_next` + MCP `tools/list_changed`. **182** dual session line + JSON `data` / Galaxy MCP signal / `gsv_telegram_decode`. **180–181** are watchdog/health (roadmap). **Next drain:** owner pick after a warnings-first scan.  
+**Status:** Bands **166–186 ✅** (Telegram Godfather through solo/squad/jail). Latest: **186** jail identity + `squad_cap` = channel members + join `env`. **185** `catalog_stale` / Galaxy **restart Cursor** (agent refresh does not re-list). **184** JSON POST keeps `tools/list_changed` for the SSE hold · `listed_tool_count`. **183** `gsv_tickets_next` + MCP `tools/list_changed`. **182** dual session line + JSON `data` / Galaxy MCP signal / `gsv_telegram_decode`. **180–181** are watchdog/health (roadmap). **Next drain:** owner pick after a warnings-first scan.  
 **Date:** 2026-08-20  
 **Deciders:** owner  
-**Owner ask:** GSV settings; Telegram channels; MCP bots talk to each other through a Telegram tunnel; a ticket board for people who want to join; MCP claims tickets and marks `in_progress` the same way fingerprints sync; server settings hold **Godfather** data (which channel, how secrets are stored, co-workflows). Next session starts with `абракадабра`.
+**Owner ask:** GSV settings; Telegram channels; MCP bots talk to each other through a Telegram tunnel; a ticket board for people who want to join; MCP claims tickets and marks `in_progress` the same way fingerprints sync; server settings hold **Godfather** data (which channel, how secrets are stored, co-workflows). Federated join / jail: [`GSV_SOLO_SQUAD_JAIL.md`](./GSV_SOLO_SQUAD_JAIL.md). Next session starts with `абракадабра`.
 
 **Plan:** [`docs/superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md`](../superpowers/plans/2026-08-19-gsv-settings-telegram-tickets.md)  
 **Roadmap:** bands **166–169** in [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md)
@@ -19,7 +19,7 @@ Cost of leaving it: the next drain invents a one-off Telegram script, leaks a bo
 1. Owner configures GSV on the live Galaxy **Settings** card (Godfather channel, co-workflows, secret policy) without putting tokens in git.
 2. Joiners see a **ticket board**; MCP bots **claim** a ticket, mark `in_progress`, and leave a fingerprint-class row (actor / IDE / model / time).
 3. Two (or more) `gsv_mcp_openbot` clients can exchange short control messages over a **Telegram channel bus** once Godfather is bound — not a public Cloudflare hop.
-4. Band **185** is landed: Cursor catalog restart lockstep (`catalog_stale`; Galaxy **restart Cursor** — agent refresh does not re-list tools). Band **184** is landed: MCP session catalog lockstep (JSON `POST /mcp` keeps `notifications/tools/list_changed` for Cursor's GET hold). Band **183** is landed: squad next-action (`gsv_tickets_next`) + MCP `notifications/tools/list_changed`. Bands **166–185** are landed. Next drain: owner pick after a warnings-first scan.
+4. Band **186** is landed: solo/squad/jail (`jail.id`; `squad_cap` = Godfather `member_count`; join `env`; presence cap; `gsv://docs/solo-squad-jail`). Band **185** is landed: Cursor catalog restart lockstep (`catalog_stale`; Galaxy **restart Cursor** — agent refresh does not re-list tools). Band **184** is landed: MCP session catalog lockstep (JSON `POST /mcp` keeps `notifications/tools/list_changed` for Cursor's GET hold). Band **183** is landed: squad next-action (`gsv_tickets_next`) + MCP `notifications/tools/list_changed`. Bands **166–186** are landed. Next drain: owner pick after a warnings-first scan.
 5. Ratio stays `gsv-loc-audit --stretch-96` ≥ 96%. No Python. Secrets never in MCP/HTTP JSON.
 
 ## Non-goals
@@ -241,6 +241,19 @@ Owner pick (`абракадабра` gsv): Cursor agent **Оновити** still
 | Galaxy | MCP card `<span class='warn'>restart Cursor</span>`. `CARD_NAMES` **40**. |
 | Health | `gsv_health` includes `catalog_stale` / `catalog_hint` / `listed_tool_count`. |
 
+### P2 — Should (band 186) — solo/squad/jail + federated join ✅
+
+Owner pick: update + security check; Git worktree research; a joiner who installed GSV must connect **their** MCP to a squad without sharing `bot_token` or pointing at a remote `/mcp`. Spec: [`GSV_SOLO_SQUAD_JAIL.md`](./GSV_SOLO_SQUAD_JAIL.md).
+
+| Piece | Acceptance |
+|-------|------------|
+| Jail | Settings `jail.id` (empty → `local`). Redacted GET/MCP. |
+| Cap | `tickets.squad_cap` `0` → `member_count` else `bot_slot_cap` (50 channel / 20 group). Hard clamp 200 000. |
+| Presence | New worker refused when `online >= squad_cap`. Holder renews. |
+| Env | `GET /api/tickets` `env` (loopback MCP, sandbox, caps). MCP `gsv_tickets`. |
+| Scenarios | `federated-join` · `own-channel` · `jail-app`. |
+| Resource | `gsv://docs/solo-squad-jail` → **12** resources. **55** tools. `CARD_NAMES` **40**. |
+
 ## Security (how we store)
 
 | Layer | Rule |
@@ -280,6 +293,7 @@ Unknown ids in the file are kept but ignored (forward compatible).
 - Band 183: `POST /api/tickets/next` + MCP `gsv_tickets_next` returns `hint`/`tool`/`ticket_id`; `initialize` advertises `tools.listChanged`; `notifications/initialized` emits `notifications/tools/list_changed`; `--stretch-96` ≥ 96%.
 - Band 184: JSON `POST /mcp` keeps the notification queue; session GET SSE hold emits `tools/list_changed`; GET `/mcp` `listed_tool_count` / `catalog_notify`; `--stretch-96` ≥ 96%.
 - Band 185: GET `/mcp` `catalog_stale` / `catalog_hint` when a session exists but `tools/list` is missing or short; Galaxy MCP card `restart Cursor`; agent refresh is not enough; `--stretch-96` ≥ 96%.
+- Band 186: jail id + `squad_cap` = member_count; presence `accepted`; tickets `env`; resource `gsv://docs/solo-squad-jail`; `--stretch-96` ≥ 96%.
 
 ## Open questions (non-blocking)
 
@@ -308,6 +322,7 @@ Unknown ids in the file are kept but ignored (forward compatible).
 | **183** | S2469–S2478 | Squad next-action (`gsv_tickets_next`) + MCP `tools/list_changed` | **✅ this drain** |
 | **184** | S2479–S2488 | MCP session catalog lockstep (JSON POST keep-queue + SSE hold notify) | **✅ this drain** |
 | **185** | S2489–S2498 | Cursor catalog restart lockstep (`catalog_stale` · restart Cursor, not agent refresh) | **✅ this drain** |
+| **186** | S2499–S2508 | Solo/squad/jail (`jail.id` · squad_cap = members · join env) | **✅ this drain** |
 
 Next drain: **owner pick** after a warnings-first scan.
 

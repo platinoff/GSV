@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-20 · band 186 ✅)
+
+- **Band 186:** solo/squad/jail. `jail.id` · `squad_cap` = Godfather `member_count` · `bot_slot_cap` 50 channel / 20 group · join `env` on tickets · presence cap · `gsv://docs/solo-squad-jail` (**12** resources). Spec [`gsv/GSV_SOLO_SQUAD_JAIL.md`](gsv/GSV_SOLO_SQUAD_JAIL.md). `CARD_NAMES` **40**.
+- **Canon:** [`gsv/GSV_SOLO_SQUAD_JAIL.md`](gsv/GSV_SOLO_SQUAD_JAIL.md) · [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md).
+- **Next drain:** **owner pick** after a warnings-first scan.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.43%** (rust 35847 / product 36054) · **637** tests · clippy 0
+
 ## Стан (2026-08-20 · band 185 ✅)
 
 - **Band 185:** Cursor catalog restart lockstep. GET `/mcp` `catalog_stale` / `catalog_hint` when a session exists but `tools/list` never ran (or listed ≠ tool_count) · Galaxy MCP card **restart Cursor** · `gsv_health` same fields. Agent refresh only resubscribes resources. `CARD_NAMES` **40**.

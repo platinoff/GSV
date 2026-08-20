@@ -51,12 +51,12 @@
 | POST | `/api/telegram/ticket` | Ingest a Godfather message as a ticket (`{from,body,product?}`; `/ticket` or `{kind:ticket}`). Solo MCP auto-claims when online. Requires `telegram-relay` + `ticket-claim`. CSRF; never `bot_token`. |
 | POST | `/api/telegram/poll` | One inbound `getUpdates` pass (`ticket`/`hook`/`bus`/`skip` counts). CSRF; dry-run stub queue in tests. Requires `godfather.poll` or `telegram-relay`. Never `bot_token`. |
 | POST | `/api/telegram/decode` | Parse `{text}` into a GSV envelope (`hint`/`next`/`data`). CSRF. Never `bot_token`. No telegram-relay gate. |
-| GET | `/api/tickets` | Ticket board (`ok`, `tickets[]`, `mode`, `lease_secs`, `online`, `scenarios`, `events`; missing JSONL empty-ok; expired WIP auto-reclaimed) |
+| GET | `/api/tickets` | Ticket board (`ok`, `tickets[]`, `mode`, `lease_secs`, `online`, `scenarios`, `events`, `jail_id`, `squad_cap`, `bot_slot_cap`, `member_count`, `chat_kind`, `env`; missing JSONL empty-ok; expired WIP auto-reclaimed) |
 | POST | `/api/tickets` | create `{title,body?,product?}` or `{scenario_id}` (loopback CSRF); registered product only; may auto-assign |
 | POST | `/api/tickets/claim` | `{id}` → `open`→`in_progress` + `claimed_by` + append `docs/gsv/ticket_claims.jsonl`; unknown id → 404; `ticket-claim` off → 403 |
 | POST | `/api/tickets/done` | `{id,note?}` → `in_progress`→`done` + event `kind:done` |
 | POST | `/api/tickets/error` | `{id,note?}` → `in_progress`→`blocked` + event `kind:error` |
-| POST | `/api/tickets/presence` | heartbeat `{actor?,ide?,model?,agent?}` → `{ok,online}` + renew this worker's WIP leases |
+| POST | `/api/tickets/presence` | heartbeat `{actor?,ide?,model?,agent?}` → `{ok,accepted,squad_cap,online}`; new worker refused when squad full; renews this worker's WIP leases |
 | POST | `/api/tickets/reclaim` | `{id?}` stale/explicit `in_progress` → `open` + event `kind:reclaimed`; empty id = all expired; CSRF; `ticket-claim` off → 403 |
 | POST | `/api/tickets/walk` | Walk `{scenario_id?,create?,from?}`: claim/assign→done + Godfather dual session line + JSON `data` (`hint`/`next`/`disk`/`crate`). Live `sendMessage` 1/s; tests dry-run. Requires `ticket-claim` + `telegram-relay`. CSRF. |
 | POST | `/api/tickets/hook` | Hook `{phrase?|source+id,walk?,from?}`: place ≤10 tickets from catalog / roadmap band / superpowers plan. Phrase `run mcp bot hook up scenario …`. CSRF. |
