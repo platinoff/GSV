@@ -1483,6 +1483,23 @@ Owner pick: check syncs; max adaptability for solo/squad/automations/workflows; 
 | **PH-S2557** | Tests | fmt · clippy · `cargo test` · `--stretch-96` — **✅** |
 | **PH-S2558** | Band close | `--band 191` + fingerprint; recopy live; one commit + push — **✅** |
 
+## Спринти (band 192) — ranks + no console flash
+
+Owner pick: CMD windows flashing again; research a rewards/rank system like games; channel bot admin = marshal-orchestrator; jun-nub = L0; mix IT + army titles; floor 0; +1 per done ticket; −1 if tests fail after commit (fingerprint + Telegram id).
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2559** | Scope | this band; hide git console; GET update uses cache; ranks L0–L15 — **✅** |
+| **PH-S2560** | Research | UA/NATO + IT career mix; host display marshal-orchestrator ≠ earned cap — **✅** |
+| **PH-S2561** | Flash | `github.rs` `vision::command(git)`; `xtask live` `hide_console`; `/api/update` refresh only `?check=true` — **✅** |
+| **PH-S2562** | Ranks box | `boxes/ranks.rs` ladder; `data/gsv_ranks.json`; floor 0 / cap 15 — **✅** |
+| **PH-S2563** | Tickets | `done` +1; `error` −1; failed `cargo test` once per `git_head` — **✅** |
+| **PH-S2564** | Galaxy / MCP | card `ranks`; `GET`/`POST /api/ranks`; `gsv_ranks`; resource `gsv://docs/ranks` — **✅** |
+| **PH-S2565** | Scenarios | `rank-ladder` — **✅** |
+| **PH-S2566** | Docs | RANKS / BOXES / SERVER / HANDOFF / NEXT / MEMORY — **✅** |
+| **PH-S2567** | Tests | fmt · clippy · `cargo test` · `--stretch-96` — **✅** |
+| **PH-S2568** | Band close | `--band 192` + fingerprint; recopy live; one commit + push — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

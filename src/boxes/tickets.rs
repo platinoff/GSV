@@ -36,6 +36,7 @@ use serde_json::{json, Value};
 use super::fingerprint;
 use super::github;
 use super::products;
+use super::ranks;
 use super::settings;
 
 /// Process-local MCP presence (heartbeat). Isolated per [`crate::AppState`].
@@ -1619,7 +1620,10 @@ pub fn done(
     note: &str,
     presence: Option<&PresenceStore>,
 ) -> Result<Ticket, TicketError> {
-    set_status(
+    let actor = who.actor.clone();
+    let ide = who.ide.clone();
+    let agent = who.agent.clone();
+    let t = set_status(
         repo_root,
         data_dir,
         id,
@@ -1631,7 +1635,17 @@ pub fn done(
             note,
         },
         presence,
-    )
+    )?;
+    ranks::on_ticket_done(
+        data_dir,
+        &actor,
+        &ide,
+        &agent,
+        &ranks::telegram_from(None),
+        &t.id,
+        note,
+    );
+    Ok(t)
 }
 
 /// `in_progress` → `blocked` (error).
@@ -1643,7 +1657,10 @@ pub fn error_ticket(
     note: &str,
     presence: Option<&PresenceStore>,
 ) -> Result<Ticket, TicketError> {
-    set_status(
+    let actor = who.actor.clone();
+    let ide = who.ide.clone();
+    let agent = who.agent.clone();
+    let t = set_status(
         repo_root,
         data_dir,
         id,
@@ -1655,7 +1672,17 @@ pub fn error_ticket(
             note,
         },
         presence,
-    )
+    )?;
+    ranks::on_ticket_error(
+        data_dir,
+        &actor,
+        &ide,
+        &agent,
+        &ranks::telegram_from(None),
+        &t.id,
+        note,
+    );
+    Ok(t)
 }
 
 /// If someone is online, claim as solo/squad pick. Otherwise leave `open`.
@@ -1768,14 +1795,17 @@ pub fn wire_done(
 ) -> Result<Value, TicketError> {
     let id = body.get("id").and_then(Value::as_str).unwrap_or("");
     let note = body.get("note").and_then(Value::as_str).unwrap_or("");
-    let ticket = done(
-        repo_root,
-        data_dir,
-        id,
-        resolve_claimed_by(),
-        note,
-        presence,
-    )?;
+    let tg = ranks::telegram_from(Some(body));
+    let ticket = ranks::with_telegram(&tg, || {
+        done(
+            repo_root,
+            data_dir,
+            id,
+            resolve_claimed_by(),
+            note,
+            presence,
+        )
+    })?;
     Ok(json!({ "ok": true, "ticket": ticket }))
 }
 
@@ -1788,14 +1818,17 @@ pub fn wire_error(
 ) -> Result<Value, TicketError> {
     let id = body.get("id").and_then(Value::as_str).unwrap_or("");
     let note = body.get("note").and_then(Value::as_str).unwrap_or("");
-    let ticket = error_ticket(
-        repo_root,
-        data_dir,
-        id,
-        resolve_claimed_by(),
-        note,
-        presence,
-    )?;
+    let tg = ranks::telegram_from(Some(body));
+    let ticket = ranks::with_telegram(&tg, || {
+        error_ticket(
+            repo_root,
+            data_dir,
+            id,
+            resolve_claimed_by(),
+            note,
+            presence,
+        )
+    })?;
     Ok(json!({ "ok": true, "ticket": ticket }))
 }
 

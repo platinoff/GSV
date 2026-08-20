@@ -157,6 +157,13 @@
       "body": "Solo on this jail until you join the Godfather chat. Ticket-squad is ignored. Live bus send is refused. GitHub origin update still applies if the installer is behind. Settings role=guest.",
       "workflow": "ticket-claim",
       "product": "gsv"
+    },
+    {
+      "id": "rank-ladder",
+      "title": "Ranks: jun-nub to marshal-orchestrator",
+      "body": "Merit ladder L0 jun-nub through L15 marshal-orchestrator (IT + army mix). Host of the Godfather channel displays marshal-orchestrator. Done tickets raise a rank; ticket error or cargo test fail after commit drops one. Floor is 0. Telegram from.id is redacted to a tail. Store data/gsv_ranks.json.",
+      "workflow": "ticket-claim",
+      "product": "gsv"
     }
   ]
 }

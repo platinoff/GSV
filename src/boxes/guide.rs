@@ -72,6 +72,13 @@ pub const CARD_GUIDE: &[GuideEntry] = &[
         blurb: "Append-only log of actor, IDE, model, and time for each drain.",
     },
     GuideEntry {
+        id: "ranks",
+        title: "Ranks",
+        group: "ops",
+        r#use: "merit ladder",
+        blurb: "IT + army mix. Jun-nub is level 0. Channel host displays marshal-orchestrator. Bad tests after a commit drop one rank.",
+    },
+    GuideEntry {
         id: "sw",
         title: "Service Worker",
         group: "ops",
@@ -404,6 +411,9 @@ fn icon_inner(id: &str) -> &'static str {
         }
         "fingerprints" => {
             "<path d='M8 14c0-5 4-5 4-9A4 4 0 0 0 4 5'/><path d='M6 14c0-3.5 2.4-3.2 2.4-7'/><path d='M10 14c.2-2.4-1-2.6-1-5'/>"
+        }
+        "ranks" => {
+            "<path d='M8 2.2 10 6l4 .4-3 2.7.8 4L8 11.2 4.2 13.1 5 9.1 2 6.4 6 6z'/>"
         }
         "sw" => "<path d='M3 10a5 5 0 0 1 10 0'/><rect x='2' y='10' width='12' height='4' rx='1'/>",
         "watchdog" => {

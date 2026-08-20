@@ -186,7 +186,7 @@ S:/rust/GSV/target/live/gsv-mcp.exe --repo-root S:/rust/GSV
 
 - **Cursor** (this repo only): `.cursor/mcp.json` → `url: http://127.0.0.1:9999/mcp`. Never User MCP (`%USERPROFILE%/.cursor/mcp.json`) — it leaks into PoolAI windows.
 - **OpenCode / Grok:** `.mcp.json` / `opencode.json` spawn **`target/live/gsv-mcp.exe`**, not `cargo run`.
-- **55 tools** · **12 `gsv://` resources** · **3 prompts**. If the catalog looks stale after a drain, **restart Cursor** (agent refresh only resubscribes resources).
+- **56 tools** · **13 `gsv://` resources** · **3 prompts**. If the catalog looks stale after a drain, **restart Cursor** (agent refresh only resubscribes resources).
 
 Canon: [`docs/gsv/GSV_MCP_OPENBOT.md`](docs/gsv/GSV_MCP_OPENBOT.md).
 

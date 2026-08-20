@@ -1,6 +1,6 @@
 # Solo / squad / jail — federated GSV MCP
 
-**Status:** Bands **186–191**. **191** host/mate/guest/local + GitHub origin lockstep. **187** live `getChatMemberCount`. Bands **166–185 ✅**.  
+**Status:** Bands **186–192**. **192** ranks + no CMD flash. **191** host/mate/guest/local + GitHub origin lockstep. **187** live `getChatMemberCount`. Bands **166–185 ✅**.  
 **Date:** 2026-08-20  
 **Deciders:** owner  
 **Owner ask:** update + security check; Git workflow research; align solo vs squad; environment checks for a joiner who installed their own `gsv-server`; how that MCP joins a squad; host bot-admin on a channel vs own channel + own bot + invite others; squad bot cap = channel user cap; apps built inside a per-server MCP jail.

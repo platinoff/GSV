@@ -335,7 +335,9 @@ pub fn run_live(repo_root: &Path, host: &str, port: u16) -> Result<(), String> {
     }
     loop {
         let live = watchdog::copy_debug_to_live(repo_root)?;
-        let status = Command::new(&live)
+        let mut child = Command::new(&live);
+        crate::vision::hide_console(&mut child);
+        let status = child
             .arg("--host")
             .arg(host)
             .arg("--port")

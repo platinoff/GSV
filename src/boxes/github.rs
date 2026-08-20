@@ -10,7 +10,6 @@
 //! calls [`enable_live_api`] then [`spawn_refresh_loop`].
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -171,7 +170,7 @@ pub fn version_gt(remote: &str, local: &str) -> bool {
 }
 
 fn origin_url(repo_root: &Path) -> Option<String> {
-    let out = Command::new("git")
+    let out = crate::vision::command("git")
         .args([
             "-C",
             &repo_root.to_string_lossy(),
@@ -218,7 +217,7 @@ fn local_has_object(repo_root: &Path, sha: &str) -> bool {
     if sha.len() < 7 {
         return false;
     }
-    Command::new("git")
+    crate::vision::command("git")
         .args(["-C", &repo_root.to_string_lossy(), "cat-file", "-e", sha])
         .status()
         .map(|s| s.success())

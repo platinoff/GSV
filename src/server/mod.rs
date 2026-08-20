@@ -136,6 +136,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/products/open", post(api_products_open))
         .route("/api/products/scan", get(api_products_scan))
         .route("/api/fingerprints", get(api_fingerprints))
+        .route("/api/ranks", get(api_ranks).post(api_ranks_post))
         .route("/api/update", get(api_update))
         .route("/api/update/notify", post(api_update_notify))
         .route("/api/update/apply", post(api_update_apply))
@@ -747,7 +748,7 @@ async fn api_index() -> Json<Value> {
         "categories": [
             "/api/vision/", "/api/ui/", "/api/ratio/", "/api/toolchain/",
             "/api/ide/", "/api/omni/", "/api/sli", "/api/tracker", "/api/products",
-            "/api/fingerprints", "/api/sw", "/api/watchdog", "/api/usage", "/api/settings", "/api/telegram", "/api/telegram/bus", "/api/telegram/ticket", "/api/telegram/poll", "/api/telegram/decode", "/api/tickets", "/api/mds", "/api/xtask", "/api/disk", "/sw.js",
+            "/api/fingerprints", "/api/ranks", "/api/sw", "/api/watchdog", "/api/usage", "/api/settings", "/api/telegram", "/api/telegram/bus", "/api/telegram/ticket", "/api/telegram/poll", "/api/telegram/decode", "/api/tickets", "/api/mds", "/api/xtask", "/api/disk", "/sw.js",
             "/api/hooks/", "/api/preview", "/api/terminal", "/data/", "/mcp"
         ],
         "example": "/api/vision",
@@ -912,11 +913,24 @@ async fn api_fingerprints(
     ))
 }
 
+async fn api_ranks(State(state): State<AppState>) -> Json<Value> {
+    Json(crate::boxes::ranks::wire(&state.repo_root, &state.data_dir))
+}
+
+async fn api_ranks_post(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
+    match crate::boxes::ranks::wire_post(&state.repo_root, &state.data_dir, &body) {
+        Ok(v) => Json(v).into_response(),
+        Err(e) => err_json(StatusCode::BAD_REQUEST, e),
+    }
+}
+
 async fn api_update(
     State(state): State<AppState>,
-    Query(_params): Query<UpdateCheckParams>,
+    Query(params): Query<UpdateCheckParams>,
 ) -> Json<Value> {
-    let _ = crate::boxes::github::refresh(&state.repo_root, state.version.as_ref()).await;
+    if params.check == Some(true) {
+        let _ = crate::boxes::github::refresh(&state.repo_root, state.version.as_ref()).await;
+    }
     Json(json!(crate::boxes::update::wire(&state)))
 }
 
@@ -1177,6 +1191,7 @@ async fn card_wire(state: &AppState, name: &str, q: &CardQuery) -> Result<Value,
             let selected = product_selected_id(state);
             crate::boxes::fingerprint::wire(&state.repo_root, selected.as_deref(), 20)
         }
+        "ranks" => crate::boxes::ranks::wire(&state.repo_root, &state.data_dir),
         "sw" => crate::boxes::sw::wire(),
         "watchdog" => crate::boxes::watchdog::wire(&state.repo_root),
         "usage" => {

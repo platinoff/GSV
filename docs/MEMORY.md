@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-20 · band 192)
+
+- **Band 192:** Ranks + no CMD flash. GitHub origin probe uses `vision::command(git)` (`CREATE_NO_WINDOW`). GET `/api/update` uses the cache unless `?check=true`. Merit ladder L0 **jun-nub** … L15 **marshal-orchestrator** (IT + army mix). Channel host *displays* marshal. Ticket done +1; ticket error or failed `cargo test` after commit −1 (fingerprint + Telegram tail). Floor 0. Store `data/gsv_ranks.json`. Scenario `rank-ladder`. MCP `gsv_ranks` (**56** tools). `CARD_NAMES` **42**.
+- **Canon:** [`gsv/GSV_RANKS.md`](gsv/GSV_RANKS.md).
+- **Next drain:** **owner pick** after a warnings-first scan.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.39%** (rust 38381 / product 38618) · **663** tests · clippy 0
+
 ## Стан (2026-08-20 · band 191)
 
 - **Band 191:** Channel roles + GitHub origin lockstep. `chat_role` host/mate/guest/local (guest stays solo; live bus send refused). `gsv_update` `github_ahead` when origin is newer even if local `src/` is not. Ticket pick: board first, then `hook github` (`GH#N`). Scenarios `github-issues` / `channel-host` / `channel-mate` / `channel-guest`.

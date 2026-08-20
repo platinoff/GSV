@@ -647,7 +647,7 @@ async fn logging_and_completion_over_http() {
     let values = complete["result"]["completion"]["values"]
         .as_array()
         .expect("values");
-    assert_eq!(values.len(), 9);
+    assert_eq!(values.len(), 10);
     assert!(values
         .iter()
         .all(|v| v.as_str().unwrap_or("").starts_with("gsv://docs/")));
@@ -663,6 +663,9 @@ async fn logging_and_completion_over_http() {
     assert!(values
         .iter()
         .any(|v| v.as_str() == Some("gsv://docs/solo-squad-jail")));
+    assert!(values
+        .iter()
+        .any(|v| v.as_str() == Some("gsv://docs/ranks")));
 
     let (status, rejected) = mcp_post(
         &app,

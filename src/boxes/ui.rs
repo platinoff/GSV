@@ -210,6 +210,7 @@ pub const UI_GROUPS: [UiGroup; 4] = [
             "health",
             "products",
             "fingerprints",
+            "ranks",
             "sw",
             "watchdog",
             "mcp",
@@ -1974,6 +1975,72 @@ pub fn render_fingerprints(d: &Value) -> String {
     out
 }
 
+/// Merit ranks card (`/api/ranks`) — IT + army ladder, floor 0.
+pub fn render_ranks(d: &Value) -> String {
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let role = s(&d["chat_role"]);
+    let host_title = s(&d["host_title"]);
+    let mut out = String::from(
+        "<div class='dim'>Jun-nub is L0. Channel bot admin displays marshal-orchestrator.</div>",
+    );
+    if !host_title.is_empty() {
+        out.push_str(&format!(
+            "<div>channel host <kbd>{}</kbd> · role <kbd>{}</kbd></div>",
+            esc(&host_title),
+            esc(&role)
+        ));
+    } else if !role.is_empty() {
+        out.push_str(&format!(
+            "<div class='dim'>role <kbd>{}</kbd></div>",
+            esc(&role)
+        ));
+    }
+    out.push_str(
+        "<div class='set-actions'><button type='button' data-action='ranks-review'>review failed tests</button></div>",
+    );
+    let roster = arr(&d["roster"]);
+    if roster.is_empty() {
+        out.push_str(&empty_html("roster"));
+    } else {
+        let rows: Vec<Vec<String>> = roster
+            .iter()
+            .map(|r| {
+                vec![
+                    esc(&s(&r["display_title"])),
+                    format!("L{}", u(&r["level"])),
+                    esc(&s(&r["actor"])),
+                    esc(&s(&r["ide"])),
+                    if b(&r["telegram_set"]) {
+                        format!("…{}", esc(&s(&r["telegram_tail"])))
+                    } else {
+                        "—".into()
+                    },
+                    format!("{}/{}", u(&r["done_ok"]), u(&r["done_bad"])),
+                ]
+            })
+            .collect();
+        out.push_str(&tab(&["title", "lv", "actor", "ide", "tg", "ok/bad"], rows));
+    }
+    let ladder = arr(&d["ladder"]);
+    if !ladder.is_empty() {
+        let rows: Vec<Vec<String>> = ladder
+            .iter()
+            .map(|r| {
+                vec![
+                    format!("{}", u(&r["level"])),
+                    esc(&s(&r["title"])),
+                    esc(&s(&r["it"])),
+                    esc(&s(&r["army"])),
+                ]
+            })
+            .collect();
+        out.push_str(&tab(&["L", "mix", "IT", "army"], rows));
+    }
+    out
+}
+
 /// Session token usage (`/api/usage`) — OmniRouter + MCP + OmniRoute.
 pub fn render_usage(d: &Value) -> String {
     if let Some(msg) = not_ok(d) {
@@ -2600,6 +2667,7 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
         "health" => Some(render_health(d)),
         "products" => Some(render_products(d)),
         "fingerprints" => Some(render_fingerprints(d)),
+        "ranks" => Some(render_ranks(d)),
         "sw" => Some(render_sw(d)),
         "watchdog" => Some(render_watchdog(d)),
         "usage" => Some(render_usage(d)),
@@ -2630,7 +2698,7 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
 }
 
 /// Server-rendered card names (stable contract for `/api/ui/card/:name`).
-pub const CARD_NAMES: [&str; 41] = [
+pub const CARD_NAMES: [&str; 42] = [
     "tracker",
     "sli",
     "toolchain",
@@ -2647,6 +2715,7 @@ pub const CARD_NAMES: [&str; 41] = [
     "health",
     "products",
     "fingerprints",
+    "ranks",
     "sw",
     "watchdog",
     "usage",
@@ -3053,8 +3122,9 @@ mod tests {
         assert!(render_card("fingerprints", &d).is_some());
         assert!(render_card("about", &d).is_some());
         assert!(render_card("nope", &d).is_none());
-        assert_eq!(CARD_NAMES.len(), 41);
+        assert_eq!(CARD_NAMES.len(), 42);
         assert!(CARD_NAMES.contains(&"about"));
+        assert!(CARD_NAMES.contains(&"ranks"));
         let chrome = chrome_controls_stylesheet();
         assert!(chrome.contains("scrollbar-width"), "{chrome}");
         assert!(chrome.contains(".set-form"), "{chrome}");

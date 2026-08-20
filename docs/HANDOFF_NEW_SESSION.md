@@ -1,12 +1,12 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-08-20 (band **191** · next = **owner pick**)
+**Оновлено:** 2026-08-20 (band **192** · next = **owner pick**)
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
 **`абракадабра` / `abrakadabra`** → `cargo xtask products` → **AskQuestion на проєкти з environment**
 (не `gsv | poolai` з голови) → S0 диск/git → project scan (warnings first) →
-якщо **gsv:** settings/Telegram/tickets spec bands **166–191 ✅**
-+ **band 191** channel roles (host/mate/guest/local) + GitHub origin lockstep + ticket pick from the board then GitHub issues.
+якщо **gsv:** settings/Telegram/tickets spec bands **166–192 ✅**
++ **band 192** ranks (jun-nub L0 · marshal-orchestrator) + no CMD flash on GitHub git.
 **Next = owner pick** after a warnings-first scan. Speeds + Rust panel →
 vision-sync → **один commit** → **`git push` + самарі**.
 
@@ -31,7 +31,8 @@ Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 
 ## Стан зараз
 
-- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–191.
+- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–192.
+- **Band 192:** Ranks + no console flash — `vision::command(git)` on origin probe; GET `/api/update` caches unless `?check=true`. Merit ladder L0 jun-nub … L15 marshal-orchestrator (IT+army mix). Host *displays* marshal. Ticket done +1 / error or failed tests after commit −1 (fingerprint + Telegram tail). Spec [`gsv/GSV_RANKS.md`](gsv/GSV_RANKS.md). `CARD_NAMES` **42**. MCP **56** tools.
 - **Band 191:** Channel roles + GitHub origin lockstep — `chat_role` host/mate/guest/local (guest stays solo; live bus send refused); `gsv_update` `github_ahead` when origin is newer even if local `src/` is not; ticket pick board first then `hook github` (`GH#N`); scenarios `github-issues` / `channel-host` / `channel-mate` / `channel-guest`. Spec [`gsv/GSV_SOLO_SQUAD_JAIL.md`](gsv/GSV_SOLO_SQUAD_JAIL.md) · [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md).
 - **Band 190:** Galaxy About + type/fullscreen chrome — English About card (`CARD_NAMES` **41**); hover tips; distinct glyphs; GSV L0–L5 vision legend; fullscreen below header (`--fs-top`); `--ui:14px` + A−/A+ (12–18); 2-column card grid; nebula/glass. Spec [`gsv/GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md).
 - **Band 189:** Settings Galaxy polish + MCP Open Bot debug — labeled Godfather `.set-form` (workflow chips, mode/kind, poll/lease); `squad_cap_override` so Save does not freeze derived cap; dark `color-scheme` + Galaxy scrollbars; Telegram `.tg-head`; MCP `catalog_stale` banner. Spec [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md).

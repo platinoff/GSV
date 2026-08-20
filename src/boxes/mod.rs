@@ -17,6 +17,7 @@
 //! | About | `guide` | `/api/ui/card/about` · `/api/ui/icon/:name` · `/api/ui/icons.svg` | English how-to + hover blurbs + distinct card glyphs |
 //! | Products | `products` | `/api/products` | workspace ∪ sibling git ∪ kit |
 //! | Fingerprints | `fingerprint` | `/api/fingerprints` | `docs/gsv/fingerprints.jsonl` |
+//! | Ranks | `ranks` | `GET`/`POST /api/ranks` | IT+army merit ladder; host displays marshal-orchestrator; `data/gsv_ranks.json` |
 //! | Service Worker | `sw` | `/sw.js` · `/api/sw` | Rust-rendered shell cache |
 //! | Watchdog | `watchdog` | `/api/watchdog` | `target/live/watchdog.json` heartbeat + respawn live copy |
 //! | Usage | `usage` | `/api/usage` | per-session token counts (OmniRouter + MCP + OmniRoute) |
@@ -36,6 +37,7 @@ pub mod mds;
 pub mod omni;
 pub mod preview;
 pub mod products;
+pub mod ranks;
 pub mod ratio;
 pub mod settings;
 pub mod sli;
