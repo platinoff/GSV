@@ -220,6 +220,7 @@ async fn get_tickets_missing_is_empty_ok() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(json["ok"], true);
     assert_eq!(json["tickets"], json!([]));
+    assert_eq!(json["next"]["hint"], "idle");
     assert!(!json.to_string().contains("bot_token"), "{json}");
 }
 
@@ -738,13 +739,14 @@ fn mcp_tools_include_tickets_not_bus() {
     assert!(mcp::tool_names().contains(&"gsv_tickets_walk"));
     assert!(mcp::tool_names().contains(&"gsv_tickets_hook"));
     assert!(mcp::tool_names().contains(&"gsv_tickets_bench"));
+    assert!(mcp::tool_names().contains(&"gsv_tickets_next"));
     assert!(mcp::tool_names().contains(&"gsv_mds"));
     assert!(mcp::tool_names().contains(&"gsv_telegram_bus_send"));
     assert!(mcp::tool_names().contains(&"gsv_telegram_ticket"));
     assert!(mcp::tool_names().contains(&"gsv_telegram_poll"));
     assert!(mcp::tool_names().contains(&"gsv_telegram_decode"));
     assert!(!mcp::tool_names().contains(&"gsv_telegram_create_ticket"));
-    assert_eq!(mcp::tool_names().len(), 54);
+    assert_eq!(mcp::tool_names().len(), 55);
 }
 
 fn write_stale_wip(kit: &Path, id: &str, actor: &str, lease_until: u64) {
@@ -960,6 +962,16 @@ fn galaxy_glue_walk_refreshes_telegram_and_vision_sync_is_data_action() {
     assert!(
         html.contains("await getText(\"telegram\")"),
         "walk/hook/bench must refresh the Telegram MCP signal"
+    );
+    assert!(
+        html.contains("async function nextTicket"),
+        "tickets-next button must have glue"
+    );
+    assert!(
+        html.contains("data-action='tickets-next'")
+            || html.contains("data-action=\"tickets-next\"")
+            || html.contains("tickets-next"),
+        "click router must dispatch tickets-next"
     );
 }
 
@@ -1278,4 +1290,62 @@ async fn http_tickets_bench_get_empty_ok_and_post_runs() {
         pjson["line"].as_str().unwrap_or("").contains("session="),
         "{pjson}"
     );
+}
+
+#[tokio::test]
+async fn next_action_http_and_mcp() {
+    let kit = temp_kit("http-next");
+    enable_claim(&kit.join("data"));
+    let created = tickets::create(&kit, "PH-S2469 next row", "", "gsv").expect("create");
+    let app = app_kit(kit);
+    let (gstatus, gjson) = get_json(&app, "/api/tickets").await;
+    assert_eq!(gstatus, StatusCode::OK, "{gjson}");
+    assert_eq!(gjson["next"]["hint"], "claim-next", "{gjson}");
+    assert_eq!(gjson["next"]["tool"], "gsv_tickets_claim", "{gjson}");
+    assert_eq!(gjson["next"]["ticket_id"], created.id, "{gjson}");
+    let (pstatus, pjson) = post_json(
+        &app,
+        "/api/tickets/next",
+        json!({ "hint": "claim-next" }),
+        Some("http://127.0.0.1:9999"),
+        None,
+    )
+    .await;
+    assert_eq!(pstatus, StatusCode::OK, "{pjson}");
+    assert_eq!(pjson["ok"], true, "{pjson}");
+    assert_eq!(pjson["hint"], "claim-next", "{pjson}");
+    assert_eq!(pjson["tool"], "gsv_tickets_claim", "{pjson}");
+    let mcp_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::POST)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": 11,
+                        "method": "tools/call",
+                        "params": {
+                            "name": "gsv_tickets_next",
+                            "arguments": { "hint": "claim-next" }
+                        }
+                    })
+                    .to_string(),
+                ))
+                .expect("req"),
+        )
+        .await
+        .expect("res");
+    let bytes = axum::body::to_bytes(mcp_res.into_body(), usize::MAX)
+        .await
+        .expect("body");
+    let mcp_json: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+    assert_eq!(mcp_json["result"]["isError"], false, "{mcp_json}");
+    let text = mcp_json["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap_or("");
+    assert!(text.contains("claim-next"), "{text}");
+    assert!(text.contains("gsv_tickets_claim"), "{text}");
 }

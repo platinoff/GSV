@@ -1,12 +1,12 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-08-20 (band 182 ✅ · next = **owner pick**)
+**Оновлено:** 2026-08-20 (band 183 ✅ · next = **owner pick**)
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
 **`абракадабра` / `abrakadabra`** → `cargo xtask products` → **AskQuestion на проєкти з environment**
 (не `gsv | poolai` з голови) → S0 диск/git → project scan (warnings first) →
-якщо **gsv:** settings/Telegram/tickets spec bands **166–181 ✅**
-+ **band 182 ✅** MCP-readable Godfather envelopes + Galaxy MCP signal (`gsv_telegram_decode` · **54** tools).
+якщо **gsv:** settings/Telegram/tickets spec bands **166–182 ✅**
++ **band 183 ✅** squad next-action + MCP catalog lockstep (`gsv_tickets_next` · **55** tools · `tools/list_changed`).
 **Next = owner pick** after a warnings-first scan. Speeds + Rust panel →
 vision-sync → **один commit** → **`git push` + самарі**.
 
@@ -23,16 +23,17 @@ vision queue lockstep + bump auto-advance **163 ✅**;
 Cursor 3.16.29 kit lockstep **164 ✅**;
 watchdog live copy + lockstep observability **165 ✅**;
 **band 166 ✅** settings / Godfather — [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md);
-**band 175 ✅** MDS scenario band + solo walk + Telegram sync. **band 176 ✅** visible MCP session walk (solo / squad / bench on Godfather). **band 177 ✅** roadmap/plan hook-up. **band 178 ✅** scenario benchmark. **band 179 ✅** Godfather inbound poller. **band 180 ✅** watchdog process lockstep. **band 181 ✅** Galaxy glue + S0 disk on health. **band 182 ✅** MCP-readable Godfather envelopes + Galaxy MCP signal. **Next = owner pick**. MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+**band 175 ✅** MDS scenario band + solo walk + Telegram sync. **band 176 ✅** visible MCP session walk (solo / squad / bench on Godfather). **band 177 ✅** roadmap/plan hook-up. **band 178 ✅** scenario benchmark. **band 179 ✅** Godfather inbound poller. **band 180 ✅** watchdog process lockstep. **band 181 ✅** Galaxy glue + S0 disk on health. **band 182 ✅** MCP-readable Godfather envelopes + Galaxy MCP signal. **band 183 ✅** squad next-action + MCP catalog lockstep. **Next = owner pick**. MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
 Omni catalog: [`gsv/GSV_OMNI_CATALOG.md`](gsv/GSV_OMNI_CATALOG.md).
 Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 Канон ролей: [`GSV_ROLES.md`](GSV_ROLES.md). Реєстр: [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
 
 ## Стан зараз
 
-- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–182 **✅**.
-- **Band 182:** MCP-readable Godfather envelopes — dual human line + JSON `data` (`hint` / `next` / disk / crate) · `POST /api/telegram/decode` · MCP `gsv_telegram_decode` (**54** tools) · Galaxy MCP signal row (tickets do not repeat envelope) · walk/hook/bench refresh Telegram · `syncVision` glue. `CARD_NAMES` **40**.
+- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–183 **✅**.
+- **Band 183:** squad next-action + MCP catalog lockstep — `next_action` inbox (`hint` → tool) · `POST /api/tickets/next` · MCP `gsv_tickets_next` (**55** tools) · `initialize` `tools.listChanged` · `notifications/tools/list_changed` · Galaxy next row. `CARD_NAMES` **40**.
 - **Next drain (gsv):** **owner pick** after a warnings-first scan. Spec [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md). `cargo xtask bump --band N` locksteps last/next/active to the **close** of N.
+- **Band 182:** MCP-readable Godfather envelopes — dual human line + JSON `data` (`hint` / `next` / disk / crate) · `POST /api/telegram/decode` · MCP `gsv_telegram_decode` (**54** tools) · Galaxy MCP signal row (tickets do not repeat envelope) · walk/hook/bench refresh Telegram · `syncVision` glue. `CARD_NAMES` **40**.
 - **Band 181:** Galaxy glue + S0 disk on health — `selectProduct` / `reclaimTicket` in `ui/index.html`; `/api/health` `disk_ok` / `disk_violation` (process `ok` stays true). `CARD_NAMES` **40**.
 - **Band 180:** Watchdog process lockstep — `debug_newer_server` (POST apply only when **gsv-server** debug is newer) · `hop_successor` each tick · stop stale peer on `bin_version` lag · wire `server_debug_newer` / `watchdog_debug_newer`. `CARD_NAMES` **40**.
 - **Band 179:** Godfather inbound poller — `classify_inbound` · `poll_once` / `spawn_poll_loop` (`gsv-server` only) · `data/telegram_offset.json` · `POST /api/telegram/poll` · MCP `gsv_telegram_poll` (**53** tools) · Galaxy poll now. `CARD_NAMES` **40**.

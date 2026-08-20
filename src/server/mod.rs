@@ -121,6 +121,7 @@ pub fn router(state: AppState) -> Router {
             "/api/tickets/bench",
             get(api_tickets_bench).post(api_tickets_bench_post),
         )
+        .route("/api/tickets/next", post(api_tickets_next))
         .route("/api/mds", get(api_mds))
         .route("/api/xtask", get(api_xtask))
         .route("/api/disk", get(api_disk))
@@ -531,6 +532,18 @@ async fn api_tickets_bench_post(
         Ok(v) => Json(v).into_response(),
         Err(e) => err_json(ticket_http_status(&e), e.to_string()),
     }
+}
+
+async fn api_tickets_next(State(state): State<AppState>, Json(body): Json<Value>) -> Json<Value> {
+    let (hint, next) = crate::boxes::telegram::last_signal();
+    Json(crate::boxes::tickets::wire_next(
+        &state.repo_root,
+        &state.data_dir,
+        &state.ticket_presence,
+        &body,
+        &hint,
+        &next,
+    ))
 }
 
 async fn api_mds(State(state): State<AppState>) -> Json<Value> {

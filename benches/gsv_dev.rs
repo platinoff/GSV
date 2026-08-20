@@ -109,6 +109,7 @@ fn main() {
         ("hook_parse_phrase", 10_000usize),
         ("hook_roadmap_band", 16usize),
         ("session_walk_abrakadabra", 4usize),
+        ("tickets_next_action", 10_000usize),
     ] {
         let start = Instant::now();
         for i in 0..n {
@@ -183,6 +184,16 @@ fn main() {
                 }
                 "session_walk_abrakadabra" => {
                     let _ = tickets::time_session_walk(&kit, &kit.join("data"));
+                }
+                "tickets_next_action" => {
+                    let _ = tickets::next_action(
+                        &kit,
+                        &kit.join("data"),
+                        None,
+                        &claimed("alpha"),
+                        "claim-next",
+                        "PH-S2469",
+                    );
                 }
                 "disk_report" => {
                     let _ = xtask::disk_report(&root, false);

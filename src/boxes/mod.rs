@@ -21,7 +21,7 @@
 //! | Usage | `usage` | `/api/usage` | per-session token counts (OmniRouter + MCP + OmniRoute) |
 //! | Settings | `settings` | `/api/settings` | Godfather channel + redacted token + co-workflows |
 //! | Telegram | `telegram` | `/api/telegram` · `/api/telegram/bus` · `/api/telegram/ticket` · `/api/telegram/poll` · `/api/telegram/decode` | Godfather bind + MCP bus + ticket ingest + inbound poll + MCP-readable envelope decode (dry-run queue in tests) |
-//! | Tickets | `tickets` | `/api/tickets` · `/api/tickets/claim` · `/api/tickets/done` · `/api/tickets/error` · `/api/tickets/presence` · `/api/tickets/walk` · `/api/tickets/hook` · `/api/tickets/bench` | git JSONL board + MCP claim/solo-squad + scenario band walk + roadmap/plan hook + scenario bench |
+//! | Tickets | `tickets` | `/api/tickets` · `/api/tickets/claim` · `/api/tickets/done` · `/api/tickets/error` · `/api/tickets/presence` · `/api/tickets/walk` · `/api/tickets/hook` · `/api/tickets/bench` · `/api/tickets/next` | git JSONL board + MCP claim/solo-squad + scenario band walk + roadmap/plan hook + scenario bench + next-action inbox |
 //! | MDS | `mds` | `/api/mds` | light memory/disk/speed probe (`gsv-mds`) |
 //! | Xtask | `xtask` | `/api/xtask` · `/api/disk` | `cargo xtask` product automation (no `.sh`) |
 

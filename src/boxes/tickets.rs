@@ -14,6 +14,8 @@
 //! superpowers plan into tickets (cap 10). Optional walk stays Telegram-sync.
 //! Band 178: scenario benchmark — time `abrakadabra-session` create+walk and
 //! persist `docs/gsv/scenario_bench.json` (Godfather line + Galaxy + MCP).
+//! Band 183: A2A-style [`next_action`] inbox (`hint` → tool) so a squad MCP
+//! does not invent the next step; MCP `gsv_tickets_next`.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -229,6 +231,19 @@ pub struct WalkReport {
     /// Band 176: `gsv_dev` median session line (empty until Telegram sync).
     #[serde(default)]
     pub bench: String,
+}
+
+/// Standardized next step for this MCP (JSONL board = local A2A task inbox).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NextAction {
+    pub ok: bool,
+    pub hint: String,
+    pub tool: String,
+    pub ticket_id: String,
+    pub title: String,
+    pub next: String,
+    pub mode: String,
+    pub reason: String,
 }
 
 /// Parsed `run mcp bot hook up scenario …` (catalog id, `band N`, or `plan stem`).
@@ -594,6 +609,17 @@ pub fn list(repo_root: &Path) -> Value {
 
 /// Board wire: tickets + mode + online + scenarios + recent events.
 pub fn wire_list(repo_root: &Path, data_dir: &Path, presence: &PresenceStore) -> Value {
+    wire_list_signaled(repo_root, data_dir, presence, "", "")
+}
+
+/// [`wire_list`] plus Godfather `hint`/`next` so Galaxy/MCP share one inbox row.
+pub fn wire_list_signaled(
+    repo_root: &Path,
+    data_dir: &Path,
+    presence: &PresenceStore,
+    last_hint: &str,
+    last_next: &str,
+) -> Value {
     let _ = reclaim_stale(repo_root, data_dir);
     let mut v = list(repo_root);
     if v.get("ok").and_then(Value::as_bool) != Some(true) {
@@ -606,13 +632,204 @@ pub fn wire_list(repo_root: &Path, data_dir: &Path, presence: &PresenceStore) ->
     if events.len() > 8 {
         events = events.split_off(events.len() - 8);
     }
+    let who = resolve_claimed_by();
+    let next = next_action(
+        repo_root,
+        data_dir,
+        Some(presence),
+        &who,
+        last_hint,
+        last_next,
+    );
     v["mode"] = json!(mode.as_str());
     v["lease_secs"] = json!(settings::ticket_lease_secs(&file));
     v["online"] = json!(online);
     v["scenarios"] = json!(load_scenarios(repo_root));
     v["events"] = json!(events);
     v["bench"] = wire_bench(repo_root);
+    v["workflows"] = json!(file.workflows.enabled);
+    v["next"] = json!(next);
     v
+}
+
+fn ph_s_token(text: &str) -> String {
+    let Some(i) = text.find("PH-S") else {
+        return String::new();
+    };
+    text[i..]
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric() || *c == '-')
+        .collect()
+}
+
+/// One next tool for this MCP: finish WIP, honor Godfather hint, or claim open.
+pub fn next_action(
+    repo_root: &Path,
+    data_dir: &Path,
+    _presence: Option<&PresenceStore>,
+    who: &ClaimedBy,
+    last_hint: &str,
+    last_next: &str,
+) -> NextAction {
+    let _ = reclaim_stale(repo_root, data_dir);
+    let file = settings::load_result(data_dir).unwrap_or_default();
+    let mode = resolve_mode(&file);
+    let tickets = read_tickets(&tickets_path(repo_root)).unwrap_or_default();
+    let mut mine: Vec<&Ticket> = tickets
+        .iter()
+        .filter(|t| t.status == "in_progress")
+        .filter(|t| {
+            t.claimed_by
+                .as_ref()
+                .map(|c| same_worker(c, who))
+                .unwrap_or(false)
+        })
+        .collect();
+    mine.sort_by_key(|t| ticket_sort_key(t));
+    let hint = last_hint.trim();
+    let envelope_next = last_next.trim();
+    if let Some(t) = mine.first() {
+        let assigned = if mode == TicketMode::Squad {
+            "work-assigned"
+        } else {
+            "work-ticket"
+        };
+        let next = if envelope_next.is_empty() {
+            ph_s_token(&t.title)
+        } else {
+            envelope_next.to_string()
+        };
+        return NextAction {
+            ok: true,
+            hint: assigned.into(),
+            tool: "gsv_tickets_done".into(),
+            ticket_id: t.id.clone(),
+            title: t.title.clone(),
+            next,
+            mode: mode.as_str().into(),
+            reason: "finish in_progress assigned to this MCP".into(),
+        };
+    }
+    if hint == "record-bench" {
+        return NextAction {
+            ok: true,
+            hint: "record-bench".into(),
+            tool: "gsv_tickets_bench".into(),
+            ticket_id: String::new(),
+            title: String::new(),
+            next: envelope_next.to_string(),
+            mode: mode.as_str().into(),
+            reason: "Godfather hint record-bench".into(),
+        };
+    }
+    let mut open: Vec<&Ticket> = tickets.iter().filter(|t| t.status == "open").collect();
+    open.sort_by_key(|t| ticket_sort_key(t));
+    if let Some(t) = open.first() {
+        let next = if envelope_next.is_empty() {
+            ph_s_token(&t.title)
+        } else {
+            envelope_next.to_string()
+        };
+        let (tool, reason, out_hint) = if hint == "hook-placed" {
+            (
+                "gsv_tickets_walk",
+                "walk open tickets after hook",
+                "hook-placed",
+            )
+        } else {
+            (
+                "gsv_tickets_claim",
+                "claim first open ticket",
+                if hint.is_empty() { "claim-next" } else { hint },
+            )
+        };
+        return NextAction {
+            ok: true,
+            hint: out_hint.into(),
+            tool: tool.into(),
+            ticket_id: t.id.clone(),
+            title: t.title.clone(),
+            next,
+            mode: mode.as_str().into(),
+            reason: reason.into(),
+        };
+    }
+    NextAction {
+        ok: true,
+        hint: if hint.is_empty() {
+            "idle".into()
+        } else {
+            hint.into()
+        },
+        tool: "gsv_tickets".into(),
+        ticket_id: String::new(),
+        title: String::new(),
+        next: envelope_next.to_string(),
+        mode: mode.as_str().into(),
+        reason: "board empty".into(),
+    }
+}
+
+/// HTTP/MCP next-action wire. Optional identity + envelope override in `body`.
+pub fn wire_next(
+    repo_root: &Path,
+    data_dir: &Path,
+    presence: &PresenceStore,
+    body: &Value,
+    last_hint: &str,
+    last_next: &str,
+) -> Value {
+    let mut who = resolve_claimed_by();
+    if let Some(a) = body.get("actor").and_then(Value::as_str) {
+        if !a.trim().is_empty() {
+            who.actor = a.trim().to_string();
+        }
+    }
+    if let Some(a) = body.get("ide").and_then(Value::as_str) {
+        if !a.trim().is_empty() {
+            who.ide = a.trim().to_string();
+        }
+    }
+    if let Some(a) = body.get("model").and_then(Value::as_str) {
+        if !a.trim().is_empty() {
+            who.model = a.trim().to_string();
+        }
+    }
+    if let Some(a) = body.get("agent").and_then(Value::as_str) {
+        if !a.trim().is_empty() {
+            who.agent = a.trim().to_string();
+        }
+    }
+    let hint = body
+        .get("hint")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or(last_hint);
+    let next = body
+        .get("next")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or(last_next);
+    let _ = heartbeat(presence, &who);
+    let _ = renew_leases(repo_root, data_dir, &who);
+    let action = next_action(repo_root, data_dir, Some(presence), &who, hint, next);
+    let file = settings::load_result(data_dir).unwrap_or_default();
+    json!({
+        "ok": action.ok,
+        "hint": action.hint,
+        "tool": action.tool,
+        "ticket_id": action.ticket_id,
+        "title": action.title,
+        "next": action.next,
+        "mode": action.mode,
+        "reason": action.reason,
+        "workflows": file.workflows.enabled,
+        "actor": who.actor,
+        "ide": who.ide,
+        "agent": who.agent,
+    })
 }
 
 /// Create an `open` ticket (no workflow gate). Product must be registered.
@@ -1956,5 +2173,55 @@ mod unit {
         let empty = wire_bench(Path::new("/no/such/gsv-bench-kit"));
         assert_eq!(empty["ok"], true);
         assert_eq!(empty["recorded"], false);
+    }
+
+    #[test]
+    fn next_action_claim_wip_bench_and_idle() {
+        let kit = std::env::temp_dir().join(format!(
+            "gsv-next-unit-{}-{}",
+            std::process::id(),
+            unix_now()
+        ));
+        let data = kit.join("data");
+        let _ = std::fs::create_dir_all(kit.join("docs/gsv"));
+        let _ = std::fs::create_dir_all(&data);
+        let who = ClaimedBy {
+            actor: "agent".into(),
+            ide: "cursor".into(),
+            model: "grok-4.6".into(),
+            agent: "orchestrator".into(),
+        };
+        let idle = next_action(&kit, &data, None, &who, "", "");
+        assert_eq!(idle.hint, "idle");
+        assert_eq!(idle.tool, "gsv_tickets");
+        settings::save(
+            &data,
+            &settings::SettingsFile {
+                workflows: settings::Workflows {
+                    enabled: vec!["ticket-claim".into()],
+                },
+                ..Default::default()
+            },
+        )
+        .expect("wf");
+        let t = create(&kit, "PH-S2469 next", "body", "gsv").expect("create");
+        let claim_next = next_action(&kit, &data, None, &who, "", "");
+        assert_eq!(claim_next.hint, "claim-next");
+        assert_eq!(claim_next.tool, "gsv_tickets_claim");
+        assert_eq!(claim_next.ticket_id, t.id);
+        assert_eq!(claim_next.next, "PH-S2469");
+        let hook = next_action(&kit, &data, None, &who, "hook-placed", "PH-S2470");
+        assert_eq!(hook.tool, "gsv_tickets_walk");
+        assert_eq!(hook.next, "PH-S2470");
+        let _ = claim(&kit, &data, &t.id, who.clone()).expect("claim");
+        let wip = next_action(&kit, &data, None, &who, "", "");
+        assert_eq!(wip.hint, "work-ticket");
+        assert_eq!(wip.tool, "gsv_tickets_done");
+        let _ = done(&kit, &data, &t.id, who.clone(), "ok", None).expect("done");
+        let bench = next_action(&kit, &data, None, &who, "record-bench", "");
+        assert_eq!(bench.hint, "record-bench");
+        assert_eq!(bench.tool, "gsv_tickets_bench");
+        assert_eq!(ph_s_token("Scope PH-S2469 close"), "PH-S2469");
+        assert!(ph_s_token("no sprint").is_empty());
     }
 }

@@ -424,6 +424,12 @@ pub fn bus_clear_rate_limit() {
     bus().last_send = None;
 }
 
+/// Last Godfather MCP signal (`hint`, `next`) for squad/solo next-action.
+pub fn last_signal() -> (String, String) {
+    let g = bus();
+    (g.last_sync_hint.clone(), g.last_sync_next.clone())
+}
+
 fn record_signal(g: &mut BusInner, env: &BusEnvelope) {
     if let Some(tid) = env.ticket_id.as_ref() {
         if !tid.is_empty() {

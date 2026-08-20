@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-20 · band 183 ✅)
+
+- **Band 183:** squad next-action + MCP catalog lockstep. `next_action` inbox · `gsv_tickets_next` (**55** tools) · `tools.listChanged` · Galaxy next row. `CARD_NAMES` **40**.
+- **Canon:** [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md) · [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+- **Next drain:** **owner pick** after a warnings-first scan.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** measured at band close (`gsv-loc-audit --stretch-96`).
+
 ## Стан (2026-08-20 · band 182 ✅)
 
 - **Band 182:** MCP-readable Godfather envelopes + Galaxy MCP signal. Dual line+JSON `data.hint`/`next` · `gsv_telegram_decode` (**54** tools) · Telegram card signal row (tickets do not repeat it) · walk refreshes Telegram · `syncVision` glue. `CARD_NAMES` **40**.

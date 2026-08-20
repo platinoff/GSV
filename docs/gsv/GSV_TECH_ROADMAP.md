@@ -66,6 +66,8 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 179** (Godfather inbound poller) **✅** ·
 **band 180** (watchdog process lockstep) **✅** ·
 **band 181** (Galaxy glue + S0 disk on health) **✅** ·
+**band 182** (MCP-readable Godfather envelopes) **✅** ·
+**band 183** (squad next-action + MCP catalog lockstep) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -1319,6 +1321,23 @@ Owner pick: Telegram walk comments must be JSON MCP can parse (`hint` / `next` /
 | **PH-S2466** | Contracts | signal row · INDEX_HTML glue · enqueue records hint — **✅** |
 | **PH-S2467** | Tests | fmt · clippy · `cargo test` · `--stretch-96` — **✅** |
 | **PH-S2468** | Band close | `--band 182` + fingerprint; recopy live; one commit + push — **✅** |
+
+## Спринти (band 183) — squad next-action + MCP catalog lockstep ✅
+
+Owner pick: project-logic scan found Cursor MCP catalog frozen at 36 tools while live `/mcp` lists 54; envelopes had `hint` but no inbox. Research: MCP = agent-to-tool; A2A = agent-to-agent task lifecycle. GSV v1 standardizes the next step on the JSONL board (`gsv_tickets_next`) and advertises `tools.listChanged` so clients re-list after live recopy.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2469** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2469`; `last_sprint_closed` = `PH-S2468` — **✅** |
+| **PH-S2470** | Research | MCP vs A2A; JSONL board as local task inbox — **✅** |
+| **PH-S2471** | Next | `next_action` WIP / hint / first open / idle — **✅** |
+| **PH-S2472** | HTTP | `POST /api/tickets/next` + GET list `next` — **✅** |
+| **PH-S2473** | MCP | `gsv_tickets_next` → **55** tools — **✅** |
+| **PH-S2474** | Catalog | `tools.listChanged` + `notifications/tools/list_changed` — **✅** |
+| **PH-S2475** | Galaxy | tickets next row + `tickets-next` glue; MCP `listChanged`; `CARD_NAMES` **40** — **✅** |
+| **PH-S2476** | Contracts | next HTTP/MCP · INDEX_HTML glue · drain prompt Band 183 — **✅** |
+| **PH-S2477** | Tests | fmt · clippy · `cargo test` · `--stretch-96` — **✅** |
+| **PH-S2478** | Band close | `--band 183` + fingerprint; recopy live; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

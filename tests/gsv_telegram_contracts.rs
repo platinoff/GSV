@@ -245,7 +245,7 @@ async fn mcp_telegram_is_read_only_status() {
     assert!(mcp::tool_names().contains(&"gsv_telegram_poll"));
     assert!(mcp::tool_names().contains(&"gsv_telegram_decode"));
     assert!(!mcp::tool_names().contains(&"gsv_telegram_create_ticket"));
-    assert_eq!(mcp::tool_names().len(), 54);
+    assert_eq!(mcp::tool_names().len(), 55);
 }
 
 async fn bus_guard() -> tokio::sync::MutexGuard<'static, ()> {

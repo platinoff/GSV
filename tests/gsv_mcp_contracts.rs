@@ -77,6 +77,7 @@ async fn get_mcp_discovers_openbot() {
     let tools = json["tools"].as_array().expect("tools");
     assert_eq!(tools.len(), mcp::tool_names().len());
     assert_eq!(json["tool_count"], tools.len() as u64);
+    assert_eq!(json["tools_list_changed"], true);
     assert_eq!(json["stdio"], "gsv-mcp");
     assert!(
         json["stdio_live"]
@@ -171,6 +172,7 @@ async fn post_initialize_and_tools_list() {
     assert!(names.contains(&"gsv_telegram_decode"));
     assert!(names.contains(&"gsv_tickets"));
     assert!(names.contains(&"gsv_tickets_claim"));
+    assert!(names.contains(&"gsv_tickets_next"));
     assert_eq!(names.len(), mcp::tool_names().len());
 }
 

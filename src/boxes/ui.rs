@@ -907,6 +907,9 @@ pub fn render_mcp(d: &Value) -> String {
     if d["sse"].as_bool().unwrap_or(false) || d["streamable"].as_bool().unwrap_or(false) {
         out.push_str(" · sse");
     }
+    if d["tools_list_changed"].as_bool().unwrap_or(false) {
+        out.push_str(" · listChanged");
+    }
     if d["sessions"].as_bool().unwrap_or(false) {
         out.push_str(&format!(
             " · sessions <kbd>{}</kbd>",
@@ -1243,6 +1246,33 @@ pub fn render_tickets(d: &Value) -> String {
             esc(&bench_line)
         ));
     }
+    let next_hint = s(&d["next"]["hint"]);
+    let next_tool = s(&d["next"]["tool"]);
+    let next_title = s(&d["next"]["title"]);
+    let next_id = s(&d["next"]["ticket_id"]);
+    if next_hint.is_empty() && next_tool.is_empty() {
+        out.push_str("<div class='dim'>next · <kbd>gsv_tickets_next</kbd></div>");
+    } else {
+        let title_bit = if next_title.is_empty() {
+            String::new()
+        } else {
+            format!(" · {}", esc(&next_title))
+        };
+        out.push_str(&format!(
+            "<div class='dim'>next <kbd>{}</kbd> · <kbd>{}</kbd>{}</div>",
+            esc(&next_hint),
+            esc(&next_tool),
+            title_bit
+        ));
+    }
+    out.push_str(&format!(
+        "<button type='button' data-action='tickets-next'{}>next action</button>",
+        if next_id.is_empty() {
+            String::new()
+        } else {
+            format!(" data-ticket-id='{}'", esc(&next_id))
+        }
+    ));
     out.push_str(&format!(
         "<div class='dim'>mode <kbd>{}</kbd> · online <kbd>{}</kbd></div>",
         esc(mode_bit),
@@ -2592,7 +2622,8 @@ mod tests {
             "streamable": true,
             "sessions": true,
             "session_count": 3,
-            "log_level": "info"
+            "log_level": "info",
+            "tools_list_changed": true
         }));
         assert!(mcp.contains("gsv_mcp_openbot"), "{mcp}");
         assert!(mcp.contains("tools 2"), "{mcp}");
@@ -2602,6 +2633,7 @@ mod tests {
         assert!(mcp.contains("completions"), "{mcp}");
         assert!(mcp.contains("subscribe <kbd>2</kbd>"), "{mcp}");
         assert!(mcp.contains(" · sse"), "{mcp}");
+        assert!(mcp.contains("listChanged"), "{mcp}");
         assert!(mcp.contains("sessions <kbd>3</kbd>"), "{mcp}");
         assert!(mcp.contains("<kbd>gsv_health</kbd>"), "{mcp}");
         assert!(mcp.contains("<kbd>gsv://vision/manifest</kbd>"), "{mcp}");
@@ -2677,6 +2709,14 @@ mod tests {
         assert!(!tickets.contains("session lines"), "{tickets}");
         assert!(tickets.contains("data-action='tickets-hook'"), "{tickets}");
         assert!(tickets.contains("data-action='tickets-bench'"), "{tickets}");
+        assert!(tickets.contains("data-action='tickets-next'"), "{tickets}");
+        let next_row = render_tickets(&serde_json::json!({
+            "ok": true,
+            "tickets": [],
+            "next": { "hint": "claim-next", "tool": "gsv_tickets_claim", "title": "PH-S2469", "ticket_id": "t-1" }
+        }));
+        assert!(next_row.contains("claim-next"), "{next_row}");
+        assert!(next_row.contains("gsv_tickets_claim"), "{next_row}");
         assert!(
             tickets.contains("data-action='tickets-create'"),
             "{tickets}"
