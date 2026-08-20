@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-20 · band 190)
+
+- **Band 190:** Galaxy About + type/fullscreen chrome. English About card (`CARD_NAMES` **41**); hover tips; distinct glyphs; GSV L0–L5 vision legend; fullscreen below header (`--fs-top`); `--ui:14px` + A−/A+ (12–18); 2-column grid; nebula/glass.
+- **Canon:** [`gsv/GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md) · [`gsv/GSV_BOXES.md`](gsv/GSV_BOXES.md).
+- **Next drain:** **owner pick** after a warnings-first scan.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.36%** (rust 36623 / product 36858) · **647** tests · clippy 0
+
 ## Стан (2026-08-20 · band 189)
 
 - **Band 189:** Settings Galaxy polish + MCP Open Bot debug. Labeled Godfather `.set-form` (workflow chips, mode/kind, poll/lease); wire `squad_cap_override` so Save does not freeze derived cap; dark `color-scheme` + Galaxy scrollbars on card/nav; Telegram `.tg-head`; MCP `catalog_stale` banner.

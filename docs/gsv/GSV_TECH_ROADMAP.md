@@ -74,6 +74,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 187** (live Godfather member_count) **✅** ·
 **band 188** (README SMIL + docs tidy) **✅** ·
 **band 189** (Settings Galaxy polish + scrollbars) **✅** ·
+**band 190** (Galaxy About + type + fullscreen chrome) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -1446,6 +1447,23 @@ Owner pick (`абракадабра` gsv): MCP Open Bot MVP — hunt broken Gala
 | **PH-S2536** | Docs | SETTINGS / MCP_OPENBOT / BOXES / HANDOFF / NEXT / MEMORY — **✅** |
 | **PH-S2537** | Tests | fmt · clippy · `cargo test` · `--stretch-96` — **✅** |
 | **PH-S2538** | Band close | `--band 189` + fingerprint; recopy live; one commit + push — **✅** |
+
+## Спринти (band 190) — Galaxy About, type scale, fullscreen chrome ✅
+
+Owner pick: Galaxy looked finished but a person could not tell what anything was for; fullscreen cards slid under the header (`workspace` z-index 2 trapped `position:fixed` below header 40); type was 13px with no zoom; windows stacked in one column.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2539** | Scope | this band; About card + English catalog; `CARD_NAMES` **41** — **✅** |
+| **PH-S2540** | Guide | `boxes/guide.rs` blurbs, distinct 16×16 glyphs, `/api/ui/icon/*`, `/api/ui/icons.svg` — **✅** |
+| **PH-S2541** | Hover | `title` + `data-tip` + `#gsvTip`; nav chips human titles — **✅** |
+| **PH-S2542** | Charts | speed line+area, rust stacked bars, sprint-focus L0–L5, ratio ring, vision.svg GSV legend — **✅** |
+| **PH-S2543** | Fullscreen | `--fs-top` below chrome; `panel-fs-active .workspace` z-index 60; 28px hit targets — **✅** |
+| **PH-S2544** | Type | `--ui:14px` default; header A−/A+ 12–18; `localStorage gsv.ui` — **✅** |
+| **PH-S2545** | Layout | 2-column card grid; hero/map/charts full width; cosmic nebula + glass panels — **✅** |
+| **PH-S2546** | Docs | BOXES / SERVER / HANDOFF / NEXT / MEMORY; vision.svg legend copy — **✅** |
+| **PH-S2547** | Tests | fmt · clippy · `cargo test` · `--stretch-96` — **✅** |
+| **PH-S2548** | Band close | `--band 190` + fingerprint; recopy live; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

@@ -194,7 +194,7 @@ fn error_mapper_strips_token() {
 #[test]
 fn card_telegram_in_registry() {
     assert!(CARD_NAMES.contains(&"telegram"));
-    assert_eq!(CARD_NAMES.len(), 40);
+    assert_eq!(CARD_NAMES.len(), 41);
     let empty = render_card(
         "telegram",
         &json!({
@@ -465,7 +465,7 @@ async fn rate_limit_rejects_burst() {
 #[test]
 fn card_telegram_shows_last_bus() {
     assert!(CARD_NAMES.contains(&"telegram"));
-    assert_eq!(CARD_NAMES.len(), 40);
+    assert_eq!(CARD_NAMES.len(), 41);
     let html = render_card(
         "telegram",
         &json!({

@@ -431,7 +431,9 @@ async fn vision_assets_svg_served() {
         .expect("body");
     let body = String::from_utf8(bytes.to_vec()).expect("utf8");
     assert!(body.contains("<svg"), "must be an SVG document");
-    assert!(body.contains("PoolAI Galaxy Starwalker Vision"));
+    assert!(body.contains("Galaxy StarWalker Vision"));
+    assert!(body.contains("How to read"));
+    assert!(body.contains("L5 Workspace"));
 }
 
 #[tokio::test]

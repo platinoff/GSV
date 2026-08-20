@@ -133,6 +133,24 @@ input[type=password],input[type=number],select{width:100%;padding:6px 8px}
 input[type=number]{min-width:0}
 .kv{margin:0 0 8px}
 .kv td:first-child{color:var(--dim);width:36%}
+.ico{display:inline-block;vertical-align:-3px;margin-right:6px;flex:0 0 16px;color:var(--accent)}
+h2 .ico{color:var(--rust);margin-right:8px}
+.nav-tab{display:flex;align-items:center}
+.nav-chips a{display:inline-flex;align-items:center;gap:4px}
+.about-hero{display:flex;gap:10px;align-items:flex-start;margin:0 0 10px}
+.about-mark{padding:8px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
+.about-mark .ico{width:28px;height:28px;margin:0}
+.about-h{margin:14px 0 6px;font-size:12px;color:var(--accent)}
+.about-ol{margin:0;padding-left:18px}
+.about-ol li{margin:0 0 4px}
+.about-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px}
+.about-item{display:flex;gap:8px;align-items:flex-start;padding:6px 8px;border:1px solid var(--line);border-radius:8px;text-decoration:none;color:inherit;background:var(--panel2)}
+.about-item:hover{border-color:var(--accent)}
+.about-item strong{display:block}
+.about-sheet{width:100%;max-width:540px;border:1px solid var(--line);border-radius:8px;background:#0a0e18;margin:0 0 8px}
+.ratio-ring{float:right;margin:0 0 8px 8px}
+#gsvTip{position:fixed;z-index:2000;max-width:280px;padding:6px 8px;border-radius:6px;border:1px solid var(--line);background:#1a2233;color:var(--fg);font-size:var(--fs-meta,11px);line-height:1.35;display:none;pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,0.45)}
+body .card[data-card=about]{display:flex;flex-direction:column}
 "#
     .to_string()
 }
@@ -188,6 +206,7 @@ pub const UI_GROUPS: [UiGroup; 4] = [
         id: "ops",
         label: "Ops",
         cards: &[
+            "about",
             "health",
             "products",
             "fingerprints",
@@ -254,11 +273,20 @@ pub fn layout_wire() -> Value {
     serde_json::json!({
         "ok": true,
         "default_group": DEFAULT_GROUP,
-        "groups": UI_GROUPS.iter().map(|g| serde_json::json!({
-            "id": g.id,
-            "label": g.label,
-            "cards": g.cards,
-        })).collect::<Vec<_>>(),
+        "groups": UI_GROUPS.iter().map(|g| {
+            let blurb = crate::boxes::guide::GROUP_GUIDE
+                .iter()
+                .find(|(id, _, _)| *id == g.id)
+                .map(|row| row.2)
+                .unwrap_or("");
+            serde_json::json!({
+                "id": g.id,
+                "label": g.label,
+                "blurb": blurb,
+                "cards": g.cards,
+            })
+        }).collect::<Vec<_>>(),
+        "cards": crate::boxes::guide::layout_cards_json(),
         "chrome": CHROME_CARDS,
         "html": render_nav(DEFAULT_GROUP),
         "header": render_header(),
@@ -311,16 +339,36 @@ pub fn render_nav(active: &str) -> String {
         } else {
             "nav-tab"
         };
+        let gblurb = crate::boxes::guide::GROUP_GUIDE
+            .iter()
+            .find(|(id, _, _)| *id == g.id)
+            .map(|row| row.2)
+            .unwrap_or(g.label);
+        let gicon = match g.id {
+            "ops" => "health",
+            "vision" => "vision",
+            "sprint" => "sprint-focus",
+            "studio" => "omni",
+            _ => "about",
+        };
         out.push_str(&format!(
-            "<button type='button' class='{cls}' data-group='{id}' aria-current='{cur}'>{label}</button><div class='nav-chips' data-for='{id}'>",
+            "<button type='button' class='{cls}' data-group='{id}' aria-current='{cur}'{tip}>{icon}{label}</button><div class='nav-chips' data-for='{id}'>",
             id = g.id,
             cur = if g.id == active { "page" } else { "false" },
+            tip = crate::boxes::guide::tip_attrs(gblurb),
+            icon = crate::boxes::guide::icon_markup(gicon),
             label = esc(g.label),
         ));
         for c in g.cards {
+            let (title, blurb) = crate::boxes::guide::entry(c)
+                .map(|e| (e.title, e.blurb))
+                .unwrap_or((*c, *c));
             out.push_str(&format!(
-                "<a href='#b-{c}' data-group='{id}' data-card-jump='{c}'>{c}</a>",
+                "<a href='#b-{c}' data-group='{id}' data-card-jump='{c}'{tip}>{icon}{title}</a>",
                 id = g.id,
+                tip = crate::boxes::guide::tip_attrs(blurb),
+                icon = crate::boxes::guide::icon_markup(c),
+                title = esc(title),
             ));
         }
         out.push_str("</div>");
@@ -328,21 +376,53 @@ pub fn render_nav(active: &str) -> String {
     out
 }
 
-/// Inner header-actions HTML for `#headerActions` — GPU / Auto / Resync / Power.
+/// Inner header-actions HTML for `#headerActions` — About / GPU / Auto / Resync / Power.
 pub fn render_header() -> String {
-    concat!(
-        "<button id='btnGpu' class='badge gpu' title='GPU mode — Eco low GPU, FX full glow, Ms medium. Click → cycle' aria-label='GPU mode — cycle Eco, FX, Ms' type='button' data-action='gpu-cycle'>FX</button>",
-        "<button id='btnAuto' class='badge' title='Auto-refresh Galaxy cards every 60s. Telegram inbound poll is the Telegram card loop. Vision remirror is Power / Vision Sync.' aria-label='Toggle auto-refresh cards' type='button' data-action='auto-toggle'>Auto</button>",
-        "<button type='button' data-action='resync' title='Refresh Galaxy cards now'>Resync</button>",
-        "<button type='button' data-action='notify-update'>notify update</button>",
-        "<button id='btnPower' class='badge' title='Vision power — soft sync / reload' aria-haspopup='true' aria-expanded='false' aria-label='Vision power menu' type='button' data-action='power-toggle'>⏻ Power</button>",
-        "<div id='powerMenu' class='power-menu' role='menu' aria-label='Vision power'>",
-        "<button type='button' role='menuitem' data-action='power-soft'>Soft sync Vision</button>",
-        "<button type='button' role='menuitem' data-action='power-reload'>Reload UI</button>",
-        "<button type='button' role='menuitem' class='err' data-action='power-offline'>Force offline</button>",
-        "</div>",
-    )
-    .into()
+    let tip = crate::boxes::guide::tip_attrs;
+    let mut out = String::new();
+    out.push_str(&format!(
+        "<span class='type-scale' role='group' aria-label='Text size, default 14'><button type='button' data-action='type-down' aria-label='Smaller text'{}>A−</button><span id='typeSize'>14</span><button type='button' data-action='type-up' aria-label='Larger text'{}>A+</button></span>",
+        tip("Smaller text. Default 14. Range 12–18."),
+        tip("Larger text. Default 14. Range 12–18."),
+    ));
+    out.push_str(&format!(
+        "<button type='button' data-action='about-jump' data-group='ops' data-card-jump='about' aria-label='Open About guide'{}>About</button>",
+        tip("English guide: groups, cards, hover tips, and header controls.")
+    ));
+    out.push_str(&format!(
+        "<button id='btnGpu' class='badge gpu' aria-label='GPU mode — cycle Eco, FX, Ms' type='button' data-action='gpu-cycle'{}>FX</button>",
+        tip("GPU mode — Eco few stars, FX full glow, Ms medium. Click to cycle.")
+    ));
+    out.push_str(&format!(
+        "<button id='btnAuto' class='badge' aria-label='Toggle auto-refresh cards' type='button' data-action='auto-toggle'{}>Auto</button>",
+        tip("Auto-refresh visible Galaxy cards every 60s. Telegram poll is its own loop.")
+    ));
+    out.push_str(&format!(
+        "<button type='button' data-action='resync'{}>Resync</button>",
+        tip("Refresh Galaxy cards now.")
+    ));
+    out.push_str(&format!(
+        "<button type='button' data-action='notify-update'{}>notify update</button>",
+        tip("Tell the server a new binary exists. Does not swap yet — use the Update badge for that.")
+    ));
+    out.push_str(&format!(
+        "<button id='btnPower' class='badge' aria-haspopup='true' aria-expanded='false' aria-label='Vision power menu' type='button' data-action='power-toggle'{}>Power</button>",
+        tip("Vision power — soft sync, reload cards, or force offline.")
+    ));
+    out.push_str("<div id='powerMenu' class='power-menu' role='menu' aria-label='Vision power'>");
+    out.push_str(&format!(
+        "<button type='button' role='menuitem' data-action='power-soft'{}>Soft sync Vision</button>",
+        tip("Remirror docs/vision snapshots, then refresh cards.")
+    ));
+    out.push_str(&format!(
+        "<button type='button' role='menuitem' data-action='power-reload'{}>Reload UI</button>",
+        tip("Refresh all Galaxy cards without remirroring Vision.")
+    ));
+    out.push_str(&format!(
+        "<button type='button' role='menuitem' class='err' data-action='power-offline'{}>Force offline</button></div>",
+        tip("Mark the page offline without stopping the server. For testing the badge.")
+    ));
+    out
 }
 
 /// Every dashboard card id appears in exactly one [`UI_GROUPS`] entry.
@@ -457,8 +537,10 @@ pub fn render_ratio(d: &Value) -> String {
     };
     let pct = f(&d["rust_ratio_pct"]);
     let band = f(&d["formal_band_min"]) * 100.0;
-    let mut out =
-        format!("<div>Rust ratio <span class='{cls}'>{pct:.2}%</span> · band min {band:.0}%</div>");
+    let mut out = format!(
+        "{}<div>Rust ratio <span class='{cls}'>{pct:.2}%</span> · band min {band:.0}%</div>",
+        crate::boxes::guide::ratio_ring_svg(pct, band)
+    );
     out.push_str(&format!(
         "<div class='dim'>rust {} / non-rust {} · product {}</div>",
         u(&d["rust_loc"]),
@@ -1275,7 +1357,10 @@ pub fn render_settings(d: &Value) -> String {
     out.push_str(&format!(
         "<label class='chip'><input id='setPoll' type='checkbox'{poll_checked}> poll Godfather</label>"
     ));
-    out.push_str("<div class='set-actions'><button type='button' data-action='settings-save'>Save</button></div>");
+    out.push_str(&format!(
+        "<div class='set-actions'><button type='button' data-action='settings-save'{}>Save</button></div>",
+        crate::boxes::guide::tip_attrs("Write Godfather channel, workflows, jail, and squad cap. Token is never echoed back.")
+    ));
     out.push_str("</div>");
     out.push_str("<div class='dim'>owner POST · token never shown again · file <kbd>data/gsv_settings.json</kbd></div>");
     out
@@ -1453,7 +1538,10 @@ pub fn render_telegram(d: &Value) -> String {
     ));
     out.push_str("</div>");
     out.push_str("<div class='dim'>inbound poll loop is the automation · MCP <kbd>gsv_telegram_decode</kbd></div>");
-    out.push_str("<div class='set-actions'><button type='button' data-action='telegram-poll'>poll now</button></div>");
+    out.push_str(&format!(
+        "<div class='set-actions'><button type='button' data-action='telegram-poll'{}>poll now</button></div>",
+        crate::boxes::guide::tip_attrs("Fetch new Godfather messages now (tickets, hook, bus).")
+    ));
     out
 }
 
@@ -1500,12 +1588,13 @@ pub fn render_tickets(d: &Value) -> String {
         ));
     }
     out.push_str(&format!(
-        "<button type='button' data-action='tickets-next'{}>next action</button>",
+        "<button type='button' data-action='tickets-next'{}{}>next action</button>",
         if next_id.is_empty() {
             String::new()
         } else {
             format!(" data-ticket-id='{}'", esc(&next_id))
-        }
+        },
+        crate::boxes::guide::tip_attrs("Ask the board for the next MCP tool to run.")
     ));
     let jail_id = s(&d["jail_id"]);
     let jail_bit = if jail_id.is_empty() {
@@ -1540,8 +1629,9 @@ pub fn render_tickets(d: &Value) -> String {
                 let title = s(&t["title"]);
                 let action = if col == "open" && !id.is_empty() {
                     format!(
-                        "<button type='button' data-action='tickets-claim' data-ticket-id='{}'>claim</button>",
-                        esc(&id)
+                        "<button type='button' data-action='tickets-claim' data-ticket-id='{}'{}>claim</button>",
+                        esc(&id),
+                        crate::boxes::guide::tip_attrs("Take this open ticket. Solo auto-claims when one worker is online.")
                     )
                 } else if col == "in_progress" && !id.is_empty() {
                     let until = u(&t["lease_until"]);
@@ -1551,13 +1641,16 @@ pub fn render_tickets(d: &Value) -> String {
                         format!("lease <kbd>{until}</kbd>")
                     };
                     format!(
-                        "<button type='button' data-action='tickets-done' data-ticket-id='{}'>done</button> \
-<button type='button' data-action='tickets-error' data-ticket-id='{}'>error</button> \
-<button type='button' data-action='tickets-reclaim' data-ticket-id='{}'>reclaim</button> \
+                        "<button type='button' data-action='tickets-done' data-ticket-id='{}'{}>done</button> \
+<button type='button' data-action='tickets-error' data-ticket-id='{}'{}>error</button> \
+<button type='button' data-action='tickets-reclaim' data-ticket-id='{}'{}>reclaim</button> \
 <span class='dim'>{}</span>",
                         esc(&id),
+                        crate::boxes::guide::tip_attrs("Mark this ticket done."),
                         esc(&id),
+                        crate::boxes::guide::tip_attrs("Block this ticket with an error."),
                         esc(&id),
+                        crate::boxes::guide::tip_attrs("Release a stale lease back to open."),
                         lease_bit
                     )
                 } else {
@@ -1581,12 +1674,15 @@ pub fn render_tickets(d: &Value) -> String {
                     "—".into()
                 } else {
                     format!(
-                        "<button type='button' data-action='tickets-from-scenario' data-scenario-id='{}'>add</button> \
-<button type='button' data-action='tickets-walk' data-scenario-id='{}'>walk</button> \
-<button type='button' data-action='tickets-hook' data-scenario-id='{}'>hook</button>",
+                        "<button type='button' data-action='tickets-from-scenario' data-scenario-id='{}'{}>add</button> \
+<button type='button' data-action='tickets-walk' data-scenario-id='{}'{}>walk</button> \
+<button type='button' data-action='tickets-hook' data-scenario-id='{}'{}>hook</button>",
                         esc(&sid),
+                        crate::boxes::guide::tip_attrs("Create the tickets in this scenario on the board."),
                         esc(&sid),
-                        esc(&sid)
+                        crate::boxes::guide::tip_attrs("Create missing rows, then claim and close them in order."),
+                        esc(&sid),
+                        crate::boxes::guide::tip_attrs("Parse this scenario into tickets from the catalog.")
                     )
                 };
                 vec![esc(&sid), esc(&title), esc(&wf), btn]
@@ -1594,18 +1690,27 @@ pub fn render_tickets(d: &Value) -> String {
             .collect();
         out.push_str(&tab(&["id", "title", "workflow", "add"], rows));
     }
-    out.push_str(
+    out.push_str(&format!(
         "<div class='dim'>create</div>\
-<input id='tixTitle' type='text' value='' placeholder='ticket title' aria-label='ticket title'>\
-<input id='tixBody' type='text' value='' placeholder='body' aria-label='ticket body'>\
-<input id='tixProduct' type='text' value='gsv' placeholder='product' aria-label='product'>\
-<button type='button' data-action='tickets-create'>Create</button>\
-<button type='button' data-action='tickets-presence'>I'm online</button>\
-<button type='button' data-action='tickets-walk'>solo walk</button>\
-<button type='button' data-action='tickets-bench'>record scenario bench</button>\
-<input id='tixHook' type='text' value='run mcp bot hook up scenario band 177' placeholder='hook phrase' aria-label='hook phrase'>\
-<button type='button' data-action='tickets-hook'>hook phrase</button>",
-    );
+<input id='tixTitle' type='text' value='' placeholder='ticket title' aria-label='ticket title'{}>\
+<input id='tixBody' type='text' value='' placeholder='body' aria-label='ticket body'{}>\
+<input id='tixProduct' type='text' value='gsv' placeholder='product' aria-label='product'{}>\
+<button type='button' data-action='tickets-create'{}>Create</button>\
+<button type='button' data-action='tickets-presence'{}>I'm online</button>\
+<button type='button' data-action='tickets-walk'{}>solo walk</button>\
+<button type='button' data-action='tickets-bench'{}>record scenario bench</button>\
+<input id='tixHook' type='text' value='run mcp bot hook up scenario band 177' placeholder='hook phrase' aria-label='hook phrase'{}>\
+<button type='button' data-action='tickets-hook'{}>hook phrase</button>",
+        crate::boxes::guide::tip_attrs("Short title for a new board ticket."),
+        crate::boxes::guide::tip_attrs("Optional body / acceptance notes."),
+        crate::boxes::guide::tip_attrs("Registered product id (gsv, poolai, …)."),
+        crate::boxes::guide::tip_attrs("Add a ticket to the git JSONL board."),
+        crate::boxes::guide::tip_attrs("Tell the board this MCP worker is online."),
+        crate::boxes::guide::tip_attrs("Create missing scenario tickets and walk them in order."),
+        crate::boxes::guide::tip_attrs("Time a create+walk of abrakadabra-session."),
+        crate::boxes::guide::tip_attrs("Phrase like: run mcp bot hook up scenario band 177."),
+        crate::boxes::guide::tip_attrs("Parse a roadmap or plan into tickets."),
+    ));
     out
 }
 
@@ -1723,12 +1828,14 @@ pub fn render_products(d: &Value) -> String {
                     "<span class='dim'>no</span>".into()
                 },
                 format!(
-                    "<button type='button' data-action='product-select' data-product-id='{}'>select</button>",
-                    esc(&id)
+                    "<button type='button' data-action='product-select' data-product-id='{}'{}>select</button>",
+                    esc(&id),
+                    crate::boxes::guide::tip_attrs("Make this the active VDT product for this server.")
                 ),
                 format!(
-                    "<button type='button' data-action='product-open' data-product-id='{}'>open</button>",
-                    esc(&id)
+                    "<button type='button' data-action='product-open' data-product-id='{}'{}>open</button>",
+                    esc(&id),
+                    crate::boxes::guide::tip_attrs("Open this product folder in Explorer or Cursor.")
                 ),
             ]
         })
@@ -2115,9 +2222,10 @@ pub fn render_ide(d: &Value) -> String {
                 esc(&s(&srow["label"])),
                 format!("<span class='dim'>{}</span>", esc(&s(&srow["modified"]))),
                 format!(
-                    "<button type='button' data-ide-tool='{}' data-ide-session='{}'>select</button>",
+                    "<button type='button' data-ide-tool='{}' data-ide-session='{}'{}>select</button>",
                     esc(&tool),
-                    esc(&id)
+                    esc(&id),
+                    crate::boxes::guide::tip_attrs("Preview the last messages from this Cursor or OpenCode session.")
                 ),
             ]
         })
@@ -2181,7 +2289,11 @@ pub fn render_vision_map(d: &Value) -> String {
     for l in &layers {
         let id = s(&l["id"]);
         cols.push_str(&format!(
-            "<div class='vmap-col' data-map-layer='{id}' style='cursor:pointer' title='filter map by {id}'><div class='vmap-l'>{} · {}</div><div class='dim' style='font-size:11px'>nodes {} · edges {}</div></div>",
+            "<div class='vmap-col' data-map-layer='{id}' style='cursor:pointer'{}><div class='vmap-l'>{} · {}</div><div class='dim' style='font-size:11px'>nodes {} · edges {}</div></div>",
+            crate::boxes::guide::tip_attrs(&format!(
+                "Show only layer {id} ({}) on the galaxy map. Click again to clear.",
+                s(&l["name"])
+            )),
             esc(&id),
             esc(&s(&l["name"])),
             u(&l["node_count"]),
@@ -2198,10 +2310,14 @@ pub fn render_vision_map(d: &Value) -> String {
             .join(" ")
     };
     format!(
-        "<div class='dim'>rev <kbd>{}</kbd> · nodes {} · edges {} · <a href='assets/vision.svg' target='_blank' style='font-size:12px'>open vision.svg ↗</a></div><img src='assets/vision.svg' alt='galaxy vision map' style='width:100%;margin:8px 0;border:1px solid var(--line);border-radius:8px;background:var(--panel2)'><div class='vmap'>{cols}</div><div class='dim' style='margin-top:6px'>edge kinds: {kinds_html}</div><div style='margin-top:8px'><input id='nodeSearchQ' type='text' placeholder='search nodes (id / label / path)'><button type='button' data-action='node-search' style='margin-top:6px'>Search</button></div><div id='b-node-search' style='margin-top:8px'></div>",
+        "<div class='dim'>rev <kbd>{}</kbd> · nodes {} · edges {} · <a href='assets/vision.svg' target='_blank' style='font-size:12px'{}>open legend ↗</a></div><p class='dim' style='margin:6px 0 0'>Static layer poster (legend). Live graph = colored chips below — click a layer to filter, then search.</p><img src='assets/vision.svg' alt='static galaxy poster — six layers from concept (L0) to workspace (L5); not the live node graph' style='width:100%;margin:8px 0;border:1px solid var(--line);border-radius:8px;background:var(--panel2)'{}><div class='vmap'>{cols}</div><div class='dim' style='margin-top:6px'>edge kinds: {kinds_html}</div><div style='margin-top:8px'><input id='nodeSearchQ' type='text' placeholder='search nodes (id / label / path)'{}><button type='button' data-action='node-search' style='margin-top:6px'{}>Search</button></div><div id='b-node-search' style='margin-top:8px'></div>",
         u(&d["revision"]),
         u(&d["nodes_count"]),
         u(&d["edges_count"]),
+        crate::boxes::guide::tip_attrs("Open the static L0–L5 legend SVG in a new tab."),
+        crate::boxes::guide::tip_attrs("Static legend of layers. Live nodes are the chips under this picture."),
+        crate::boxes::guide::tip_attrs("Type a node id, label, or path. Layer filter from the chips still applies."),
+        crate::boxes::guide::tip_attrs("Search vision nodes. Click a result to open Doc Preview."),
     )
 }
 
@@ -2410,12 +2526,13 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
         "panel-dock" => Some(render_panel_dock(d)),
         "fullscreen" => Some(render_fullscreen(d)),
         "node-search" => Some(render_node_search(d)),
+        "about" => Some(crate::boxes::guide::render_about(d)),
         _ => None,
     }
 }
 
 /// Server-rendered card names (stable contract for `/api/ui/card/:name`).
-pub const CARD_NAMES: [&str; 40] = [
+pub const CARD_NAMES: [&str; 41] = [
     "tracker",
     "sli",
     "toolchain",
@@ -2456,6 +2573,7 @@ pub const CARD_NAMES: [&str; 40] = [
     "panel-dock",
     "fullscreen",
     "node-search",
+    "about",
 ];
 
 /// Galaxy backdrop card body (SVG-backed visual).
@@ -2835,12 +2953,15 @@ mod tests {
         assert!(render_card("tickets", &d).is_some());
         assert!(render_card("products", &d).is_some());
         assert!(render_card("fingerprints", &d).is_some());
+        assert!(render_card("about", &d).is_some());
         assert!(render_card("nope", &d).is_none());
-        assert_eq!(CARD_NAMES.len(), 40);
+        assert_eq!(CARD_NAMES.len(), 41);
+        assert!(CARD_NAMES.contains(&"about"));
         let chrome = chrome_controls_stylesheet();
         assert!(chrome.contains("scrollbar-width"), "{chrome}");
         assert!(chrome.contains(".set-form"), "{chrome}");
-        assert!(chrome.contains("color-scheme:dark"), "{chrome}");
+        assert!(chrome.contains(".about-hero"), "{chrome}");
+        assert!(chrome.contains("#gsvTip"), "{chrome}");
         assert!(render_card("usage", &d).is_some());
         assert!(render_card("sw", &d).is_some());
         assert!(render_card("watchdog", &d).is_some());
@@ -3119,9 +3240,17 @@ mod tests {
         assert_eq!(chrome[0], "galaxy-backdrop");
         assert_eq!(chrome[chrome.len() - 1], "node-search");
         let nav_html = wire["html"].as_str().expect("html");
-        assert!(nav_html.contains("data-card-jump='health'"), "{nav_html}");
+        assert!(nav_html.contains("data-card-jump='about'"), "{nav_html}");
+        assert!(nav_html.contains("data-tip="), "{nav_html}");
+        assert!(nav_html.contains("class='ico'"), "{nav_html}");
+        let cards = wire["cards"].as_array().expect("cards");
+        assert!(
+            cards.iter().any(|c| c["id"] == "about"),
+            "layout cards include about"
+        );
         assert!(nav_html.contains("data-group='ops'"), "{nav_html}");
         let header = wire["header"].as_str().expect("header");
+        assert!(header.contains("data-action='about-jump'"), "{header}");
         assert!(header.contains("data-action='gpu-cycle'"), "{header}");
         assert!(header.contains("data-action='power-toggle'"), "{header}");
         assert!(header.contains("id='powerMenu'"), "{header}");
@@ -3134,6 +3263,8 @@ mod tests {
     #[test]
     fn render_header_and_node_search_fragments() {
         let header = render_header();
+        assert!(header.contains("data-action='type-up'"), "{header}");
+        assert!(header.contains("data-action='about-jump'"), "{header}");
         assert!(header.contains("data-action='resync'"), "{header}");
         assert!(header.contains("data-action='power-soft'"), "{header}");
         assert!(header.contains("aria-haspopup='true'"), "{header}");
@@ -3142,6 +3273,16 @@ mod tests {
         }));
         assert!(empty.contains("matches <kbd>0</kbd>"), "{empty}");
         assert!(empty.contains("<span class='dim'>—</span>"), "{empty}");
+        let map = render_vision_map(&serde_json::json!({
+            "ok": true,
+            "revision": 1,
+            "nodes_count": 2,
+            "edges_count": 1,
+            "layers": [{"id":"L0","name":"Concept","node_count":1,"edges_from":0}],
+            "edge_kinds": [{"kind":"implements","count":1}]
+        }));
+        assert!(map.contains("Static layer poster"), "{map}");
+        assert!(map.contains("static galaxy poster"), "{map}");
         let html = render_node_search(&serde_json::json!({
             "ok": true,
             "total_matches": 2,

@@ -68,8 +68,10 @@
 | GET | `/mcp` | MCP discovery (`gsv_mcp_openbot` + `sandbox` GSV crate path + 55 tools + 11 resources + 3 prompts + `stdio`/`stdio_live`/`http`/`http_url`/`version`/`http_csrf`/`tool_count`/`resource_count`/`prompt_count`/`logging`/`completions`/`log_level`/`subscribe`/`subscription_count`/`sse`/`streamable`/`sessions`/`session_count`/`tools_list_changed`/`catalog_notify`/`listed_tool_count`/`session_listed`/`catalog_stale`/`catalog_hint`); sessionless `Accept: text/event-stream` flushes pending notifications as finite SSE; **GET with `Mcp-Session-Id` holds** the stream and queues `tools/list_changed`; unknown `Mcp-Session-Id` → 404 |
 | POST | `/mcp` | MCP JSON-RPC (initialize / tools/* / resources/* including subscribe/unsubscribe / prompts/* / logging/setLevel / completion/complete); skips browser CSRF (bots); `initialize` issues `Mcp-Session-Id` and queues `list_changed`; JSON POST **keeps** the notification queue for the GET hold; unknown id → 404; `Accept: text/event-stream` → SSE notifications then result; stdio twin is `target/live/gsv-mcp.exe` |
 | DELETE | `/mcp` | End HTTP MCP session (`Mcp-Session-Id` required; missing → 400; unknown → 404) |
-| GET | `/api/ui/layout` | grouped IA (ops/vision/sprint/studio) + `chrome` (8) + `html` (sidebar nav) + `header` (GPU/Auto/Power) |
-| GET | `/api/ui/card/:name` | Rust-rendered card body HTML (`CARD_NAMES` 40, incl. `tickets` + `telegram` + `settings` + `usage` + `watchdog` + `sw` + `products` + `fingerprints`) |
+| GET | `/api/ui/layout` | grouped IA (ops/vision/sprint/studio) + `chrome` (8) + `html` (sidebar nav) + `header` (About/GPU/Auto/Power) + per-card blurbs/icons |
+| GET | `/api/ui/card/:name` | Rust-rendered card body HTML (`CARD_NAMES` **41**, incl. `about` + `tickets` + `telegram` + `settings` + `usage` + `watchdog` + `sw` + `products` + `fingerprints`) |
+| GET | `/api/ui/icon/:name` | 16×16 SVG glyph for a card id (optional `.svg` suffix) |
+| GET | `/api/ui/icons.svg` | About legend sheet (all card glyphs) |
 | GET | `/api/ui/load-palette` | live Galaxy `:root` CSS (`GalaxyPalette::as_css_root`) |
 | GET | `/api/ui/load-theme` | live sprint `:root` CSS (`SprintThemeReport::as_css_root`) |
 | GET | `/data/{file}` | allowlisted JSON snapshot under `data/` (no `omni.toml`) |
@@ -112,7 +114,7 @@ cargo run --manifest-path GSV/Cargo.toml --bin gsv-http-stand-smoke -- --base-ur
 
 - Перевіряє core boxes (`/api/health`, `/api/tracker`, `/api/sli`, `/api/toolchain`, `/api/update`, `/api/ratio`, `/api/omni/status`), усі `/api/vision*` (ok-гейт), SVG-ассети та **усі 32 зареєстрованих карток** `/api/ui/card/:name` (non-empty `html`).
 - Layout: `GET /api/ui/layout` — 4 групи (ops / vision / sprint / studio), default `sprint`, `chrome` (8 fragments: galaxy-backdrop / starfield / rss-ticker / gpu-mode / power-menu / panel-dock / fullscreen / node-search), `html` (sidebar nav inner HTML with `data-card-jump`), `header` (GPU / Auto / Resync / Power `data-action`).
-- **Band 143 chrome:** header stacking `z-index ≥ 40`, `.power-menu` `z-index:80` (no `body>header,.workspace{z-index:2}`); collapse removes the card from the grid (dock chip restore); at most one `.fullscreen` card; Esc calls `exitFullscreen()` via `data-action='card-fs'`. Type scale `--fs-ui:13px` / `--fs-card:12px` / `--fs-meta:11px` / `--fs-chart:11px`; card body `max-height:420px`; speed/rust SVG canvas height 168, font-size 11, `ui-monospace` stack.
+- **Band 143 chrome:** header stacking `z-index ≥ 40`, `.power-menu` `z-index:80` (no `body>header,.workspace{z-index:2}`); collapse removes the card from the grid (dock chip restore); at most one `.fullscreen` card below sticky chrome (`--fs-top`, workspace z-index 60 while open); Esc calls `exitFullscreen()` via `data-action='card-fs'`. Type scale `--ui:14px` (A−/A+ 12–18) drives `--fs-ui/card/meta/chart`; card body `max-height:420px`; speed/rust SVG canvas height 168, `ui-monospace` stack.
 - Shell CSS: `GET /api/ui/load-palette` + `GET /api/ui/load-theme` — live `:root` stylesheets (inline `:root` in `ui/index.html` remains the offline fallback).
 - `ok`-гейт лише там, де wire має поле `ok` (vision*/ratio/health/cards); struct-wire endpoints (tracker/sli/toolchain/update/omni) — лише 200 + JSON (empty-tolerant).
 - Вихідний код: `GSV/src/bin/gsv_http_stand_smoke.rs`; контракти: `GSV/tests/gsv_stand_smoke_contracts.rs`.

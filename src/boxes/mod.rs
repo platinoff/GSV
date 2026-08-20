@@ -14,6 +14,7 @@
 //! | Ratio | `ratio` | `/api/ratio` | `GSV/data/rust_ratio.json` (Rust 95–100%) |
 //! | Vision | `vision` | `/api/vision*` | `docs/vision/` manifest + feed mirror |
 //! | UI fragments | `ui` | `/api/ui/card/:name` | server-rendered card HTML |
+//! | About | `guide` | `/api/ui/card/about` · `/api/ui/icon/:name` · `/api/ui/icons.svg` | English how-to + hover blurbs + distinct card glyphs |
 //! | Products | `products` | `/api/products` | workspace ∪ sibling git ∪ kit |
 //! | Fingerprints | `fingerprint` | `/api/fingerprints` | `docs/gsv/fingerprints.jsonl` |
 //! | Service Worker | `sw` | `/sw.js` · `/api/sw` | Rust-rendered shell cache |
@@ -27,6 +28,7 @@
 
 pub mod fingerprint;
 pub mod gitkit;
+pub mod guide;
 pub mod hooks;
 pub mod ide;
 pub mod mds;

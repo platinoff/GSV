@@ -1419,11 +1419,10 @@ fn svg_empty(title: &str, hint: &str) -> String {
     )
 }
 
-/// `GET /api/vision/speeds.svg` — test-CI wall-clock history bar chart (SVG).
+/// `GET /api/vision/speeds.svg` — test-CI wall-clock history as a line chart.
 ///
-/// Bars are green when the run `ok`, red otherwise; the latest bench median is
-/// noted in the footer. Rendered server-side in Rust so the UI stays ratio-safe
-/// (no client chart code).
+/// Green markers passed, red failed; height is seconds. Distinct from the
+/// stacked-bar rust-diagnostics chart. Rendered server-side in Rust.
 pub fn speed_index_chart_svg(repo_root: &Path, data_dir: &Path) -> String {
     let r = source_speed_index(repo_root, data_dir);
     if r.test_ci_history.is_empty() {
@@ -1443,34 +1442,65 @@ pub fn speed_index_chart_svg(repo_root: &Path, data_dir: &Path) -> String {
         .max(1.0);
     let plot_h = CHART_PLOT_H;
     let base_y = CHART_BASE_Y;
-    let slot = 560.0_f64 / n as f64;
-    let mut bars = String::new();
-    for (i, rec) in recs.iter().enumerate() {
-        let h = (rec.wall_secs / max_wall) * plot_h;
-        let x = i as f64 * slot + slot * 0.25;
-        let w = slot * 0.5;
-        let color = if rec.ok { "#3fb96e" } else { "#e05b5b" };
-        bars.push_str(&format!(
-            r##"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" fill="{color}" opacity="0.9"><title>{rec:.0}s {ok} {day}</title></rect>"##,
-            y = base_y - h,
-            rec = rec.wall_secs,
-            ok = if rec.ok { "ok" } else { "fail" },
-            day = svg_day_label(&rec.recorded_at),
-        ));
-    }
     let bench = r
         .bench_history
         .last()
         .map(|b| format!("latest bench {} {} ns", b.bench, b.median_ns))
         .unwrap_or_else(|| "no bench history".to_string());
+    let mut line = String::from("M");
+    let mut area = format!("M 40 {base_y:.1}");
+    let mut dots = String::new();
+    let plot_left = 40.0_f64;
+    let plot_w = 508.0_f64;
+    let last_x = if n <= 1 {
+        plot_left + plot_w / 2.0
+    } else {
+        plot_left + plot_w
+    };
+    for (i, rec) in recs.iter().enumerate() {
+        let x = if n <= 1 {
+            plot_left + plot_w / 2.0
+        } else {
+            plot_left + (i as f64) * (plot_w / (n as f64 - 1.0))
+        };
+        let y = base_y - (rec.wall_secs / max_wall) * plot_h;
+        if i == 0 {
+            line.push_str(&format!("{x:.1} {y:.1}"));
+        } else {
+            line.push_str(&format!(" L {x:.1} {y:.1}"));
+        }
+        area.push_str(&format!(" L {x:.1} {y:.1}"));
+        let color = if rec.ok { "#3fb96e" } else { "#e05b5b" };
+        let day = svg_day_label(&rec.recorded_at);
+        let ok = if rec.ok { "ok" } else { "fail" };
+        dots.push_str(&format!(
+            r##"<circle cx="{x:.1}" cy="{y:.1}" r="3.2" fill="{color}"><title>{secs:.0}s {ok} {day}</title></circle>"##,
+            secs = rec.wall_secs,
+        ));
+    }
+    area.push_str(&format!(" L {last_x:.1} {base_y:.1} Z"));
     format!(
-        r##"<svg xmlns="http://www.w3.org/2000/svg" width="560" height="{CHART_H}" viewBox="0 0 560 {CHART_H}">
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="560" height="{CHART_H}" viewBox="0 0 560 {CHART_H}" role="img">
+<title>test-ci wall-clock ({n} runs, max {max_wall:.0}s)</title>
+<desc>Line chart of cargo test duration. Green dots passed. Red dots failed. Height is seconds.</desc>
 <rect width="560" height="{CHART_H}" rx="8" fill="#121826"/>
-<text x="12" y="20" font-family="{CHART_FONT}" font-size="11" fill="#e8843c">test-ci wall-clock ({n} runs, max {max_wall:.0}s)</text>
-{bars}
-<line x1="6" y1="{base_y:.0}" x2="554" y2="{base_y:.0}" stroke="#1e2a3d" stroke-width="1"/>
+<text x="12" y="16" font-family="{CHART_FONT}" font-size="11" fill="#e8843c">test-ci wall-clock ({n} runs, max {max_wall:.0}s)</text>
+<g font-family="{CHART_FONT}" font-size="9">
+<text x="430" y="16" fill="#3fb96e">ok</text>
+<text x="458" y="16" fill="#e05b5b">fail</text>
+<text x="36" y="32" text-anchor="end" fill="#7c8ba3">{max_wall:.0}s</text>
+<text x="36" y="{mid_y:.0}" text-anchor="end" fill="#7c8ba3">{half:.0}s</text>
+<text x="36" y="{base_y:.0}" text-anchor="end" fill="#7c8ba3">0s</text>
+</g>
+<line x1="40" y1="28" x2="40" y2="{base_y:.0}" stroke="#1e2a3d"/>
+<line x1="40" y1="{base_y:.0}" x2="554" y2="{base_y:.0}" stroke="#1e2a3d" stroke-width="1"/>
+<path d="{area}" fill="#7eb8ff" fill-opacity="0.12"/>
+<path d="{line}" fill="none" stroke="#7eb8ff" stroke-width="1.6"/>
+{dots}
 <text x="12" y="162" font-family="{CHART_FONT}" font-size="11" fill="#7c8ba3">{bench}</text>
-</svg>"##
+</svg>"##,
+        mid_y = base_y - plot_h / 2.0,
+        half = max_wall / 2.0,
     )
 }
 
@@ -1496,26 +1526,23 @@ pub fn rust_diagnostics_chart_svg(repo_root: &Path, data_dir: &Path) -> String {
         .max(1);
     let plot_h = CHART_PLOT_H;
     let base_y = CHART_BASE_Y;
-    let slot = 560.0_f64 / n as f64;
+    let slot = (520.0_f64) / n as f64;
     let mut bars = String::new();
     for (i, rec) in recs.iter().enumerate() {
         let hw = (rec.warnings as f64 / max_total as f64) * plot_h;
         let he = (rec.errors as f64 / max_total as f64) * plot_h;
-        let x = i as f64 * slot + slot * 0.1;
-        let w = slot * 0.4;
+        let x = 40.0 + i as f64 * slot + slot * 0.18;
+        let w = slot * 0.64;
+        let day = svg_day_label(&rec.recorded_at);
         bars.push_str(&format!(
-            r##"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{hw:.1}" fill="#e8843c" opacity="0.9"><title>w {warn} e {err} {day}</title></rect>"##,
-            y = base_y - hw,
+            r##"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{hw:.1}" fill="#e8843c" opacity="0.9"><title>warnings {warn} · {day}</title></rect>"##,
+            y = base_y - hw - he,
             warn = rec.warnings,
-            err = rec.errors,
-            day = svg_day_label(&rec.recorded_at),
         ));
         bars.push_str(&format!(
-            r##"<rect x="{x2:.1}" y="{y2:.1}" width="{w:.1}" height="{he:.1}" fill="#e05b5b" opacity="0.9"><title>errors {err} {day}</title></rect>"##,
-            x2 = x + w,
+            r##"<rect x="{x:.1}" y="{y2:.1}" width="{w:.1}" height="{he:.1}" fill="#e05b5b" opacity="0.9"><title>errors {err} · {day}</title></rect>"##,
             y2 = base_y - he,
             err = rec.errors,
-            day = svg_day_label(&rec.recorded_at),
         ));
     }
     let latest = r.latest.command.clone();
@@ -1525,11 +1552,20 @@ pub fn rust_diagnostics_chart_svg(repo_root: &Path, data_dir: &Path) -> String {
         latest
     };
     format!(
-        r##"<svg xmlns="http://www.w3.org/2000/svg" width="560" height="{CHART_H}" viewBox="0 0 560 {CHART_H}">
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="560" height="{CHART_H}" viewBox="0 0 560 {CHART_H}" role="img">
+<title>clippy warnings/errors ({n} runs, max {max_total})</title>
+<desc>Stacked bars. Orange is clippy warnings stacked on red errors. Height is count.</desc>
 <rect width="560" height="{CHART_H}" rx="8" fill="#121826"/>
-<text x="12" y="20" font-family="{CHART_FONT}" font-size="11" fill="#e8843c">clippy warnings/errors ({n} runs, max {max_total})</text>
+<text x="12" y="16" font-family="{CHART_FONT}" font-size="11" fill="#e8843c">clippy warnings/errors ({n} runs, max {max_total})</text>
+<g font-family="{CHART_FONT}" font-size="9">
+<text x="400" y="16" fill="#e8843c">warnings</text>
+<text x="470" y="16" fill="#e05b5b">errors</text>
+<text x="36" y="32" text-anchor="end" fill="#7c8ba3">{max_total}</text>
+<text x="36" y="{base_y:.0}" text-anchor="end" fill="#7c8ba3">0</text>
+</g>
+<line x1="40" y1="28" x2="40" y2="{base_y:.0}" stroke="#1e2a3d"/>
+<line x1="40" y1="{base_y:.0}" x2="554" y2="{base_y:.0}" stroke="#1e2a3d" stroke-width="1"/>
 {bars}
-<line x1="6" y1="{base_y:.0}" x2="554" y2="{base_y:.0}" stroke="#1e2a3d" stroke-width="1"/>
 <text x="12" y="162" font-family="{CHART_FONT}" font-size="11" fill="#7c8ba3">{latest}</text>
 </svg>"##
     )
@@ -2115,9 +2151,10 @@ pub fn sprint_focus_svg(repo_root: &Path, data_dir: &Path, sprint: &str) -> Stri
     let mut layers_sorted: Vec<&Layer> = m.layers.iter().collect();
     layers_sorted.sort_by_key(|l| l.z);
     let width = 900.0_f64;
+    let gutter = 56.0_f64;
     let row_h = 34.0_f64;
-    let header_h = 26.0_f64;
-    let height = header_h + layers_sorted.len() as f64 * row_h + 20.0_f64;
+    let header_h = 28.0_f64;
+    let height = header_h + layers_sorted.len() as f64 * row_h + 22.0_f64;
     let mut positions: std::collections::HashMap<String, (f64, f64)> =
         std::collections::HashMap::new();
     let mut body = String::new();
@@ -2130,16 +2167,29 @@ pub fn sprint_focus_svg(repo_root: &Path, data_dir: &Path, sprint: &str) -> Stri
             continue;
         }
         let cy = header_h + li as f64 * row_h + row_h / 2.0;
-        let step = (width - 40.0) / nodes.len() as f64;
+        body.push_str(&format!(
+            r##"<text x="8" y="{cy:.1}" font-family="monospace" font-size="9" fill="#7c8ba3">{lid}</text>"##,
+            lid = layer.id,
+        ));
+        let step = (width - gutter - 24.0) / nodes.len() as f64;
         for (i, n) in nodes.iter().enumerate() {
-            let cx = 20.0 + i as f64 * step + step / 2.0;
+            let cx = gutter + i as f64 * step + step / 2.0;
             positions.insert(n.id.clone(), (cx, cy));
             let scope = in_scope.contains(&n.id);
+            let tip = format!(
+                "{} ({}) — {}",
+                n.label,
+                n.id,
+                if scope {
+                    "in this sprint"
+                } else {
+                    "not in this sprint"
+                }
+            );
             if scope {
                 in_scope_count += 1;
                 body.push_str(&format!(
-                    r##"<circle cx="{cx:.1}" cy="{cy:.1}" r="4" fill="{SPRINT_ACCENT}"><title>{id}</title></circle>"##,
-                    id = n.id
+                    r##"<circle cx="{cx:.1}" cy="{cy:.1}" r="4" fill="{SPRINT_ACCENT}"><title>{tip}</title></circle>"##,
                 ));
                 body.push_str(&format!(
                     r##"<text x="{cx:.1}" y="{ty:.1}" font-family="monospace" font-size="9" fill="#d4c4ff">{label}</text>"##,
@@ -2148,9 +2198,8 @@ pub fn sprint_focus_svg(repo_root: &Path, data_dir: &Path, sprint: &str) -> Stri
                 ));
             } else {
                 body.push_str(&format!(
-                    r##"<circle cx="{cx:.1}" cy="{cy:.1}" r="3" fill="{color}" opacity="0.22"><title>{id}</title></circle>"##,
+                    r##"<circle cx="{cx:.1}" cy="{cy:.1}" r="3" fill="{color}" opacity="0.22"><title>{tip}</title></circle>"##,
                     color = sprint_layer_color(&n.layer),
-                    id = n.id
                 ));
             }
         }
@@ -2178,10 +2227,12 @@ pub fn sprint_focus_svg(repo_root: &Path, data_dir: &Path, sprint: &str) -> Stri
         }
     }
     format!(
-        r##"<svg xmlns="http://www.w3.org/2000/svg" width="{width:.0}" height="{height:.0}" viewBox="0 0 {width:.0} {height:.0}">
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="{width:.0}" height="{height:.0}" viewBox="0 0 {width:.0} {height:.0}" role="img">
+<title>sprint focus: {focus}</title>
+<desc>Bright purple nodes are in this sprint. Dim nodes are other layers. Left labels are L0–L5.</desc>
 <rect width="{width:.0}" height="{height:.0}" rx="8" fill="#121826"/>
 <text x="12" y="16" font-family="monospace" font-size="12" fill="{SPRINT_ACCENT}">sprint focus: {focus}</text>
-<text x="{right:.0}" y="16" font-family="monospace" font-size="11" fill="#7c8ba3" text-anchor="end">{in_scope_count} / {total} nodes</text>
+<text x="{right:.0}" y="16" font-family="monospace" font-size="11" fill="#7c8ba3" text-anchor="end">bright=in sprint · dim=other · {in_scope_count} / {total} nodes</text>
 {edges_svg}{body}
 </svg>"##,
         right = width - 12.0,

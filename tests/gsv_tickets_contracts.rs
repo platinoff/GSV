@@ -331,7 +331,7 @@ async fn post_cross_site_is_forbidden() {
 #[test]
 fn card_tickets_in_registry() {
     assert!(CARD_NAMES.contains(&"tickets"));
-    assert_eq!(CARD_NAMES.len(), 40);
+    assert_eq!(CARD_NAMES.len(), 41);
     let empty = render_card("tickets", &json!({ "ok": true, "tickets": [] })).expect("empty");
     assert!(empty.contains("tickets — no data"), "{empty}");
     assert!(empty.contains("open tickets are the board"), "{empty}");

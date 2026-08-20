@@ -126,7 +126,7 @@ fn ui_helpers_match_js_semantics() {
     assert!(tab(&["a"], Vec::new()).contains("<span class='dim'>—</span>"));
     assert!(bar(50.0).contains("width:50%"));
     assert!(bar(120.0).contains("width:100%"));
-    assert_eq!(CARD_NAMES.len(), 40);
+    assert_eq!(CARD_NAMES.len(), 41);
 }
 
 #[tokio::test]
@@ -184,7 +184,8 @@ async fn ui_card_mcp_renders_openbot_tools() {
 
 /// The rustCards the thin JS glue fetches via `getText` (mirror of
 /// `rustCards` in `GSV/ui/index.html`).
-const RUST_CARDS: [&str; 32] = [
+const RUST_CARDS: [&str; 33] = [
+    "about",
     "health",
     "products",
     "fingerprints",
@@ -329,7 +330,7 @@ fn card_renderers_empty_state_contract() {
 async fn ui_index_a11y_markers_present() {
     let (app, _state) = app();
     let html = get_index_html(&app).await;
-    assert!(html.contains("lang=\"uk\""), "html lang");
+    assert!(html.contains("lang=\"en\""), "html lang");
     assert!(html.contains("role=\"status\""), "live status regions");
     assert!(html.contains("aria-live=\"polite\""), "aria-live polite");
     assert!(html.contains("aria-haspopup=\"true\""), "power menu popup");
@@ -353,12 +354,12 @@ async fn ui_index_a11y_markers_present() {
         html.contains("alt=\"\"") || html.contains("alt=''"),
         "empty alt for decorative images"
     );
-    assert!(html.contains("alt=\"speed history\""), "speed chart alt");
     assert!(
-        html.contains("alt=\"rust diagnostics history\""),
-        "diag chart alt"
+        html.contains("alt=\"cargo test duration line chart"),
+        "speed chart alt"
     );
-    assert!(html.contains("alt=\"sprint focus map\""), "focus map alt");
+    assert!(html.contains("alt=\"clippy stacked bars"), "diag chart alt");
+    assert!(html.contains("alt=\"sprint focus map"), "focus map alt");
     assert!(html.contains("href=\"#grid\""), "skip link");
     assert!(html.contains("data-group=\"sprint\""), "grouped cards");
     assert!(html.contains("id=\"shellNav\""), "sidebar nav");
@@ -404,7 +405,8 @@ async fn ui_index_cards_are_offline_stable() {
             && html.contains("\"watchdog\"")
             && html.contains("\"settings\"")
             && html.contains("\"telegram\"")
-            && html.contains("\"tickets\""),
+            && html.contains("\"tickets\"")
+            && html.contains("\"about\""),
         "rustCards includes layout ops/sprint cards"
     );
     assert!(
@@ -475,6 +477,13 @@ async fn ui_index_card_actions_use_data_action() {
         "card-min data-action missing"
     );
     assert!(html.contains("function exitFullscreen"));
+    assert!(html.contains("function placeFullscreen"));
+    assert!(html.contains("--fs-top"));
+    assert!(
+        html.contains("panel-fs-active .workspace")
+            || html.contains("panel-fs-active .workspace{z-index:60}"),
+        "fullscreen stacking lifts workspace above header trap"
+    );
 }
 
 /// Band 143: collapsed cards leave the grid (P2).
@@ -505,10 +514,15 @@ async fn ui_index_fullscreen_chart_img_unclipped() {
 async fn ui_index_defines_type_scale() {
     let (app, _state) = app();
     let html = get_index_html(&app).await;
-    assert!(html.contains("--fs-ui:13px"));
-    assert!(html.contains("--fs-card:12px"));
-    assert!(html.contains("--fs-meta:11px"));
-    assert!(html.contains("--fs-chart:11px"));
+    assert!(html.contains("--ui:14px"));
+    assert!(html.contains("--fs-ui:var(--ui)"));
+    assert!(html.contains("--fs-card:calc(var(--ui)"));
+    assert!(html.contains("--fs-meta:calc(var(--ui)"));
+    assert!(html.contains("--fs-chart:calc(var(--ui)"));
+    assert!(
+        html.contains("data-action=\"type-up\"") || html.contains("data-action='type-up'"),
+        "text size control"
+    );
 }
 
 /// Band 147: header/card density vs presentation shots (not pixel-perfect).
@@ -571,4 +585,97 @@ async fn ui_index_do_update_posts_apply() {
     );
     assert!(html.contains("function doUpdate"));
     assert!(html.contains("setOffline(true)"));
+}
+
+#[tokio::test]
+async fn ui_card_about_is_english_howto() {
+    let (app, _state) = app();
+    let (status, json) = get_card(&app, "about").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["ok"], true);
+    let html = json["html"].as_str().expect("html");
+    assert!(html.contains("How to move around"), "{html}");
+    assert!(html.contains("127.0.0.1:9999"), "{html}");
+    assert!(html.contains("data-card-jump='tickets'"), "{html}");
+    assert!(html.contains("/api/ui/icons.svg"), "{html}");
+    assert!(html.contains("Vision Map"), "{html}");
+    assert!(html.contains("static L0"), "{html}");
+}
+
+#[tokio::test]
+async fn ui_index_about_and_hover_tips() {
+    let (app, _state) = app();
+    let html = get_index_html(&app).await;
+    assert!(html.contains("data-card=\"about\""), "about card");
+    assert!(html.contains("id=\"gsvTip\""), "hover tip layer");
+    assert!(
+        html.contains("function decorateGuide"),
+        "layout applies blurbs"
+    );
+    assert!(html.contains("function bindTips"), "pointer hover tips");
+    assert!(html.contains("\"about\""), "rustCards includes about");
+    assert!(
+        html.contains("data-action=\"about-jump\""),
+        "header About before layout"
+    );
+    assert!(
+        html.contains("setAttribute(\"data-title\""),
+        "dock uses human titles"
+    );
+}
+
+#[tokio::test]
+async fn ui_icon_svg_is_distinct_and_known() {
+    let (app, _state) = app();
+    let health = {
+        let res = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/ui/icon/health.svg")
+                    .method(Method::GET)
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(res.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+            .await
+            .expect("body");
+        String::from_utf8(bytes.to_vec()).expect("utf8")
+    };
+    assert!(health.starts_with("<svg"), "{health}");
+    assert!(health.contains("Health"), "{health}");
+    let sheet = {
+        let res = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/ui/icons.svg")
+                    .method(Method::GET)
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(res.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+            .await
+            .expect("body");
+        String::from_utf8(bytes.to_vec()).expect("utf8")
+    };
+    assert!(sheet.contains("Galaxy card icons"), "{sheet}");
+    let unknown = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/ui/icon/does-not-exist")
+                .method(Method::GET)
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(unknown.status(), StatusCode::NOT_FOUND);
 }

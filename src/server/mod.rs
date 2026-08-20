@@ -149,6 +149,8 @@ pub fn router(state: AppState) -> Router {
         .route("/api/ratio/trend", get(api_ratio_trend))
         .route("/api/ui/card/{name}", get(api_ui_card))
         .route("/api/ui/layout", get(api_ui_layout))
+        .route("/api/ui/icons.svg", get(api_ui_icons))
+        .route("/api/ui/icon/{name}", get(api_ui_icon))
         .route("/ui/{*path}", get(api_ui_path))
         .route("/api/ui/load-palette", get(api_ui_load_palette))
         .route("/api/ui/load-theme", get(api_ui_load_theme))
@@ -1086,6 +1088,34 @@ async fn api_ui_layout() -> Json<Value> {
     Json(crate::boxes::ui::layout_wire())
 }
 
+async fn api_ui_icons() -> Response {
+    (
+        StatusCode::OK,
+        [
+            ("Content-Type", "image/svg+xml"),
+            ("Cache-Control", "no-cache"),
+        ],
+        crate::boxes::guide::icons_sheet(),
+    )
+        .into_response()
+}
+
+async fn api_ui_icon(Path(name): Path<String>) -> Response {
+    let id = name.strip_suffix(".svg").unwrap_or(name.as_str());
+    match crate::boxes::guide::icon_document(id) {
+        Some(svg) => (
+            StatusCode::OK,
+            [
+                ("Content-Type", "image/svg+xml"),
+                ("Cache-Control", "no-cache"),
+            ],
+            svg,
+        )
+            .into_response(),
+        None => err_json(StatusCode::NOT_FOUND, format!("unknown icon: {id}")),
+    }
+}
+
 #[derive(serde::Deserialize, Default)]
 struct CardQuery {
     id: Option<String>,
@@ -1194,6 +1224,7 @@ async fn card_wire(state: &AppState, name: &str, q: &CardQuery) -> Result<Value,
             q.q.as_deref().unwrap_or(""),
             q.layer.as_deref().filter(|s| !s.is_empty()),
         ),
+        "about" => json!({ "ok": true, "locale": "en" }),
         _ => return Err(()),
     };
     Ok(wire)

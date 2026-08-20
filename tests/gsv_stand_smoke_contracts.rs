@@ -126,12 +126,14 @@ async fn struct_wire_endpoints_parse_json() {
 }
 
 /// SVG/status-only routes — the `check_status` set.
-const STATUS_ENDPOINTS: [&str; 5] = [
+const STATUS_ENDPOINTS: [&str; 7] = [
     "/assets/vision.svg",
     "/api/vision/speeds.svg",
     "/api/vision/rust-diagnostics.svg",
     "/api/vision/starfield.svg?mode=eco",
     "/api/vision/sprint-focus.svg",
+    "/api/ui/icons.svg",
+    "/api/ui/icon/about.svg",
 ];
 
 #[tokio::test]
