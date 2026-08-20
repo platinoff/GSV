@@ -10,7 +10,7 @@ Research this band used:
 | [awesome-github-profile](https://github.com/beydemirfurkan/awesome-github-profile) | One focal motion, not a carnival. Neon pulse + typewriter as the useful ceiling. |
 | GSV Galaxy palette | `#06080f` / `#7eb8ff` / `#c4a5ff` / `#22d3ee` — same as `boxes/vision.rs` starfield/galaxy SVG. |
 
-Do **not** add GIFs or PNG screenshots here unless they are the live Galaxy UI (those files were never committed; the old README 404'd). Charts in the product stay Rust-rendered at `/api/vision/*.svg`.
+GitHub's **file Preview** tab sanitizes SVG (no script, no `<filter>`; illegal XML bytes → `Invalid image source`). Animation is meant for the **README `<img>`**, not the blob page. Keep files ASCII XML 1.0 (`<?xml … encoding="UTF-8"?>`, no bytes `< 0x20` except tab/LF/CR).
 
 | File | Role |
 |------|------|
