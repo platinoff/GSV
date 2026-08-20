@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-20 · band 189)
+
+- **Band 189:** Settings Galaxy polish + MCP Open Bot debug. Labeled Godfather `.set-form` (workflow chips, mode/kind, poll/lease); wire `squad_cap_override` so Save does not freeze derived cap; dark `color-scheme` + Galaxy scrollbars on card/nav; Telegram `.tg-head`; MCP `catalog_stale` banner.
+- **Canon:** [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md) · [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+- **Next drain:** **owner pick** after a warnings-first scan.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.43%** (rust 36279 / product 36486) · **640** tests · clippy 0
+
 ## Стан (2026-08-20 · band 188)
 
 - **Band 188:** README SMIL presentations + docs tidy. `docs/assets/presentations/{gsv-hero,gsv-install,gsv-flow}.svg` (GitHub-safe SMIL; missing PNG tiles gone). Root README = install (`cargo xtask live`) + what to do. `docs/` no longer frames GSV as a PoolAI subfolder. git-workflow `origin` = `platinoff/GSV`.

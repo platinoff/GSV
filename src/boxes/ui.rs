@@ -58,6 +58,85 @@ fn empty_html(label: &str) -> String {
     format!("<div class='dim'>{label} — no data</div>")
 }
 
+/// Status chip for settings / telegram / MCP heads.
+fn pill(kind: &str, text: &str) -> String {
+    let class = if kind.is_empty() {
+        "pill".to_string()
+    } else {
+        format!("pill {kind}")
+    };
+    format!("<span class='{class}'>{}</span>", esc(text))
+}
+
+/// Labeled control (settings form).
+fn set_field(label: &str, control: &str) -> String {
+    format!(
+        "<label class='set-field'><span>{}</span>{}</label>",
+        esc(label),
+        control
+    )
+}
+
+fn set_input(id: &str, typ: &str, value: &str, placeholder: &str, aria: &str) -> String {
+    let extra = if typ == "password" {
+        " autocomplete='new-password'"
+    } else {
+        " autocomplete='off'"
+    };
+    format!(
+        "<input id='{id}' type='{typ}' value='{}' placeholder='{}' aria-label='{}'{extra}>",
+        esc(value),
+        esc(placeholder),
+        esc(aria)
+    )
+}
+
+fn set_select(id: &str, aria: &str, current: &str, options: &[(&str, &str)]) -> String {
+    let mut out = format!("<select id='{id}' aria-label='{}'>", esc(aria));
+    for (val, label) in options {
+        let sel = if *val == current { " selected" } else { "" };
+        out.push_str(&format!(
+            "<option value='{}'{sel}>{}</option>",
+            esc(val),
+            esc(label)
+        ));
+    }
+    out.push_str("</select>");
+    out
+}
+
+/// Galaxy chrome for forms + scrollbars (`GET /api/ui/load-palette` append).
+pub fn chrome_controls_stylesheet() -> String {
+    r#"
+html{color-scheme:dark}
+.shell-nav,.card .body,pre.out{scrollbar-width:thin;scrollbar-color:rgba(126,184,255,0.5) rgba(12,18,30,0.45)}
+.shell-nav::-webkit-scrollbar,.card .body::-webkit-scrollbar,pre.out::-webkit-scrollbar{width:8px;height:8px}
+.shell-nav::-webkit-scrollbar-track,.card .body::-webkit-scrollbar-track,pre.out::-webkit-scrollbar-track{background:rgba(12,18,30,0.55);border-radius:8px}
+.shell-nav::-webkit-scrollbar-thumb,.card .body::-webkit-scrollbar-thumb,pre.out::-webkit-scrollbar-thumb{background:linear-gradient(180deg,rgba(126,184,255,0.55),rgba(196,165,255,0.4));border-radius:8px;border:2px solid rgba(12,18,30,0.45)}
+.shell-nav::-webkit-scrollbar-thumb:hover,.card .body::-webkit-scrollbar-thumb:hover,pre.out::-webkit-scrollbar-thumb:hover{background:rgba(126,184,255,0.85)}
+.set-head,.tg-head{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 10px}
+.pill{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:10px;letter-spacing:0.04em;text-transform:uppercase;border:1px solid var(--line);background:rgba(126,184,255,0.08);color:var(--dim)}
+.pill.ok{color:var(--ok);border-color:rgba(63,185,110,0.4);background:rgba(63,185,110,0.1)}
+.pill.warn{color:var(--warn);border-color:rgba(224,168,60,0.45);background:rgba(224,168,60,0.1)}
+.set-banner{padding:8px 10px;border-radius:8px;border:1px solid rgba(224,168,60,0.45);background:rgba(224,168,60,0.12);color:var(--warn);margin:0 0 10px}
+.set-form{display:grid;gap:8px;margin-top:4px}
+.set-field{display:grid;gap:3px;min-width:0}
+.set-field>span{font-size:10px;letter-spacing:0.05em;text-transform:uppercase;color:var(--dim)}
+.set-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:8px}
+.set-wf{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chip{display:inline-flex;gap:6px;align-items:center;padding:3px 8px;border:1px solid var(--line);border-radius:999px;background:var(--panel2);color:var(--fg);font-size:11px;cursor:pointer}
+.set-wf .chip:has(input:checked),.chip:has(input:checked){border-color:var(--accent);color:var(--accent);background:rgba(126,184,255,0.1)}
+.set-wf input,.chip input{accent-color:var(--accent);margin:0}
+.set-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:2px}
+input[type=password],input[type=number],input[type=checkbox],select{background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:6px;font:inherit}
+input[type=password],input[type=number],select{width:100%;padding:6px 8px}
+input[type=number]{min-width:0}
+.kv{margin:0 0 8px}
+.kv td:first-child{color:var(--dim);width:36%}
+"#
+    .to_string()
+}
+
 /// `Some(msg)` when the wire explicitly reports `ok:false` (missing `ok` = ok).
 fn not_ok(d: &Value) -> Option<String> {
     if d.get("ok").and_then(Value::as_bool) == Some(false) {
@@ -876,14 +955,26 @@ pub fn render_mcp(d: &Value) -> String {
     let prompts = arr(&d["prompts"]);
     let resource_count = u(&d["resource_count"]).max(resources.len() as u64);
     let prompt_count = u(&d["prompt_count"]).max(prompts.len() as u64);
-    let mut out = format!(
+    let mut out = String::new();
+    if d["catalog_stale"].as_bool().unwrap_or(false) {
+        let hint = s(&d["catalog_hint"]);
+        out.push_str(&format!(
+            "<div class='set-banner' role='status'>{}</div>",
+            esc(if hint.is_empty() {
+                "restart Cursor — agent refresh does not re-list tools"
+            } else {
+                &hint
+            })
+        ));
+    }
+    out.push_str(&format!(
         "<div class='dim'>{} · {} · tools {} · resources {} · prompts {}",
         esc(&s(&d["name"])),
         esc(&s(&d["protocol"])),
         count,
         resource_count,
         prompt_count
-    );
+    ));
     let log_level = s(&d["log_level"]);
     if d["logging"].as_bool().unwrap_or(false) || !log_level.is_empty() {
         out.push_str(&format!(
@@ -1015,110 +1106,178 @@ pub fn render_settings(d: &Value) -> String {
     let token_set = b(&d["token_set"]);
     let source = s(&d["source"]);
     let channel = s(&d["godfather"]["channel_id"]);
+    let poll = b(&d["godfather"]["poll"]);
     let users = arr(&d["godfather"]["allowed_user_ids"]);
     let enabled = arr(&d["workflows"]["enabled"]);
     let jail = s(&d["jail"]["id"]);
     let squad_cap = u(&d["tickets"]["squad_cap"]);
+    let squad_override = u(&d["tickets"]["squad_cap_override"]);
     let member_count = u(&d["tickets"]["member_count"]);
     let chat_kind = s(&d["tickets"]["chat_kind"]);
     let bot_slot = u(&d["tickets"]["bot_slot_cap"]);
+    let mode = s(&d["tickets"]["mode"]);
+    let lease = u(&d["tickets"]["lease_secs"]);
     let empty = !token_set && channel.is_empty();
     let mut out = String::new();
     if empty {
         out.push_str(&empty_html("settings"));
     }
-    let token_bit = if token_set { "set" } else { "unset" };
+    let token_bit = if token_set {
+        "token set"
+    } else {
+        "token unset"
+    };
     let src_bit = if source.is_empty() { "none" } else { &source };
-    out.push_str(&format!(
-        "<div class='dim'>Godfather · token <kbd>{}</kbd> · source <kbd>{}</kbd> · file <kbd>data/gsv_settings.json</kbd></div>",
-        token_bit,
-        esc(src_bit)
+    let jail_bit = if jail.is_empty() {
+        "local"
+    } else {
+        jail.as_str()
+    };
+    let kind_bit = if chat_kind.is_empty() {
+        "channel"
+    } else {
+        chat_kind.as_str()
+    };
+    let mode_bit = if mode.is_empty() {
+        "solo"
+    } else {
+        mode.as_str()
+    };
+    out.push_str("<div class='set-head'>");
+    out.push_str(&pill(if token_set { "ok" } else { "warn" }, token_bit));
+    out.push_str(&pill("", &format!("source {src_bit}")));
+    out.push_str(&pill("", &format!("jail {jail_bit}")));
+    out.push_str(&pill("", &format!("mode {mode_bit}")));
+    out.push_str(&pill(
+        "",
+        &format!("cap {squad_cap} · n={member_count} · {kind_bit} · bots {bot_slot}"),
     ));
+    out.push_str("</div>");
     let user_join = users
         .iter()
         .filter_map(|v| v.as_str())
         .collect::<Vec<_>>()
         .join(", ");
-    let wf_join = enabled
+    let enabled_ids: Vec<String> = enabled
         .iter()
         .filter_map(|v| v.as_str())
-        .collect::<Vec<_>>()
-        .join(", ");
-    out.push_str(&tab(
-        &["field", "value"],
-        vec![
-            vec![
-                "channel".into(),
-                if channel.is_empty() {
-                    "<span class='dim'>—</span>".into()
-                } else {
-                    format!("<kbd>{}</kbd>", esc(&channel))
-                },
-            ],
-            vec![
-                "allowed users".into(),
-                if user_join.is_empty() {
-                    "<span class='dim'>—</span>".into()
-                } else {
-                    esc(&user_join)
-                },
-            ],
-            vec![
-                "workflows".into(),
-                if wf_join.is_empty() {
-                    "<span class='dim'>—</span>".into()
-                } else {
-                    esc(&wf_join)
-                },
-            ],
-            vec![
-                "jail".into(),
-                format!(
-                    "<kbd>{}</kbd>",
-                    esc(if jail.is_empty() { "local" } else { &jail })
-                ),
-            ],
-            vec![
-                "squad cap".into(),
-                format!(
-                    "<kbd>{}</kbd> · {} n=<kbd>{}</kbd> · bots <kbd>{}</kbd>",
-                    squad_cap,
-                    esc(if chat_kind.is_empty() {
-                        "channel"
-                    } else {
-                        &chat_kind
-                    }),
-                    member_count,
-                    bot_slot
-                ),
-            ],
-        ],
-    ));
+        .map(str::to_string)
+        .collect();
+    let extra_wf: Vec<&str> = enabled_ids
+        .iter()
+        .map(String::as_str)
+        .filter(|id| !crate::boxes::settings::WORKFLOW_IDS.contains(id))
+        .collect();
     let tok_ph = if token_set {
         "token set — paste to replace"
     } else {
         "bot token"
     };
-    out.push_str(&format!(
-        "<div class='dim'>owner POST · never shown again</div>\
-<input id='setChannel' type='text' value='{}' placeholder='Godfather channel id' aria-label='Godfather channel id'>\
-<input id='setUsers' type='text' value='{}' placeholder='allowed user ids' aria-label='allowed Telegram user ids'>\
-<input id='setToken' type='password' value='' placeholder='{}' aria-label='Godfather bot token' autocomplete='off'>\
-<input id='setWorkflows' type='text' value='{}' placeholder='drain, ticket-claim' aria-label='co-workflow ids'>\
-<input id='setJail' type='text' value='{}' placeholder='jail id' aria-label='jail id'>\
-<input id='setChatKind' type='text' value='{}' placeholder='channel, group, or supergroup' aria-label='Godfather chat kind'>\
-<input id='setMemberCount' type='number' min='0' value='{}' placeholder='channel members' aria-label='Godfather member count'>\
-<input id='setSquadCap' type='number' min='0' value='{}' placeholder='0 = members' aria-label='squad cap override'>\
-<button type='button' data-action='settings-save'>Save</button>",
-        esc(&channel),
-        esc(&user_join),
-        esc(tok_ph),
-        esc(&wf_join),
-        esc(if jail.is_empty() { "local" } else { &jail }),
-        esc(if chat_kind.is_empty() { "channel" } else { &chat_kind }),
-        member_count,
-        squad_cap
+    out.push_str("<div class='set-form'>");
+    out.push_str(&set_field(
+        "Channel",
+        &set_input(
+            "setChannel",
+            "text",
+            &channel,
+            "@channel or -100… chat id",
+            "Godfather channel id",
+        ),
     ));
+    out.push_str(&set_field(
+        "Allowed user ids",
+        &set_input(
+            "setUsers",
+            "text",
+            &user_join,
+            "comma-separated Telegram user ids",
+            "allowed Telegram user ids",
+        ),
+    ));
+    out.push_str(&set_field(
+        "Bot token",
+        &set_input("setToken", "password", "", tok_ph, "Godfather bot token"),
+    ));
+    out.push_str("<div class='set-field'><span>Workflows</span><div class='set-wf'>");
+    for id in crate::boxes::settings::WORKFLOW_IDS {
+        let checked = if enabled_ids.iter().any(|e| e == id) {
+            " checked"
+        } else {
+            ""
+        };
+        out.push_str(&format!(
+            "<label class='chip'><input type='checkbox' name='setWf' value='{}'{checked}> {}</label>",
+            esc(id),
+            esc(id)
+        ));
+    }
+    out.push_str("</div></div>");
+    out.push_str(&set_field(
+        "Extra workflow ids",
+        &set_input(
+            "setWorkflows",
+            "text",
+            &extra_wf.join(", "),
+            "optional extra ids",
+            "co-workflow ids",
+        ),
+    ));
+    out.push_str("<div class='set-row'>");
+    out.push_str(&set_field(
+        "Jail",
+        &set_input("setJail", "text", jail_bit, "jail id", "jail id"),
+    ));
+    out.push_str(&set_field(
+        "Mode",
+        &set_select(
+            "setMode",
+            "ticket mode",
+            mode_bit,
+            &[("solo", "solo"), ("squad", "squad")],
+        ),
+    ));
+    out.push_str(&set_field(
+        "Chat kind",
+        &set_select(
+            "setChatKind",
+            "Godfather chat kind",
+            kind_bit,
+            &[
+                ("channel", "channel"),
+                ("group", "group"),
+                ("supergroup", "supergroup"),
+            ],
+        ),
+    ));
+    out.push_str("</div>");
+    out.push_str("<div class='set-row'>");
+    out.push_str(&set_field(
+        "Members (0 = live)",
+        &format!(
+            "<input id='setMemberCount' type='number' min='0' value='{member_count}' placeholder='channel members' aria-label='Godfather member count' autocomplete='off'>"
+        ),
+    ));
+    out.push_str(&set_field(
+        "Squad override (0 = members)",
+        &format!(
+            "<input id='setSquadCap' type='number' min='0' value='{squad_override}' placeholder='0 = members' aria-label='squad cap override' autocomplete='off'>"
+        ),
+    ));
+    out.push_str(&set_field(
+        "Lease seconds",
+        &format!(
+            "<input id='setLease' type='number' min='0' value='{}' placeholder='300' aria-label='ticket lease seconds' autocomplete='off'>",
+            if lease == 0 { 300 } else { lease }
+        ),
+    ));
+    out.push_str("</div>");
+    let poll_checked = if poll { " checked" } else { "" };
+    out.push_str(&format!(
+        "<label class='chip'><input id='setPoll' type='checkbox'{poll_checked}> poll Godfather</label>"
+    ));
+    out.push_str("<div class='set-actions'><button type='button' data-action='settings-save'>Save</button></div>");
+    out.push_str("</div>");
+    out.push_str("<div class='dim'>owner POST · token never shown again · file <kbd>data/gsv_settings.json</kbd></div>");
     out
 }
 
@@ -1141,11 +1300,33 @@ pub fn render_telegram(d: &Value) -> String {
     let probe = s(&d["last_probe"]);
     let bus_ts = s(&d["last_bus_ts"]);
     let bus_err = s(&d["last_bus_error"]);
-    out.push_str(&format!(
-        "<div class='dim'>Godfather bind · token <kbd>{}</kbd> · dry-run <kbd>{}</kbd></div>",
-        if token_set { "set" } else { "unset" },
-        if dry { "yes" } else { "no" }
+    out.push_str("<div class='tg-head'>");
+    out.push_str(&pill(
+        if token_set { "ok" } else { "warn" },
+        if token_set {
+            "token set"
+        } else {
+            "token unset"
+        },
     ));
+    out.push_str(&pill(
+        if dry { "warn" } else { "ok" },
+        if dry { "dry-run" } else { "live" },
+    ));
+    out.push_str(&pill(
+        if polling { "ok" } else { "" },
+        if polling { "polling on" } else { "polling off" },
+    ));
+    out.push_str(&pill(
+        if b(&d["poll_alive"]) { "ok" } else { "" },
+        if b(&d["poll_alive"]) {
+            "poll loop alive"
+        } else {
+            "poll loop off"
+        },
+    ));
+    out.push_str("</div>");
+    out.push_str("<div class='kv'>");
     out.push_str(&tab(
         &["field", "value"],
         vec![
@@ -1270,8 +1451,9 @@ pub fn render_telegram(d: &Value) -> String {
             }],
         ],
     ));
+    out.push_str("</div>");
     out.push_str("<div class='dim'>inbound poll loop is the automation · MCP <kbd>gsv_telegram_decode</kbd></div>");
-    out.push_str("<p><button type='button' data-action='telegram-poll'>poll now</button></p>");
+    out.push_str("<div class='set-actions'><button type='button' data-action='telegram-poll'>poll now</button></div>");
     out
 }
 
@@ -2655,6 +2837,10 @@ mod tests {
         assert!(render_card("fingerprints", &d).is_some());
         assert!(render_card("nope", &d).is_none());
         assert_eq!(CARD_NAMES.len(), 40);
+        let chrome = chrome_controls_stylesheet();
+        assert!(chrome.contains("scrollbar-width"), "{chrome}");
+        assert!(chrome.contains(".set-form"), "{chrome}");
+        assert!(chrome.contains("color-scheme:dark"), "{chrome}");
         assert!(render_card("usage", &d).is_some());
         assert!(render_card("sw", &d).is_some());
         assert!(render_card("watchdog", &d).is_some());
@@ -2709,6 +2895,7 @@ mod tests {
         assert!(mcp.contains("catalogNotify"), "{mcp}");
         assert!(mcp.contains("listed <kbd>0</kbd>/<kbd>2</kbd>"), "{mcp}");
         assert!(mcp.contains("restart Cursor"), "{mcp}");
+        assert!(mcp.contains("class='set-banner'"), "{mcp}");
         assert!(mcp.contains("sessions <kbd>3</kbd>"), "{mcp}");
         assert!(mcp.contains("<kbd>gsv_health</kbd>"), "{mcp}");
         assert!(mcp.contains("<kbd>gsv://vision/manifest</kbd>"), "{mcp}");
@@ -2755,6 +2942,15 @@ mod tests {
             settings.contains("data-action='settings-save'"),
             "{settings}"
         );
+        assert!(settings.contains("class='set-form'"), "{settings}");
+        assert!(settings.contains("name='setWf'"), "{settings}");
+        assert!(settings.contains("id='setMode'"), "{settings}");
+        assert!(settings.contains("id='setPoll'"), "{settings}");
+        assert!(settings.contains("id='setLease'"), "{settings}");
+        assert!(
+            settings.contains("id='setSquadCap' type='number' min='0' value='0'"),
+            "{settings}"
+        );
         assert!(!settings.contains("bot_token"), "{settings}");
         assert!(render_settings(&serde_json::json!({ "ok": false, "error": "io" })).contains("io"));
         let telegram = render_telegram(&serde_json::json!({
@@ -2777,6 +2973,7 @@ mod tests {
         }));
         assert!(tg_ok.contains("t-174"), "{tg_ok}");
         assert!(tg_ok.contains("<kbd>3</kbd>"), "{tg_ok}");
+        assert!(tg_ok.contains("class='tg-head'"), "{tg_ok}");
         assert!(tg_ok.contains("data-action='telegram-poll'"), "{tg_ok}");
         assert!(tg_ok.contains("gsv_telegram_decode"), "{tg_ok}");
         assert!(

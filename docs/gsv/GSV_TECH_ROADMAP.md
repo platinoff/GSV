@@ -73,6 +73,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 186** (solo/squad/jail) **✅** ·
 **band 187** (live Godfather member_count) **✅** ·
 **band 188** (README SMIL + docs tidy) **✅** ·
+**band 189** (Settings Galaxy polish + scrollbars) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -1428,6 +1429,23 @@ Owner pick (`абракадабра` gsv): root README referenced PNG tiles that
 | **PH-S2526** | Contracts | `tests/gsv_readme_contracts.rs` (SMIL, no `<script>`, no missing PNG) — **✅** |
 | **PH-S2527** | Tests | fmt · clippy · `cargo test` · `--stretch-96` — **✅** |
 | **PH-S2528** | Band close | `--band 188` + fingerprint; recopy live; one commit + push — **✅** |
+
+## Спринти (band 189) — Settings Galaxy polish + MCP Open Bot debug ✅
+
+Owner pick (`абракадабра` gsv): MCP Open Bot MVP — hunt broken Galaxy/MCP surfaces. Settings card stacked unlabeled inputs; `input[type=password]` / `number` used native light controls and visually overlayed the kv table; Save posted **effective** `squad_cap` so `0 = members` froze. Scrollbars were the browser default.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2529** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2529`; `last_sprint_closed` = `PH-S2528` — **✅** |
+| **PH-S2530** | Diagnose | native password/number + unlabeled stack + effective-cap Save — **✅** |
+| **PH-S2531** | Form | labeled `.set-form` · pills · workflow chips · mode/kind selects · poll/lease — **✅** |
+| **PH-S2532** | Override | wire `squad_cap_override`; Save posts raw `0 = members` — **✅** |
+| **PH-S2533** | Chrome | dark `color-scheme`; all input types; Galaxy scrollbars on `.card .body` / nav — **✅** |
+| **PH-S2534** | Telegram / MCP | `.tg-head` pills; MCP `set-banner` when `catalog_stale` — **✅** |
+| **PH-S2535** | Glue | `saveSettings` reads chips + override; INDEX_HTML `setMode` / `setWf` — **✅** |
+| **PH-S2536** | Docs | SETTINGS / MCP_OPENBOT / BOXES / HANDOFF / NEXT / MEMORY — **✅** |
+| **PH-S2537** | Tests | fmt · clippy · `cargo test` · `--stretch-96` — **✅** |
+| **PH-S2538** | Band close | `--band 189` + fingerprint; recopy live; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

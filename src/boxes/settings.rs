@@ -369,6 +369,7 @@ pub fn redacted_wire(file: &SettingsFile, env: Option<&str>) -> Value {
             "mode": file.tickets.mode,
             "lease_secs": ticket_lease_secs(file),
             "squad_cap": squad_cap(file),
+            "squad_cap_override": file.tickets.squad_cap,
             "member_count": file.tickets.member_count,
             "chat_kind": chat_kind(file),
             "bot_slot_cap": bot_slot_cap(file),
@@ -603,6 +604,8 @@ mod tests {
         let w = redacted_wire(&file, None);
         assert_eq!(w["jail"]["id"], "local");
         assert_eq!(w["tickets"]["bot_slot_cap"], TG_CHANNEL_ADMINS_MAX);
+        assert_eq!(w["tickets"]["squad_cap_override"], 0);
+        assert_eq!(w["tickets"]["squad_cap"], TG_CHANNEL_ADMINS_MAX);
         assert!(!json_has_bot_token(&w), "{w}");
     }
 

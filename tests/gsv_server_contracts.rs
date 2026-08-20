@@ -654,6 +654,7 @@ async fn ui_load_palette_and_theme_are_live_css() {
     let (app, _state) = app();
     for (path, needle) in [
         ("/api/ui/load-palette", "--bg-deep:#06080f;"),
+        ("/api/ui/load-palette", "scrollbar-width"),
         (
             "/api/ui/load-theme",
             "--sprint-pill-bg:rgba(167, 139, 250, 0.2);",

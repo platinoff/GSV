@@ -1059,7 +1059,11 @@ fn css_response(body: String) -> Response {
 }
 
 async fn api_ui_load_palette() -> Response {
-    css_response(crate::boxes::vision::palette_stylesheet())
+    css_response(format!(
+        "{}{}",
+        crate::boxes::vision::palette_stylesheet(),
+        crate::boxes::ui::chrome_controls_stylesheet()
+    ))
 }
 
 async fn api_ui_load_theme(State(state): State<AppState>) -> Response {

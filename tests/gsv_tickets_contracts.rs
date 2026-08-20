@@ -1432,4 +1432,16 @@ fn galaxy_glue_saves_jail_and_squad_cap() {
         gsv::server::INDEX_HTML.contains("setMemberCount"),
         "settings member count glue"
     );
+    assert!(
+        gsv::server::INDEX_HTML.contains("setMode"),
+        "settings mode glue"
+    );
+    assert!(
+        gsv::server::INDEX_HTML.contains("setWf"),
+        "settings workflow chips glue"
+    );
+    assert!(
+        gsv::server::INDEX_HTML.contains("color-scheme:dark"),
+        "dark form controls"
+    );
 }
