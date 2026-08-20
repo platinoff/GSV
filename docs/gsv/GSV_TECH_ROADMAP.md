@@ -75,6 +75,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 188** (README SMIL + docs tidy) **✅** ·
 **band 189** (Settings Galaxy polish + scrollbars) **✅** ·
 **band 190** (Galaxy About + type + fullscreen chrome) **✅** ·
+**band 191** (channel roles + GitHub origin lockstep) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -1464,6 +1465,23 @@ Owner pick: Galaxy looked finished but a person could not tell what anything was
 | **PH-S2546** | Docs | BOXES / SERVER / HANDOFF / NEXT / MEMORY; vision.svg legend copy — **✅** |
 | **PH-S2547** | Tests | fmt · clippy · `cargo test` · `--stretch-96` — **✅** |
 | **PH-S2548** | Band close | `--band 190` + fingerprint; recopy live; one commit + push — **✅** |
+
+## Спринти (band 191) — channel roles + GitHub origin lockstep ✅
+
+Owner pick: check syncs; max adaptability for solo/squad/automations/workflows; bot ticket pick from the board **and GitHub**; host admin vs mate vs guest of a channel; GitHub update when the installer has no newer local tree.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2549** | Scope | this band; `chat_role` host/mate/guest/local; GitHub origin probe; pick board then GH# — **✅** |
+| **PH-S2550** | Research | Telegram `getChatMember` statuses; GitHub origin vs local src mtime; no watchdog apply on GitHub-only — **✅** |
+| **PH-S2551** | GitHub box | `boxes/github.rs` stub in tests; live `commits/main` + raw `Cargo.toml`; cache 5 min — **✅** |
+| **PH-S2552** | Update | `github_ahead` / `can_apply` / hint `git pull && cargo build`; health + MCP `gsv_update` — **✅** |
+| **PH-S2553** | Roles | Settings `godfather.role`; probe persists `tickets.chat_role`; guest → solo; live bus guest refused — **✅** |
+| **PH-S2554** | Tickets | `hook github`; next-action empty board → `gsv_tickets_hook`; board before GH# sort — **✅** |
+| **PH-S2555** | Galaxy | Settings role select; Telegram role row; tickets hook GitHub; Update origin rows — **✅** |
+| **PH-S2556** | Scenarios | `github-issues` · `channel-host` · `channel-mate` · `channel-guest` — **✅** |
+| **PH-S2557** | Tests | fmt · clippy · `cargo test` · `--stretch-96` — **✅** |
+| **PH-S2558** | Band close | `--band 191` + fingerprint; recopy live; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

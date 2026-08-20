@@ -33,6 +33,19 @@ pub struct UpdateWire {
     pub newest_src_mtime: u64,
     /// `true` when this process is `target/live/gsv-server.exe` (band 144 supervisor).
     pub live_copy: bool,
+    /// `owner/repo` from origin / Cargo.toml.
+    pub github_repo: Option<String>,
+    /// Remote `Cargo.toml` version (GitHub `main`).
+    pub github_latest: Option<String>,
+    /// Remote HEAD sha.
+    pub github_head: Option<String>,
+    /// Origin is ahead of this install even when local `src/` is not newer.
+    pub github_ahead: bool,
+    pub github_dry_run: bool,
+    /// `git pull && cargo build` when only GitHub is ahead.
+    pub update_hint: String,
+    /// True when Apply can recopy a newer local binary (not GitHub-only).
+    pub can_apply: bool,
 }
 
 /// Query params for `GET /api/update`.
@@ -146,11 +159,16 @@ pub fn pending_rebuild(repo_root: &Path) -> bool {
     newest_src_mtime(repo_root) > binary_mtime()
 }
 
-/// Notify flag, pending rebuild, or crate/binary version lag.
-pub fn effective_available(state: &AppState) -> bool {
+/// Notify flag, pending rebuild, or crate/binary version lag (local tree).
+pub fn local_available(state: &AppState) -> bool {
     state.update_available()
         || pending_rebuild(&state.repo_root)
         || version_lag(&state.repo_root, state.version.as_ref())
+}
+
+/// Local pending **or** GitHub origin ahead of this install.
+pub fn effective_available(state: &AppState) -> bool {
+    local_available(state) || super::github::cached_ahead()
 }
 
 /// Build the update wire for the current state.
@@ -162,16 +180,33 @@ pub fn wire(state: &AppState) -> UpdateWire {
         .as_deref()
         .map(|v| v != state.version.as_ref())
         .unwrap_or(false);
+    let gh = super::github::cached_probe(&state.repo_root, state.version.as_ref());
+    let can_apply = state.update_available() || pending_rebuild(&state.repo_root) || lag;
     UpdateWire {
         version: state.version.to_string(),
         crate_version: crate_ver,
         version_lag: lag,
-        update_available: effective_available(state),
+        update_available: can_apply || gh.github_ahead,
         git_head: vision::git_head(&state.repo_root),
         started_at: crate::vision::system_to_rfc3339(state.started_at),
         binary_mtime: bin,
         newest_src_mtime: newest,
         live_copy: is_live_copy(),
+        github_repo: Some(gh.repo),
+        github_latest: if gh.remote_version.is_empty() {
+            None
+        } else {
+            Some(gh.remote_version)
+        },
+        github_head: if gh.remote_head.is_empty() {
+            None
+        } else {
+            Some(gh.remote_head)
+        },
+        github_ahead: gh.github_ahead,
+        github_dry_run: gh.dry_run,
+        update_hint: gh.hint,
+        can_apply,
     }
 }
 
@@ -233,5 +268,13 @@ mod tests {
         assert!(!path_is_cargo_test_harness(Path::new(
             r"S:\rust\GSV\target\debug\gsv-server.exe"
         )));
+    }
+
+    #[test]
+    fn github_ahead_does_not_imply_can_apply() {
+        assert!(!super::super::github::version_gt("0.190.0", "0.190.0"));
+        assert!(super::super::github::compute_ahead(
+            "0.180.0", "0.190.0", "a", "b", false
+        ));
     }
 }

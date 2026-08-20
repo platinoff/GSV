@@ -188,7 +188,7 @@ pub fn tools_list() -> Vec<Value> {
             "Bench hook: Criterion dirs + speed index (no rebuild).",
             object_schema(),
         ),
-        tool("gsv_update", "Update box: binary vs source mtime, git HEAD.", object_schema()),
+        tool("gsv_update", "Update box: binary vs source mtime, git HEAD, GitHub origin (ahead even when local src is not newer).", object_schema()),
         tool(
             "gsv_vision",
             "Vision summary (revision, next sprint, git HEAD).",
@@ -315,7 +315,7 @@ pub fn tools_list() -> Vec<Value> {
         ),
         tool(
             "gsv_telegram",
-            "Godfather Telegram bind status (redacted; never bot_token). Read-only getMe+getChat+getChatMemberCount; live fills tickets.member_count / squad_cap. Dry-run stub under cargo test / X-Telegram-Dry-Run.",
+            "Godfather Telegram bind status (redacted; never bot_token). Read-only getMe+getChat+getChatMemberCount+getChatMember; live fills tickets.member_count / squad_cap / chat_role (host|mate|guest). Dry-run stub under cargo test / X-Telegram-Dry-Run.",
             object_schema(),
         ),
         tool(
@@ -461,13 +461,13 @@ pub fn tools_list() -> Vec<Value> {
         ),
         tool(
             "gsv_tickets_hook",
-            "Hook MCP bots to a scenario: parse 'run mcp bot hook up scenario <id|band N|plan stem>' (or source+id) and place ≤10 tickets from the catalog, GSV_TECH_ROADMAP.md, or a superpowers plan. Optional walk posts Godfather lines. Requires ticket-claim; walk needs telegram-relay. Dry-run: no sockets, never bot_token.",
+            "Hook MCP bots to a scenario: parse 'run mcp bot hook up scenario <id|band N|plan stem|github>' (or source+id) and place ≤10 tickets from the catalog, GSV_TECH_ROADMAP.md, a superpowers plan, or GitHub open issues. Optional walk posts Godfather lines. Requires ticket-claim; walk needs telegram-relay. Dry-run: no sockets, never bot_token.",
             json!({
                 "type": "object",
                 "properties": {
-                    "phrase": { "type": "string", "description": "run mcp bot hook up scenario <id|band N|plan stem> [walk]" },
-                    "source": { "type": "string", "description": "scenario | band | plan (when phrase is omitted)." },
-                    "id": { "type": "string", "description": "Catalog id, band number, or plan stem." },
+                    "phrase": { "type": "string", "description": "run mcp bot hook up scenario <id|band N|plan stem|github> [walk]" },
+                    "source": { "type": "string", "description": "scenario | band | plan | github (when phrase is omitted)." },
+                    "id": { "type": "string", "description": "Catalog id, band number, plan stem, or origin (github)." },
                     "scenario_id": { "type": "string", "description": "Alias for catalog id." },
                     "walk": { "type": "boolean", "description": "After placing tickets, solo/squad walk with Telegram sync." },
                     "from": { "type": "string", "description": "Telegram sync from (default solo)." }
@@ -614,7 +614,7 @@ const RESOURCES: &[ResourceSpec] = &[
     ResourceSpec {
         uri: "gsv://docs/solo-squad-jail",
         name: "Solo / squad / jail",
-        description: "Band 186: federated join, Git worktrees, Telegram caps, per-server MCP jail. Band 187: live getChatMemberCount fills member_count. Band 189: labeled Settings form + squad_cap_override.",
+        description: "Band 186: federated join. Band 187: getChatMemberCount. Band 189: labeled Settings. Band 191: host/mate/guest + GitHub origin lockstep.",
         mime: "text/markdown",
         rel: "docs/gsv/GSV_SOLO_SQUAD_JAIL.md",
     },
@@ -835,6 +835,7 @@ pub fn http_info(state: &AppState) -> Value {
         "version": &*state.version,
         "crate_version": crate::boxes::update::crate_version(&state.repo_root),
         "version_lag": crate::boxes::update::version_lag(&state.repo_root, state.version.as_ref()),
+        "github_ahead": crate::boxes::github::cached_ahead(),
         "sandbox": crate::boxes::products::display_path(&state.repo_root),
         "stdio": "gsv-mcp",
         "stdio_live": stdio_live_rel(),
@@ -1273,7 +1274,10 @@ async fn call_tool(state: &AppState, params: &Value, session: Option<&str>) -> V
         )),
         "gsv_hooks_tests" => tool_ok(to_json(hooks::tests_wire(&state.repo_root))),
         "gsv_hooks_bench" => tool_ok(to_json(hooks::bench_wire(&state.repo_root))),
-        "gsv_update" => tool_ok(to_json(update::wire(state))),
+        "gsv_update" => {
+            let _ = crate::boxes::github::refresh(&state.repo_root, state.version.as_ref()).await;
+            tool_ok(to_json(update::wire(state)))
+        }
         "gsv_vision" => tool_ok(crate::boxes::vision::wire_summary(
             &state.repo_root,
             &state.data_dir,
@@ -1598,6 +1602,7 @@ fn health_payload(state: &AppState) -> Value {
             "version": *state.version,
             "crate_version": crate::boxes::update::crate_version(&state.repo_root),
             "version_lag": crate::boxes::update::version_lag(&state.repo_root, state.version.as_ref()),
+            "github_ahead": crate::boxes::github::cached_ahead(),
             "uptime_secs": state.started_at.elapsed().map(|d| d.as_secs()).unwrap_or(0),
             "update_available": crate::boxes::update::effective_available(state),
             "catalog_stale": catalog_stale(state),

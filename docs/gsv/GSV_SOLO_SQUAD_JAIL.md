@@ -1,6 +1,6 @@
 # Solo / squad / jail — federated GSV MCP
 
-**Status:** Band **186** schema + **187** live `getChatMemberCount`. Bands **166–185 ✅**.  
+**Status:** Bands **186–191**. **191** host/mate/guest/local + GitHub origin lockstep. **187** live `getChatMemberCount`. Bands **166–185 ✅**.  
 **Date:** 2026-08-20  
 **Deciders:** owner  
 **Owner ask:** update + security check; Git workflow research; align solo vs squad; environment checks for a joiner who installed their own `gsv-server`; how that MCP joins a squad; host bot-admin on a channel vs own channel + own bot + invite others; squad bot cap = channel user cap; apps built inside a per-server MCP jail.
@@ -62,6 +62,10 @@ Band **160** already named the crate path `sandbox` on `GET /mcp`. A **jail** in
 | **Own bot** | Joiner creates `@BotFather` bot, adds it as **channel admin**. Consumes a Telegram admin/bot slot. |
 | **Squad cap** | Max **MCP jail workers** online. Owner policy: **equals Godfather `member_count`** (channel users / group members). Hard clamp `200_000` (supergroup ceiling) so presence stays bounded. |
 | **Bot slot cap** | Max **BotFather bots** on the chat: 50 (channel admins) or 20 (group/supergroup bots). Independent of squad cap. |
+| **host** | This jail’s bot is `creator`/`administrator` on the Godfather chat (or owner override). Poll, post, hook GitHub, run squad. |
+| **mate** | Channel **member**, not admin. Heartbeat + claim. Do not share the host token. Shared bot uses `from=jail_id`. |
+| **guest** | Not a member yet. Local work stays **solo**. Live bus send is refused. GitHub origin update still applies. |
+| **local** | No channel bound. Same-machine Cursor+OpenCode squad still allowed. |
 
 ## How a joiner connects MCP to a squad
 

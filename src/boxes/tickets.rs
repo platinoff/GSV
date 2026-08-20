@@ -19,6 +19,8 @@
 //! Band 186: jail id + squad_cap (channel members) + join `env` checklist;
 //! presence refuses a *new* worker when the squad is full.
 //! Band 187: live `getChatMemberCount` fills `member_count` (dry-run does not persist).
+//! Band 191: channel role host/mate/guest/local; pick board then GitHub issues;
+//! origin probe when the local tree is not newer.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -32,6 +34,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use super::fingerprint;
+use super::github;
 use super::products;
 use super::settings;
 
@@ -539,6 +542,7 @@ pub fn join_env(repo_root: &Path, data_dir: &Path, presence: &PresenceStore) -> 
     let cap = settings::squad_cap(&file);
     let env_set = settings::env_token().is_some();
     let file_set = !file.godfather.bot_token.trim().is_empty();
+    let role = settings::chat_role(&file);
     json!({
         "ok": true,
         "jail_id": settings::jail_id(&file),
@@ -554,7 +558,13 @@ pub fn join_env(repo_root: &Path, data_dir: &Path, presence: &PresenceStore) -> 
         "chat_kind": settings::chat_kind(&file),
         "online": online.len() as u64,
         "squad_full": (online.len() as u64) >= cap,
-        "hint": "Wire folder MCP to YOUR live gsv-server. Join the Godfather channel. Heartbeat presence. Do not share the Telegram token. Do not point MCP at a remote /mcp.",
+        "chat_role": role,
+        "role_hint": settings::role_hint(role),
+        "github_ahead": github::cached_ahead(),
+        "hint": format!(
+            "{} Wire folder MCP to YOUR live gsv-server. Do not share the Telegram token. Do not point MCP at a remote /mcp.",
+            settings::role_hint(role)
+        ),
     })
 }
 
@@ -707,6 +717,7 @@ pub fn wire_list_signaled(
     v["bot_slot_cap"] = json!(settings::bot_slot_cap(&file));
     v["member_count"] = json!(file.tickets.member_count);
     v["chat_kind"] = json!(settings::chat_kind(&file));
+    v["chat_role"] = json!(settings::chat_role(&file));
     v["env"] = join_env(repo_root, data_dir, presence);
     v
 }
@@ -811,6 +822,18 @@ pub fn next_action(
             next,
             mode: mode.as_str().into(),
             reason: reason.into(),
+        };
+    }
+    if settings::ticket_claim_enabled(&file) && envelope_next != "github" {
+        return NextAction {
+            ok: true,
+            hint: "claim-next".into(),
+            tool: "gsv_tickets_hook".into(),
+            ticket_id: String::new(),
+            title: String::new(),
+            next: "github".into(),
+            mode: mode.as_str().into(),
+            reason: "board empty — hook GitHub open issues".into(),
         };
     }
     NextAction {
@@ -1187,6 +1210,22 @@ fn parse_hook_target(rest: &str) -> Option<HookPhrase> {
         return None;
     }
     let lower = target.to_ascii_lowercase();
+    if lower == "github" || lower.starts_with("github ") {
+        let rest = lower.strip_prefix("github").unwrap_or("").trim();
+        let id = if rest.is_empty() {
+            "origin".to_string()
+        } else {
+            rest.split_whitespace()
+                .next()
+                .unwrap_or("origin")
+                .to_string()
+        };
+        return Some(HookPhrase {
+            source: "github".into(),
+            id,
+            walk,
+        });
+    }
     if let Some(num) = lower.strip_prefix("band ") {
         let id = num.trim();
         if id.is_empty() {
@@ -1232,14 +1271,22 @@ pub fn parse_hook_phrase(text: &str) -> Option<HookPhrase> {
             .and_then(Value::as_str)
             .unwrap_or("scenario")
             .trim();
-        let id = v.get("id").and_then(Value::as_str).unwrap_or("").trim();
+        let mut id = v
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        if id.is_empty() && source.eq_ignore_ascii_case("github") {
+            id = "origin".into();
+        }
         if id.is_empty() {
             return None;
         }
         let walk = v.get("walk").and_then(Value::as_bool).unwrap_or(false);
         return Some(HookPhrase {
             source: source.to_ascii_lowercase(),
-            id: id.to_string(),
+            id,
             walk,
         });
     }
@@ -1381,9 +1428,22 @@ pub fn hook_up(
                 create_from_steps(repo_root, &scenario, "ticket-claim", "gsv", steps)?;
             (scenario, tickets, skipped)
         }
+        "github" | "issues" => {
+            let pairs = github::issue_steps(&github::issues_now());
+            if pairs.is_empty() {
+                return Err(TicketError::BadRequest("github has no open issues".into()));
+            }
+            let steps: Vec<ScenarioStep> = pairs
+                .into_iter()
+                .map(|(title, body)| ScenarioStep { title, body })
+                .collect();
+            let (tickets, skipped) =
+                create_from_steps(repo_root, "github-issues", "ticket-claim", "gsv", steps)?;
+            ("github-issues".into(), tickets, skipped)
+        }
         _ => {
             return Err(TicketError::BadRequest(
-                "source must be scenario, band, or plan".into(),
+                "source must be scenario, band, plan, or github".into(),
             ))
         }
     };
@@ -1430,6 +1490,11 @@ pub fn wire_hook(
             .unwrap_or("")
             .trim()
             .to_string();
+        let id = if id.is_empty() && source.eq_ignore_ascii_case("github") {
+            "origin".to_string()
+        } else {
+            id
+        };
         let walk = body.get("walk").and_then(Value::as_bool).unwrap_or(false);
         (source, id, walk)
     };
@@ -1812,8 +1877,12 @@ pub fn wire_reclaim(repo_root: &Path, data_dir: &Path, body: &Value) -> Result<V
     Ok(json!({ "ok": true, "ticket": updated }))
 }
 
-fn ticket_sort_key(t: &Ticket) -> (String, String) {
-    (t.ts.clone(), t.id.clone())
+fn is_github_ticket(t: &Ticket) -> bool {
+    t.scenario == "github-issues" || t.title.starts_with("GH#")
+}
+
+fn ticket_sort_key(t: &Ticket) -> (u8, String, String) {
+    (u8::from(is_github_ticket(t)), t.ts.clone(), t.id.clone())
 }
 
 /// Claim then done every `open` row (optional `scenario` filter). Telegram notify is separate.
@@ -2211,8 +2280,44 @@ mod unit {
         assert_eq!(json.source, "band");
         assert_eq!(json.id, "177");
         assert!(json.walk);
+        let gh = parse_hook_phrase("run mcp bot hook up scenario github").expect("gh");
+        assert_eq!(gh.source, "github");
+        assert_eq!(gh.id, "origin");
+        let ghj = parse_hook_phrase(r#"{"v":1,"kind":"hook","source":"github"}"#).expect("ghj");
+        assert_eq!(ghj.source, "github");
+        assert_eq!(ghj.id, "origin");
         assert!(parse_hook_phrase("/ticket hi").is_none());
         assert!(parse_hook_phrase(r#"{"v":1,"kind":"ticket","body":"x"}"#).is_none());
+    }
+
+    #[test]
+    fn hook_up_github_places_stub_issues() {
+        let kit =
+            std::env::temp_dir().join(format!("gsv-gh-hook-{}-{}", std::process::id(), unix_now()));
+        let data = kit.join("data");
+        let _ = std::fs::create_dir_all(kit.join("docs/gsv"));
+        let _ = std::fs::create_dir_all(&data);
+        settings::save(
+            &data,
+            &settings::SettingsFile {
+                workflows: settings::Workflows {
+                    enabled: vec!["ticket-claim".into()],
+                },
+                ..Default::default()
+            },
+        )
+        .expect("wf");
+        let report = hook_up(&kit, &data, "github", "origin").expect("hook");
+        assert!(report.ok);
+        assert_eq!(report.scenario, "github-issues");
+        assert_eq!(report.tickets.len(), 2);
+        assert!(
+            report.tickets[0].title.starts_with("GH#"),
+            "{:?}",
+            report.tickets[0].title
+        );
+        let again = hook_up(&kit, &data, "github", "origin").expect("idempotent");
+        assert!(again.tickets.iter().all(|t| t.status == "open"));
     }
 
     #[test]
@@ -2305,6 +2410,11 @@ mod unit {
             },
         )
         .expect("wf");
+        let gh_next = next_action(&kit, &data, None, &who, "", "");
+        assert_eq!(gh_next.tool, "gsv_tickets_hook");
+        assert_eq!(gh_next.next, "github");
+        let gh_idle = next_action(&kit, &data, None, &who, "", "github");
+        assert_eq!(gh_idle.hint, "idle");
         let t = create(&kit, "PH-S2469 next", "body", "gsv").expect("create");
         let claim_next = next_action(&kit, &data, None, &who, "", "");
         assert_eq!(claim_next.hint, "claim-next");

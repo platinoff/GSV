@@ -6,7 +6,7 @@
 //! | SLI console | `sli` | `/api/sli` | `src/bin/` + `cargo xtask` |
 //! | Toolchain | `toolchain` | `/api/toolchain` | toolchain, env |
 //! | IDE | `ide` | `/api/ide/…` | opencode/cursor sessions |
-//! | Update | `update` | `/api/update` · `/api/update/apply` · `/events` | live copy + version |
+//! | Update | `update` | `/api/update` · `/api/update/apply` · `/events` | live copy + version + GitHub origin |
 //! | Box preview | `preview` | `/api/preview` | files |
 //! | SLI terminal | `terminal` | `/api/terminal` | SLI catalog |
 //! | Tests/bench hooks | `hooks` | `/api/hooks/…` | `target/` artifacts |
@@ -27,6 +27,7 @@
 //! | Xtask | `xtask` | `/api/xtask` · `/api/disk` | `cargo xtask` product automation (no `.sh`) |
 
 pub mod fingerprint;
+pub mod github;
 pub mod gitkit;
 pub mod guide;
 pub mod hooks;

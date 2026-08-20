@@ -165,6 +165,7 @@ async fn mcp_settings_has_no_bot_token() {
                 allowed_user_ids: vec![],
                 bot_token: "mcp-secret-token".into(),
                 poll: false,
+                role: String::new(),
             },
             ..Default::default()
         },

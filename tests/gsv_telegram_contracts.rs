@@ -74,6 +74,7 @@ fn save_godfather(data: &Path, channel: &str, token: &str) {
                 allowed_user_ids: vec![],
                 bot_token: token.into(),
                 poll: false,
+                role: String::new(),
             },
             ..Default::default()
         },
@@ -129,6 +130,7 @@ async fn dry_run_stub_returns_fake_bot_and_chat() {
     assert_eq!(w["chat_title"], "GSV Godfather (dry-run)");
     assert_eq!(w["member_count"], 3);
     assert_eq!(w["chat_kind"], "channel");
+    assert_eq!(w["chat_role"], "host");
     assert_eq!(
         settings::load_result(&data)
             .expect("settings")
@@ -272,6 +274,7 @@ fn save_relay(data: &Path, channel: &str, token: &str, allowed: &[&str]) {
                 allowed_user_ids: allowed.iter().map(|s| (*s).to_string()).collect(),
                 bot_token: token.into(),
                 poll: false,
+                role: String::new(),
             },
             workflows: settings::Workflows {
                 enabled: vec!["telegram-relay".into()],
@@ -636,6 +639,7 @@ fn save_solo_relay(data: &Path, channel: &str, token: &str, allowed: &[&str]) {
                 allowed_user_ids: allowed.iter().map(|s| (*s).to_string()).collect(),
                 bot_token: token.into(),
                 poll: false,
+                role: String::new(),
             },
             workflows: settings::Workflows {
                 enabled: vec!["telegram-relay".into(), "ticket-claim".into()],

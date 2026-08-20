@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-20 · band 191)
+
+- **Band 191:** Channel roles + GitHub origin lockstep. `chat_role` host/mate/guest/local (guest stays solo; live bus send refused). `gsv_update` `github_ahead` when origin is newer even if local `src/` is not. Ticket pick: board first, then `hook github` (`GH#N`). Scenarios `github-issues` / `channel-host` / `channel-mate` / `channel-guest`.
+- **Canon:** [`gsv/GSV_SOLO_SQUAD_JAIL.md`](gsv/GSV_SOLO_SQUAD_JAIL.md) · [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md).
+- **Next drain:** **owner pick** after a warnings-first scan.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.38%** (rust 37667 / product 37902) · **655** tests · clippy 0
+
 ## Стан (2026-08-20 · band 190)
 
 - **Band 190:** Galaxy About + type/fullscreen chrome. English About card (`CARD_NAMES` **41**); hover tips; distinct glyphs; GSV L0–L5 vision legend; fullscreen below header (`--fs-top`); `--ui:14px` + A−/A+ (12–18); 2-column grid; nebula/glass.

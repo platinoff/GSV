@@ -44,6 +44,8 @@ fn update_wire_has_expected_fields() {
     assert!(w.binary_mtime > 0);
     assert!(w.newest_src_mtime > 0);
     assert!(!w.live_copy, "test process is not target/live");
+    assert!(w.github_repo.as_deref().is_some_and(|r| r.contains('/')));
+    assert!(!w.github_ahead || w.github_dry_run);
 }
 
 #[test]

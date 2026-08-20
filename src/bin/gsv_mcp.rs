@@ -52,6 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let state = AppState::new(repo_root, data_dir, tx);
 
     gsv::boxes::telegram::enable_live_api();
+    gsv::boxes::github::enable_live_api();
 
     tracing::info!(
         server = mcp::SERVER_ID,

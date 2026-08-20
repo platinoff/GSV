@@ -1225,11 +1225,20 @@ pub fn render_settings(d: &Value) -> String {
     } else {
         mode.as_str()
     };
+    let role_pill = {
+        let r = s(&d["tickets"]["chat_role"]);
+        if r.is_empty() {
+            "local".to_string()
+        } else {
+            r
+        }
+    };
     out.push_str("<div class='set-head'>");
     out.push_str(&pill(if token_set { "ok" } else { "warn" }, token_bit));
     out.push_str(&pill("", &format!("source {src_bit}")));
     out.push_str(&pill("", &format!("jail {jail_bit}")));
     out.push_str(&pill("", &format!("mode {mode_bit}")));
+    out.push_str(&pill("", &format!("role {role_pill}")));
     out.push_str(&pill(
         "",
         &format!("cap {squad_cap} · n={member_count} · {kind_bit} · bots {bot_slot}"),
@@ -1316,6 +1325,27 @@ pub fn render_settings(d: &Value) -> String {
             "ticket mode",
             mode_bit,
             &[("solo", "solo"), ("squad", "squad")],
+        ),
+    ));
+    let role_stored = s(&d["godfather"]["role"]);
+    let role_bit = if role_stored.is_empty() {
+        "auto"
+    } else {
+        role_stored.as_str()
+    };
+    out.push_str(&set_field(
+        "Channel role",
+        &set_select(
+            "setRole",
+            "Godfather channel role",
+            role_bit,
+            &[
+                ("auto", "auto"),
+                ("host", "host (admin)"),
+                ("mate", "mate (member)"),
+                ("guest", "guest"),
+                ("local", "local (no channel)"),
+            ],
         ),
     ));
     out.push_str(&set_field(
@@ -1447,6 +1477,14 @@ pub fn render_telegram(d: &Value) -> String {
                     format!("<kbd>{}</kbd>", n)
                 }
             }],
+            vec!["role".into(), {
+                let r = s(&d["chat_role"]);
+                if r.is_empty() {
+                    "<span class='dim'>—</span>".into()
+                } else {
+                    format!("<kbd>{}</kbd>", esc(&r))
+                }
+            }],
             vec![
                 "last probe".into(),
                 if probe.is_empty() {
@@ -1557,7 +1595,7 @@ pub fn render_tickets(d: &Value) -> String {
     let scenarios = arr(&d["scenarios"]);
     let mut out = String::from("<div class='dim'>open tickets are the board</div>");
     out.push_str(
-        "<div class='dim'>hook · <kbd>run mcp bot hook up scenario</kbd> · band / plan</div>",
+        "<div class='dim'>hook · <kbd>run mcp bot hook up scenario</kbd> · band / plan / github</div>",
     );
     let bench_line = s(&d["bench"]["line"]);
     if bench_line.is_empty() {
@@ -1602,9 +1640,18 @@ pub fn render_tickets(d: &Value) -> String {
     } else {
         jail_id.as_str()
     };
+    let role_bit = {
+        let r = s(&d["chat_role"]);
+        if r.is_empty() {
+            "local".to_string()
+        } else {
+            r
+        }
+    };
     out.push_str(&format!(
-        "<div class='dim'>mode <kbd>{}</kbd> · online <kbd>{}</kbd>/<kbd>{}</kbd> · jail <kbd>{}</kbd> · bots <kbd>{}</kbd></div>",
+        "<div class='dim'>mode <kbd>{}</kbd> · role <kbd>{}</kbd> · online <kbd>{}</kbd>/<kbd>{}</kbd> · jail <kbd>{}</kbd> · bots <kbd>{}</kbd></div>",
         esc(mode_bit),
+        esc(&role_bit),
         online.len(),
         u(&d["squad_cap"]),
         esc(jail_bit),
@@ -1700,7 +1747,8 @@ pub fn render_tickets(d: &Value) -> String {
 <button type='button' data-action='tickets-walk'{}>solo walk</button>\
 <button type='button' data-action='tickets-bench'{}>record scenario bench</button>\
 <input id='tixHook' type='text' value='run mcp bot hook up scenario band 177' placeholder='hook phrase' aria-label='hook phrase'{}>\
-<button type='button' data-action='tickets-hook'{}>hook phrase</button>",
+<button type='button' data-action='tickets-hook'{}>hook phrase</button>\
+<button type='button' data-action='tickets-hook' data-hook-source='github'{}>hook GitHub</button>",
         crate::boxes::guide::tip_attrs("Short title for a new board ticket."),
         crate::boxes::guide::tip_attrs("Optional body / acceptance notes."),
         crate::boxes::guide::tip_attrs("Registered product id (gsv, poolai, …)."),
@@ -1710,6 +1758,7 @@ pub fn render_tickets(d: &Value) -> String {
         crate::boxes::guide::tip_attrs("Time a create+walk of abrakadabra-session."),
         crate::boxes::guide::tip_attrs("Phrase like: run mcp bot hook up scenario band 177."),
         crate::boxes::guide::tip_attrs("Parse a roadmap or plan into tickets."),
+        crate::boxes::guide::tip_attrs("Import open GitHub issues onto the board."),
     ));
     out
 }
@@ -1740,6 +1789,14 @@ pub fn render_health(d: &Value) -> String {
                     "<span class='{}'>{}</span>",
                     if b(&d["version_lag"]) { "warn" } else { "ok" },
                     b(&d["version_lag"])
+                ),
+            ],
+            vec![
+                "github_ahead".into(),
+                format!(
+                    "<span class='{}'>{}</span>",
+                    if b(&d["github_ahead"]) { "warn" } else { "ok" },
+                    b(&d["github_ahead"])
                 ),
             ],
             vec!["selected".into(), {
@@ -2150,6 +2207,47 @@ pub fn render_update(d: &Value) -> String {
             vec![
                 "git_head".into(),
                 esc(if head.is_empty() { "—" } else { &head }),
+            ],
+            vec!["github".into(), {
+                let repo = s(&d["github_repo"]);
+                let latest = s(&d["github_latest"]);
+                if repo.is_empty() {
+                    "—".into()
+                } else {
+                    format!(
+                        "<kbd>{}</kbd> {}",
+                        esc(&repo),
+                        if latest.is_empty() {
+                            String::new()
+                        } else {
+                            format!("v{}", esc(&latest))
+                        }
+                    )
+                }
+            }],
+            vec![
+                "github_ahead".into(),
+                format!(
+                    "<span class='{}'>{}</span>",
+                    if b(&d["github_ahead"]) { "warn" } else { "ok" },
+                    b(&d["github_ahead"])
+                ),
+            ],
+            vec!["hint".into(), {
+                let h = s(&d["update_hint"]);
+                if h.is_empty() {
+                    "—".into()
+                } else {
+                    esc(&h)
+                }
+            }],
+            vec![
+                "can_apply".into(),
+                format!(
+                    "<span class='{}'>{}</span>",
+                    if b(&d["can_apply"]) { "ok" } else { "dim" },
+                    b(&d["can_apply"])
+                ),
             ],
             vec![
                 "update_available".into(),
@@ -3066,6 +3164,7 @@ mod tests {
         assert!(settings.contains("class='set-form'"), "{settings}");
         assert!(settings.contains("name='setWf'"), "{settings}");
         assert!(settings.contains("id='setMode'"), "{settings}");
+        assert!(settings.contains("id='setRole'"), "{settings}");
         assert!(settings.contains("id='setPoll'"), "{settings}");
         assert!(settings.contains("id='setLease'"), "{settings}");
         assert!(
@@ -3118,6 +3217,7 @@ mod tests {
         assert!(tickets.contains("open tickets are the board"), "{tickets}");
         assert!(!tickets.contains("session lines"), "{tickets}");
         assert!(tickets.contains("data-action='tickets-hook'"), "{tickets}");
+        assert!(tickets.contains("data-hook-source='github'"), "{tickets}");
         assert!(tickets.contains("data-action='tickets-bench'"), "{tickets}");
         assert!(tickets.contains("data-action='tickets-next'"), "{tickets}");
         assert!(tickets.contains("jail"), "{tickets}");

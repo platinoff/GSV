@@ -34,6 +34,9 @@ pub struct Godfather {
     /// Opt-in channel poll (band 167). Default off — always-on Galaxy does not probe.
     #[serde(default)]
     pub poll: bool,
+    /// Owner override: `host` | `mate` | `guest` | `local` | empty = auto.
+    #[serde(default)]
+    pub role: String,
 }
 
 impl fmt::Debug for Godfather {
@@ -50,6 +53,7 @@ impl fmt::Debug for Godfather {
                 },
             )
             .field("poll", &self.poll)
+            .field("role", &self.role)
             .finish()
     }
 }
@@ -122,6 +126,9 @@ pub struct TicketsSettings {
     /// `channel` | `group` | `supergroup`.
     #[serde(default = "default_chat_kind")]
     pub chat_kind: String,
+    /// Last probed / stored role: `host` | `mate` | `guest` | `local`.
+    #[serde(default)]
+    pub chat_role: String,
 }
 
 impl Default for TicketsSettings {
@@ -132,6 +139,7 @@ impl Default for TicketsSettings {
             squad_cap: 0,
             member_count: 0,
             chat_kind: default_chat_kind(),
+            chat_role: String::new(),
         }
     }
 }
@@ -154,7 +162,11 @@ pub fn ticket_lease_secs(file: &SettingsFile) -> u64 {
 }
 
 /// Effective mode: `squad` only when stored mode is squad **and** workflow is on.
+/// Channel **guest** is always solo (they are not in the Godfather squad).
 pub fn ticket_mode(file: &SettingsFile) -> &'static str {
+    if chat_role(file) == "guest" {
+        return "solo";
+    }
     if file.tickets.mode.trim().eq_ignore_ascii_case("squad") && ticket_squad_enabled(file) {
         "squad"
     } else {
@@ -178,6 +190,70 @@ pub fn chat_kind(file: &SettingsFile) -> &str {
         "group" => "group",
         "supergroup" => "supergroup",
         _ => "channel",
+    }
+}
+
+/// Map a stored / posted role string. `auto` / empty → `None` (derive).
+pub fn normalize_chat_role(raw: &str) -> Option<&'static str> {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "host" | "admin" | "administrator" | "creator" => Some("host"),
+        "mate" | "member" => Some("mate"),
+        "guest" => Some("guest"),
+        "local" | "solo" => Some("local"),
+        "auto" | "" => None,
+        _ => None,
+    }
+}
+
+/// Telegram `ChatMember.status` → GSV jail role.
+pub fn map_member_status(status: &str) -> &'static str {
+    match status.trim().to_ascii_lowercase().as_str() {
+        "creator" | "administrator" => "host",
+        "member" | "restricted" => "mate",
+        "left" | "kicked" => "guest",
+        _ => "guest",
+    }
+}
+
+/// Effective jail role on the Godfather chat.
+///
+/// * **host** — bot is channel/group admin (or owner override).
+/// * **mate** — human / bot is a member, not admin.
+/// * **guest** — not a member yet; local work stays solo.
+/// * **local** — no channel bound (same-machine Cursor+OpenCode squad still ok).
+pub fn chat_role(file: &SettingsFile) -> &'static str {
+    if let Some(r) = normalize_chat_role(&file.godfather.role) {
+        return r;
+    }
+    if let Some(r) = normalize_chat_role(&file.tickets.chat_role) {
+        return r;
+    }
+    let channel = !file.godfather.channel_id.trim().is_empty();
+    let token = env_token().is_some() || !file.godfather.bot_token.trim().is_empty();
+    if !channel {
+        "local"
+    } else if token {
+        "host"
+    } else {
+        "mate"
+    }
+}
+
+/// One-line join copy for Galaxy / MCP `env`.
+pub fn role_hint(role: &str) -> &'static str {
+    match role {
+        "host" => {
+            "You admin this Godfather chat. Bind the bot, poll, hook GitHub, run squad."
+        }
+        "mate" => {
+            "Channel member. Heartbeat presence. Claim tickets. Do not share the host token. Shared bot uses from=jail_id."
+        }
+        "guest" => {
+            "Not a channel member yet. Solo on this jail. Join as a human to become a mate. GitHub update still applies if origin is ahead."
+        }
+        _ => {
+            "No Godfather channel bound. Local solo/squad MCP on this jail. Wire folder MCP to loopback."
+        }
     }
 }
 
@@ -293,6 +369,14 @@ pub fn apply_patch(file: &mut SettingsFile, patch: &Value) {
         if let Some(poll) = gf.get("poll").and_then(Value::as_bool) {
             file.godfather.poll = poll;
         }
+        if let Some(role) = gf.get("role").and_then(Value::as_str) {
+            let r = role.trim().to_ascii_lowercase();
+            if r == "auto" {
+                file.godfather.role.clear();
+            } else if normalize_chat_role(&r).is_some() {
+                file.godfather.role = r;
+            }
+        }
     }
     if let Some(wf) = patch.get("workflows") {
         if let Some(enabled) = wf.get("enabled").and_then(Value::as_array) {
@@ -335,6 +419,11 @@ pub fn apply_patch(file: &mut SettingsFile, patch: &Value) {
                 file.tickets.chat_kind = k;
             }
         }
+        if let Some(role) = tix.get("chat_role").and_then(Value::as_str) {
+            if let Some(r) = normalize_chat_role(role) {
+                file.tickets.chat_role = r.to_string();
+            }
+        }
     }
     if let Some(jail) = patch.get("jail") {
         if let Some(id) = jail.get("id").and_then(Value::as_str) {
@@ -362,6 +451,7 @@ pub fn redacted_wire(file: &SettingsFile, env: Option<&str>) -> Value {
             "channel_id": file.godfather.channel_id,
             "allowed_user_ids": file.godfather.allowed_user_ids,
             "poll": file.godfather.poll,
+            "role": file.godfather.role,
         },
         "workflows": { "enabled": file.workflows.enabled },
         "security": { "redact": file.security.redact },
@@ -372,18 +462,21 @@ pub fn redacted_wire(file: &SettingsFile, env: Option<&str>) -> Value {
             "squad_cap_override": file.tickets.squad_cap,
             "member_count": file.tickets.member_count,
             "chat_kind": chat_kind(file),
+            "chat_role": chat_role(file),
             "bot_slot_cap": bot_slot_cap(file),
         },
         "jail": { "id": jail_id(file) },
     })
 }
 
-/// Persist Telegram `getChatMemberCount` / `getChat.type`. A `0` count is
-/// ignored so a failed probe does not wipe an owner-set value.
+/// Persist Telegram `getChatMemberCount` / `getChat.type` / bot role.
+/// A `0` count is ignored so a failed probe does not wipe an owner-set value.
+/// Role is skipped when the owner set `godfather.role`.
 pub fn apply_live_chat_meta(
     data_dir: &Path,
     member_count: u64,
     chat_kind: Option<&str>,
+    chat_role: Option<&str>,
 ) -> Result<bool, String> {
     let mut file = load_result(data_dir)?;
     let mut changed = false;
@@ -402,6 +495,14 @@ pub fn apply_live_chat_meta(
         if !k.is_empty() && file.tickets.chat_kind != k {
             file.tickets.chat_kind = k.to_string();
             changed = true;
+        }
+    }
+    if file.godfather.role.trim().is_empty() {
+        if let Some(raw) = chat_role.and_then(normalize_chat_role) {
+            if file.tickets.chat_role != raw {
+                file.tickets.chat_role = raw.to_string();
+                changed = true;
+            }
         }
     }
     if changed {
@@ -544,6 +645,7 @@ mod tests {
             allowed_user_ids: vec![],
             bot_token: "super-secret-bot".into(),
             poll: false,
+            role: String::new(),
         };
         let d = format!("{g:?}");
         assert!(d.contains("[redacted]"), "{d}");
@@ -600,6 +702,7 @@ mod tests {
         let file = SettingsFile::default();
         assert_eq!(jail_id(&file), "local");
         assert_eq!(chat_kind(&file), "channel");
+        assert_eq!(chat_role(&file), "local");
         assert_eq!(squad_cap(&file), TG_CHANNEL_ADMINS_MAX);
         let w = redacted_wire(&file, None);
         assert_eq!(w["jail"]["id"], "local");
@@ -612,16 +715,24 @@ mod tests {
     #[test]
     fn apply_live_chat_meta_sets_count_and_kind() {
         let dir = temp("live-meta");
-        assert!(!apply_live_chat_meta(&dir, 0, None).expect("zero"));
+        assert!(!apply_live_chat_meta(&dir, 0, None, None).expect("zero"));
         assert_eq!(load_result(&dir).expect("load").tickets.member_count, 0);
-        assert!(apply_live_chat_meta(&dir, 7, Some("supergroup")).expect("set"));
-        let file = load_result(&dir).expect("reload");
+        assert!(apply_live_chat_meta(&dir, 7, Some("supergroup"), Some("host")).expect("set"));
+        let mut file = load_result(&dir).expect("reload");
         assert_eq!(file.tickets.member_count, 7);
         assert_eq!(file.tickets.chat_kind, "supergroup");
+        assert_eq!(file.tickets.chat_role, "host");
         assert_eq!(squad_cap(&file), 7);
-        assert!(!apply_live_chat_meta(&dir, 7, Some("supergroup")).expect("same"));
-        assert!(!apply_live_chat_meta(&dir, 0, Some("nope")).expect("ignore"));
+        assert!(!apply_live_chat_meta(&dir, 7, Some("supergroup"), Some("host")).expect("same"));
+        assert!(!apply_live_chat_meta(&dir, 0, Some("nope"), None).expect("ignore"));
         assert_eq!(load_result(&dir).expect("keep").tickets.member_count, 7);
+        apply_patch(
+            &mut file,
+            &json!({ "godfather": { "role": "guest" }, "tickets": { "mode": "squad" } }),
+        );
+        file.workflows.enabled = vec!["ticket-squad".into()];
+        assert_eq!(chat_role(&file), "guest");
+        assert_eq!(ticket_mode(&file), "solo");
     }
 
     #[test]

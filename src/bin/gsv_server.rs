@@ -83,6 +83,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let state = AppState::new(repo_root.clone(), data_dir.clone(), tx);
 
     gsv::boxes::telegram::enable_live_api();
+    gsv::boxes::github::enable_live_api();
+    gsv::boxes::github::spawn_refresh_loop((*state.repo_root).clone(), state.version.to_string());
     gsv::boxes::telegram::spawn_poll_loop(
         (*state.repo_root).clone(),
         (*state.data_dir).clone(),

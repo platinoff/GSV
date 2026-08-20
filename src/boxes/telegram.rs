@@ -1,8 +1,9 @@
 //! Godfather Telegram channel bind (band 167) + MCP bus (band 169) +
 //! ticket ingest (band 174) + inbound poll loop (band 179).
 //!
-//! On-demand `getMe` + `getChat` + `getChatMemberCount` (band **187** fills
-//! `tickets.member_count` / derived `squad_cap`). Tests and `X-Telegram-Dry-Run: 1`
+//! On-demand `getMe` + `getChat` + `getChatMemberCount` + `getChatMember` (band
+//! **187** fills `tickets.member_count`; band **191** maps bot status to
+//! `host` / `mate` / `guest`). Tests and `X-Telegram-Dry-Run: 1`
 //! use an in-process stub (no sockets). Live Bot API is enabled only from
 //! `gsv-server` / `gsv-mcp` via [`enable_live_api`]. Poller default off — no boot probe.
 //! Band **179**: `gsv-server` runs [`spawn_poll_loop`] when live API is on;
@@ -159,6 +160,7 @@ fn stub_ok(channel_id: &str, polling: bool) -> Value {
         "chat_title": STUB_CHAT,
         "member_count": STUB_MEMBERS,
         "chat_kind": STUB_CHAT_KIND,
+        "chat_role": "host",
         "last_probe": now_rfc3339(),
         "polling": polling,
     })
@@ -188,7 +190,8 @@ fn persist_probe_meta(data_dir: &Path, v: &Value) {
     }
     let n = v.get("member_count").and_then(Value::as_u64).unwrap_or(0);
     let kind = v.get("chat_kind").and_then(Value::as_str);
-    let _ = settings::apply_live_chat_meta(data_dir, n, kind);
+    let role = v.get("chat_role").and_then(Value::as_str);
+    let _ = settings::apply_live_chat_meta(data_dir, n, kind, role);
 }
 
 async fn fetch_member_count(client: &reqwest::Client, token: &str, channel: &str) -> u64 {
@@ -205,6 +208,36 @@ async fn fetch_member_count(client: &reqwest::Client, token: &str, channel: &str
         return 0;
     }
     json_count(&body["result"])
+}
+
+async fn fetch_chat_role(
+    client: &reqwest::Client,
+    token: &str,
+    channel: &str,
+    user_id: i64,
+) -> &'static str {
+    if user_id == 0 {
+        return "guest";
+    }
+    let url = format!("{API_ROOT}/bot{token}/getChatMember");
+    let uid = user_id.to_string();
+    let resp = match client
+        .get(&url)
+        .query(&[("chat_id", channel), ("user_id", uid.as_str())])
+        .send()
+        .await
+    {
+        Ok(r) => r,
+        Err(_) => return "guest",
+    };
+    let body = match resp.json::<Value>().await {
+        Ok(v) => v,
+        Err(_) => return "guest",
+    };
+    if body.get("ok").and_then(Value::as_bool) != Some(true) {
+        return "guest";
+    }
+    settings::map_member_status(body["result"]["status"].as_str().unwrap_or(""))
 }
 
 fn should_refresh_members() -> bool {
@@ -232,7 +265,7 @@ async fn refresh_members_throttled(data_dir: &Path, token: &str, channel: &str) 
         Err(_) => return,
     };
     let n = fetch_member_count(&client, token, channel).await;
-    let _ = settings::apply_live_chat_meta(data_dir, n, None);
+    let _ = settings::apply_live_chat_meta(data_dir, n, None, None);
 }
 
 fn use_stub(explicit_dry_run: bool) -> bool {
@@ -328,6 +361,7 @@ async fn probe_live(token: &str, channel: &str, polling: bool) -> Value {
         .as_str()
         .unwrap_or("")
         .to_string();
+    let bot_id = me_json["result"]["id"].as_i64().unwrap_or(0);
     let chat_url = format!("{API_ROOT}/bot{token}/getChat");
     let chat = match client
         .get(&chat_url)
@@ -378,6 +412,7 @@ async fn probe_live(token: &str, channel: &str, polling: bool) -> Value {
     };
     let chat_kind = map_chat_kind(chat_json["result"]["type"].as_str().unwrap_or(""));
     let member_count = fetch_member_count(&client, token, channel).await;
+    let chat_role = fetch_chat_role(&client, token, channel, bot_id).await;
     json!({
         "ok": true,
         "dry_run": false,
@@ -387,6 +422,7 @@ async fn probe_live(token: &str, channel: &str, polling: bool) -> Value {
         "chat_title": chat_title,
         "member_count": member_count,
         "chat_kind": chat_kind.unwrap_or(""),
+        "chat_role": chat_role,
         "last_probe": now_rfc3339(),
         "polling": polling,
     })
@@ -1531,6 +1567,11 @@ pub async fn bus_send(data_dir: &Path, explicit_dry: bool, args: &Value) -> Valu
     let token = resolved_token(&file).unwrap_or_default();
     if !settings::telegram_relay_enabled(&file) {
         let err = "telegram-relay workflow is off";
+        record_last(false, err);
+        return bus_fail(err, &token);
+    }
+    if !dry && settings::chat_role(&file) == "guest" {
+        let err = "chat_role=guest: not a channel admin — join as a human or bind a bot admin";
         record_last(false, err);
         return bus_fail(err, &token);
     }

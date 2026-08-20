@@ -58,6 +58,7 @@ fn health(state: &AppState) -> Value {
             "update_available": crate::boxes::update::effective_available(state),
             "crate_version": crate::boxes::update::crate_version(&state.repo_root),
             "version_lag": crate::boxes::update::version_lag(&state.repo_root, state.version.as_ref()),
+            "github_ahead": crate::boxes::github::cached_ahead(),
             "watchdog_alive": crate::boxes::watchdog::wire(&state.repo_root)
                 .get("alive")
                 .and_then(Value::as_bool)
@@ -915,6 +916,7 @@ async fn api_update(
     State(state): State<AppState>,
     Query(_params): Query<UpdateCheckParams>,
 ) -> Json<Value> {
+    let _ = crate::boxes::github::refresh(&state.repo_root, state.version.as_ref()).await;
     Json(json!(crate::boxes::update::wire(&state)))
 }
 

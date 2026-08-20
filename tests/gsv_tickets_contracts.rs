@@ -1378,6 +1378,7 @@ fn join_env_and_presence_honor_squad_cap() {
     assert_eq!(env["squad_cap"], 1);
     assert_eq!(env["bot_slot_cap"], settings::TG_CHANNEL_ADMINS_MAX);
     assert_eq!(env["loopback_mcp"], "http://127.0.0.1:9999/mcp");
+    assert_eq!(env["chat_role"], "local");
     assert!(
         env["hint"]
             .as_str()
@@ -1435,6 +1436,14 @@ fn galaxy_glue_saves_jail_and_squad_cap() {
     assert!(
         gsv::server::INDEX_HTML.contains("setMode"),
         "settings mode glue"
+    );
+    assert!(
+        gsv::server::INDEX_HTML.contains("setRole"),
+        "settings channel role glue"
+    );
+    assert!(
+        gsv::server::INDEX_HTML.contains("data-hook-source"),
+        "Galaxy hook GitHub glue"
     );
     assert!(
         gsv::server::INDEX_HTML.contains("setWf"),
