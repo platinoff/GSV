@@ -3,7 +3,7 @@
 Standalone Rust-first vision server **and VDT entry workspace** for registered
 Rust products. **Root:** `S:\rust\GSV` (sibling of PoolAI, not a subfolder).
 
-**Kit (rules / skills / `абракадабра` / `abrakadabra`):** open **this** folder in Cursor. Canon —
+**Kit (rules / skills / `абракадабра` / `abrakadabra`):** open **this** folder in Cursor / OpenCode / Grok Build. Canon —
 [`docs/gsv/GSV_VDT_KIT.md`](docs/gsv/GSV_VDT_KIT.md). Product code may live in
 another tree (`S:\rust\poolAI`, …); the window being GSV does **not** mean the
 drain target is GSV — the skill asks first.
@@ -26,7 +26,7 @@ unset CARGO_TARGET_DIR
 
 Trigger skill: `.agents/skills/abracadabra/`. Either spelling starts the same drain. Вікно GSV ≠ автоматично drain GSV.
 
-1. `cargo xtask products` → AskQuestion / `question` on **those** environment projects (not a hardcoded `gsv | poolai` pair).
+1. `cargo xtask products` → AskQuestion (Cursor) / `question` (OpenCode) / numbered plain-text list (Grok) on **those** environment projects (not a hardcoded `gsv | poolai` pair).
 2. S0 disk for **that** product → `git fetch` → its HANDOFF.
 3. Drain next band (GSV: `docs/gsv/GSV_TECH_ROADMAP.md`; PoolAI: FM §5.12).
 4. If **gsv:** do **not** kill `target/live/gsv-server.exe` before `cargo test` / `cargo build`. Only stop `target/debug/gsv-server.exe` if that file is the listener.
@@ -43,7 +43,9 @@ C:\msys64\usr\bin\bash.exe -lc 'команда'
 
 `абракадабра` / `abrakadabra` in OpenCode uses the `question` tool (not Cursor AskQuestion). Skills: `.agents/skills/` (`opencode.json` → `skills.paths`). Plugin host: `.opencode/package.json` (`@opencode-ai/plugin`). **Do not auto-generate a product UI** — live Galaxy UI is `gsv-server` at `http://127.0.0.1:9999/`.
 
-Cursor ↔ OpenCode: Cursor `AskQuestion` = OpenCode `question`. Shared kit git-canon is this repo; copy (not symlink) to `.cursor/skills/` and `.opencode/skills/` via `cargo xtask mirrors`.
+Cursor ↔ OpenCode ↔ Grok: Cursor `AskQuestion` = OpenCode `question`; Grok asks in plain text (numbered list, no question tool). Shared kit git-canon is this repo; copy (not symlink) to `.cursor/skills/` and `.opencode/skills/` via `cargo xtask mirrors`; Grok reads the `.agents/skills/` canon directly (`[skills] paths` in `.grok/config.toml`, no copy).
+
+Grok Build: reads `AGENTS.md` + root `.mcp.json` natively; stdio MCP + skills paths live in `.grok/config.toml`; verify discovery with `grok inspect`. Same MSYS2 bash rule — never PowerShell.
 
 ## Speeds + Rust panel (GSV drain)
 

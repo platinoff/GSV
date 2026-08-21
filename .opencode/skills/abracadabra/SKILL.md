@@ -6,17 +6,18 @@ description: >-
   + sibling git repos), ask which one to work with, THEN run project-scan →
   drain → one commit + push. Host workspace is GSV (`S:\rust\GSV`). Use when
   the owner writes абракадабра or abrakadabra (or abracadabra) in a new
-  session (Cursor or OpenCode).
+  session (Cursor, OpenCode, or Grok).
 metadata:
   audience: gsv-vdt-kit
-  clients: cursor-opencode
+  clients: cursor-opencode-grok
 ---
 
 # «абракадабра» / `abrakadabra` — VDT drain session (GSV host)
 
-Works the same in **Cursor** and **OpenCode**. Git canon for this skill is
-**`S:\rust\GSV/.agents/skills/abracadabra/`**. Client copies under `.cursor/skills/`
-and `.opencode/skills/` must stay identical.
+Works the same in **Cursor**, **OpenCode**, and **Grok Build**. Git canon for
+this skill is **`S:\rust\GSV/.agents/skills/abracadabra/`**. Client copies under
+`.cursor/skills/` and `.opencode/skills/` must stay identical; Grok reads the
+canon directly via `[skills] paths` in `.grok/config.toml` (no copy).
 
 **Open this folder as the Cursor workspace:** `S:\rust\GSV` (kit entry).
 Do not assume the product is GSV just because the window is GSV.
@@ -66,6 +67,8 @@ Use the host question UI. One option **per discovered row**. Label format:
 
 - **Cursor:** `AskQuestion`
 - **OpenCode:** `question`
+- **Grok Build:** no structured question tool — print the same list as a
+  numbered plain-text question and wait for the owner's pick.
 
 Prompt: **«Проєкти з цього середовища. З яким працюємо?»**
 
@@ -123,7 +126,7 @@ Ratio: n/a (node). `gsv-loc-audit` does not apply.
 - **Never** stage: `.env*`, `*.pem`/`*.key`, `certs/*.pem`, `data/audit/*` (except `.gitkeep`), `comitmsg/*` except `comitmsg/README.md`.
 - Warnings >0 or errors >0 fixable → 1–3 PH-S* at the top of the band.
 - Shell is **MSYS2 bash**, not PowerShell: `C:\msys64\usr\bin\bash.exe -lc '…'`.
-- Fingerprint close: `cargo xtask fingerprint` (optional `--model grok-4.6`). If env is empty, GSV reads the latest Cursor `renderer.log` `catalogModelId`. Do not copy `Gsv-Model: unknown` into the commit when the session model is known.
+- Fingerprint close: `cargo xtask fingerprint` (optional `--model <session-model>`; never pin a specific model id — free-tier backends rotate). If env is empty, GSV reads the latest Cursor `renderer.log` `catalogModelId`. Do not copy `Gsv-Model: unknown` into the commit when the session model is known.
 
 ## See also
 

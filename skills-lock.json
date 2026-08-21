@@ -43,6 +43,13 @@
       "skillPath": "productivity/skills/memory-management/SKILL.md",
       "computedHash": "8178769b6efe5ef38b1e0eeea682b83ff79a1e3b93acb96aa203ebcfb96d9b98"
     },
+    "obsidian-vault": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/obsidian-vault/SKILL.md",
+      "computedHash": "c5a1911c66567673f320d68c6300d88db543088104c6af1836837ff8ebc5aadb",
+      "note": "localized: vault path adapted for this Windows machine"
+    },
     "roadmap-update": {
       "source": "anthropics/knowledge-work-plugins",
       "sourceType": "github",

@@ -1,5 +1,5 @@
 # Project overlay for Grok CLI (`grok inspect`).
-# Only [mcp_servers] / [plugins] / [permission] belong here.
+# Only [mcp_servers] / [plugins] / [skills] / [permission] belong here.
 # Stdio is the live copy (`cargo xtask live` copies gsv-mcp next to gsv-server).
 # Do not `cargo run --bin gsv-mcp` — that fights the cargo lock and is slow.
 
@@ -8,3 +8,8 @@ command = "S:/rust/GSV/target/live/gsv-mcp.exe"
 args = ["--repo-root", "S:/rust/GSV"]
 enabled = true
 startup_timeout_sec = 15
+
+# Skills canon lives in .agents/skills (single source). Grok reads it directly —
+# no copy under .grok/skills, so `cargo xtask mirrors` stays cursor+opencode only.
+[skills]
+paths = ["S:/rust/GSV/.agents/skills"]
