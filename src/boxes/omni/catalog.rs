@@ -5,6 +5,10 @@
 //! OpenCode sheet; free-tier RPM/RPD/reset windows from official limit pages
 //! (OpenRouter, Groq, Cerebras, NVIDIA NIM, Hugging Face, Copilot, Cursor).
 //! `None` means the sheet/docs do not publish a number — do not invent one.
+//!
+//! Addendum **2026-08-21**: Nemotron 3.5 Lightning (released 2026-08-11) on
+//! NIM / OpenRouter — agentic execution layer (tool calls incl. websearch),
+//! not a Rust/web brain; pick it explicitly.
 
 /// Shared research stamp (MCP + Galaxy card).
 pub const RESEARCHED_AT: &str = "2026-08-18";
@@ -271,7 +275,7 @@ pub fn providers() -> &'static [ProviderSpec] {
             region: "Global",
             free: true,
             default_base_url: "https://integrate.api.nvidia.com/v1",
-            notes: "Nemotron 3 / GLM / Kimi · ~40 RPM per model, no published daily cap",
+            notes: "Nemotron 3 / 3.5 Lightning / GLM / Kimi · ~40 RPM per model, no published daily cap",
             quota: QuotaSpec {
                 rpm: Some(40),
                 rpd: None,
@@ -821,6 +825,23 @@ pub fn models() -> &'static [ModelSpec] {
             "open",
             true,
             true,
+            C_OMNI,
+        ),
+        // Addendum 2026-08-21: agentic execution layer (30B MoE / 3B active,
+        // tool calls incl. websearch; 1M ctx on NIM, 300K on OpenRouter).
+        // rust/web stay false — auto-pick keeps it out of Rust/web lanes;
+        // select explicitly for high-volume search/tool loops.
+        m(
+            "nemotron-3.5-lightning",
+            "Nemotron 3.5 Lightning (NIM)",
+            "nvidia",
+            Some(1_000_000),
+            None,
+            true,
+            false,
+            "open",
+            false,
+            false,
             C_OMNI,
         ),
         m(

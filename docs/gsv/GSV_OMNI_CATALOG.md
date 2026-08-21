@@ -30,6 +30,17 @@ Owner explicit `X-Omni-Provider` still wins (bypass cooldown).
 
 Cursor-only speed lane: **Composer 2.5** (Cursor Models monthly pool). Not an Omni upstream unless you configure a base URL.
 
+## Nemotron 3.5 Lightning (addendum 2026-08-21)
+
+Released **2026-08-11**: open 30B MoE / **3B active** execution-layer model (Mamba+Transformer hybrid, MTP + speculative decoding, OpenMDW license). Trained for high-volume agentic loops — multi-step tool use incl. **search tool-calls**, structured output, terminal/coding RL. Context: **1M on NIM**, **300K on OpenRouter** (`nvidia/nemotron-3.5-lightning`, 16K reasoning budget). Free NIM tier ~40 RPM/model — already covered by the catalog cooldown (`reset_secs=60`).
+
+**Search needs — how to use it here:**
+
+- Role split: Lightning is the **executor** (websearch/tool-call loops, validation, formatting); keep a frontier model (Grok 4.6 / Sonnet 4.6 / Gemini 3 Pro) as the **orchestrator** for deep search strategy and Rust/web reasoning.
+- Auto-pick will **not** choose it for rust/web lanes (`rust`/`web` flags are off in canon). Select explicitly: `gsv_omni_chat` with `model="nemotron-3.5-lightning"` or owner header `X-Omni-Provider: nvidia`.
+- Local lane: runs on RTX 5090 / DGX Spark via Ollama / LM Studio / llama.cpp (NVFP4 + BF16 checkpoints) — no quota timers, but not an Omni upstream without a base URL.
+- Zen's free Nemotron row is still **Nemotron 3 Ultra**; 3.5 Lightning is not on Zen yet.
+
 ## Clients
 
 | Client | Kind | Timer | Rust picks | Web picks | Free |
@@ -69,5 +80,7 @@ Paid APIs (OpenAI, Anthropic, xAI, DeepSeek, Moonshot, MiniMax, Qwen, Z.AI): `re
 - [Cerebras rate limits](https://inference-docs.cerebras.ai/support/rate-limits)
 - [Hugging Face Inference Providers pricing](https://huggingface.co/docs/inference-providers/en/pricing)
 - [GitHub Copilot usage-based billing](https://docs.github.com/en/copilot/concepts/billing/usage-based-billing-for-individuals)
+- [Nemotron 3.5 Lightning model card (NIM)](https://build.nvidia.com/nvidia/nemotron-3.5-lightning-30b-a3b/modelcard) — 30B/3B MoE, 1M ctx, tool-calling (addendum 2026-08-21)
+- [Nemotron 3.5 Lightning on OpenRouter](https://openrouter.ai/nvidia/nemotron-3.5-lightning) — 300K ctx, 16K reasoning budget
 
 Canon code stays in Rust (`catalog.rs`). This file is the human/MCP snapshot of the same data.
