@@ -1660,7 +1660,7 @@ pub fn render_tickets(d: &Value) -> String {
     ));
     let federation = arr(&d["federation"]);
     if federation.is_empty() {
-        out.push_str("<div class='dim'>federation · heartbeats <kbd>kind:presence</kbd> · claims <kbd>kind:claim</kbd> · closes <kbd>kind:done</kbd></div>");
+        out.push_str("<div class='dim'>federation · heartbeats <kbd>kind:presence</kbd> · claims <kbd>kind:claim</kbd> · closes <kbd>kind:done</kbd> · releases <kbd>kind:reclaim</kbd></div>");
     } else {
         let rows: Vec<Vec<String>> = federation
             .iter()

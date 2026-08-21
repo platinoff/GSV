@@ -25,6 +25,8 @@
 //! local claim/squad cap stay process-local.
 //! Band 194: federated `kind:claim` — remote jail claims an *open* row on
 //! this jail's board via Godfather; peer `tickets.jsonl` is never merged.
+//! Band 196: federated `kind:reclaim` — lease expiry / explicit reclaim posts
+//! the reopen; peers transition their copy `in_progress` → `open` (no ranks).
 
 use std::collections::HashMap;
 use std::fmt;
@@ -722,6 +724,9 @@ fn clear_claim(ticket: &mut Ticket) {
 }
 
 /// `in_progress` rows whose lease has passed (or never had one) → `open` + `reclaimed`.
+/// Each reclaimed row also posts a Godfather `kind:reclaim` (band 196) so peer
+/// jails release their mirrored copy. Guest mute + harness skip live in
+/// [`telegram::maybe_federate_reclaim`]; a reclaim never moves ranks.
 pub fn reclaim_stale(repo_root: &Path, data_dir: &Path) -> Result<Vec<Ticket>, TicketError> {
     let file = settings::load_result(data_dir).map_err(TicketError::Io)?;
     if !settings::ticket_claim_enabled(&file) {
@@ -731,6 +736,7 @@ pub fn reclaim_stale(repo_root: &Path, data_dir: &Path) -> Result<Vec<Ticket>, T
     let mut tickets = read_tickets(&path)?;
     let now = unix_now();
     let mut out = Vec::new();
+    let mut fed: Vec<(ClaimedBy, String)> = Vec::new();
     for ticket in &mut tickets {
         if !lease_is_expired(ticket, now) {
             continue;
@@ -738,10 +744,14 @@ pub fn reclaim_stale(repo_root: &Path, data_dir: &Path) -> Result<Vec<Ticket>, T
         let who = ticket.claimed_by.clone().unwrap_or_else(resolve_claimed_by);
         clear_claim(ticket);
         append_event(repo_root, &ticket.id, &who, "reclaimed", "lease expired")?;
+        fed.push((who.clone(), ticket.id.clone()));
         out.push(ticket.clone());
     }
     if !out.is_empty() {
         write_tickets(&path, &tickets)?;
+        for (who, id) in &fed {
+            telegram::maybe_federate_reclaim(&file, who, id);
+        }
     }
     Ok(out)
 }
@@ -1819,6 +1829,35 @@ pub fn done_remote(
     )
 }
 
+/// `in_progress` → `open` for a **remote** jail (`kind:reclaim`). Same release
+/// as the explicit branch of [`wire_reclaim`] but driven by a Godfather
+/// envelope; no federation echo and no rank change.
+pub fn reclaim_remote(
+    repo_root: &Path,
+    _data_dir: &Path,
+    id: &str,
+    who: ClaimedBy,
+    note: &str,
+) -> Result<Ticket, TicketError> {
+    let path = tickets_path(repo_root);
+    let mut tickets = read_tickets(&path)?;
+    let pos = tickets
+        .iter()
+        .position(|t| t.id == id)
+        .ok_or(TicketError::NotFound)?;
+    if tickets[pos].status != "in_progress" {
+        return Err(TicketError::BadRequest(format!(
+            "ticket is {}",
+            tickets[pos].status
+        )));
+    }
+    clear_claim(&mut tickets[pos]);
+    let updated = tickets[pos].clone();
+    write_tickets(&path, &tickets)?;
+    append_event(repo_root, &updated.id, &who, "reclaimed", note)?;
+    Ok(updated)
+}
+
 /// `in_progress` → `blocked` (error).
 pub fn error_ticket(
     repo_root: &Path,
@@ -2048,6 +2087,7 @@ pub fn wire_presence(
 }
 
 /// HTTP POST reclaim wire. Empty id → all stale. Else that `in_progress` row.
+/// Every reclaimed row posts a Godfather `kind:reclaim` (band 196).
 pub fn wire_reclaim(repo_root: &Path, data_dir: &Path, body: &Value) -> Result<Value, TicketError> {
     let file = settings::load_result(data_dir).map_err(TicketError::Io)?;
     if !settings::ticket_claim_enabled(&file) {
@@ -2058,26 +2098,15 @@ pub fn wire_reclaim(repo_root: &Path, data_dir: &Path, body: &Value) -> Result<V
         let tickets = reclaim_stale(repo_root, data_dir)?;
         return Ok(json!({ "ok": true, "tickets": tickets }));
     }
-    let path = tickets_path(repo_root);
-    let mut tickets = read_tickets(&path)?;
-    let pos = tickets
-        .iter()
-        .position(|t| t.id == id)
-        .ok_or(TicketError::NotFound)?;
-    if tickets[pos].status != "in_progress" {
-        return Err(TicketError::BadRequest(format!(
-            "ticket is {}",
-            tickets[pos].status
-        )));
-    }
-    let who = tickets[pos]
-        .claimed_by
-        .clone()
-        .unwrap_or_else(resolve_claimed_by);
-    clear_claim(&mut tickets[pos]);
-    let updated = tickets[pos].clone();
-    write_tickets(&path, &tickets)?;
-    append_event(repo_root, &updated.id, &who, "reclaimed", "lease")?;
+    let who = match read_tickets(&tickets_path(repo_root))?
+        .into_iter()
+        .find(|t| t.id == id)
+    {
+        Some(t) => t.claimed_by.unwrap_or_else(resolve_claimed_by),
+        None => resolve_claimed_by(),
+    };
+    let updated = reclaim_remote(repo_root, data_dir, id, who.clone(), "lease")?;
+    telegram::maybe_federate_reclaim(&file, &who, &updated.id);
     Ok(json!({ "ok": true, "ticket": updated }))
 }
 

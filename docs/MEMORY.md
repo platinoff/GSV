@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-21 · band 196)
+
+- **Band 196:** Federated reclaim. Lease expiry (`reclaim_stale`) or an explicit release posts Godfather `kind:reclaim` (`from=jail.id`, `ticket_id` required). Peer boards transition their copy `in_progress` → `open` via `tickets::reclaim_remote` (+ `kind:reclaimed`). No rank change. Guest mute. Echo skip (env.from == own jail.id). Missing/non-WIP rows are no-op. Poller reports `"reclaim": n_reclaim`. Bus send `kind=reclaim` default body `<from> reclaims <id>`, data hint `federated-reclaim`. Scenario `federated-reclaim`. Federation lifecycle complete: presence → claim → done → reclaim.
+- **Canon:** [`gsv/GSV_SOLO_SQUAD_JAIL.md`](gsv/GSV_SOLO_SQUAD_JAIL.md).
+- **Next drain:** **owner pick** after a warnings-first scan.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.42%** (rust 40941 / product 41178) · **680** tests · clippy 0
+
 ## Стан (2026-08-21 · band 195)
 
 - **Band 195:** Federated done. The jail that finished a claimed row posts Godfather `kind:done` (`from=jail.id`, `ticket_id` required). Host board transitions it `in_progress` → `done` (`tickets::done_remote`). Ranks stay process-local (remote dones never move the host ladder). Guest mute. Echo skip. Missing/non-WIP rows are no-op. Poller reports `"done": n_done`. Scenario `federated-done`.

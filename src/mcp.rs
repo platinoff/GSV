@@ -338,14 +338,14 @@ pub fn tools_list() -> Vec<Value> {
         ),
         tool(
             "gsv_telegram_bus_send",
-            "Send a bus envelope {from,to?,ticket_id?,body,kind?} to the Godfather channel. kind is bus (default), sync, presence, claim, or done. claim/done require ticket_id and apply on the host board (claim: open → in_progress; done: in_progress → done). Requires co-workflow telegram-relay. Caps body at 2 KiB. Never returns bot_token. Tests/dry-run use an in-memory queue (no sockets).",
+            "Send a bus envelope {from,to?,ticket_id?,body,kind?} to the Godfather channel. kind is bus (default), sync, presence, claim, done, or reclaim. claim/done/reclaim require ticket_id and apply on the host board (claim: open → in_progress; done: in_progress → done; reclaim: in_progress → open). Requires co-workflow telegram-relay. Caps body at 2 KiB. Never returns bot_token. Tests/dry-run use an in-memory queue (no sockets).",
             json!({
                 "type": "object",
                 "properties": {
                     "from": { "type": "string", "description": "Sender id (must match godfather.allowed_user_ids when that list is non-empty)." },
                     "to": { "type": "string", "description": "Optional recipient id." },
                     "ticket_id": { "type": "string", "description": "Ticket id (required when kind=claim or kind=done)." },
-                    "kind": { "type": "string", "description": "bus (default), sync, presence, claim, or done." },
+                    "kind": { "type": "string", "description": "bus (default), sync, presence, claim, done, or reclaim." },
                     "body": { "type": "string", "description": "Message body (max 2048 bytes)." }
                 },
                 "required": ["from", "body"]
@@ -376,7 +376,7 @@ pub fn tools_list() -> Vec<Value> {
         ),
         tool(
             "gsv_telegram_poll",
-            "One inbound getUpdates pass on the Godfather channel: classify /ticket, hook phrase, bus/sync JSON, kind:presence, kind:claim, and kind:done (federated ticket close on this board). Dry-run uses the in-process stub queue (no sockets). Requires godfather.poll or telegram-relay. Never returns bot_token. The always-on loop runs only in gsv-server.",
+            "One inbound getUpdates pass on the Godfather channel: classify /ticket, hook phrase, bus/sync JSON, kind:presence, kind:claim, kind:done, and kind:reclaim (federated ticket close / release on this board). Dry-run uses the in-process stub queue (no sockets). Requires godfather.poll or telegram-relay. Never returns bot_token. The always-on loop runs only in gsv-server.",
             object_schema(),
         ),
         tool(

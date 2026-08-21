@@ -185,6 +185,13 @@
       "body": "The jail that finished a claimed row posts kind:done with ticket_id on Godfather. Host applies the close to this jail tickets.jsonl (in_progress to done). Ranks stay process-local: remote dones never move the host merit ladder. Guest mute. Echo of this jail is ignored.",
       "workflow": "ticket-squad",
       "product": "gsv"
+    },
+    {
+      "id": "federated-reclaim",
+      "title": "Federated reclaim: lease expiry or explicit release on Godfather",
+      "body": "The jail whose lease expired or that explicitly reclaims posts kind:reclaim with ticket_id on Godfather. Peers transition their copy in_progress to open (+kind:reclaimed event). No rank change: reclaims never move a merit ladder. Guest mute. Echo of this jail is ignored.",
+      "workflow": "ticket-squad",
+      "product": "gsv"
     }
   ]
 }

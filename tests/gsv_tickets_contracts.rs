@@ -561,6 +561,10 @@ fn seed_scenarios_have_no_secrets() {
         list.iter().any(|s| s.id == "federated-claim"),
         "federated-claim scenario missing"
     );
+    assert!(
+        list.iter().any(|s| s.id == "federated-reclaim"),
+        "federated-reclaim scenario missing"
+    );
 }
 
 fn enable_squad(data: &Path) {
@@ -844,6 +848,42 @@ fn stale_in_progress_reclaims_to_open_on_list() {
     assert!(
         claims_raw.contains("\"kind\":\"reclaimed\""),
         "{claims_raw}"
+    );
+}
+
+#[test]
+fn reclaim_remote_releases_in_progress_without_ranks() {
+    let kit = temp_kit("reclaim-remote");
+    enable_claim(&kit.join("data"));
+    let data = kit.join("data");
+    let t = tickets::create(&kit, "Remote release", "body", "gsv").expect("create");
+    let who = ClaimedBy {
+        actor: "host".into(),
+        ide: "cursor".into(),
+        model: String::new(),
+        agent: "orchestrator".into(),
+    };
+    tickets::claim_with(&kit, &data, &t.id, who.clone(), None).expect("claim");
+    let remote = ClaimedBy {
+        actor: "alice".into(),
+        ide: "opencode".into(),
+        model: String::new(),
+        agent: "bot".into(),
+    };
+    let updated = tickets::reclaim_remote(&kit, &data, &t.id, remote, "federated reclaim")
+        .expect("reclaim_remote");
+    assert_eq!(updated.status, "open");
+    assert!(updated.claimed_by.is_none());
+    assert!(updated.lease_until.is_none());
+    let claims_raw = std::fs::read_to_string(tickets::claims_path(&kit)).expect("claims");
+    assert!(
+        claims_raw.contains("\"kind\":\"reclaimed\"") && claims_raw.contains("federated reclaim"),
+        "{claims_raw}"
+    );
+    let again = tickets::reclaim_remote(&kit, &data, &t.id, who, "federated reclaim");
+    assert!(
+        matches!(again, Err(tickets::TicketError::BadRequest(_))),
+        "{again:?}"
     );
 }
 

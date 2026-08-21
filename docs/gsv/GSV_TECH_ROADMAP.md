@@ -80,6 +80,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 193** (federated `kind:presence`) **✅** ·
 **band 194** (federated `kind:claim`) **✅** ·
 **band 195** (federated `kind:done`) **✅** ·
+**band 196** (federated `kind:reclaim`) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -1554,6 +1555,23 @@ Owner pick: continue after claim. Spec leftover from 186–194: cross-jail ticke
 | **PH-S2596** | Docs | spec GSV_SOLO_SQUAD_JAIL §done; HANDOFF / NEXT / MEMORY — **✅** |
 | **PH-S2597** | Speeds / sync | record-speed · record-rust · vision sync + `--check` — **✅** |
 | **PH-S2598** | Band close | `--band 195` + fingerprint; recopy live; one commit + push — **✅** |
+
+## Спринти (band 196) — federated ticket reclaim
+
+Owner pick: complete the federation lifecycle (presence → claim → done → reclaim). Lease expiry or an explicit reclaim posts Godfather `kind:reclaim` (`from=jail.id`, `ticket_id` required); peers transition their copy `in_progress` → `open` (+ `kind:reclaimed`). No rank change. Guest mute. Echo skip.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2599** | Scope | this band; envelope `kind:reclaim`; `ticket_id` required — **✅** |
+| **PH-S2600** | Envelope | parse/classify `reclaim`; `reclaim requires ticket_id`; not-a-ticket — **✅** |
+| **PH-S2601** | Outbound | `enqueue_reclaim`; `maybe_federate_reclaim` host/mate on stale sweep + explicit wire; guest refused; cargo-test skip — **✅** |
+| **PH-S2602** | Apply | inbound reclaim → `in_progress`→`open` via `tickets::reclaim_remote` (+`kind:reclaimed`, no ranks); missing/non-WIP no-op — **✅** |
+| **PH-S2603** | Poller / bus | inbound `reclaim` → apply + report field; bus_send `kind=reclaim` default body + data hint `federated-reclaim` — **✅** |
+| **PH-S2604** | Galaxy / scenarios | federation line releases `kind:reclaim`; scenario `federated-reclaim` — **✅** |
+| **PH-S2605** | MCP lockstep | bus_send / poll tool descriptions name reclaim; catalog unchanged **56** tools — **✅** |
+| **PH-S2606** | Tests | telegram/tickets contracts; fmt · clippy · `cargo test` — **✅** |
+| **PH-S2607** | Docs | spec GSV_SOLO_SQUAD_JAIL §reclaim; HANDOFF / NEXT / MEMORY — **✅** |
+| **PH-S2608** | Band close | `--band 196` + fingerprint; recopy live; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
