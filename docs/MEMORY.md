@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-20 · band 194)
+
+- **Band 194:** Federated claim. Godfather `kind:claim` (`from=jail.id`, `ticket_id` required). Host applies to this jail’s `tickets.jsonl` (`open` → `in_progress`, `claimed_jail`). Remote keeps its own JSONL. Guest mute. Echo skip. Local `try_dispatch` stays process-local. Scenario `federated-claim`.
+- **Canon:** [`gsv/GSV_SOLO_SQUAD_JAIL.md`](gsv/GSV_SOLO_SQUAD_JAIL.md).
+- **Next drain:** **owner pick** after a warnings-first scan.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.41%** (rust 39931 / product 40168) · **668** tests · clippy 0
+
 ## Стан (2026-08-20 · band 193)
 
 - **Band 193:** Federated presence. Godfather `kind:presence` (`from=jail.id`). Host Galaxy shows `federation` rows. Remote workers do not fill this jail’s `squad_cap` and cannot claim this jail’s tickets. Guest mute. Echo of this jail ignored. Scenario `federated-presence`.

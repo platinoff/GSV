@@ -1,6 +1,6 @@
 # Solo / squad / jail — federated GSV MCP
 
-**Status:** Bands **186–193**. **193** federated `kind:presence`. **192** ranks + no CMD flash. **191** host/mate/guest/local + GitHub origin lockstep. **187** live `getChatMemberCount`. Bands **166–185 ✅**.  
+**Status:** Bands **186–194**. **194** federated `kind:claim`. **193** federated `kind:presence`. **192** ranks + no CMD flash. **191** host/mate/guest/local + GitHub origin lockstep. **187** live `getChatMemberCount`. Bands **166–185 ✅**.  
 **Date:** 2026-08-20  
 **Deciders:** owner  
 **Owner ask:** update + security check; Git workflow research; align solo vs squad; environment checks for a joiner who installed their own `gsv-server`; how that MCP joins a squad; host bot-admin on a channel vs own channel + own bot + invite others; squad bot cap = channel user cap; apps built inside a per-server MCP jail.
@@ -77,7 +77,7 @@ Band **160** already named the crate path `sandbox` on `GET /mcp`. A **jail** in
 2. Joiner wires **folder** MCP to `http://127.0.0.1:9999/mcp` (Cursor) or `target/live/gsv-mcp.exe` (OpenCode/Grok). Never User MCP.
 3. Environment check (`GET /api/tickets` → `env`, also inside MCP `gsv_tickets`): `crate_version`, `sandbox` is **their** path, `token_set` / `channel_set`, `squad_full`, `loopback_mcp`.
 4. Joiner is added as a **human** on the channel (this occupies a member slot → raises `member_count` → raises squad cap).
-5. Their MCP does **not** use the host `bot_token`. They heartbeat presence on **their** jail for local Cursor+OpenCode, and talk to the host squad over Godfather bus `{v:1,kind:bus,from:<jail.id>}`. Federated presence on the **host** board is `kind:presence` (band **193**): remote jails show under `federation`; they do **not** consume this jail’s `squad_cap` and cannot claim this jail’s `tickets.jsonl`.
+5. Their MCP does **not** use the host `bot_token`. They heartbeat presence on **their** jail for local Cursor+OpenCode, and talk to the host squad over Godfather bus `{v:1,kind:bus,from:<jail.id>}`. Federated presence on the **host** board is `kind:presence` (band **193**): remote jails show under `federation`; they do **not** consume this jail’s `squad_cap`. Federated **claim** is `kind:claim` (band **194**): a remote jail claims an *open* row on **this** jail’s `tickets.jsonl`; the remote still keeps its own JSONL. Guest mute. Echo of this jail is ignored.
 6. Optional: host adds the joiner’s bot as a second admin (consumes `bot_slot_cap`). Skip this when using the shared host bot.
 
 ### Path B — joiner wants their own channel and bot, then invites others
@@ -142,14 +142,14 @@ Presence: `POST /api/tickets/presence` / `gsv_tickets_presence` / `gsv_tickets_n
 
 ## Scenarios
 
-Catalog ids: `federated-join` · `own-channel` · `jail-app` · `federated-presence` (plus existing `squad-dev` / `telegram-solo` / `abrakadabra-session` / `rank-ladder`).
+Catalog ids: `federated-join` · `own-channel` · `jail-app` · `federated-presence` · `federated-claim` (plus existing `squad-dev` / `telegram-solo` / `abrakadabra-session` / `rank-ladder`).
 
-## Non-goals (186–193)
+## Non-goals (186–194)
 
-- Cross-process federated ticket *claim* (remote still works its own `tickets.jsonl`).
 - Public `/mcp` mesh / Cloudflare on MCP.
 - Sharing one `bot_token` as a “join code”.
 - Raising Telegram’s own 20/50 bot-admin ceilings.
+- Auto-assign (`try_dispatch`) to remote federation workers — still process-local.
 
 ## Success metrics
 

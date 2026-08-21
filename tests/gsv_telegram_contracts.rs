@@ -363,6 +363,28 @@ fn parse_envelope_rejects_invalid_and_non_bus() {
         telegram::classify_inbound(&serde_json::to_string(&presence).unwrap()),
         "presence"
     );
+    let claim = telegram::parse_envelope(&json!({
+        "v": 1,
+        "kind": "claim",
+        "from": "alice-gsv",
+        "ticket_id": "t-1",
+        "body": "alice-gsv claims t-1",
+        "data": { "actor": "alice", "hint": "federated-claim" }
+    }))
+    .expect("claim");
+    assert_eq!(claim.kind, "claim");
+    assert_eq!(claim.ticket_id.as_deref(), Some("t-1"));
+    assert_eq!(
+        telegram::classify_inbound(&serde_json::to_string(&claim).unwrap()),
+        "claim"
+    );
+    let claim_no_id = telegram::parse_envelope(&json!({
+        "v": 1,
+        "kind": "claim",
+        "from": "alice-gsv",
+        "body": "no id"
+    }));
+    assert!(claim_no_id.is_err(), "{claim_no_id:?}");
 }
 
 #[tokio::test]
@@ -1014,6 +1036,123 @@ async fn poll_once_ingests_federated_presence() {
     assert_eq!(fed.actor, "alice");
     assert_eq!(fed.rank_title, "Jun-nub");
     assert_no_secret(&v, "123:fp-secret");
+}
+
+#[tokio::test]
+async fn poll_once_ingests_federated_claim() {
+    let _g = bus_guard().await;
+    telegram::bus_reset();
+    let kit = temp_kit("poll-claim");
+    let data = kit.join("data");
+    save_solo_relay(&data, "-100fc", "123:fc-secret", &[]);
+    let t = tickets::create(&kit, "Federated claim row", "body", "gsv").expect("create");
+    telegram::push_inbound_stub(
+        41,
+        &format!(
+            r#"{{"v":1,"kind":"claim","from":"alice-gsv","ticket_id":"{}","body":"alice-gsv claims","data":{{"actor":"alice","ide":"opencode","agent":"bot","jail_id":"alice-gsv","hint":"federated-claim"}}}}"#,
+            t.id
+        ),
+        "-100fc",
+        "",
+        "99",
+    );
+    let v = telegram::poll_once(&kit, &data, true, None).await;
+    assert_eq!(v["ok"], true, "{v}");
+    assert_eq!(v["claim"], 1, "{v}");
+    let listed = tickets::list(&kit);
+    let row = listed["tickets"]
+        .as_array()
+        .expect("arr")
+        .iter()
+        .find(|x| x["id"] == t.id)
+        .expect("row");
+    assert_eq!(row["status"], "in_progress");
+    assert_eq!(row["claimed_jail"], "alice-gsv");
+    assert_eq!(row["claimed_by"]["actor"], "alice");
+    assert_no_secret(&v, "123:fc-secret");
+}
+
+#[test]
+fn federated_claim_echo_and_guest_skip() {
+    telegram::bus_reset();
+    let kit = temp_kit("claim-echo");
+    let data = kit.join("data");
+    save_solo_relay(&data, "-100echo", "123:echo-secret", &[]);
+    settings::save(
+        &data,
+        &settings::SettingsFile {
+            jail: settings::JailSettings {
+                id: "alice-gsv".into(),
+            },
+            godfather: settings::Godfather {
+                channel_id: "-100echo".into(),
+                bot_token: "123:echo-secret".into(),
+                ..Default::default()
+            },
+            workflows: settings::Workflows {
+                enabled: vec!["telegram-relay".into(), "ticket-claim".into()],
+            },
+            ..Default::default()
+        },
+    )
+    .expect("save echo jail");
+    let t = tickets::create(&kit, "Echo skip", "body", "gsv").expect("create");
+    let env = telegram::parse_envelope(&json!({
+        "v": 1,
+        "kind": "claim",
+        "from": "alice-gsv",
+        "ticket_id": t.id,
+        "body": "alice-gsv claims",
+        "data": { "jail_id": "alice-gsv", "actor": "alice" }
+    }))
+    .expect("env");
+    assert!(!telegram::apply_claim_envelope(&kit, &data, &env));
+    let still = tickets::list(&kit);
+    let row = still["tickets"]
+        .as_array()
+        .expect("arr")
+        .iter()
+        .find(|x| x["id"] == t.id)
+        .expect("row");
+    assert_eq!(row["status"], "open");
+
+    let kit_g = temp_kit("claim-guest");
+    let data_g = kit_g.join("data");
+    settings::save(
+        &data_g,
+        &settings::SettingsFile {
+            godfather: settings::Godfather {
+                role: "guest".into(),
+                channel_id: "-100g".into(),
+                bot_token: "123:guest-claim".into(),
+                ..Default::default()
+            },
+            workflows: settings::Workflows {
+                enabled: vec!["telegram-relay".into(), "ticket-claim".into()],
+            },
+            ..Default::default()
+        },
+    )
+    .expect("save guest");
+    let tg = tickets::create(&kit_g, "Guest board", "body", "gsv").expect("create");
+    let env_g = telegram::parse_envelope(&json!({
+        "v": 1,
+        "kind": "claim",
+        "from": "alice-gsv",
+        "ticket_id": tg.id,
+        "body": "alice-gsv claims",
+        "data": { "actor": "alice", "jail_id": "alice-gsv" }
+    }))
+    .expect("envg");
+    assert!(!telegram::apply_claim_envelope(&kit_g, &data_g, &env_g));
+    let who = ClaimedBy {
+        actor: "guest".into(),
+        ide: "cursor".into(),
+        model: "m".into(),
+        agent: "bot".into(),
+    };
+    let file = settings::load_result(&data_g).expect("load");
+    assert!(!telegram::maybe_federate_claim(&file, &who, &tg.id));
 }
 
 #[test]

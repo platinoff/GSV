@@ -1,12 +1,12 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-08-20 (band **193** · next = **owner pick**)
+**Оновлено:** 2026-08-20 (band **194** · next = **owner pick**)
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
 **`абракадабра` / `abrakadabra`** → `cargo xtask products` → **AskQuestion на проєкти з environment**
 (не `gsv | poolai` з голови) → S0 диск/git → project scan (warnings first) →
-якщо **gsv:** settings/Telegram/tickets spec bands **166–193 ✅**
-+ **band 193** federated `kind:presence` (remote jails on host board; local cap/claim unchanged)
+якщо **gsv:** settings/Telegram/tickets spec bands **166–194 ✅**
++ **band 194** federated `kind:claim` (remote jail claims host-board ticket; local dispatch unchanged)
 **Next = owner pick** after a warnings-first scan. Speeds + Rust panel →
 vision-sync → **один commit** → **`git push` + самарі**.
 
@@ -23,7 +23,7 @@ vision queue lockstep + bump auto-advance **163 ✅**;
 Cursor 3.16.29 kit lockstep **164 ✅**;
 watchdog live copy + lockstep observability **165 ✅**;
 **band 166 ✅** settings / Godfather — [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md);
-**band 175 ✅** MDS scenario band + solo walk + Telegram sync. **band 176 ✅** visible MCP session walk (solo / squad / bench on Godfather). **band 177 ✅** roadmap/plan hook-up. **band 178 ✅** scenario benchmark. **band 179 ✅** Godfather inbound poller. **band 180 ✅** watchdog process lockstep. **band 181 ✅** Galaxy glue + S0 disk on health. **band 182 ✅** MCP-readable Godfather envelopes + Galaxy MCP signal. **band 183 ✅** squad next-action + MCP catalog lockstep. **band 184 ✅** MCP session catalog lockstep. **band 185 ✅** Cursor catalog restart lockstep. **band 186 ✅** solo/squad/jail. **band 187** live Godfather member_count. **band 188** README SMIL + docs tidy. **band 189** Settings Galaxy polish. **band 190** Galaxy About + type/fullscreen chrome. **band 191** channel roles + GitHub origin. **band 192** ranks + no CMD flash. **band 193** federated `kind:presence`. **Next = owner pick**. MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+**band 175 ✅** MDS scenario band + solo walk + Telegram sync. **band 176 ✅** visible MCP session walk (solo / squad / bench on Godfather). **band 177 ✅** roadmap/plan hook-up. **band 178 ✅** scenario benchmark. **band 179 ✅** Godfather inbound poller. **band 180 ✅** watchdog process lockstep. **band 181 ✅** Galaxy glue + S0 disk on health. **band 182 ✅** MCP-readable Godfather envelopes + Galaxy MCP signal. **band 183 ✅** squad next-action + MCP catalog lockstep. **band 184 ✅** MCP session catalog lockstep. **band 185 ✅** Cursor catalog restart lockstep. **band 186 ✅** solo/squad/jail. **band 187** live Godfather member_count. **band 188** README SMIL + docs tidy. **band 189** Settings Galaxy polish. **band 190** Galaxy About + type/fullscreen chrome. **band 191** channel roles + GitHub origin. **band 192** ranks + no CMD flash. **band 193** federated `kind:presence`. **band 194** federated `kind:claim`. **Next = owner pick**. MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
 Jail/squad join: [`gsv/GSV_SOLO_SQUAD_JAIL.md`](gsv/GSV_SOLO_SQUAD_JAIL.md).
 Omni catalog: [`gsv/GSV_OMNI_CATALOG.md`](gsv/GSV_OMNI_CATALOG.md).
 Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
@@ -31,8 +31,9 @@ Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 
 ## Стан зараз
 
-- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–193.
-- **Band 193:** Federated presence — Godfather `kind:presence` (`from=jail.id`); host Galaxy `federation` rows; remote does not fill `squad_cap` or claim this jail’s tickets; guest mute; echo skip. Scenario `federated-presence`. Spec [`gsv/GSV_SOLO_SQUAD_JAIL.md`](gsv/GSV_SOLO_SQUAD_JAIL.md).
+- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–194.
+- **Band 194:** Federated claim — Godfather `kind:claim` (`from=jail.id`, `ticket_id` required). Host applies to this jail’s `tickets.jsonl`. Remote keeps its own JSONL. Guest mute. Echo skip. Local `try_dispatch` unchanged. Scenario `federated-claim`. Spec [`gsv/GSV_SOLO_SQUAD_JAIL.md`](gsv/GSV_SOLO_SQUAD_JAIL.md).
+- **Band 193:** Federated presence — Godfather `kind:presence` (`from=jail.id`); host Galaxy `federation` rows; remote does not fill `squad_cap`; guest mute; echo skip. Scenario `federated-presence`. Spec [`gsv/GSV_SOLO_SQUAD_JAIL.md`](gsv/GSV_SOLO_SQUAD_JAIL.md).
 - **Band 192:** Ranks + no console flash — `vision::command(git)` on origin probe; GET `/api/update` caches unless `?check=true`. Merit ladder L0 jun-nub … L15 marshal-orchestrator (IT+army mix). Host *displays* marshal. Ticket done +1 / error or failed tests after commit −1 (fingerprint + Telegram tail). Spec [`gsv/GSV_RANKS.md`](gsv/GSV_RANKS.md). `CARD_NAMES` **42**. MCP **56** tools.
 - **Band 191:** Channel roles + GitHub origin lockstep — `chat_role` host/mate/guest/local (guest stays solo; live bus send refused); `gsv_update` `github_ahead` when origin is newer even if local `src/` is not; ticket pick board first then `hook github` (`GH#N`); scenarios `github-issues` / `channel-host` / `channel-mate` / `channel-guest`. Spec [`gsv/GSV_SOLO_SQUAD_JAIL.md`](gsv/GSV_SOLO_SQUAD_JAIL.md) · [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md).
 - **Band 190:** Galaxy About + type/fullscreen chrome — English About card (`CARD_NAMES` **41**); hover tips; distinct glyphs; GSV L0–L5 vision legend; fullscreen below header (`--fs-top`); `--ui:14px` + A−/A+ (12–18); 2-column card grid; nebula/glass. Spec [`gsv/GSV_ALWAYS_ON_UI.md`](gsv/GSV_ALWAYS_ON_UI.md).
@@ -95,7 +96,7 @@ Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 - **Band 134:** HTTP response hardening — CSP / nosniff / DENY / no-store / COOP+CORP; POST 256 KiB cap → 413 `{ok:false}`.
 - **VDT kit (band 127):** shared `.agents/skills/` + generic `.cursor/rules/` + `gsv.code-workspace` + `PRODUCTS.md`.
   Discover: `cargo xtask products` (не hardcoded `gsv | poolai`).
-- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.40%** (rust 39570 / product 39807) · **666** tests · clippy 0 · fmt clean.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.41%** (rust 39931 / product 40168) · **668** tests · clippy 0 · fmt clean.
 - **Сервер:** canon порт **9999** (`DEFAULT_PORT`; 8765 — Hyper-V reserved range).
 - **Vision rev:** **516** (band 187 `cargo xtask sync`; last `PH-S2518` · next `PH-S2519`).
 - **Live UI** — `gsv-server` → `http://127.0.0.1:9999/`. MCP stdio — `target/live/gsv-mcp.exe` (`cargo xtask live`).

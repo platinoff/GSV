@@ -78,6 +78,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 191** (channel roles + GitHub origin lockstep) **✅** ·
 **band 192** (ranks + no console flash) **✅** ·
 **band 193** (federated `kind:presence`) **✅** ·
+**band 194** (federated `kind:claim`) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -1518,6 +1519,23 @@ Owner pick: continue after ranks. Spec leftover from 186: cross-jail `PresenceSt
 | **PH-S2576** | Galaxy / scenarios | tickets federation table; `federated-presence` — **✅** |
 | **PH-S2577** | Tests | fmt · clippy · `cargo test` · `--stretch-96` — **✅** |
 | **PH-S2578** | Band close | `--band 193` + fingerprint; recopy live; one commit + push — **✅** |
+
+## Спринти (band 194) — federated ticket claim
+
+Owner pick: continue after presence. Spec leftover from 186–193: cross-jail ticket *claim* over Godfather `kind:claim`. Host board (`tickets.jsonl` on this jail) is canonical; remote jails keep their own JSONL. Guest mute. Echo skip. Local `try_dispatch` stays process-local.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2579** | Scope | this band; envelope `kind:claim`; `ticket_id` required — **✅** |
+| **PH-S2580** | Research | host board canonical; no peer JSONL merge; guest mute; echo skip — **✅** |
+| **PH-S2581** | Envelope | parse/classify `claim`; `claim requires ticket_id` — **✅** |
+| **PH-S2582** | Apply | inbound claim → `open`→`in_progress` + `claimed_jail`; missing/non-open no-op — **✅** |
+| **PH-S2583** | Outbound | `enqueue_claim`; `maybe_federate_claim` host/mate; guest refused; cargo-test skip — **✅** |
+| **PH-S2584** | Poller / bus | inbound `claim` → apply; `gsv_telegram_bus_send` `kind=claim` — **✅** |
+| **PH-S2585** | Cap / pick | `try_dispatch` local only; remote claim does not fill `squad_cap` — **✅** |
+| **PH-S2586** | Galaxy / scenarios | claimed jail on WIP row; `federated-claim` — **✅** |
+| **PH-S2587** | Tests | fmt · clippy · `cargo test` · `--stretch-96` — **✅** |
+| **PH-S2588** | Band close | `--band 194` + fingerprint; recopy live; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

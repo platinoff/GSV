@@ -23,6 +23,8 @@
 //! origin probe when the local tree is not newer.
 //! Band 193: federated `kind:presence` on Godfather — remote jails visible,
 //! local claim/squad cap stay process-local.
+//! Band 194: federated `kind:claim` — remote jail claims an *open* row on
+//! this jail's board via Godfather; peer `tickets.jsonl` is never merged.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -191,6 +193,10 @@ pub struct Ticket {
     /// is treated as already stale.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lease_until: Option<u64>,
+    /// Remote jail that claimed this row over Godfather `kind:claim`. Empty on
+    /// local Cursor/OpenCode claims.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub claimed_jail: String,
 }
 
 fn default_product() -> String {
@@ -712,6 +718,7 @@ fn clear_claim(ticket: &mut Ticket) {
     ticket.status = "open".into();
     ticket.claimed_by = None;
     ticket.lease_until = None;
+    ticket.claimed_jail.clear();
 }
 
 /// `in_progress` rows whose lease has passed (or never had one) → `open` + `reclaimed`.
@@ -1113,6 +1120,7 @@ fn create_with_workflow(
         workflow: workflow.trim().to_string(),
         scenario: scenario.trim().to_string(),
         lease_until: None,
+        claimed_jail: String::new(),
     };
     tickets.push(ticket.clone());
     write_tickets(&path, &tickets)?;
@@ -1684,6 +1692,7 @@ fn set_status(
         tickets[pos].lease_until = Some(unix_now().saturating_add(secs));
     } else {
         tickets[pos].lease_until = None;
+        tickets[pos].claimed_jail.clear();
     }
     let updated = tickets[pos].clone();
     write_tickets(&path, &tickets)?;
@@ -1702,6 +1711,26 @@ pub fn claim(
     who: ClaimedBy,
 ) -> Result<Ticket, TicketError> {
     claim_with(repo_root, data_dir, id, who, None)
+}
+
+/// Stamp the remote jail that claimed this row (`kind:claim`). Missing id → NotFound.
+pub fn stamp_claimed_jail(repo_root: &Path, id: &str, jail: &str) -> Result<(), TicketError> {
+    let id = id.trim();
+    let jail = jail.trim();
+    if id.is_empty() {
+        return Err(TicketError::BadRequest("id required".into()));
+    }
+    if jail.is_empty() {
+        return Ok(());
+    }
+    let path = tickets_path(repo_root);
+    let mut tickets = read_tickets(&path)?;
+    let pos = tickets
+        .iter()
+        .position(|t| t.id == id)
+        .ok_or(TicketError::NotFound)?;
+    tickets[pos].claimed_jail = jail.to_string();
+    write_tickets(&path, &tickets)
 }
 
 /// Claim and optionally heartbeat the claimant as online.
@@ -1899,7 +1928,10 @@ pub fn wire_claim(
     presence: Option<&PresenceStore>,
 ) -> Result<Value, TicketError> {
     let id = body.get("id").and_then(Value::as_str).unwrap_or("");
-    let ticket = claim_with(repo_root, data_dir, id, resolve_claimed_by(), presence)?;
+    let who = resolve_claimed_by();
+    let ticket = claim_with(repo_root, data_dir, id, who.clone(), presence)?;
+    let file = settings::load_result(data_dir).unwrap_or_default();
+    telegram::maybe_federate_claim(&file, &who, &ticket.id);
     Ok(json!({ "ok": true, "ticket": ticket }))
 }
 
@@ -2453,6 +2485,7 @@ mod unit {
             workflow: String::new(),
             scenario: String::new(),
             lease_until: None,
+            claimed_jail: String::new(),
         };
         assert!(lease_is_expired(&t, 100));
         t.lease_until = Some(50);

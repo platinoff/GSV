@@ -527,6 +527,10 @@ fn seed_scenarios_have_no_secrets() {
             .any(|s| s.id == "abrakadabra-session" && s.tickets.len() >= 6),
         "abrakadabra session scenario band missing"
     );
+    assert!(
+        list.iter().any(|s| s.id == "federated-claim"),
+        "federated-claim scenario missing"
+    );
 }
 
 fn enable_squad(data: &Path) {

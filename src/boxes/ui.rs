@@ -1660,7 +1660,7 @@ pub fn render_tickets(d: &Value) -> String {
     ));
     let federation = arr(&d["federation"]);
     if federation.is_empty() {
-        out.push_str("<div class='dim'>federation · heartbeats over Godfather <kbd>kind:presence</kbd></div>");
+        out.push_str("<div class='dim'>federation · heartbeats <kbd>kind:presence</kbd> · claims <kbd>kind:claim</kbd></div>");
     } else {
         let rows: Vec<Vec<String>> = federation
             .iter()
@@ -1706,18 +1706,27 @@ pub fn render_tickets(d: &Value) -> String {
                     } else {
                         format!("lease <kbd>{until}</kbd>")
                     };
+                    let jail_bit = {
+                        let j = s(&t["claimed_jail"]);
+                        if j.is_empty() {
+                            String::new()
+                        } else {
+                            format!(" · jail <kbd>{}</kbd>", esc(&j))
+                        }
+                    };
                     format!(
                         "<button type='button' data-action='tickets-done' data-ticket-id='{}'{}>done</button> \
 <button type='button' data-action='tickets-error' data-ticket-id='{}'{}>error</button> \
 <button type='button' data-action='tickets-reclaim' data-ticket-id='{}'{}>reclaim</button> \
-<span class='dim'>{}</span>",
+<span class='dim'>{}{}</span>",
                         esc(&id),
                         crate::boxes::guide::tip_attrs("Mark this ticket done."),
                         esc(&id),
                         crate::boxes::guide::tip_attrs("Block this ticket with an error."),
                         esc(&id),
                         crate::boxes::guide::tip_attrs("Release a stale lease back to open."),
-                        lease_bit
+                        lease_bit,
+                        jail_bit
                     )
                 } else {
                     format!("<kbd>{}</kbd>", esc(&id))
@@ -3309,6 +3318,12 @@ mod tests {
         assert!(tickets.contains("data-action='tickets-bench'"), "{tickets}");
         assert!(tickets.contains("data-action='tickets-next'"), "{tickets}");
         assert!(tickets.contains("jail"), "{tickets}");
+        assert!(tickets.contains("kind:claim"), "{tickets}");
+        let claimed_row = render_tickets(&serde_json::json!({
+            "ok": true,
+            "tickets": [{ "id": "t-1", "title": "Fed", "status": "in_progress", "claimed_jail": "alice-gsv", "lease_until": 1 }]
+        }));
+        assert!(claimed_row.contains("alice-gsv"), "{claimed_row}");
         let next_row = render_tickets(&serde_json::json!({
             "ok": true,
             "tickets": [],

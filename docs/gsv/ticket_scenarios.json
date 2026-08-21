@@ -168,7 +168,14 @@
     {
       "id": "federated-presence",
       "title": "Federated presence: remote jails on the host board",
-      "body": "Mate/host jails heartbeat kind:presence on Godfather (from=jail.id). Host Galaxy shows federation rows. Remote workers do not consume this jail squad_cap and cannot claim this jail tickets.jsonl. Guest stays solo and does not post presence. Echo of this jail is ignored.",
+      "body": "Mate/host jails heartbeat kind:presence on Godfather (from=jail.id). Host Galaxy shows federation rows. Remote workers do not consume this jail squad_cap. Guest stays solo and does not post presence. Echo of this jail is ignored.",
+      "workflow": "ticket-squad",
+      "product": "gsv"
+    },
+    {
+      "id": "federated-claim",
+      "title": "Federated claim: remote jail claims a host-board ticket",
+      "body": "Mate/host jails post kind:claim with ticket_id on Godfather. Host applies the claim to this jail tickets.jsonl (open to in_progress). Remote still keeps its own tickets.jsonl. Guest mute. Echo of this jail is ignored. Local try_dispatch stays process-local.",
       "workflow": "ticket-squad",
       "product": "gsv"
     }

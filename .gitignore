@@ -28,6 +28,7 @@ Thumbs.db
 
 # OpenCode plugin install (kit package.json lives in .opencode/)
 .opencode/node_modules/
+.opencode/package-lock.json
 
 # Local drain helpers (messages .md, logs .log). Only README.md is tracked.
 /comitmsg/*
