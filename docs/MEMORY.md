@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-21 · band 195)
+
+- **Band 195:** Federated done. The jail that finished a claimed row posts Godfather `kind:done` (`from=jail.id`, `ticket_id` required). Host board transitions it `in_progress` → `done` (`tickets::done_remote`). Ranks stay process-local (remote dones never move the host ladder). Guest mute. Echo skip. Missing/non-WIP rows are no-op. Poller reports `"done": n_done`. Scenario `federated-done`.
+- **Canon:** [`gsv/GSV_SOLO_SQUAD_JAIL.md`](gsv/GSV_SOLO_SQUAD_JAIL.md).
+- **Next drain:** **owner pick** after a warnings-first scan.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.42%** (rust 40330 / product 40567) · **673** tests · clippy 0
+
 ## Стан (2026-08-20 · band 194)
 
 - **Band 194:** Federated claim. Godfather `kind:claim` (`from=jail.id`, `ticket_id` required). Host applies to this jail’s `tickets.jsonl` (`open` → `in_progress`, `claimed_jail`). Remote keeps its own JSONL. Guest mute. Echo skip. Local `try_dispatch` stays process-local. Scenario `federated-claim`.

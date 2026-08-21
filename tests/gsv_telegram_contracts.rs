@@ -1156,6 +1156,194 @@ fn federated_claim_echo_and_guest_skip() {
 }
 
 #[test]
+fn federated_done_envelope_parse_and_classify() {
+    let done = telegram::parse_envelope(&json!({
+        "v": 1,
+        "kind": "done",
+        "from": "alice-gsv",
+        "ticket_id": "t-7",
+        "body": "alice-gsv done t-7",
+        "data": { "actor": "alice", "hint": "band closed" }
+    }))
+    .expect("done");
+    assert_eq!(done.kind, "done");
+    assert_eq!(done.ticket_id.as_deref(), Some("t-7"));
+    assert_eq!(
+        telegram::classify_inbound(&serde_json::to_string(&done).unwrap()),
+        "done"
+    );
+    let no_id = telegram::parse_envelope(&json!({
+        "v": 1,
+        "kind": "done",
+        "from": "alice-gsv",
+        "body": "no id"
+    }));
+    assert!(no_id.is_err(), "{no_id:?}");
+}
+
+#[tokio::test]
+async fn poll_once_ingests_federated_done() {
+    let _g = bus_guard().await;
+    telegram::bus_reset();
+    let kit = temp_kit("poll-done");
+    let data = kit.join("data");
+    save_solo_relay(&data, "-100fc", "123:fc-secret", &[]);
+    let t = tickets::create(&kit, "Federated done row", "body", "gsv").expect("create");
+    let who = ClaimedBy {
+        actor: "host".into(),
+        ide: "cursor".into(),
+        model: String::new(),
+        agent: "orchestrator".into(),
+    };
+    tickets::claim_with(&kit, &data, &t.id, who, None).expect("claim");
+    telegram::push_inbound_stub(
+        42,
+        &format!(
+            r#"{{"v":1,"kind":"done","from":"alice-gsv","ticket_id":"{}","body":"alice-gsv done","data":{{"actor":"alice","ide":"opencode","agent":"bot","jail_id":"alice-gsv","hint":"work finished"}}}}"#,
+            t.id
+        ),
+        "-100fc",
+        "",
+        "99",
+    );
+    let v = telegram::poll_once(&kit, &data, true, None).await;
+    assert_eq!(v["ok"], true, "{v}");
+    assert_eq!(v["done"], 1, "{v}");
+    let listed = tickets::list(&kit);
+    let row = listed["tickets"]
+        .as_array()
+        .expect("arr")
+        .iter()
+        .find(|x| x["id"] == t.id)
+        .expect("row");
+    assert_eq!(row["status"], "done");
+    assert_no_secret(&v, "123:fc-secret");
+}
+
+#[test]
+fn federated_done_echo_guest_and_noop_skip() {
+    telegram::bus_reset();
+    let kit = temp_kit("done-echo");
+    let data = kit.join("data");
+    save_solo_relay(&data, "-100echo", "123:echo-secret", &[]);
+    settings::save(
+        &data,
+        &settings::SettingsFile {
+            jail: settings::JailSettings {
+                id: "alice-gsv".into(),
+            },
+            godfather: settings::Godfather {
+                channel_id: "-100echo".into(),
+                bot_token: "123:echo-secret".into(),
+                ..Default::default()
+            },
+            workflows: settings::Workflows {
+                enabled: vec!["telegram-relay".into(), "ticket-claim".into()],
+            },
+            ..Default::default()
+        },
+    )
+    .expect("save echo jail");
+    let t = tickets::create(&kit, "Done echo skip", "body", "gsv").expect("create");
+    let env = telegram::parse_envelope(&json!({
+        "v": 1,
+        "kind": "done",
+        "from": "alice-gsv",
+        "ticket_id": t.id,
+        "body": "alice-gsv done",
+        "data": { "jail_id": "alice-gsv", "actor": "alice" }
+    }))
+    .expect("env");
+    assert!(!telegram::apply_done_envelope(&kit, &data, &env));
+    let still = tickets::list(&kit);
+    let row = still["tickets"]
+        .as_array()
+        .expect("arr")
+        .iter()
+        .find(|x| x["id"] == t.id)
+        .expect("row");
+    assert_eq!(row["status"], "open");
+
+    let kit_g = temp_kit("done-guest");
+    let data_g = kit_g.join("data");
+    settings::save(
+        &data_g,
+        &settings::SettingsFile {
+            godfather: settings::Godfather {
+                role: "guest".into(),
+                channel_id: "-100g".into(),
+                bot_token: "123:guest-done".into(),
+                ..Default::default()
+            },
+            workflows: settings::Workflows {
+                enabled: vec!["telegram-relay".into(), "ticket-claim".into()],
+            },
+            ..Default::default()
+        },
+    )
+    .expect("save guest");
+    let tg = tickets::create(&kit_g, "Guest done board", "body", "gsv").expect("create");
+    let env_g = telegram::parse_envelope(&json!({
+        "v": 1,
+        "kind": "done",
+        "from": "alice-gsv",
+        "ticket_id": tg.id,
+        "body": "alice-gsv done",
+        "data": { "actor": "alice", "jail_id": "alice-gsv" }
+    }))
+    .expect("envg");
+    assert!(!telegram::apply_done_envelope(&kit_g, &data_g, &env_g));
+
+    let noop = telegram::parse_envelope(&json!({
+        "v": 1,
+        "kind": "done",
+        "from": "bob-gsv",
+        "ticket_id": t.id,
+        "body": "bob closes an open row",
+        "data": { "actor": "bob", "jail_id": "bob-gsv" }
+    }))
+    .expect("noop env");
+    assert!(!telegram::apply_done_envelope(&kit, &data, &noop));
+
+    let who = ClaimedBy {
+        actor: "guest".into(),
+        ide: "cursor".into(),
+        model: "m".into(),
+        agent: "bot".into(),
+    };
+    let file = settings::load_result(&data_g).expect("load");
+    assert!(!telegram::maybe_federate_done(&file, &who, &tg.id, ""));
+}
+
+#[tokio::test]
+async fn bus_send_kind_done_dry_run() {
+    let _g = bus_guard().await;
+    telegram::bus_reset();
+    let data = temp_data("bus-done");
+    save_relay(&data, "-100done", "123:done-secret", &[]);
+    let missing = telegram::bus_send(
+        &data,
+        true,
+        &json!({ "from": "cursor", "kind": "done", "body": "x" }),
+    )
+    .await;
+    assert_eq!(missing["ok"], false, "{missing}");
+    telegram::bus_clear_rate_limit();
+    let sent = telegram::bus_send(
+        &data,
+        true,
+        &json!({ "from": "cursor", "kind": "done", "ticket_id": "t-5" }),
+    )
+    .await;
+    assert_eq!(sent["ok"], true, "{sent}");
+    assert_eq!(sent["envelope"]["kind"], "done");
+    assert_eq!(sent["envelope"]["ticket_id"], "t-5");
+    assert_eq!(sent["envelope"]["body"], "cursor done t-5");
+    assert_eq!(sent["envelope"]["data"]["hint"], "federated-done");
+    assert_no_secret(&sent, "123:done-secret");
+}
+
+#[test]
 fn guest_does_not_federate_presence() {
     telegram::bus_reset();
     let file = settings::SettingsFile {

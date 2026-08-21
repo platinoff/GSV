@@ -65,6 +65,36 @@ fn who() -> ClaimedBy {
     }
 }
 
+#[test]
+fn done_remote_closes_wip_row_without_ranks() {
+    let kit = temp_kit("done-remote");
+    let data = kit.join("data");
+    enable_claim(&data);
+    let t = tickets::create(&kit, "Remote close", "body", "gsv").expect("create");
+    tickets::claim_with(&kit, &data, &t.id, who(), None).expect("claim");
+
+    let remote = ClaimedBy {
+        actor: "alice".into(),
+        ide: "opencode".into(),
+        model: String::new(),
+        agent: "bot".into(),
+    };
+    let closed = tickets::done_remote(&kit, &data, &t.id, remote, "band closed").expect("close");
+    assert_eq!(closed.status, "done");
+
+    let listed = tickets::list(&kit);
+    let row = listed["tickets"]
+        .as_array()
+        .expect("arr")
+        .iter()
+        .find(|x| x["id"] == t.id)
+        .expect("row");
+    assert_eq!(row["status"], "done");
+    assert!(!kit.join("data/gsv_ranks.json").exists(), "ranks moved");
+
+    assert!(tickets::done_remote(&kit, &data, &t.id, who(), "again").is_err());
+}
+
 async fn get_json(app: &axum::Router, path: &str) -> (StatusCode, Value) {
     let res = app
         .clone()

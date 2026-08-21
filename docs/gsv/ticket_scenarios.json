@@ -178,6 +178,13 @@
       "body": "Mate/host jails post kind:claim with ticket_id on Godfather. Host applies the claim to this jail tickets.jsonl (open to in_progress). Remote still keeps its own tickets.jsonl. Guest mute. Echo of this jail is ignored. Local try_dispatch stays process-local.",
       "workflow": "ticket-squad",
       "product": "gsv"
+    },
+    {
+      "id": "federated-done",
+      "title": "Federated done: remote jail closes its claimed host-board ticket",
+      "body": "The jail that finished a claimed row posts kind:done with ticket_id on Godfather. Host applies the close to this jail tickets.jsonl (in_progress to done). Ranks stay process-local: remote dones never move the host merit ladder. Guest mute. Echo of this jail is ignored.",
+      "workflow": "ticket-squad",
+      "product": "gsv"
     }
   ]
 }

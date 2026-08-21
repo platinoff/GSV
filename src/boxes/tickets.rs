@@ -1794,6 +1794,31 @@ pub fn done(
     Ok(t)
 }
 
+/// `in_progress` → `done` for a **remote** jail (`kind:done`). Same transition
+/// as [`done`] but ranks stay process-local: remote workers never move this
+/// jail's merit ladder.
+pub fn done_remote(
+    repo_root: &Path,
+    data_dir: &Path,
+    id: &str,
+    who: ClaimedBy,
+    note: &str,
+) -> Result<Ticket, TicketError> {
+    set_status(
+        repo_root,
+        data_dir,
+        id,
+        who,
+        Transition {
+            from: &["in_progress"],
+            to: "done",
+            kind: "done",
+            note,
+        },
+        None,
+    )
+}
+
 /// `in_progress` → `blocked` (error).
 pub fn error_ticket(
     repo_root: &Path,
@@ -1945,16 +1970,12 @@ pub fn wire_done(
     let id = body.get("id").and_then(Value::as_str).unwrap_or("");
     let note = body.get("note").and_then(Value::as_str).unwrap_or("");
     let tg = ranks::telegram_from(Some(body));
+    let who = resolve_claimed_by();
     let ticket = ranks::with_telegram(&tg, || {
-        done(
-            repo_root,
-            data_dir,
-            id,
-            resolve_claimed_by(),
-            note,
-            presence,
-        )
+        done(repo_root, data_dir, id, who.clone(), note, presence)
     })?;
+    let file = settings::load_result(data_dir).unwrap_or_default();
+    telegram::maybe_federate_done(&file, &who, &ticket.id, note);
     Ok(json!({ "ok": true, "ticket": ticket }))
 }
 

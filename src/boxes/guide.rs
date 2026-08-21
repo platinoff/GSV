@@ -118,7 +118,7 @@ pub const CARD_GUIDE: &[GuideEntry] = &[
         title: "Tickets",
         group: "ops",
         r#use: "work board",
-        blurb: "Claim, walk, hook (roadmap / plan / GitHub issues), next-action inbox, federated jail presence, and Godfather kind:claim on the host board.",
+        blurb: "Claim, walk, hook (roadmap / plan / GitHub issues), next-action inbox, federated jail presence, and Godfather kind:claim / kind:done on the host board.",
     },
     GuideEntry {
         id: "update",

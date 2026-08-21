@@ -79,6 +79,7 @@ band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 192** (ranks + no console flash) **✅** ·
 **band 193** (federated `kind:presence`) **✅** ·
 **band 194** (federated `kind:claim`) **✅** ·
+**band 195** (federated `kind:done`) **✅** ·
 **Спринти:** `PH-S1659…S1668` (FM §5.12 §5.83 ✅) · `PH-S1719…S1728` (FM §5.12 §5.89 ✅) ·
 `PH-S1729…S1738` (FM §5.12 §5.90 ✅) · `PH-S1739…S1748` (FM §5.12 §5.91 ✅) ·
 `PH-S1749…S1758` (FM §5.12 §5.92 ✅) · `PH-S1759…S1768` (FM §5.12 §5.93 ✅) ·
@@ -1536,6 +1537,23 @@ Owner pick: continue after presence. Spec leftover from 186–193: cross-jail ti
 | **PH-S2586** | Galaxy / scenarios | claimed jail on WIP row; `federated-claim` — **✅** |
 | **PH-S2587** | Tests | fmt · clippy · `cargo test` · `--stretch-96` — **✅** |
 | **PH-S2588** | Band close | `--band 194` + fingerprint; recopy live; one commit + push — **✅** |
+
+## Спринти (band 195) — federated ticket done
+
+Owner pick: continue after claim. Spec leftover from 186–194: cross-jail ticket *close* over Godfather `kind:done`. The jail that finished a claimed row posts `kind:done`; the host board transitions it `in_progress` → `done`. Ranks stay process-local (remote dones never move the host ladder). Guest mute. Echo skip.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2589** | Scope | this band; envelope `kind:done`; `ticket_id` required — **✅** |
+| **PH-S2590** | Envelope | parse/classify `done`; `done requires ticket_id` — **✅** |
+| **PH-S2591** | Outbound | `enqueue_done`; `maybe_federate_done` host/mate on local close; guest refused; cargo-test skip — **✅** |
+| **PH-S2592** | Apply | inbound done → `in_progress`→`done` via `tickets::done_remote` (no ranks); missing/non-WIP no-op — **✅** |
+| **PH-S2593** | Poller / bus | inbound `done` → apply; bus_send `kind=done` default body + data hint `federated-done` — **✅** |
+| **PH-S2594** | Galaxy / scenarios | federation line closes `kind:done`; scenario `federated-done` — **✅** |
+| **PH-S2595** | Tests | telegram/tickets contracts; fmt · clippy · `cargo test` — **✅** |
+| **PH-S2596** | Docs | spec GSV_SOLO_SQUAD_JAIL §done; HANDOFF / NEXT / MEMORY — **✅** |
+| **PH-S2597** | Speeds / sync | record-speed · record-rust · vision sync + `--check` — **✅** |
+| **PH-S2598** | Band close | `--band 195` + fingerprint; recopy live; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

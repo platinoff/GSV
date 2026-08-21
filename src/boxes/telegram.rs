@@ -20,6 +20,8 @@
 //! Band 177: `run mcp bot hook up scenario` (catalog / roadmap band / plan).
 //! Band 193: `kind:presence` federated jail heartbeats (host/mate; guest refused).
 //! Band 194: `kind:claim` federated ticket claim on the host board (guest mute; echo skip).
+//! Band 195: `kind:done` federated ticket close — remote jail finishes a claimed row
+//! and the host board transitions it `in_progress` → `done` (guest mute; echo skip).
 
 use std::collections::VecDeque;
 use std::fs;
@@ -651,8 +653,13 @@ pub fn parse_envelope(v: &Value) -> Result<BusEnvelope, String> {
     if env.v != 1 {
         return Err("v must be 1".into());
     }
-    if env.kind != "bus" && env.kind != "sync" && env.kind != "presence" && env.kind != "claim" {
-        return Err("kind must be bus, sync, presence, or claim".into());
+    if env.kind != "bus"
+        && env.kind != "sync"
+        && env.kind != "presence"
+        && env.kind != "claim"
+        && env.kind != "done"
+    {
+        return Err("kind must be bus, sync, presence, claim, or done".into());
     }
     env.from = env.from.trim().to_string();
     if env.from.is_empty() {
@@ -680,6 +687,9 @@ pub fn parse_envelope(v: &Value) -> Result<BusEnvelope, String> {
     }
     if env.kind == "claim" && env.ticket_id.is_none() {
         return Err("claim requires ticket_id".into());
+    }
+    if env.kind == "done" && env.ticket_id.is_none() {
+        return Err("done requires ticket_id".into());
     }
     Ok(env)
 }
@@ -1103,6 +1113,124 @@ pub fn maybe_federate_claim(
     enqueue_claim(from, ticket_id, &body, Some(data)).is_ok()
 }
 
+/// Queue a `kind:done` envelope (federated ticket close on the host board).
+pub fn enqueue_done(
+    from: &str,
+    ticket_id: &str,
+    body: &str,
+    data: Option<SyncData>,
+) -> Result<BusEnvelope, String> {
+    let from = from.trim();
+    if from.is_empty() {
+        return Err("from required".into());
+    }
+    let ticket_id = ticket_id.trim();
+    if ticket_id.is_empty() {
+        return Err("done requires ticket_id".into());
+    }
+    let body = body.trim();
+    if body.is_empty() {
+        return Err("body required".into());
+    }
+    if body.len() > BODY_CAP {
+        return Err("body exceeds 2 KiB".into());
+    }
+    let envelope = BusEnvelope {
+        v: 1,
+        kind: "done".into(),
+        from: from.to_string(),
+        to: None,
+        ticket_id: Some(ticket_id.to_string()),
+        body: body.to_string(),
+        data,
+    };
+    {
+        let mut g = bus();
+        g.queue.push_back(envelope.clone());
+        g.last_send = Some(Instant::now());
+        g.last_bus_ok = true;
+        g.last_bus_ts = now_rfc3339();
+        g.last_bus_error.clear();
+        record_signal(&mut g, &envelope);
+    }
+    Ok(envelope)
+}
+
+/// Host/mate local done → Godfather `kind:done`. Guest never posts. Skipped in
+/// the cargo-test harness (tests call [`enqueue_done`] / [`apply_done_envelope`]).
+pub fn maybe_federate_done(
+    file: &SettingsFile,
+    who: &tickets::ClaimedBy,
+    ticket_id: &str,
+    note: &str,
+) -> bool {
+    if !settings::telegram_relay_enabled(file) {
+        return false;
+    }
+    if settings::chat_role(file) == "guest" {
+        return false;
+    }
+    let ticket_id = ticket_id.trim();
+    if ticket_id.is_empty() {
+        return false;
+    }
+    if super::update::is_cargo_test_harness() {
+        return false;
+    }
+    let jail = settings::jail_id(file);
+    let from = if jail.is_empty() {
+        "local"
+    } else {
+        jail.as_str()
+    };
+    let data = SyncData {
+        product: Some("gsv".into()),
+        actor: Some(who.actor.clone()),
+        ide: Some(who.ide.clone()),
+        agent: Some(who.agent.clone()),
+        jail_id: Some(from.to_string()),
+        crate_version: Some(env!("CARGO_PKG_VERSION").into()),
+        hint: empty_to_none(Some(note.trim().to_string())),
+        ..Default::default()
+    };
+    let body = format!("{from} done {ticket_id}");
+    enqueue_done(from, ticket_id, &body, Some(data)).is_ok()
+}
+
+/// Apply an inbound `kind:done` onto this jail's board. Echo of *this* jail is
+/// ignored. Guest boards stay solo. Missing / non-`in_progress` rows are a no-op.
+/// Ranks stay process-local: remote dones never move this jail's merit ladder.
+pub fn apply_done_envelope(repo_root: &Path, data_dir: &Path, env: &BusEnvelope) -> bool {
+    if env.kind != "done" {
+        return false;
+    }
+    let Some(tid) = env
+        .ticket_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    else {
+        return false;
+    };
+    let file = settings::load_result(data_dir).unwrap_or_default();
+    if settings::chat_role(&file) == "guest" {
+        return false;
+    }
+    let skip = settings::jail_id(&file);
+    if env.from.eq_ignore_ascii_case(&skip) {
+        return false;
+    }
+    let data = env.data.clone().unwrap_or_default();
+    let who = tickets::ClaimedBy {
+        actor: data.actor.clone().unwrap_or_else(|| env.from.clone()),
+        ide: data.ide.clone().unwrap_or_else(|| "cursor".into()),
+        model: String::new(),
+        agent: data.agent.clone().unwrap_or_else(|| "orchestrator".into()),
+    };
+    let note = data.hint.clone().unwrap_or_default();
+    tickets::done_remote(repo_root, data_dir, tid, who, &note).is_ok()
+}
+
 /// Apply an inbound `kind:claim` onto this jail's board. Echo of *this* jail
 /// is ignored. Guest boards stay solo. Missing / non-open tickets are a no-op.
 pub fn apply_claim_envelope(repo_root: &Path, data_dir: &Path, env: &BusEnvelope) -> bool {
@@ -1426,6 +1554,8 @@ pub fn classify_inbound(text: &str) -> &'static str {
             "presence"
         } else if env.kind == "claim" {
             "claim"
+        } else if env.kind == "done" {
+            "done"
         } else {
             "bus"
         };
@@ -1590,6 +1720,7 @@ pub async fn poll_once(
     let mut n_hook = 0usize;
     let mut n_presence = 0usize;
     let mut n_claim = 0usize;
+    let mut n_done = 0usize;
     let mut n_skip = 0usize;
     let mut ingested = Vec::new();
     let mut max_id = load_offset(data_dir);
@@ -1633,6 +1764,28 @@ pub async fn poll_once(
                         n_skip += 1;
                         ingested.push(json!({
                             "kind": "claim",
+                            "from": env.from,
+                            "ok": false
+                        }));
+                    }
+                }
+                Err(_) => n_skip += 1,
+            },
+            "done" => match extract_envelope(&item.text) {
+                Ok(env) => {
+                    enqueue_inbound_bus(env.clone());
+                    if apply_done_envelope(repo_root, data_dir, &env) {
+                        n_done += 1;
+                        ingested.push(json!({
+                            "kind": "done",
+                            "from": env.from,
+                            "ticket_id": env.ticket_id,
+                            "ok": true
+                        }));
+                    } else {
+                        n_skip += 1;
+                        ingested.push(json!({
+                            "kind": "done",
                             "from": env.from,
                             "ok": false
                         }));
@@ -1689,7 +1842,7 @@ pub async fn poll_once(
     if !dry && !token.is_empty() {
         refresh_members_throttled(data_dir, &token, &channel).await;
     }
-    let n = n_bus + n_ticket + n_hook + n_presence + n_claim + n_skip;
+    let n = n_bus + n_ticket + n_hook + n_presence + n_claim + n_done + n_skip;
     {
         let mut g = bus();
         g.last_poll_ts = now_rfc3339();
@@ -1703,6 +1856,7 @@ pub async fn poll_once(
         "bus": n_bus,
         "presence": n_presence,
         "claim": n_claim,
+        "done": n_done,
         "ticket": n_ticket,
         "hook": n_hook,
         "skip": n_skip,
@@ -1728,7 +1882,7 @@ pub fn parse_ticket_body(text: &str) -> Result<(String, String), String> {
                     Ok(title_body(body))
                 }
             }
-            Some("bus") | Some("sync") | Some("presence") | Some("claim") => {
+            Some("bus") | Some("sync") | Some("presence") | Some("claim") | Some("done") => {
                 Err("bus envelope is not a ticket".into())
             }
             _ => Err("kind must be ticket".into()),
@@ -1908,6 +2062,16 @@ pub async fn bus_send(data_dir: &Path, explicit_dry: bool, args: &Value) -> Valu
             body = format!("{from} claims {tid}");
         }
     }
+    if kind == "done" {
+        if tid.trim().is_empty() {
+            let err = "done requires ticket_id";
+            record_last(false, err);
+            return bus_fail(err, &token);
+        }
+        if body.trim().is_empty() {
+            body = format!("{from} done {tid}");
+        }
+    }
     let mut built = json!({
         "v": 1,
         "kind": kind,
@@ -1936,6 +2100,17 @@ pub async fn bus_send(data_dir: &Path, explicit_dry: bool, args: &Value) -> Valu
             "agent": opt_arg(args, "agent"),
             "jail_id": opt_arg(args, "jail_id").or(Some(from.clone())),
             "hint": "federated-claim",
+            "product": "gsv",
+            "crate": env!("CARGO_PKG_VERSION"),
+        });
+    }
+    if kind == "done" {
+        built["data"] = json!({
+            "actor": opt_arg(args, "actor"),
+            "ide": opt_arg(args, "ide"),
+            "agent": opt_arg(args, "agent"),
+            "jail_id": opt_arg(args, "jail_id").or(Some(from.clone())),
+            "hint": "federated-done",
             "product": "gsv",
             "crate": env!("CARGO_PKG_VERSION"),
         });
