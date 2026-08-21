@@ -283,6 +283,48 @@ fn main() -> ExitCode {
                 }
             }
         }
+        "vault-note" => {
+            let mut band: Option<u32> = None;
+            let mut title = String::from("Drain Note");
+            let mut summary = String::new();
+            let mut i = 0;
+            while i < args.len() {
+                match args[i].as_str() {
+                    "--band" => {
+                        i += 1;
+                        band = args.get(i).and_then(|s| s.parse().ok());
+                        i += 1;
+                    }
+                    flag @ ("--title" | "--summary") => {
+                        i += 1;
+                        let mut parts: Vec<String> = Vec::new();
+                        while i < args.len() && !args[i].starts_with('-') {
+                            parts.push(args[i].clone());
+                            i += 1;
+                        }
+                        let joined = parts.join(" ");
+                        if !joined.is_empty() {
+                            if flag == "--title" {
+                                title = joined;
+                            } else {
+                                summary = joined;
+                            }
+                        }
+                    }
+                    _ => i += 1,
+                }
+            }
+            match xtask::vault_note(&root, band, &title, &summary) {
+                Ok(m) => {
+                    println!("{m}");
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("vault-note: {e}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
         other => {
             eprintln!("gsv-xtask: unknown task '{other}'\n{}", xtask::help_text());
             ExitCode::FAILURE

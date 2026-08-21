@@ -18,9 +18,9 @@ Adapted from [mattpocock/skills](https://github.com/mattpocock/skills)
 
 ## Vault location
 
-Owner-set. Default assumption here: `D:/Obsidian Vault/` (MSYS2:
-`/d/Obsidian\ Vault/`). Confirm with the owner before writing if the vault
-has not been located yet.
+`S:\rust\GSV\vault\` (MSYS2: `/s/rust/GSV/vault`) — inside the kit repo,
+gitignored (`/vault/`), never staged. Open the folder as an Obsidian vault
+once; Obsidian creates `.obsidian/` locally.
 
 Mostly flat at root level.
 
@@ -39,5 +39,8 @@ Mostly flat at root level.
 
 ## GSV tie-in
 
-Drain summaries may land as vault notes (one per band), linked from an
-index note. Never stage vault files in the product repo.
+Drain summaries land as vault notes (one per band), linked from
+`Drain Index.md`. Automation writes them — `cargo xtask vault-note --band N
+--title "Federated Done" --summary "…"` creates `Band N <Title>.md` and
+appends the `[[wikilink]]` row to the index. Never stage vault files in the
+product repo.

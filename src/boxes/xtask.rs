@@ -72,6 +72,10 @@ pub const TASKS: &[(&str, &str)] = &[
         "Time abrakadabra-session walk → docs/gsv/scenario_bench.json",
     ),
     ("sync", "Vision snapshot sync (`--check` = drift gate)"),
+    (
+        "vault-note",
+        "Obsidian vault drain note + index link (--band N --title T --summary S)",
+    ),
 ];
 
 /// Disk / S0 report.
@@ -542,6 +546,93 @@ pub fn vision_sync(repo_root: &Path, check_only: bool) -> Result<String, String>
     ))
 }
 
+/// Obsidian vault root inside the kit repo (`vault/`, gitignored — never staged).
+pub fn vault_dir(repo_root: &Path) -> PathBuf {
+    repo_root.join("vault")
+}
+
+/// Title Case a note stem (`band 195 federated done` → `Band 195 Federated Done`).
+pub fn vault_title_case(s: &str) -> String {
+    s.split_whitespace()
+        .map(|w| {
+            let mut c = w.chars();
+            match c.next() {
+                Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// One-line digest for the index row (first line, trimmed).
+fn vault_one_line(summary: &str) -> String {
+    let line = summary.lines().next().unwrap_or("").trim();
+    if line.chars().count() > 100 {
+        let cut: String = line.chars().take(97).collect();
+        format!("{cut}…")
+    } else {
+        line.to_string()
+    }
+}
+
+/// Write `vault/<Note>.md` and append a `[[wikilink]]` row to `vault/Drain Index.md`.
+/// Flat structure, Title Case names, links at the bottom (obsidian-vault skill).
+/// Vault files are never staged in the product repo.
+pub fn vault_note(
+    repo_root: &Path,
+    band: Option<u32>,
+    title: &str,
+    summary: &str,
+) -> Result<String, String> {
+    let dir = vault_dir(repo_root);
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let stem = match band {
+        Some(b) => format!("Band {b} {}", vault_title_case(title)),
+        None => vault_title_case(title),
+    };
+    let date = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let head = git_cli(
+        repo_root,
+        &["rev-parse".into(), "--short".into(), "HEAD".into()],
+    )
+    .ok()
+    .map(|s| s.trim().to_string())
+    .filter(|s| !s.is_empty());
+
+    let mut md = format!("# {stem}\n\n**Date:** {date}\n");
+    if let Some(b) = band {
+        md.push_str(&format!("**Band:** {b}\n"));
+    }
+    if let Some(h) = head.as_deref() {
+        md.push_str(&format!("**Head:** {h}\n"));
+    }
+    if !summary.trim().is_empty() {
+        md.push_str(&format!("\n{}\n", summary.trim()));
+    }
+    md.push_str("\n## Links\n\n- [[Drain Index]]\n");
+
+    let note_path = dir.join(format!("{stem}.md"));
+    fs::write(&note_path, md).map_err(|e| e.to_string())?;
+
+    let index_path = dir.join("Drain Index.md");
+    if !index_path.is_file() {
+        let idx = "# Drain Index\n\nOne note per drain ([[wikilinks]]). Written by `cargo xtask vault-note`.\n\n## Drains\n";
+        fs::write(&index_path, idx).map_err(|e| e.to_string())?;
+    }
+    let mut idx = fs::read_to_string(&index_path).map_err(|e| e.to_string())?;
+    if !idx.ends_with('\n') {
+        idx.push('\n');
+    }
+    idx.push_str(&format!(
+        "- [[{stem}]] — {date} {}\n",
+        vault_one_line(summary)
+    ));
+    fs::write(&index_path, idx).map_err(|e| e.to_string())?;
+
+    Ok(format!("gsv-vault-note: {}", note_path.display()))
+}
+
 /// Usage text for `cargo xtask` / `--help`.
 pub fn help_text() -> String {
     let mut s = String::from("Usage: cargo xtask <task> [args]\n\nTasks:\n");
@@ -737,6 +828,53 @@ mod tests {
                 "{name}: {err}"
             );
         }
+    }
+
+    #[test]
+    fn vault_title_case_capitalizes_words() {
+        assert_eq!(
+            vault_title_case("band 195 federated done"),
+            "Band 195 Federated Done"
+        );
+        assert_eq!(vault_title_case("  omni   addendum "), "Omni Addendum");
+        assert_eq!(vault_title_case(""), "");
+    }
+
+    #[test]
+    fn vault_note_writes_note_and_index() {
+        let dir = std::env::temp_dir().join(format!("gsv-vault-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+
+        let msg = vault_note(
+            &dir,
+            Some(195),
+            "federated done",
+            "First line here.\nSecond line.",
+        )
+        .expect("note");
+        assert!(msg.contains("Band 195 Federated Done"));
+
+        let note = fs::read_to_string(dir.join("vault").join("Band 195 Federated Done.md"))
+            .expect("note file");
+        assert!(note.starts_with("# Band 195 Federated Done\n"));
+        assert!(note.contains("**Band:** 195"));
+        assert!(note.contains("**Date:**"));
+        assert!(note.contains("First line here."));
+        assert!(note.contains("Second line."));
+        assert!(note.contains("- [[Drain Index]]"));
+
+        let idx = fs::read_to_string(dir.join("vault").join("Drain Index.md")).expect("index");
+        assert!(idx.contains("- [[Band 195 Federated Done]] — "));
+        assert!(idx.contains("First line here."));
+
+        vault_note(&dir, None, "omni addendum", "No band note.").expect("second note");
+        let idx = fs::read_to_string(dir.join("vault").join("Drain Index.md")).unwrap();
+        assert!(idx.contains("[[Band 195 Federated Done]]"));
+        assert!(idx.contains("[[Omni Addendum]]"));
+        assert!(idx.matches("[[").count() >= 3);
+
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

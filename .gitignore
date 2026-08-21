@@ -33,3 +33,6 @@ Thumbs.db
 # Local drain helpers (messages .md, logs .log). Only README.md is tracked.
 /comitmsg/*
 !/comitmsg/README.md
+
+# Obsidian vault (owner notes; never staged per obsidian-vault skill)
+/vault/
