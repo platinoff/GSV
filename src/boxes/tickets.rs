@@ -28,12 +28,13 @@
 //! Band 196: federated `kind:reclaim` — lease expiry / explicit reclaim posts
 //! the reopen; peers transition their copy `in_progress` → `open` (no ranks).
 
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::fmt;
 use std::fs::{self, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
@@ -375,6 +376,40 @@ impl fmt::Display for TicketError {
 
 fn now_rfc3339() -> String {
     chrono::Utc::now().to_rfc3339()
+}
+
+/// Serializes board read-modify-write cycles (whole-file JSONL rewrite).
+///
+/// Axum handlers, MCP tools and the Godfather poller run concurrently; two
+/// simultaneous claim/done calls used to race `read_tickets` → `write_tickets`
+/// and lose one update entirely. Reentrancy is required: public mutators nest
+/// (`claim_with` → `reclaim_stale` + `set_status`, `solo_walk` loops).
+static BOARD_LOCK: Mutex<()> = Mutex::new(());
+thread_local! {
+    /// Marks the thread already holding [`BOARD_LOCK`] so nested acquisitions
+    /// become no-ops instead of deadlocking.
+    static BOARD_HELD: Cell<bool> = const { Cell::new(false) };
+}
+
+struct BoardGuard {
+    _g: Option<MutexGuard<'static, ()>>,
+}
+
+fn board_lock() -> BoardGuard {
+    if BOARD_HELD.with(Cell::get) {
+        return BoardGuard { _g: None };
+    }
+    let g = BOARD_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+    BOARD_HELD.with(|c| c.set(true));
+    BoardGuard { _g: Some(g) }
+}
+
+impl Drop for BoardGuard {
+    fn drop(&mut self) {
+        if self._g.is_some() {
+            BOARD_HELD.with(|c| c.set(false));
+        }
+    }
 }
 
 fn unix_now() -> u64 {
@@ -733,25 +768,31 @@ pub fn reclaim_stale(repo_root: &Path, data_dir: &Path) -> Result<Vec<Ticket>, T
         return Ok(Vec::new());
     }
     let path = tickets_path(repo_root);
-    let mut tickets = read_tickets(&path)?;
     let now = unix_now();
-    let mut out = Vec::new();
-    let mut fed: Vec<(ClaimedBy, String)> = Vec::new();
-    for ticket in &mut tickets {
-        if !lease_is_expired(ticket, now) {
-            continue;
+    // Mutation + rewrite happen under the board lock; Godfather posts run
+    // after it is released (live sends throttle at ~1/s).
+    let (out, fed) = {
+        let _board = board_lock();
+        let mut tickets = read_tickets(&path)?;
+        let mut out = Vec::new();
+        let mut fed: Vec<(ClaimedBy, String)> = Vec::new();
+        for ticket in &mut tickets {
+            if !lease_is_expired(ticket, now) {
+                continue;
+            }
+            let who = ticket.claimed_by.clone().unwrap_or_else(resolve_claimed_by);
+            clear_claim(ticket);
+            append_event(repo_root, &ticket.id, &who, "reclaimed", "lease expired")?;
+            fed.push((who.clone(), ticket.id.clone()));
+            out.push(ticket.clone());
         }
-        let who = ticket.claimed_by.clone().unwrap_or_else(resolve_claimed_by);
-        clear_claim(ticket);
-        append_event(repo_root, &ticket.id, &who, "reclaimed", "lease expired")?;
-        fed.push((who.clone(), ticket.id.clone()));
-        out.push(ticket.clone());
-    }
-    if !out.is_empty() {
-        write_tickets(&path, &tickets)?;
-        for (who, id) in &fed {
-            telegram::maybe_federate_reclaim(&file, who, id);
+        if !out.is_empty() {
+            write_tickets(&path, &tickets)?;
         }
+        (out, fed)
+    };
+    for (who, id) in &fed {
+        telegram::maybe_federate_reclaim(&file, who, id);
     }
     Ok(out)
 }
@@ -762,6 +803,7 @@ pub fn renew_leases(
     data_dir: &Path,
     who: &ClaimedBy,
 ) -> Result<usize, TicketError> {
+    let _board = board_lock();
     let file = settings::load_result(data_dir).map_err(TicketError::Io)?;
     let secs = settings::ticket_lease_secs(&file);
     let path = tickets_path(repo_root);
@@ -1103,6 +1145,7 @@ fn create_with_workflow(
     workflow: &str,
     scenario: &str,
 ) -> Result<Ticket, TicketError> {
+    let _board = board_lock();
     let title = title.trim();
     if title.is_empty() {
         return Err(TicketError::BadRequest("title required".into()));
@@ -1676,6 +1719,7 @@ fn set_status(
     step: Transition<'_>,
     presence: Option<&PresenceStore>,
 ) -> Result<Ticket, TicketError> {
+    let _board = board_lock();
     let id = id.trim();
     if id.is_empty() {
         return Err(TicketError::BadRequest("id required".into()));
@@ -1734,6 +1778,7 @@ pub fn stamp_claimed_jail(repo_root: &Path, id: &str, jail: &str) -> Result<(), 
     if jail.is_empty() {
         return Ok(());
     }
+    let _board = board_lock();
     let path = tickets_path(repo_root);
     let mut tickets = read_tickets(&path)?;
     let pos = tickets
@@ -1840,6 +1885,7 @@ pub fn reclaim_remote(
     who: ClaimedBy,
     note: &str,
 ) -> Result<Ticket, TicketError> {
+    let _board = board_lock();
     let path = tickets_path(repo_root);
     let mut tickets = read_tickets(&path)?;
     let pos = tickets
@@ -2721,5 +2767,78 @@ mod unit {
         assert_eq!(bench.tool, "gsv_tickets_bench");
         assert_eq!(ph_s_token("Scope PH-S2469 close"), "PH-S2469");
         assert!(ph_s_token("no sprint").is_empty());
+    }
+
+    #[test]
+    fn board_lock_serializes_concurrent_creates() {
+        // Regression (band 200): every mutator did read → whole-file rewrite
+        // with no lock; concurrent handlers could lose an update entirely.
+        let kit = std::env::temp_dir().join(format!(
+            "gsv-board-lock-{}-{}",
+            std::process::id(),
+            unix_now()
+        ));
+        let _ = std::fs::create_dir_all(kit.join("docs/gsv"));
+        let threads: Vec<_> = (0..4)
+            .map(|w| {
+                let kit = kit.clone();
+                std::thread::spawn(move || {
+                    for i in 0..8 {
+                        create(&kit, &format!("PH-S000{w} race {i}"), "body", "gsv")
+                            .expect("create");
+                    }
+                })
+            })
+            .collect();
+        for t in threads {
+            t.join().expect("join");
+        }
+        let all = read_tickets(&tickets_path(&kit)).expect("read");
+        assert_eq!(
+            all.len(),
+            32,
+            "lost-update race: {}/32 rows survived",
+            all.len()
+        );
+        let mut ids: Vec<&str> = all.iter().map(|t| t.id.as_str()).collect();
+        ids.sort_unstable();
+        let uniq = ids.iter().collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(uniq.len(), 32, "duplicate ids after rewrite race");
+        let _ = fs::remove_dir_all(&kit);
+    }
+
+    #[test]
+    fn board_lock_is_reentrant_for_nested_public_calls() {
+        // claim_with runs reclaim_stale + set_status — both take BOARD_LOCK.
+        // A plain Mutex would deadlock here; the reentrant guard must not.
+        let kit = std::env::temp_dir().join(format!(
+            "gsv-board-nest-{}-{}",
+            std::process::id(),
+            unix_now()
+        ));
+        let data = kit.join("data");
+        let _ = std::fs::create_dir_all(kit.join("docs/gsv"));
+        let _ = std::fs::create_dir_all(&data);
+        settings::save(
+            &data,
+            &settings::SettingsFile {
+                workflows: settings::Workflows {
+                    enabled: vec!["ticket-claim".into()],
+                },
+                ..Default::default()
+            },
+        )
+        .expect("wf");
+        let t = create(&kit, "PH-S2001 nest", "body", "gsv").expect("create");
+        let claimed = claim_with(&kit, &data, &t.id, resolve_claimed_by(), None).expect("claim");
+        assert_eq!(claimed.status, "in_progress");
+        // Explicit double-acquire on one thread stays a no-op too.
+        {
+            let _outer = board_lock();
+            let _inner = board_lock();
+        }
+        let finished = done(&kit, &data, &t.id, resolve_claimed_by(), "ok", None).expect("done");
+        assert_eq!(finished.status, "done");
+        let _ = fs::remove_dir_all(&kit);
     }
 }

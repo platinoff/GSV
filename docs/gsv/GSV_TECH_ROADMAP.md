@@ -1624,6 +1624,23 @@ Owner pick: finish the sweep over the files no band had opened: fingerprint / xt
 | **PH-S2637** | Speeds | record-speed + record-rust + sync `--check` green — **✅** |
 | **PH-S2638** | Band close | `--band 199` + fingerprint; recopy live; one commit + push — **✅** |
 
+## Спринти (band 200) — logic-audit fixes IV
+
+Owner pick: sweep the Godfather stack no band had opened — update / settings / ranks / tickets / telegram. Two confirmed concurrency bugs; both are cross-request state races under the multi-threaded server.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2639** | Scope | owner pick: search logical mistakes across ranks / tickets / telegram / settings / update — **✅** |
+| **PH-S2640** | Audit | manual review of all five boxes (update.rs · settings.rs · telegram.rs clean) — **✅** |
+| **PH-S2641** | Fix ranks | `TG_OVERRIDE` was a process-global `Mutex<Option<String>>` used as request scope — two concurrent HTTP/MCP rank calls could attribute each other's Telegram ids; now thread-local — **✅** |
+| **PH-S2642** | Fix tickets | every board mutator did read → whole-file rewrite with no lock; concurrent claim/done/create could lose an update entirely; reentrancy-aware `BOARD_LOCK` guards create/set_status/reclaim_stale/renew_leases/stamp_claimed_jail/reclaim_remote — **✅** |
+| **PH-S2643** | Lock hygiene | Godfather reclaim posts moved outside the lock (live sends throttle ~1/s); nested public calls (`claim_with → reclaim_stale + set_status`) stay deadlock-free via thread-local depth guard — **✅** |
+| **PH-S2644** | Tests | regressions `with_telegram_does_not_leak_across_threads`, `board_lock_serializes_concurrent_creates` (32/32 rows), `board_lock_is_reentrant_for_nested_public_calls`; fmt · clippy · cargo test green (695) — **✅** |
+| **PH-S2645** | Docs | HANDOFF / NEXT / MEMORY — **✅** |
+| **PH-S2646** | Speeds | record-speed + record-rust + sync `--check` green — **✅** |
+| **PH-S2647** | Ratio | `gsv-loc-audit --stretch-96` ≥ 96% hold — **✅** |
+| **PH-S2648** | Band close | `--band 200` + fingerprint; recopy live; one commit + push — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

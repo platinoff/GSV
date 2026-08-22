@@ -4,9 +4,9 @@
 //! Award +1 on ticket `done`. Demote −1 on ticket `error` or a failed `cargo test`
 //! after commit (fingerprint + optional Telegram id). Never below 0, never above 15.
 
+use std::cell::RefCell;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -21,19 +21,22 @@ pub const MAX_LEVEL: u8 = 15;
 /// Process env for the human Telegram id (`from.id`).
 pub const TELEGRAM_ID_ENV: &str = "GSV_TELEGRAM_USER_ID";
 
-static TG_OVERRIDE: Mutex<Option<String>> = Mutex::new(None);
+thread_local! {
+    /// Request-scoped Telegram id. Thread-local on purpose: a process-global
+    /// slot let two concurrent HTTP/MCP calls attribute each other's ids.
+    static TG_OVERRIDE: RefCell<Option<String>> = const { RefCell::new(None) };
+}
 
 /// Run `f` with a request-scoped Telegram id (HTTP/MCP `telegram_id`).
 pub fn with_telegram<T>(telegram_id: &str, f: impl FnOnce() -> T) -> T {
     let t = telegram_id.trim();
-    if !t.is_empty() {
-        if let Ok(mut g) = TG_OVERRIDE.lock() {
-            *g = Some(t.to_string());
-        }
+    let set = !t.is_empty();
+    if set {
+        TG_OVERRIDE.with(|c| *c.borrow_mut() = Some(t.to_string()));
     }
     let out = f();
-    if let Ok(mut g) = TG_OVERRIDE.lock() {
-        *g = None;
+    if set {
+        TG_OVERRIDE.with(|c| *c.borrow_mut() = None);
     }
     out
 }
@@ -327,14 +330,14 @@ pub fn telegram_from(body: Option<&Value>) -> String {
             return t.to_string();
         }
     }
-    if let Ok(g) = TG_OVERRIDE.lock() {
-        if let Some(s) = g
+    let override_hit = TG_OVERRIDE.with(|c| {
+        c.borrow()
             .as_ref()
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
-        {
-            return s;
-        }
+    });
+    if let Some(s) = override_hit {
+        return s;
     }
     std::env::var(TELEGRAM_ID_ENV)
         .ok()
@@ -764,6 +767,32 @@ mod tests {
         let file = load(&ranks_path(&dir));
         assert_eq!(file.roster.len(), 1);
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn with_telegram_does_not_leak_across_threads() {
+        // Regression (band 200): TG_OVERRIDE was a process-global Mutex, so a
+        // concurrent call without an id could pick up another request's id.
+        let env_fallback = std::env::var(TELEGRAM_ID_ENV)
+            .ok()
+            .is_some_and(|s| !s.trim().is_empty());
+        let seen_child = with_telegram("777", || {
+            let (tx, rx) = std::sync::mpsc::channel();
+            std::thread::spawn(move || {
+                tx.send(telegram_from(None)).unwrap();
+            });
+            rx.recv().unwrap()
+        });
+        assert_ne!(seen_child, "777", "override leaked into another thread");
+        if !env_fallback {
+            assert_eq!(seen_child, "", "child thread saw a foreign override");
+        }
+        // Same-thread scope still works and clears afterwards.
+        let inner = with_telegram("888", || telegram_from(None));
+        assert_eq!(inner, "888");
+        if !env_fallback {
+            assert_eq!(telegram_from(None), "");
+        }
     }
 
     #[test]

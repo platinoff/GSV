@@ -1,12 +1,12 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-08-22 (band **198** · next = **owner pick**)
+**Оновлено:** 2026-08-22 (band **200** · next = **owner pick**)
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
 **`абракадабра` / `abrakadabra`** → `cargo xtask products` → **AskQuestion на проєкти з environment**
 (не `gsv | poolai` з голови) → S0 диск/git → project scan (warnings first) →
-якщо **gsv:** settings/Telegram/tickets spec bands **166–198 ✅**
-+ **band 198** logic-audit fixes II (preview HTML escape · ide UTF-8 tail panic · hooks GSV test bins · tracker plain `[ ]` rows)
+якщо **gsv:** settings/Telegram/tickets spec bands **166–200 ✅**
++ **band 200** logic-audit fixes IV (ranks TG override thread-scope · tickets board write-lock races)
 **Next = owner pick** after a warnings-first scan. Speeds + Rust panel →
 vision-sync → **один commit** → **`git push` + самарі**.
 
@@ -23,7 +23,7 @@ vision queue lockstep + bump auto-advance **163 ✅**;
 Cursor 3.16.29 kit lockstep **164 ✅**;
 watchdog live copy + lockstep observability **165 ✅**;
 **band 166 ✅** settings / Godfather — [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md);
-**band 175 ✅** MDS scenario band + solo walk + Telegram sync. **band 176 ✅** visible MCP session walk (solo / squad / bench on Godfather). **band 177 ✅** roadmap/plan hook-up. **band 178 ✅** scenario benchmark. **band 179 ✅** Godfather inbound poller. **band 180 ✅** watchdog process lockstep. **band 181 ✅** Galaxy glue + S0 disk on health. **band 182 ✅** MCP-readable Godfather envelopes + Galaxy MCP signal. **band 183 ✅** squad next-action + MCP catalog lockstep. **band 184 ✅** MCP session catalog lockstep. **band 185 ✅** Cursor catalog restart lockstep. **band 186 ✅** solo/squad/jail. **band 187** live Godfather member_count. **band 188** README SMIL + docs tidy. **band 189** Settings Galaxy polish. **band 190** Galaxy About + type/fullscreen chrome. **band 191** channel roles + GitHub origin. **band 192** ranks + no CMD flash. **band 193** federated `kind:presence`. **band 194** federated `kind:claim`. **band 195** federated `kind:done`. **band 196** federated `kind:reclaim`. **band 197** logic-audit fixes. **band 198** logic-audit fixes II. **band 199** logic-audit fixes III. **Next = owner pick**. MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+**band 175 ✅** MDS scenario band + solo walk + Telegram sync. **band 176 ✅** visible MCP session walk (solo / squad / bench on Godfather). **band 177 ✅** roadmap/plan hook-up. **band 178 ✅** scenario benchmark. **band 179 ✅** Godfather inbound poller. **band 180 ✅** watchdog process lockstep. **band 181 ✅** Galaxy glue + S0 disk on health. **band 182 ✅** MCP-readable Godfather envelopes + Galaxy MCP signal. **band 183 ✅** squad next-action + MCP catalog lockstep. **band 184 ✅** MCP session catalog lockstep. **band 185 ✅** Cursor catalog restart lockstep. **band 186 ✅** solo/squad/jail. **band 187** live Godfather member_count. **band 188** README SMIL + docs tidy. **band 189** Settings Galaxy polish. **band 190** Galaxy About + type/fullscreen chrome. **band 191** channel roles + GitHub origin. **band 192** ranks + no CMD flash. **band 193** federated `kind:presence`. **band 194** federated `kind:claim`. **band 195** federated `kind:done`. **band 196** federated `kind:reclaim`. **band 197** logic-audit fixes. **band 198** logic-audit fixes II. **band 199** logic-audit fixes III. **band 200** logic-audit fixes IV. **Next = owner pick**. MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
 Jail/squad join: [`gsv/GSV_SOLO_SQUAD_JAIL.md`](gsv/GSV_SOLO_SQUAD_JAIL.md).
 Omni catalog: [`gsv/GSV_OMNI_CATALOG.md`](gsv/GSV_OMNI_CATALOG.md).
 Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
@@ -31,7 +31,8 @@ Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 
 ## Стан зараз
 
-- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–199.
+- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–200.
+- **Band 200:** Logic-audit fixes IV — `ranks::TG_OVERRIDE` process-global → thread-local request scope (concurrent rank calls could attribute each other's Telegram ids); `tickets.rs` board mutators (create/set_status/stamp_claimed_jail/reclaim_stale/renew_leases/reclaim_remote) now serialize on a reentrancy-aware `BOARD_LOCK` — read-modify-write races could previously lose a whole update; reclaim federation posts moved outside the lock. Regressions: cross-thread TG leak, concurrent creates, nested-call no-deadlock. `update.rs` / `settings.rs` / `telegram.rs` audited clean.
 - **Band 199:** Logic-audit fixes III — `omni::OmniRouter::persist` / `persist_quota` skip on lock contention (used to write a `Default` over tuned `omni.toml` / cooldown store); `fingerprint::read_tail_text` drops a partial UTF-8 prefix at the 64 KiB seek boundary (model discovery silently went `unknown`); `fingerprint::pkg_version` only matches plain `version = "…"` keys (`version.workspace` garbage), bump tightened to match. Regressions in omni unit + fingerprint contracts.
 - **Band 198:** Logic-audit fixes II — `preview::highlight_rs` escapes comment text + bare `< > &` (raw HTML in comments could execute under the inline-script CSP); `ide::preview_messages` walks the 64 KiB tail back to a UTF-8 char boundary (byte-slice could panic); `hooks::test_bins` lists GSV `gsv_*-<hash>.exe` harnesses by excluding declared lib/bin/bench stems (legacy PoolAI prefixes matched nothing here); `tracker::parse_sprint_snapshot` counts plain `[ ]` rows as open (duplicate condition removed). Regressions in preview / ide / hooks units + tracker fixture.
 - **Band 197:** Logic-audit fixes — `ranks::fingerprint_for_head` requires a non-empty `git_head` (legacy fingerprint rows without one no longer vacuously match and demote the wrong worker); `telegram::ticket_from_message` squad seed uses `tickets::assign_seed()` instead of hardcoded `1`; dry-run `poll_once` still reports `update_offset` but never persists `data/telegram_offset.json`. Regressions in ranks unit + telegram contracts.

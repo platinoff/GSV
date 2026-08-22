@@ -4,7 +4,7 @@ members = ["."]
 
 [package]
 name = "gsv"
-version = "0.199.0"
+version = "0.200.0"
 edition = "2021"
 authors = ["PoolAI Team"]
 description = "GSV (Galaxy StarWalker Vision) - Rust-first vision server with boxes (Tracker, SLI, Toolchain, IDE, Update, Preview, Terminal, Hooks)"
