@@ -1607,6 +1607,23 @@ Owner pick: continue searching logical mistakes — this pass covered the boxes 
 | **PH-S2627** | Docs | HANDOFF / NEXT / MEMORY — **✅** |
 | **PH-S2628** | Band close | speeds + rust panel + sync; `--band 198` + fingerprint; recopy live; one commit + push — **✅** |
 
+## Спринти (band 199) — logic-audit fixes III
+
+Owner pick: finish the sweep over the files no band had opened: fingerprint / xtask / omni router core / server / vision helpers / ui renderers / mcp dispatch. Three confirmed fixes; S0 disk tripped mid-band and `cargo xtask disk --clean` freed 24 GiB (live kept).
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2629** | Scope | owner pick: search logical mistakes across remaining core files — **✅** |
+| **PH-S2630** | Audit | manual review fingerprint / xtask / omni (mod) / server / vision.rs / ui render spot-checks / mcp dispatch — **✅** |
+| **PH-S2631** | Fix omni | `persist` / `persist_quota` skip when the lock is contended instead of writing `Default` over tuned `omni.toml` / cooldown store — **✅** |
+| **PH-S2632** | Fix fingerprint | `read_tail_text` drops a partial UTF-8 prefix instead of failing the whole read (model discovery went silent-`unknown` on split multibyte) — **✅** |
+| **PH-S2633** | Fix fingerprint | `pkg_version` matches only a plain `version = "…"` key (`version.workspace` / `version_override` returned garbage); `bump_package_version` tightened to match — **✅** |
+| **PH-S2634** | S0 | disk hit 0 MiB free during verify; `cargo xtask disk --clean` removed debug caches (kept live), 24 GiB free — **✅** |
+| **PH-S2635** | Tests | regressions `persist_under_lock_contention_keeps_tuned_config`, `persist_quota_under_lock_contention_keeps_cooldowns`, `persist_free_path_still_saves`, `fingerprint_log_tail_survives_multibyte_boundary`, `fingerprint_pkg_version_ignores_version_workspace_and_prefixed_keys`; fmt · clippy · cargo test green (692) — **✅** |
+| **PH-S2636** | Docs | HANDOFF / NEXT / MEMORY — **✅** |
+| **PH-S2637** | Speeds | record-speed + record-rust + sync `--check` green — **✅** |
+| **PH-S2638** | Band close | `--band 199` + fingerprint; recopy live; one commit + push — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

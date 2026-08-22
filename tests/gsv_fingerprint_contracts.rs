@@ -469,3 +469,39 @@ fn fingerprint_record_uses_selected_product_pkg_version() {
     assert_ne!(fp.version, env!("CARGO_PKG_VERSION"));
     let _ = std::fs::remove_file(&path);
 }
+
+#[test]
+fn fingerprint_pkg_version_ignores_version_workspace_and_prefixed_keys() {
+    let dir = std::env::temp_dir().join(format!("gsv-fp-cargo-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("dir");
+    let toml = dir.join("Cargo.toml");
+    std::fs::write(&toml, "[package]\nname=\"x\"\nversion.workspace = true\n").expect("ws");
+    assert_eq!(fingerprint::pkg_version(&dir), None);
+    std::fs::write(
+        &toml,
+        "[package]\nversion_override = \"9.9.9\"\nversion = \"1.2.3\"\n",
+    )
+    .expect("decoy");
+    assert_eq!(fingerprint::pkg_version(&dir), Some("1.2.3".to_string()));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn fingerprint_log_tail_survives_multibyte_boundary() {
+    let root = std::env::temp_dir().join(format!("gsv-fp-logs-{}", std::process::id()));
+    let log_dir = root.join("s1").join("w1");
+    std::fs::create_dir_all(&log_dir).expect("logs");
+    // 64 KiB tail must start inside the two-byte 'é' (offset 65535..65537):
+    // 65535 filler bytes + 'é' + 65535 suffix bytes = 131072, tail start = 65536.
+    let marker = b"\ncatalogModelId=grok-boundary\n";
+    let mut body = vec![b'a'; 65535];
+    body.extend_from_slice("\u{e9}".as_bytes());
+    let pad = 65535 - marker.len();
+    body.extend(std::iter::repeat_n(b'b', pad));
+    body.extend_from_slice(marker);
+    assert_eq!(body.len(), 131072);
+    std::fs::write(log_dir.join("renderer.log"), &body).expect("log");
+    let model = fingerprint::discover_cursor_model_from_logs(&root);
+    assert_eq!(model.as_deref(), Some("grok-boundary"));
+    let _ = std::fs::remove_dir_all(&root);
+}

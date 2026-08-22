@@ -56,9 +56,14 @@ fn parse_cargo_version(toml: &Path) -> Option<String> {
         }
         if in_package {
             if let Some(rest) = t.strip_prefix("version") {
+                // Only a plain `version = "…"` key — not `version.workspace`,
+                // `version_override`, …
+                if !rest.starts_with([' ', '\t', '=']) {
+                    continue;
+                }
                 let rest = rest.trim().trim_start_matches('=').trim();
                 let ver = rest.trim_matches('"').trim_matches('\'').trim();
-                if !ver.is_empty() {
+                if !ver.is_empty() && ver.chars().next().is_some_and(|c| c.is_ascii_digit()) {
                     return Some(ver.to_string());
                 }
             }
@@ -132,6 +137,12 @@ pub fn bump_package_version(toml: &Path, band: u32) -> Result<String, String> {
         }
         if in_package && !bumped {
             if let Some(rest) = t.strip_prefix("version") {
+                // Only a plain `version = "…"` key — not `version.workspace`, …
+                if !rest.starts_with([' ', '\t', '=']) {
+                    out.push_str(line);
+                    out.push('\n');
+                    continue;
+                }
                 let rest = rest.trim().trim_start_matches('=').trim();
                 let ver = rest.trim_matches('"').trim_matches('\'').trim();
                 let mut parts = ver.split('.');
@@ -241,9 +252,15 @@ fn read_tail_text(path: &Path, max: usize) -> Option<String> {
     let len = f.metadata().ok()?.len();
     let start = len.saturating_sub(max as u64);
     f.seek(SeekFrom::Start(start)).ok()?;
-    let mut buf = String::new();
-    f.read_to_string(&mut buf).ok()?;
-    Some(buf)
+    let mut bytes = Vec::new();
+    f.read_to_end(&mut bytes).ok()?;
+    // The seek can land mid-UTF-8; drop the partial prefix instead of
+    // failing the whole read (model discovery must stay best-effort).
+    let mut i = 0usize;
+    while i < bytes.len() && i < 4 && (bytes[i] & 0xC0) == 0x80 {
+        i += 1;
+    }
+    Some(String::from_utf8_lossy(&bytes[i..]).into_owned())
 }
 
 /// Newest `window*/renderer.log` under a Cursor `logs/` tree (testable).

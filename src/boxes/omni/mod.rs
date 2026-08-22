@@ -67,21 +67,22 @@ impl OmniRouter {
         }
     }
 
-    /// Persist the current config (best effort; logs on failure).
+    /// Persist the current config (best effort; skips when the lock is
+    /// contended — never writes a default over tuned settings).
     pub fn persist(&self) {
-        let cfg = self
-            .config
-            .try_read()
-            .map(|c| c.clone())
-            .unwrap_or_default();
+        let Ok(cfg) = self.config.try_read() else {
+            return;
+        };
         if let Err(e) = cfg.save(&self.data_dir) {
             tracing::warn!(error = %e, "omni config save failed");
         }
     }
 
-    /// Persist live quota cooldowns (best effort).
+    /// Persist live quota cooldowns (best effort; skips when contended).
     pub fn persist_quota(&self) {
-        let q = self.quota.try_read().map(|c| c.clone()).unwrap_or_default();
+        let Ok(q) = self.quota.try_read() else {
+            return;
+        };
         if let Err(e) = q.save(&self.data_dir) {
             tracing::warn!(error = %e, "omni quota save failed");
         }
@@ -243,5 +244,69 @@ fn model_wire(m: &ModelSpec) -> ModelWire {
         rust: m.rust,
         web: m.web,
         clients: m.clients.iter().map(|s| (*s).to_string()).collect(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_root(tag: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "gsv-omni-{tag}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ))
+    }
+
+    #[test]
+    fn persist_under_lock_contention_keeps_tuned_config() {
+        let dir = temp_root("cfg");
+        std::fs::create_dir_all(&dir).expect("dir");
+        std::fs::write(
+            dir.join("omni.toml"),
+            "[routing]\ndefault_provider = \"tuned-marker\"\n",
+        )
+        .expect("seed toml");
+        let router = OmniRouter::new(&dir);
+        let guard = router.config.try_write().expect("hold write lock");
+        router.persist();
+        drop(guard);
+        let text = std::fs::read_to_string(dir.join("omni.toml")).expect("toml");
+        assert!(text.contains("tuned-marker"), "{text}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn persist_quota_under_lock_contention_keeps_cooldowns() {
+        let dir = temp_root("quota");
+        std::fs::create_dir_all(&dir).expect("dir");
+        std::fs::write(
+            dir.join(quota::STORE_FILE),
+            r#"{"providers":{"prov-a":{"cooldown_until":"2099-01-01T00:00:00Z","last_status":429}}}"#,
+        )
+        .expect("seed quota");
+        let router = OmniRouter::new(&dir);
+        let guard = router.quota.try_write().expect("hold write lock");
+        router.persist_quota();
+        drop(guard);
+        let text = std::fs::read_to_string(dir.join(quota::STORE_FILE)).expect("quota json");
+        assert!(text.contains("prov-a"), "{text}");
+        assert!(text.contains("429"), "{text}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn persist_free_path_still_saves() {
+        let dir = temp_root("free");
+        std::fs::create_dir_all(&dir).expect("dir");
+        let router = OmniRouter::new(&dir);
+        router.persist();
+        let text = std::fs::read_to_string(dir.join("omni.toml")).expect("toml");
+        assert!(text.contains("[routing]"), "{text}");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
