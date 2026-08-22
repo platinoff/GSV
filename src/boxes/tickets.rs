@@ -787,7 +787,8 @@ pub fn renew_leases(
     Ok(n)
 }
 
-fn assign_seed() -> u64 {
+/// Nanosecond seed for squad picks (`seed % n` among online).
+pub fn assign_seed() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos() as u64)

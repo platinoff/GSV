@@ -1573,6 +1573,23 @@ Owner pick: complete the federation lifecycle (presence → claim → done → r
 | **PH-S2607** | Docs | spec GSV_SOLO_SQUAD_JAIL §reclaim; HANDOFF / NEXT / MEMORY — **✅** |
 | **PH-S2608** | Band close | `--band 196` + fingerprint; recopy live; one commit + push — **✅** |
 
+## Спринти (band 197) — logic-audit fixes
+
+Owner pick: search logical mistakes across core boxes. Clippy was already clean, so the drain went warnings-first scan → manual review → three confirmed fixes with regression tests. No behavior change beyond the bug fixes.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2609** | Scope | owner pick: search logical mistakes across core boxes — **✅** |
+| **PH-S2610** | Audit | clippy clean baseline; manual review tickets / telegram / vision / watchdog / update / ranks / usage / security — **✅** |
+| **PH-S2611** | Fix ranks | `fingerprint_for_head` ignores empty-`git_head` legacy rows (wrong-worker demote) — **✅** |
+| **PH-S2612** | Fix telegram | `ticket_from_message` squad seed uses `tickets::assign_seed` (not hardcoded `1`) — **✅** |
+| **PH-S2613** | Fix telegram | dry-run `poll_once` reports `update_offset` but no longer persists the live cursor file — **✅** |
+| **PH-S2614** | Tests | regressions `review_skips_fingerprints_without_git_head` + `poll_once_dry_run_does_not_persist_offset_file`; fmt · clippy · cargo test green — **✅** |
+| **PH-S2615** | Docs | HANDOFF / NEXT / MEMORY — **✅** |
+| **PH-S2616** | Speeds | record-speed + record-rust + sync `--check` green — **✅** |
+| **PH-S2617** | Live | recopy live server + MCP — **✅** |
+| **PH-S2618** | Band close | `--band 197` + fingerprint; one commit + push — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-21 · band 197)
+
+- **Band 197:** Logic-audit fixes (owner pick: search logical mistakes). Clippy was already clean → manual review of tickets / telegram / vision / watchdog / update / ranks / usage / security found three confirmed bugs: (1) `ranks::fingerprint_for_head` matched legacy fingerprint rows with empty `git_head` vacuously (`starts_with("")`) and could demote the wrong worker after failed tests — now requires non-empty trimmed head; no match still falls back to the generic identity demote (once per head); (2) `telegram::ticket_from_message` hardcoded squad seed `1` instead of `tickets::assign_seed()` — solo/squad pick now agrees everywhere; (3) dry-run `poll_once` persisted `data/telegram_offset.json`, letting a dry poll swallow live messages — offset file is only written when not dry, response still reports `update_offset`. Regressions: `ranks::tests::review_skips_fingerprints_without_git_head`, `poll_once_dry_run_does_not_persist_offset_file`.
+- **Canon:** [`gsv/GSV_RANKS.md`](gsv/GSV_RANKS.md) · [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md).
+- **Next drain:** **owner pick** after a warnings-first scan.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.43%** (rust 40997 / product 41234) · **682** tests · clippy 0
+
 ## Стан (2026-08-21 · band 196)
 
 - **Band 196:** Federated reclaim. Lease expiry (`reclaim_stale`) or an explicit release posts Godfather `kind:reclaim` (`from=jail.id`, `ticket_id` required). Peer boards transition their copy `in_progress` → `open` via `tickets::reclaim_remote` (+ `kind:reclaimed`). No rank change. Guest mute. Echo skip (env.from == own jail.id). Missing/non-WIP rows are no-op. Poller reports `"reclaim": n_reclaim`. Bus send `kind=reclaim` default body `<from> reclaims <id>`, data hint `federated-reclaim`. Scenario `federated-reclaim`. Federation lifecycle complete: presence → claim → done → reclaim.

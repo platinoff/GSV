@@ -1012,6 +1012,23 @@ async fn poll_once_classifies_ticket_bus_hook_and_skip() {
 }
 
 #[tokio::test]
+async fn poll_once_dry_run_does_not_persist_offset_file() {
+    let _g = bus_guard().await;
+    telegram::bus_reset();
+    let kit = temp_kit("poll-dry-offset");
+    let data = kit.join("data");
+    save_solo_relay(&data, "-100dry", "123:dry-secret", &[]);
+    telegram::push_inbound_stub(7, "/ticket Dry offset", "-100dry", "", "42");
+    let v = telegram::poll_once(&kit, &data, true, None).await;
+    assert_eq!(v["ok"], true, "{v}");
+    assert!(v["update_offset"].as_i64().unwrap_or(0) >= 8, "{v}");
+    assert!(
+        !data.join(telegram::OFFSET_FILE).exists(),
+        "dry-run poll must not persist the live offset cursor"
+    );
+}
+
+#[tokio::test]
 async fn poll_once_ingests_federated_presence() {
     let _g = bus_guard().await;
     telegram::bus_reset();

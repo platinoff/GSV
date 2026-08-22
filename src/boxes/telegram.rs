@@ -1989,7 +1989,11 @@ pub async fn poll_once(
             _ => n_skip += 1,
         }
     }
-    save_offset(data_dir, max_id);
+    // Dry-run stub passes never persist the offset: stub update ids are
+    // arbitrary and must not advance the live getUpdates cursor on disk.
+    if !dry {
+        save_offset(data_dir, max_id);
+    }
     if !dry && !token.is_empty() {
         refresh_members_throttled(data_dir, &token, &channel).await;
     }
@@ -2110,15 +2114,23 @@ pub fn ticket_from_message(
     };
     let _ = tickets::append_telegram_event(repo_root, &ticket.id, &from);
     let ticket = match presence {
-        Some(store) => match tickets::try_dispatch(repo_root, data_dir, &ticket.id, store, 1) {
-            Ok(Some(claimed)) => claimed,
-            Ok(None) => ticket,
-            Err(e) => {
-                let err = e.to_string();
-                record_last(false, &err);
-                return bus_fail(&err, &token);
+        Some(store) => {
+            match tickets::try_dispatch(
+                repo_root,
+                data_dir,
+                &ticket.id,
+                store,
+                tickets::assign_seed(),
+            ) {
+                Ok(Some(claimed)) => claimed,
+                Ok(None) => ticket,
+                Err(e) => {
+                    let err = e.to_string();
+                    record_last(false, &err);
+                    return bus_fail(&err, &token);
+                }
             }
-        },
+        }
         None => ticket,
     };
     let envelope = BusEnvelope {

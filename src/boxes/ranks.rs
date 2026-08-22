@@ -531,8 +531,8 @@ fn fingerprint_for_head(repo_root: &Path, head: &str) -> Option<Fingerprint> {
     }
     let rows = fingerprint::latest(&fingerprint::jsonl_path(repo_root), 40);
     rows.into_iter().find(|fp| {
-        fp.git_head.as_deref().unwrap_or("").starts_with(head)
-            || head.starts_with(fp.git_head.as_deref().unwrap_or(""))
+        let fp_head = fp.git_head.as_deref().unwrap_or("").trim();
+        !fp_head.is_empty() && (fp_head.starts_with(head) || head.starts_with(fp_head))
     })
 }
 
@@ -764,5 +764,33 @@ mod tests {
         let file = load(&ranks_path(&dir));
         assert_eq!(file.roster.len(), 1);
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn review_skips_fingerprints_without_git_head() {
+        let kit = tmp();
+        let data = tmp();
+        fs::create_dir_all(kit.join("docs/vision")).unwrap();
+        fs::create_dir_all(kit.join("docs/gsv")).unwrap();
+        fs::write(
+            kit.join("docs/vision/speed_index.json"),
+            r#"{"git_head":"abc1234","latest":{"test_ci_ok":false},"test_ci_history":[]}"#,
+        )
+        .unwrap();
+        // Legacy row with no git_head must not vacuously match the failed head.
+        fs::write(
+            kit.join("docs/gsv/fingerprints.jsonl"),
+            r#"{"ts":"t","actor":"ghost","ide":"cursor","model":"m","agent":"bot","version":"0.0.0","summary":""}"#,
+        )
+        .unwrap();
+        assert_eq!(fingerprint_for_head(&kit, "abc1234"), None);
+        let row = review_failed_tests(&kit, &data);
+        // No fingerprint match → demote lands on the fallback identity,
+        // never on the legacy empty-git_head row.
+        let row = row.expect("fallback demote");
+        assert_ne!(row.actor, "ghost", "legacy empty-git_head row was blamed");
+        assert_eq!(row.actor, "agent");
+        let _ = fs::remove_dir_all(&kit);
+        let _ = fs::remove_dir_all(&data);
     }
 }
