@@ -202,7 +202,10 @@ pub fn preview_messages(path: &Path, n: usize) -> Vec<IdePreviewLine> {
         return Vec::new();
     };
     let slice = if raw.len() > 65_536 {
-        let start = raw.len().saturating_sub(65_536);
+        let mut start = raw.len().saturating_sub(65_536);
+        while start > 0 && !raw.is_char_boundary(start) {
+            start -= 1;
+        }
         &raw[start..]
     } else {
         &raw
@@ -295,6 +298,21 @@ mod tests {
         assert_eq!(lines.len(), 8);
         assert_eq!(lines[0].text, "msg-4");
         assert_eq!(lines[7].text, "msg-11");
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn preview_messages_never_panics_on_multibyte_tail() {
+        let dir = std::env::temp_dir().join("gsv_ide_preview_multibyte");
+        let _ = fs::create_dir_all(&dir);
+        let path = dir.join("chat-big.jsonl");
+        // 70k two-byte chars: the 64 KiB tail lands mid-codepoint.
+        let body: String = "é".repeat(70_000);
+        fs::write(&path, body).expect("write");
+        let lines = preview_messages(&path, 8);
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].role, "line");
+        assert!(lines[0].text.chars().count() <= 281);
         let _ = fs::remove_file(&path);
     }
 }

@@ -4,12 +4,6 @@
 //! a whitelist check: the command's first token must be a known SLI tool and no
 //! shell metacharacters may appear (sandbox). Results are audited to the Tracker.
 
-//! SLI terminal box — execute whitelisted SLI commands (AI → server).
-//!
-//! `POST /api/terminal {command}` runs a command through MSYS2 bash (`-lc`) after
-//! a whitelist check: the command's first token must be a known SLI tool and no
-//! shell metacharacters may appear (sandbox). Results are audited to the Tracker.
-
 use std::time::Instant;
 
 use serde::{Deserialize, Serialize};

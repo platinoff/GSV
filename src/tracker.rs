@@ -132,15 +132,14 @@ fn parse_sprint_snapshot(fm_path: &Path) -> SprintSnapshot {
             after_summary = false;
             continue;
         }
-        // Row format: `| 1594 | **PH-S1659** | ... | **[ ]** |`
+        // Row format: `| 1594 | **PH-S1659** | ... | **[ ]** |` (plain `[ ]` also open).
         if let Some(cap) = line
             .split("**PH-S")
             .nth(1)
             .and_then(|s| s.split("**").next())
         {
             let id = format!("PH-S{cap}");
-            let open =
-                line.contains("**[ ]**") || line.contains("**[ ]**") || line.contains("◎ open");
+            let open = line.contains("[ ]") || line.contains("◎ open");
             snapshot.total += 1;
             if open {
                 snapshot.open.push(id);
@@ -195,15 +194,20 @@ mod tests {
             r#"## 5.12
 | 1594 | **PH-S1659** | a | src | x | **[ ]** |
 | 1595 | **PH-S1660** | b | src | x | **✅** |
-Відкритих у §5.12: 1
+| 1596 | **PH-S1661** | c | src | x | [ ] |
+Відкритих у §5.12: 2
 | 1594 | **PH-S1659** | a | src | x | **[ ]** |
 | 1595 | **PH-S1660** | b | src | x | **✅** |
+| 1596 | **PH-S1661** | c | src | x | [ ] |
 "#,
         )
         .expect("write fm");
         let snap = parse_sprint_snapshot(&fm);
-        assert_eq!(snap.total, 2);
-        assert_eq!(snap.open, vec!["PH-S1659".to_string()]);
+        assert_eq!(snap.total, 3);
+        assert_eq!(
+            snap.open,
+            vec!["PH-S1659".to_string(), "PH-S1661".to_string()]
+        );
         assert_eq!(snap.closed, vec!["PH-S1660".to_string()]);
         assert_eq!(snap.next.as_deref(), Some("PH-S1659"));
         let _ = fs::remove_dir_all(&dir);

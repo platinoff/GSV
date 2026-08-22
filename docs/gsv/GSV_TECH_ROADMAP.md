@@ -1590,6 +1590,23 @@ Owner pick: search logical mistakes across core boxes. Clippy was already clean,
 | **PH-S2617** | Live | recopy live server + MCP — **✅** |
 | **PH-S2618** | Band close | `--band 197` + fingerprint; one commit + push — **✅** |
 
+## Спринти (band 198) — logic-audit fixes II
+
+Owner pick: continue searching logical mistakes — this pass covered the boxes band 197 did not open: hooks / sli / terminal / preview / sw / mds / products / ratio / settings / ide / github / gitkit / omni (config, quota, proxy) + tracker / security / state. Five confirmed fixes, each with a regression test.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2619** | Scope | owner pick: search logical mistakes across remaining boxes — **✅** |
+| **PH-S2620** | Audit | manual review hooks / sli / terminal / preview / sw / mds / products / ratio / settings / ide / github / gitkit / omni / tracker / security / state — **✅** |
+| **PH-S2621** | Fix preview | `highlight_rs` escapes comment text and bare `< > &` (doc claimed "safe, escaped"; CSP allows inline scripts) — **✅** |
+| **PH-S2622** | Fix ide | `preview_messages` 64 KiB tail walks back to a UTF-8 char boundary (byte-slice could panic mid-codepoint; "Never panics" doc) — **✅** |
+| **PH-S2623** | Fix hooks | `test_bins` lists GSV integration-test harnesses (`gsv_*-<hash>.exe`) by excluding declared lib/bin/bench stems instead of PoolAI-legacy prefixes — **✅** |
+| **PH-S2624** | Fix tracker | sprint snapshot counts plain `[ ]` rows as open (duplicate `contains("**[ ]**")` condition dropped the plain form) — **✅** |
+| **PH-S2625** | Hygiene | terminal module doc header deduplicated — **✅** |
+| **PH-S2626** | Tests | regressions in preview / ide / hooks / tracker; fmt · clippy · cargo test green (687) — **✅** |
+| **PH-S2627** | Docs | HANDOFF / NEXT / MEMORY — **✅** |
+| **PH-S2628** | Band close | speeds + rust panel + sync; `--band 198` + fingerprint; recopy live; one commit + push — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

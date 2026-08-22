@@ -48,23 +48,79 @@ pub struct SpeedSummary {
 }
 
 /// List `target/debug/deps/*.exe` test binaries (read-only).
+///
+/// A deps artifact counts as a test harness unless its stem (minus the cargo
+/// hash suffix) is one of the crate's declared lib / bin / bench stems. Legacy
+/// `poolai*` / `test_*` prefixes stay accepted for cross-repo reuse.
 pub fn test_bins(repo_root: &Path) -> Vec<String> {
     let dir = repo_root.join("target/debug/deps");
     let Ok(read) = fs::read_dir(&dir) else {
         return Vec::new();
     };
+    let declared = declared_artifact_stems(repo_root);
     let mut bins: Vec<String> = read
         .flatten()
         .filter_map(|e| {
             let name = e.file_name().to_string_lossy().to_string();
-            let is_test = (name.starts_with("poolai") || name.starts_with("test_"))
-                && name.ends_with(".exe")
-                && !name.contains('\\');
-            is_test.then_some(name)
+            if !name.ends_with(".exe") || name.contains('\\') {
+                return None;
+            }
+            let stem = name.strip_suffix(".exe")?;
+            is_test_artifact(artifact_base(stem), &declared).then_some(name)
         })
         .collect();
     bins.sort();
     bins
+}
+
+/// Lib + bin + bench artifact stems declared by the crate (never test harnesses).
+fn declared_artifact_stems(repo_root: &Path) -> std::collections::HashSet<String> {
+    let mut out = std::collections::HashSet::new();
+    if let Ok(raw) = fs::read_to_string(repo_root.join("Cargo.toml")) {
+        if let Ok(v) = toml::from_str::<toml::Value>(&raw) {
+            if let Some(name) = v
+                .get("package")
+                .and_then(|p| p.get("name"))
+                .and_then(toml::Value::as_str)
+            {
+                out.insert(name.replace('-', "_"));
+            }
+        }
+    }
+    for sub in ["src/bin", "benches"] {
+        let Ok(read) = fs::read_dir(repo_root.join(sub)) else {
+            continue;
+        };
+        for e in read.flatten() {
+            let p = e.path();
+            if p.extension().is_some_and(|x| x == "rs") {
+                if let Some(stem) = p.file_stem().and_then(|s| s.to_str()) {
+                    out.insert(stem.replace('-', "_"));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// `gsv_tickets_contracts-3fa2b12c9d81e5f7` → `gsv_tickets_contracts`.
+fn artifact_base(file_stem: &str) -> &str {
+    match file_stem.rsplit_once('-') {
+        Some((base, suffix))
+            if suffix.len() >= 8 && suffix.chars().all(|c| c.is_ascii_hexdigit()) =>
+        {
+            base
+        }
+        _ => file_stem,
+    }
+}
+
+/// True when a deps artifact stem is an integration-test harness.
+fn is_test_artifact(base: &str, declared: &std::collections::HashSet<String>) -> bool {
+    if base.starts_with("test_") || base.starts_with("poolai") {
+        return true;
+    }
+    base.starts_with("gsv") && !declared.contains(base)
 }
 
 /// Read diagnostics summary from `docs/{development,vision}/rust_diagnostics.json`.
@@ -165,5 +221,50 @@ mod tests {
         let tmp = std::env::temp_dir().join("gsv-no-target");
         assert!(test_bins(&tmp).is_empty());
         assert!(criterion_dirs(&tmp).is_empty());
+    }
+
+    #[test]
+    fn artifact_base_strips_cargo_hash_suffix() {
+        assert_eq!(
+            artifact_base("gsv_tickets_contracts-3fa2b12c9d81e5f7"),
+            "gsv_tickets_contracts"
+        );
+        // Not a hex-hash suffix → keep the whole stem.
+        assert_eq!(artifact_base("gsv_dev"), "gsv_dev");
+        assert_eq!(artifact_base("weird-1a"), "weird-1a");
+    }
+
+    #[test]
+    fn is_test_artifact_excludes_declared_lib_bin_bench() {
+        let declared: std::collections::HashSet<String> = ["gsv", "gsv_server", "gsv_dev"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        assert!(is_test_artifact("gsv_tickets_contracts", &declared));
+        assert!(is_test_artifact("test_foo", &declared));
+        assert!(is_test_artifact("poolai_loc_audit", &declared));
+        assert!(!is_test_artifact("gsv_server", &declared));
+        assert!(!is_test_artifact("gsv_dev", &declared));
+        assert!(!is_test_artifact("build_script_build", &declared));
+    }
+
+    #[test]
+    fn test_bins_lists_gsv_contracts_when_deps_exist() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let deps = root.join("target/debug/deps");
+        if fs::read_dir(&deps).is_err() {
+            return; // fresh checkout without target/
+        }
+        let bins = test_bins(root);
+        assert!(
+            bins.iter().any(|n| n.contains("contracts")),
+            "deps exists but no contract harness listed: {bins:?}"
+        );
+        assert!(
+            !bins
+                .iter()
+                .any(|n| n.starts_with("gsv_server-") || n.starts_with("build_script_build")),
+            "bins/bench/build artifacts must not be listed: {bins:?}"
+        );
     }
 }

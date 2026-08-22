@@ -77,7 +77,7 @@ fn highlight_rs(line: &str) -> String {
         match c {
             '/' if chars.peek() == Some(&'/') => {
                 let rest: String = chars.collect();
-                out.push_str(&format!(r#"<span class="g-c">//{rest}</span>"#));
+                out.push_str(&format!(r#"<span class="g-c">//{}</span>"#, escape(&rest)));
                 return out;
             }
             '"' => {
@@ -119,7 +119,13 @@ fn highlight_rs(line: &str) -> String {
                     out.push_str(&escape(&word));
                 }
             }
-            c => out.push(c),
+            c => {
+                if matches!(c, '<' | '>' | '&') {
+                    out.push_str(&escape(&c.to_string()));
+                } else {
+                    out.push(c);
+                }
+            }
         }
     }
     out
@@ -192,5 +198,16 @@ mod tests {
     #[test]
     fn escape_entities() {
         assert_eq!(escape("<a&b>"), "&lt;a&amp;b&gt;");
+    }
+
+    #[test]
+    fn highlight_escapes_html_in_comments_and_bare_text() {
+        let html = highlight_rs("// <script>alert(1)</script>");
+        assert!(!html.contains("<script>"), "{html}");
+        assert!(html.contains("&lt;script&gt;"), "{html}");
+        let bare = highlight_rs("let v: Vec<u8> = v & w;");
+        assert!(!bare.contains("<u8>") && !bare.contains(" & "), "{bare}");
+        assert!(bare.contains("&lt;u8&gt;"), "{bare}");
+        assert!(bare.contains("&amp;"), "{bare}");
     }
 }

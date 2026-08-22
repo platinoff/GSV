@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-22 · band 198)
+
+- **Band 198:** Logic-audit fixes II (owner pick: continue search logical mistakes). Covered the boxes band 197 did not open (hooks / sli / terminal / preview / sw / mds / products / ratio / settings / ide / github / gitkit / omni + tracker / security / state). Five confirmed fixes: (1) `preview::highlight_rs` pushed comment text and bare `< > &` into the HTML raw despite the "safe, escaped" contract — CSP allows inline scripts, so `// <script>…` in any previewed file executed in the Galaxy origin; comments + bare punctuation are escaped now; (2) `ide::preview_messages` sliced the 64 KiB tail at a raw byte offset that can land mid-UTF-8 and panic (doc says "Never panics") — walks back to a char boundary now; (3) `hooks::test_bins` kept PoolAI-legacy prefixes (`poolai*` / `test_*`) so it never matched this repo's `gsv_*-<hash>.exe` harnesses and `/api/hooks/tests` always showed zero test bins — now lists deps artifacts whose stem is not a declared lib/bin/bench stem; (4) `tracker::parse_sprint_snapshot` had a duplicated identical open-row condition and missed plain `[ ]` rows — plain form counts as open now; (5) terminal module doc header deduplicated. Regressions: `highlight_escapes_html_in_comments_and_bare_text`, `preview_messages_never_panics_on_multibyte_tail`, `artifact_base_strips_cargo_hash_suffix`, `is_test_artifact_excludes_declared_lib_bin_bench`, `test_bins_lists_gsv_contracts_when_deps_exist`, sprint fixture covers plain `[ ]`.
+- **Canon:** [`gsv/GSV_BOXES.md`](gsv/GSV_BOXES.md).
+- **Next drain:** **owner pick** after a warnings-first scan.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.43%** (rust 41124 / product 41361) · **687** tests · clippy 0
+
 ## Стан (2026-08-21 · band 197)
 
 - **Band 197:** Logic-audit fixes (owner pick: search logical mistakes). Clippy was already clean → manual review of tickets / telegram / vision / watchdog / update / ranks / usage / security found three confirmed bugs: (1) `ranks::fingerprint_for_head` matched legacy fingerprint rows with empty `git_head` vacuously (`starts_with("")`) and could demote the wrong worker after failed tests — now requires non-empty trimmed head; no match still falls back to the generic identity demote (once per head); (2) `telegram::ticket_from_message` hardcoded squad seed `1` instead of `tickets::assign_seed()` — solo/squad pick now agrees everywhere; (3) dry-run `poll_once` persisted `data/telegram_offset.json`, letting a dry poll swallow live messages — offset file is only written when not dry, response still reports `update_offset`. Regressions: `ranks::tests::review_skips_fingerprints_without_git_head`, `poll_once_dry_run_does_not_persist_offset_file`.
