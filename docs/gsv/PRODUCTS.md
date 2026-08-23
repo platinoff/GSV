@@ -14,6 +14,7 @@ This file only **enriches** a pick that is already registered.
 | **gsv** | `S:/rust/GSV` | [`docs/HANDOFF_NEW_SESSION.md`](../HANDOFF_NEW_SESSION.md) | [`docs/NEXT_SESSION_PROMPT.md`](../NEXT_SESSION_PROMPT.md) | `cargo fmt -- --check` → `cargo clippy --all-targets` → `cargo test` → `cargo run --bin gsv-loc-audit -- --stretch-96` (do **not** kill `target/live/` copy) | Rust **95–100%** (`--stretch-96` ≥96%) |
 | **poolai** | `S:/rust/poolAI` | `S:/rust/poolAI/docs/development/HANDOFF_NEW_SESSION.md` | `S:/rust/poolAI/docs/development/NEXT_SESSION_PROMPT.md` | `K8S_OPENAPI_ENABLED_VERSION=1.28 cargo test-ci` (`CARGO_TARGET_DIR=/s/rust/poolAI/target`) | Rust **90–95%** |
 | **omniroute** | `S:/rust/omniroute` | `S:/rust/omniroute/AGENTS.md` | `S:/rust/omniroute/docs/ROADMAP.md` | `npm test` (focused: `node --import tsx/esm --test tests/unit/<file>.test.ts`) | n/a (node; GSV loc-audit does not apply) |
+| **orr_desktop** | `S:/rust/ORR_DESKTOP` | `S:/rust/ORR_DESKTOP/docs/HANDOFF_NEW_SESSION.md` | `S:/rust/ORR_DESKTOP/docs/NEXT_SESSION_PROMPT.md` | `cargo fmt -- --check` → `cargo clippy --all-targets` → `cargo test` (windows-gnu; ffmpeg via `ORR_FFMPEG` or `%PATH%`) | Rust **95–100%** |
 
 Discovered but **not** in this table → S0 + git in that tree; no PH-S* drain until a row is added. OmniRoute is registered (band 149, owner-opt-in).
 
