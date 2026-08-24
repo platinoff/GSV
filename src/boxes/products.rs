@@ -200,6 +200,11 @@ fn parse_cargo_name(toml: &Path) -> Option<String> {
         }
         if in_package {
             if let Some(rest) = t.strip_prefix("name") {
+                // Only a plain `name = "…"` key — not `name.workspace`,
+                // `namespaced`, … (mirror of fingerprint PH-S2633).
+                if !rest.starts_with([' ', '\t', '=']) {
+                    continue;
+                }
                 let rest = rest.trim().trim_start_matches('=').trim();
                 let name = rest.trim_matches('"').trim_matches('\'').trim();
                 if !name.is_empty() {
@@ -318,5 +323,27 @@ mod tests {
     fn display_path_strips_verbatim_and_backslashes() {
         let p = PathBuf::from("\\\\?\\S:\\rust\\GSV");
         assert_eq!(display_path(&p), "S:/rust/GSV");
+    }
+
+    #[test]
+    fn parse_cargo_name_ignores_prefixed_and_workspace_keys() {
+        let dir = std::env::temp_dir().join(format!("gsv-products-name-{}", std::process::id()));
+        let _ = fs::create_dir_all(&dir);
+        let toml = dir.join("Cargo.toml");
+        fs::write(
+            &toml,
+            "[package]\nname.workspace = true\nnamespace = \"x\"\n",
+        )
+        .expect("write toml");
+        assert_eq!(
+            parse_cargo_name(&toml),
+            None,
+            "prefixed keys must not parse"
+        );
+        fs::write(&toml, "[package]\nname = \"gsv\"\n").expect("write toml");
+        assert_eq!(parse_cargo_name(&toml).as_deref(), Some("gsv"));
+        fs::write(&toml, "[package]\nname=\"quoted\"\n").expect("write toml");
+        assert_eq!(parse_cargo_name(&toml).as_deref(), Some("quoted"));
+        let _ = fs::remove_dir_all(&dir);
     }
 }

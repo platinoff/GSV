@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-22 (**band 200 · next gsv drain = owner pick**)
+**Оновлено:** 2026-08-24 (**band 201 · next gsv drain = owner pick**)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -355,6 +355,7 @@ band 193 ✅ (federated kind:presence) ·
 band 194 ✅ (federated kind:claim) ·
 band 195 ✅ (federated kind:done) ·
 band 196 ✅ (federated kind:reclaim) ·
+band 201 ✅ (logic-audit fixes V — products parse_cargo_name + usage SSE tail flush) ·
 наступний drain = **owner pick** ·
 не комітити `data/gsv_settings.json` / bot token ·
 не комітити kit-only в PoolAI як «замість» GSV drain ·

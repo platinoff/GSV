@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-08-24 · band 201)
+
+- **Band 201:** Logic-audit fixes V (owner pick: ops boxes — guide / watchdog / github / usage / ratio / gitkit / products / ide / toolchain / hooks / state / terminal / tracker / security, ~14 files). Twelve audited clean; two confirmed silent-data-loss bugs: (1) `products::parse_cargo_name` matched prefixed keys (`name.workspace = true`, `namespace`) as crate names → garbage scan rows; now only plain `name = "…"` keys count (same guard class as fingerprint PH-S2633); (2) `usage::SseUsageTap` never parsed the final usage line when the upstream stream ends without a trailing newline → token undercount on every streamed completion; added pub fn `flush()` (parses buffered tail, safe on empty/truncated JSON) and called it at stream end in `omni/proxy.rs` `UsageTapStream::poll_next` before reading `tap.last()`. Regressions: `parse_cargo_name_ignores_prefixed_and_workspace_keys`, `sse_tap_flush_parses_final_line_without_newline`. S0 note: PowerShell mangles nested quotes in `bash -lc` one-liners (grep/awk silently unfiltered) — use file-based tools or write a temp script instead.
+- **Canon:** [`gsv/GSV_BOXES.md`](gsv/GSV_BOXES.md) · [`gsv/GSV_OMNI_CATALOG.md`](gsv/GSV_OMNI_CATALOG.md).
+- **Next drain:** **owner pick** after a warnings-first scan.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.43%** (rust 41440 / product 41677) · **697** tests · clippy 0
+
 ## Стан (2026-08-22 · band 200)
 
 - **Band 200:** Logic-audit fixes IV (owner pick: Godfather stack sweep). Covered update / settings / ranks / tickets / telegram (~7.4k LOC); `update.rs`, `settings.rs`, `telegram.rs` audited clean. Two confirmed concurrency bugs: (1) `ranks::TG_OVERRIDE` was a process-global `Mutex<Option<String>>` used as request scope — concurrent HTTP/MCP rank calls could attribute each other's Telegram ids; now a `thread_local!` override set/cleared per call (`with_telegram`), env fallback unchanged; (2) every `tickets.rs` board mutator did read → modify → whole-file rewrite with no lock while axum/MCP/Godfather poller run concurrently — lost updates possible; added a reentrancy-aware `BOARD_LOCK` guarding create/set_status/stamp_claimed_jail/reclaim_stale/renew_leases/reclaim_remote (thread-local depth guard, nested public calls like `claim_with → reclaim_stale + set_status` stay deadlock-free); Godfather reclaim federation posts moved outside the lock (live sends throttle ~1/s). Regressions: `with_telegram_does_not_leak_across_threads`, `board_lock_serializes_concurrent_creates`, `board_lock_is_reentrant_for_nested_public_calls`. S0 note: stray `src/main.rs` from an over-broad `touch src/lib.rs src/main.rs` broke clippy (E0601) — removed; never `touch` files that may not exist.

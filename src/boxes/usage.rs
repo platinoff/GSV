@@ -235,6 +235,19 @@ impl SseUsageTap {
         }
     }
 
+    /// Parse the buffered tail when the stream ended without a trailing
+    /// newline (upstream closed right after the final usage chunk).
+    pub fn flush(&mut self) {
+        if self.buf.trim().is_empty() {
+            self.buf.clear();
+            return;
+        }
+        let tail = std::mem::take(&mut self.buf);
+        if let Some(c) = parse_sse_line(&tail) {
+            self.last = Some(c);
+        }
+    }
+
     pub fn last(&self) -> Option<TokenCounts> {
         self.last
     }
@@ -556,6 +569,32 @@ mod tests {
         let c = tap.last().expect("usage");
         assert_eq!(c.prompt_tokens, 7);
         assert_eq!(c.completion_tokens, 3);
+    }
+
+    #[test]
+    fn sse_tap_flush_parses_final_line_without_newline() {
+        let mut tap = SseUsageTap::new();
+        tap.push(b"data: {\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n");
+        tap.push(b"data: {\"usage\":{\"prompt_tokens\":5,\"completion_tokens\":2}}");
+        assert!(
+            tap.last().is_none(),
+            "no newline yet — must not parse early"
+        );
+        tap.flush();
+        let c = tap.last().expect("flushed usage");
+        assert_eq!(c.prompt_tokens, 5);
+        assert_eq!(c.completion_tokens, 2);
+        // Flushing twice (or an empty tail) is a no-op.
+        tap.flush();
+        assert_eq!(tap.last(), Some(c));
+        let mut empty = SseUsageTap::new();
+        empty.flush();
+        assert!(empty.last().is_none());
+        // A truncated JSON tail must not panic or fabricate counts.
+        let mut cut = SseUsageTap::new();
+        cut.push(b"data: {\"usage\":{\"prompt_tok");
+        cut.flush();
+        assert!(cut.last().is_none());
     }
 
     #[test]

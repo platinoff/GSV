@@ -1641,6 +1641,23 @@ Owner pick: sweep the Godfather stack no band had opened — update / settings /
 | **PH-S2647** | Ratio | `gsv-loc-audit --stretch-96` ≥ 96% hold — **✅** |
 | **PH-S2648** | Band close | `--band 200` + fingerprint; recopy live; one commit + push — **✅** |
 
+## Спринти (band 201) — logic-audit fixes V
+
+Owner pick: finish the audit series over the ops boxes no band had opened — guide / watchdog / github / usage / ratio / gitkit / products / ide / toolchain / hooks / state / terminal / tracker / security. Two confirmed silent-data-loss bugs; each fixed with a regression test.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2649** | Scope | owner pick: search logical mistakes across ops boxes (guide · watchdog · github · usage · ratio · gitkit · products · ide · toolchain · hooks · state · terminal · tracker · security) — **✅** |
+| **PH-S2650** | Audit | manual review of all fourteen files; twelve audited clean, two confirmed bugs — **✅** |
+| **PH-S2651** | Fix products | `parse_cargo_name` accepted prefixed keys (`name.workspace = true`, `namespace`) as crate names → garbage scan rows; plain-key guard mirrors fingerprint PH-S2633 — **✅** |
+| **PH-S2652** | Fix usage | `SseUsageTap` never parsed the final usage line when the stream ends without a trailing newline (silent token undercount); added `flush()` called at stream end in `omni/proxy.rs` `UsageTapStream` — **✅** |
+| **PH-S2653** | Tests | regressions `parse_cargo_name_ignores_prefixed_and_workspace_keys` + `sse_tap_flush_parses_final_line_without_newline`; fmt · clippy · cargo test green (**697**) — **✅** |
+| **PH-S2654** | Docs | HANDOFF / NEXT / MEMORY — **✅** |
+| **PH-S2655** | Speeds | record-speed + record-rust + sync `--check` green — **✅** |
+| **PH-S2656** | Ratio | `gsv-loc-audit --stretch-96` ≥ 96% hold (**99.43%**, rust 41440 / product 41677) — **✅** |
+| **PH-S2657** | Live | recopy live server + MCP — **✅** |
+| **PH-S2658** | Band close | `--band 201` + fingerprint; one commit + push — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

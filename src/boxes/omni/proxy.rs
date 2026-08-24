@@ -367,6 +367,7 @@ where
             Poll::Ready(None) => {
                 if !this.ended {
                     this.ended = true;
+                    this.tap.flush();
                     if let Some(counts) = this.tap.last() {
                         let state = this.state.clone();
                         let ev = usage::event_now(
