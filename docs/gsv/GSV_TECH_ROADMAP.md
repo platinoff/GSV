@@ -1675,6 +1675,23 @@ Owner pick: finish the audit series over the last unaudited surfaces — `src/mc
 | **PH-S2667** | Live | recopy live server + MCP — **✅** |
 | **PH-S2668** | Band close | `--band 202` + fingerprint; one commit + push — **✅** |
 
+## Спринти (band 203) — logic-audit VII (tests sweep)
+
+Owner pick: extend the audit series to the test suite itself — hunt vacuous / tautological assertions across all of `tests/*.rs`. Verdict: **clean**; zero fixes required, suite contracts confirmed meaningful.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2669** | Scope | owner pick: tests sweep — vacuous/tautological assertion hunt over all 21 `tests/*.rs` (10 796 LOC) — **✅** |
+| **PH-S2670** | Mechanical greps | self-comparison asserts · assertion-less test fns · always-true shapes · `.contains("")` — zero findings (`tmp/gsv_vacuous_sweep.sh`) — **✅** |
+| **PH-S2671** | Full reads | twelve smaller files read end-to-end (ranks · readme · mds · sw · xtask · ratio · update_flow · settings · stand_smoke · security · products · omni) — all clean — **✅** |
+| **PH-S2672** | Inventories | nine large files audited via assert-line inventories (usage · fingerprint · watchdog · ui · server · vision · mcp · tickets · telegram; 1 695 assert lines) — all meaningful — **✅** |
+| **PH-S2673** | OR-shapes | seven `\|\| is_null/is_none` sites verified as legitimate optional-field wire contracts (tickets 845–846, server 121/158, watchdog 466, telegram 747, products 115) — none tautological — **✅** |
+| **PH-S2674** | Gate | fmt · clippy (**0**) · cargo test green (**698**, unchanged — no code changes this band) — **✅** |
+| **PH-S2675** | Docs | HANDOFF / NEXT / MEMORY record the clean-sweep verdict — **✅** |
+| **PH-S2676** | Speeds | record-speed + record-rust + sync `--check` green — **✅** |
+| **PH-S2677** | Live | recopy live MCP (server image unchanged — no src diff); owner restart pending from band 202 — **✅** |
+| **PH-S2678** | Band close | `--band 203` + fingerprint; one commit + push — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.
