@@ -7,11 +7,15 @@
 
 use serde_json::Value;
 
-/// HTML-escape a string (`&`, `<`, `>`), matching the JS `esc` helper.
+/// HTML-escape a string (`&`, `<`, `>`, quotes), matching the JS `esc` helper
+/// for text plus quote entities so escaped values are safe inside the
+/// single-quoted attributes every renderer emits.
 pub fn esc(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
+        .replace('\'', "&#39;")
+        .replace('"', "&quot;")
 }
 
 /// Table markup, matching the JS `tab` helper (headers raw, cells pre-built).
@@ -2936,11 +2940,32 @@ mod tests {
     use super::*;
 
     #[test]
-    fn esc_matches_js_helper() {
+    fn esc_matches_js_helper_and_escapes_quotes() {
         assert_eq!(esc("<a & b>"), "&lt;a &amp; b&gt;");
         assert_eq!(esc("plain"), "plain");
         assert_eq!(esc(""), "");
-        assert_eq!(esc("\"q\""), "\"q\"");
+        assert_eq!(esc("\"q\""), "&quot;q&quot;");
+        assert_eq!(esc("it's"), "it&#39;s");
+    }
+
+    #[test]
+    fn esc_neutralizes_single_quote_attribute_breakout() {
+        let hostile = "x' onmouseover='alert(1)";
+        let rss = render_rss_ticker(&serde_json::json!({
+            "ok": true,
+            "items": [{ "id": "PH-S2659", "title": hostile, "status": "open" }]
+        }));
+        let title_attr_start = rss.find("title='").expect("title attr");
+        let attr_end = rss[title_attr_start + 7..]
+            .find('\'')
+            .map(|i| title_attr_start + 7 + i);
+        let end = attr_end.expect("attribute must stay closed");
+        let inner = &rss[title_attr_start + 7..end];
+        assert!(inner.contains("&#39;"), "{rss}");
+        assert!(
+            inner.contains("onmouseover=&#39;"),
+            "payload quote must be entity-encoded, not raw: {rss}"
+        );
     }
 
     #[test]

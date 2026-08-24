@@ -106,10 +106,20 @@ mod tests {
     }
 
     #[test]
-    fn git_head_falls_back_to_none() {
+    fn git_head_short_hash_in_repo_and_none_or_short_outside() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let head = git_head(root).expect("git head inside this repo");
+        assert!(!head.is_empty(), "short hash must be non-empty");
+        assert!(head.len() <= 40, "hash {head} longer than full sha");
+        assert!(
+            head.bytes().all(|b| b.is_ascii_hexdigit()),
+            "hash {head} must be hex"
+        );
         let tmp = std::env::temp_dir();
-        // temp dir is not a git repo → run fails → None
-        assert!(git_head(&tmp).is_none() || git_head(&tmp).is_some());
+        if let Some(outside) = git_head(&tmp) {
+            assert!(!outside.is_empty());
+            assert!(outside.len() <= 40);
+        }
     }
 
     #[test]

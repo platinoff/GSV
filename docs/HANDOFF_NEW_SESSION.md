@@ -1,12 +1,12 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-08-24 (band **201** · next = **owner pick**)
+**Оновлено:** 2026-08-24 (band **202** · next = **owner pick**)
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
 **`абракадабра` / `abrakadabra`** → `cargo xtask products` → **AskQuestion на проєкти з environment**
 (не `gsv | poolai` з голови) → S0 диск/git → project scan (warnings first) →
-якщо **gsv:** settings/Telegram/tickets spec bands **166–201 ✅**
-+ **band 201** logic-audit fixes V (products parse_cargo_name plain-key guard · usage SSE tail flush)
+якщо **gsv:** settings/Telegram/tickets spec bands **166–202 ✅**
++ **band 202** logic-audit fixes VI (ui esc attribute-quote hardening · vision git_head test contract)
 **Next = owner pick** after a warnings-first scan. Speeds + Rust panel →
 vision-sync → **один commit** → **`git push` + самарі**.
 
@@ -23,7 +23,7 @@ vision queue lockstep + bump auto-advance **163 ✅**;
 Cursor 3.16.29 kit lockstep **164 ✅**;
 watchdog live copy + lockstep observability **165 ✅**;
 **band 166 ✅** settings / Godfather — [`gsv/GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md);
-**band 175 ✅** MDS scenario band + solo walk + Telegram sync. **band 176 ✅** visible MCP session walk (solo / squad / bench on Godfather). **band 177 ✅** roadmap/plan hook-up. **band 178 ✅** scenario benchmark. **band 179 ✅** Godfather inbound poller. **band 180 ✅** watchdog process lockstep. **band 181 ✅** Galaxy glue + S0 disk on health. **band 182 ✅** MCP-readable Godfather envelopes + Galaxy MCP signal. **band 183 ✅** squad next-action + MCP catalog lockstep. **band 184 ✅** MCP session catalog lockstep. **band 185 ✅** Cursor catalog restart lockstep. **band 186 ✅** solo/squad/jail. **band 187** live Godfather member_count. **band 188** README SMIL + docs tidy. **band 189** Settings Galaxy polish. **band 190** Galaxy About + type/fullscreen chrome. **band 191** channel roles + GitHub origin. **band 192** ranks + no CMD flash. **band 193** federated `kind:presence`. **band 194** federated `kind:claim`. **band 195** federated `kind:done`. **band 196** federated `kind:reclaim`. **band 197** logic-audit fixes. **band 198** logic-audit fixes II. **band 199** logic-audit fixes III. **band 200** logic-audit fixes IV. **band 201** logic-audit fixes V. **Next = owner pick**. MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
+**band 175 ✅** MDS scenario band + solo walk + Telegram sync. **band 176 ✅** visible MCP session walk (solo / squad / bench on Godfather). **band 177 ✅** roadmap/plan hook-up. **band 178 ✅** scenario benchmark. **band 179 ✅** Godfather inbound poller. **band 180 ✅** watchdog process lockstep. **band 181 ✅** Galaxy glue + S0 disk on health. **band 182 ✅** MCP-readable Godfather envelopes + Galaxy MCP signal. **band 183 ✅** squad next-action + MCP catalog lockstep. **band 184 ✅** MCP session catalog lockstep. **band 185 ✅** Cursor catalog restart lockstep. **band 186 ✅** solo/squad/jail. **band 187** live Godfather member_count. **band 188** README SMIL + docs tidy. **band 189** Settings Galaxy polish. **band 190** Galaxy About + type/fullscreen chrome. **band 191** channel roles + GitHub origin. **band 192** ranks + no CMD flash. **band 193** federated `kind:presence`. **band 194** federated `kind:claim`. **band 195** federated `kind:done`. **band 196** federated `kind:reclaim`. **band 197** logic-audit fixes. **band 198** logic-audit fixes II. **band 199** logic-audit fixes III. **band 200** logic-audit fixes IV. **band 201** logic-audit fixes V. **band 202** logic-audit fixes VI. **Next = owner pick**. MCP canon: [`gsv/GSV_MCP_OPENBOT.md`](gsv/GSV_MCP_OPENBOT.md).
 Jail/squad join: [`gsv/GSV_SOLO_SQUAD_JAIL.md`](gsv/GSV_SOLO_SQUAD_JAIL.md).
 Omni catalog: [`gsv/GSV_OMNI_CATALOG.md`](gsv/GSV_OMNI_CATALOG.md).
 Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
@@ -31,7 +31,8 @@ Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 
 ## Стан зараз
 
-- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–201.
+- **GSV** — окремий Rust-first проєкт (`S:\rust\GSV`), bands 102 · 108–121 · 125–202.
+- **Band 202:** Logic-audit fixes VI — last unaudited surfaces (`mcp.rs` full dispatch, `ui.rs` renderers, `app_error.rs`, `lib.rs`, `vision.rs`, all eleven `src/bin/*`). Two confirmed bugs: (1) `ui::esc` never escaped quotes while every renderer interpolates it into single-quoted HTML attributes → any wire string with `'` (ticket/feed titles) broke out of the attribute; `&#39;` / `&quot;` folded into `esc()` — guide's `esc_attr` output unchanged; (2) `vision.rs` test asserted `is_none() || is_some()` (vacuous); rewritten as a short-hash contract. Cosmetic notes only elsewhere: `gsv_server --port abc` falls back silently to DEFAULT_PORT; `cargo xtask vault-note --title help` prints help; `gsv_update` reads a `check` arg absent from its declared schema. Regressions: `esc_neutralizes_single_quote_attribute_breakout`, `git_head_short_hash_in_repo_and_none_or_short_outside`.
 - **Band 201:** Logic-audit fixes V — `products::parse_cargo_name` matched prefixed keys (`name.workspace = true`, `namespace`) as crate names → garbage scan rows; now only plain `name = "…"` keys count (same guard class as fingerprint PH-S2633); `usage::SseUsageTap` never parsed the final usage line when the upstream stream ends without a trailing newline → silent token undercount; new pub fn `flush()` parses the buffered tail and is called at stream end in `omni/proxy.rs` `UsageTapStream`. Regressions: `parse_cargo_name_ignores_prefixed_and_workspace_keys`, `sse_tap_flush_parses_final_line_without_newline`. Twelve other ops-box files audited clean.
 - **Band 200:** Logic-audit fixes IV — `ranks::TG_OVERRIDE` process-global → thread-local request scope (concurrent rank calls could attribute each other's Telegram ids); `tickets.rs` board mutators (create/set_status/stamp_claimed_jail/reclaim_stale/renew_leases/reclaim_remote) now serialize on a reentrancy-aware `BOARD_LOCK` — read-modify-write races could previously lose a whole update; reclaim federation posts moved outside the lock. Regressions: cross-thread TG leak, concurrent creates, nested-call no-deadlock. `update.rs` / `settings.rs` / `telegram.rs` audited clean.
 - **Band 199:** Logic-audit fixes III — `omni::OmniRouter::persist` / `persist_quota` skip on lock contention (used to write a `Default` over tuned `omni.toml` / cooldown store); `fingerprint::read_tail_text` drops a partial UTF-8 prefix at the 64 KiB seek boundary (model discovery silently went `unknown`); `fingerprint::pkg_version` only matches plain `version = "…"` keys (`version.workspace` garbage), bump tightened to match. Regressions in omni unit + fingerprint contracts.
@@ -103,7 +104,7 @@ Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 - **Band 134:** HTTP response hardening — CSP / nosniff / DENY / no-store / COOP+CORP; POST 256 KiB cap → 413 `{ok:false}`.
 - **VDT kit (band 127):** shared `.agents/skills/` + generic `.cursor/rules/` + `gsv.code-workspace` + `PRODUCTS.md`.
   Discover: `cargo xtask products` (не hardcoded `gsv | poolai`).
-- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.43%** (rust 41440 / product 41677) · **697** tests · clippy 0 · fmt clean.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.43%** (rust 41474 / product 41711) · **698** tests · clippy 0 · fmt clean.
 - **Сервер:** canon порт **9999** (`DEFAULT_PORT`; 8765 — Hyper-V reserved range).
 - **Vision rev:** **516** (band 187 `cargo xtask sync`; last `PH-S2518` · next `PH-S2519`).
 - **Live UI** — `gsv-server` → `http://127.0.0.1:9999/`. MCP stdio — `target/live/gsv-mcp.exe` (`cargo xtask live`).

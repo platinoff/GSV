@@ -1658,6 +1658,23 @@ Owner pick: finish the audit series over the ops boxes no band had opened — gu
 | **PH-S2657** | Live | recopy live server + MCP — **✅** |
 | **PH-S2658** | Band close | `--band 201` + fingerprint; one commit + push — **✅** |
 
+## Спринти (band 202) — logic-audit VI
+
+Owner pick: finish the audit series over the last unaudited surfaces — `src/mcp.rs` full dispatch, `src/boxes/ui.rs` renderers, `src/app_error.rs`, `src/lib.rs`, `src/vision.rs`, and every thin `src/bin/*`. Two confirmed defects; each fixed with a regression test.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2659** | Scope | owner pick: search logical mistakes across mcp dispatch · ui renderers · vision · app_error · lib · all bins — **✅** |
+| **PH-S2660** | Audit | mcp.rs (2899), ui.rs (3571), vision.rs, app_error.rs, lib.rs and all eleven `src/bin/*` traced; two confirmed bugs, rest clean (cosmetic notes only) — **✅** |
+| **PH-S2661** | Fix ui/esc | `esc()` never escaped quotes while every renderer interpolates it into single-quoted HTML attributes → any wire string with `'` broke out of the attribute; folded `&#39;` / `&quot;` into `esc()` (guide's `esc_attr` output unchanged) — **✅** |
+| **PH-S2662** | Fix vision | vacuous test asserted `is_none() \|\| is_some()` (can never fail); rewritten as meaningful short-hash contract: in-repo Some non-empty hex ≤40 chars, outside None-or-valid — **✅** |
+| **PH-S2663** | Tests | regressions `esc_neutralizes_single_quote_attribute_breakout` + `git_head_short_hash_in_repo_and_none_or_short_outside`; fmt · clippy · cargo test green (**698**) — **✅** |
+| **PH-S2664** | Docs | HANDOFF / NEXT / MEMORY — **✅** |
+| **PH-S2665** | Speeds | record-speed + record-rust + sync `--check` green — **✅** |
+| **PH-S2666** | Ratio | `gsv-loc-audit --stretch-96` ≥ 96% hold (**99.43%**, rust 41474 / product 41711) — **✅** |
+| **PH-S2667** | Live | recopy live server + MCP — **✅** |
+| **PH-S2668** | Band close | `--band 202` + fingerprint; one commit + push — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.
