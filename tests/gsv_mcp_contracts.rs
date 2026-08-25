@@ -12,6 +12,8 @@
 //! Band 141: HTTP SSE (`Accept: text/event-stream`) flushes the notification queue.
 //! Band 142: HTTP `Mcp-Session-Id` + `DELETE /mcp`.
 //! Band 185: `catalog_stale` / `catalog_hint` (restart Cursor when listed is 0).
+//! Band 207: re-initialize reuses a live session; notifications-only POST →
+//! 202 Accepted; initialize batch marks listed on the issued session id.
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -464,7 +466,7 @@ async fn ping_and_parse_error() {
 }
 
 #[tokio::test]
-async fn notification_returns_no_content() {
+async fn notification_only_post_returns_accepted() {
     let app = app();
     let res = app
         .oneshot(
@@ -479,7 +481,32 @@ async fn notification_returns_no_content() {
         )
         .await
         .expect("response");
-    assert_eq!(res.status(), StatusCode::NO_CONTENT);
+    // MCP Streamable HTTP: notifications-only input → 202 Accepted (band 207).
+    assert_eq!(res.status(), StatusCode::ACCEPTED);
+}
+
+#[tokio::test]
+async fn notification_only_batch_returns_accepted() {
+    let app = app();
+    let res = app
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::POST)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!([
+                        {"jsonrpc":"2.0","method":"notifications/initialized"},
+                        {"jsonrpc":"2.0","method":"notifications/cancelled",
+                         "params":{"requestId":1}}
+                    ])
+                    .to_string(),
+                ))
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(res.status(), StatusCode::ACCEPTED);
 }
 
 #[tokio::test]
@@ -1051,6 +1078,98 @@ async fn initialize_issues_mcp_session_id() {
         .await
         .expect("response");
     assert_eq!(ping.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn reinitialize_reuses_live_session() {
+    let (app, state) = app_with_state();
+    let init_body = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": PROTOCOL_VERSION,
+            "capabilities": {},
+            "clientInfo": { "name": "gsv-test", "version": "0" }
+        }
+    })
+    .to_string();
+    let first = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::POST)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(init_body.clone()))
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    let sid = session_header(&first).expect("Mcp-Session-Id");
+
+    // Re-initialize carrying the live id must reuse it, not mint a second one.
+    let again = app
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::POST)
+                .header(header::CONTENT_TYPE, "application/json")
+                .header("mcp-session-id", &sid)
+                .body(Body::from(init_body))
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(again.status(), StatusCode::OK);
+    let reused = session_header(&again).expect("Mcp-Session-Id on re-init");
+    assert_eq!(reused, sid, "re-initialize must keep the live session id");
+    assert_eq!(state.mcp_session_count(), 1, "no duplicate sessions");
+}
+
+#[tokio::test]
+async fn initialize_batch_marks_listed_on_issued_session() {
+    let (app, state) = app_with_state();
+    let res = app
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::POST)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!([
+                        {
+                            "jsonrpc": "2.0",
+                            "id": 1,
+                            "method": "initialize",
+                            "params": {
+                                "protocolVersion": PROTOCOL_VERSION,
+                                "capabilities": {},
+                                "clientInfo": { "name": "gsv-test", "version": "0" }
+                            }
+                        },
+                        { "jsonrpc": "2.0", "id": 2, "method": "tools/list" }
+                    ])
+                    .to_string(),
+                ))
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(res.status(), StatusCode::OK);
+    let sid = session_header(&res).expect("Mcp-Session-Id on batch initialize");
+    assert!(mcp::valid_mcp_session_id(&sid), "issued id shape {sid}");
+    assert_eq!(state.mcp_session_count(), 1);
+    assert_eq!(
+        state.mcp_session_listed_count(),
+        1,
+        "tools/list in the same batch must mark the issued session"
+    );
+    assert_eq!(
+        state.mcp_listed_tool_count(),
+        mcp::tool_names().len() as u32
+    );
+    assert!(!mcp::catalog_stale(&state));
 }
 
 #[tokio::test]

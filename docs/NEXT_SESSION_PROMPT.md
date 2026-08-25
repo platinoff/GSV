@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-24 (**band 206 · next gsv drain = owner pick**)
+**Оновлено:** 2026-08-24 (**band 207 · next gsv drain = owner pick**)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -265,8 +265,10 @@ Close: `cargo xtask bump --band N` (semver **and** vision queue **close of N**: 
   **band 193** (PH-S2569…S2578) ✅ — federated `kind:presence` (remote jails on host board).
   **band 194** (PH-S2579…S2588) ✅ — federated `kind:claim` (remote jail claims host-board ticket).
   **band 195** (PH-S2589…S2598) ✅ — federated `kind:done` (finisher closes the claimed host-board row; ranks process-local).
-  **band 196** (PH-S2599…S2608) ✅ — federated `kind:reclaim` (lease sweep / explicit release posts the reclaim; peer boards back to `open`; ranks process-local — lifecycle presence → claim → done → reclaim complete).
-  **Наступний drain:** owner pick after a warnings-first scan.
+   **band 196** (PH-S2599…S2608) ✅ — federated `kind:reclaim` (lease sweep / explicit release posts the reclaim; peer boards back to `open`; ranks process-local — lifecycle presence → claim → done → reclaim complete).
+   **band 201–206** ✅ — logic-audit V–X sweeps (src / bins+ui / tests / cosmetic notes / non-Rust surfaces).
+   **band 207** (PH-S2709…S2718) ✅ — logic-audit XI MCP protocol surface: re-initialize session reuse, batch initialize marks issued id, notifications-only POST → 202 Accepted, tracker single-snapshot payload, honest completion paging (+4 contracts, 712 tests).
+   **Наступний drain:** owner pick after a warnings-first scan.
 
 ## Канон GSV
 
@@ -361,6 +363,7 @@ band 203 ✅ (logic-audit VII tests sweep — vacuous-assertion hunt over all te
 band 204 ✅ (logic-audit VIII — src sweep complete; SseUsageTap byte-boundary chunk-drop fix) ·
 band 205 ✅ (logic-audit IX — cosmetic-notes close: quota lanes union · config atomic apply · github prerelease semver · preview backslash-run scanner · watchdog TR quoting; +7 regressions) ·
 band 206 ✅ (logic-audit X — non-Rust surfaces sweep: ui/index.html glue + benches/gsv_dev.rs; offline-badge truth · hook guard · bench honesty; +2 contracts) ·
+band 207 ✅ (logic-audit XI — MCP protocol surface: re-initialize session reuse · batch initialize marks issued id · notifications-only POST → 202 · tracker single-snapshot · completion honest paging; +4 contracts) ·
 наступний drain = **owner pick** ·
 не комітити `data/gsv_settings.json` / bot token ·
 не комітити kit-only в PoolAI як «замість» GSV drain ·

@@ -688,12 +688,21 @@ async fn api_mcp_post(State(state): State<AppState>, headers: HeaderMap, body: B
     }
     match serde_json::from_slice::<Value>(&body) {
         Ok(v) => {
+            // Logic-audit XI: re-initialize with a live header session reuses
+            // that id instead of minting a duplicate (the old id used to stay
+            // live until cap eviction, and a same-batch tools/list marked the
+            // old id while the client was handed the new one). The unknown-id
+            // gate above already validated any header id present here.
             let issued = if crate::mcp::jsonrpc_mentions_initialize(&v) {
-                Some(state.mcp_issue_session())
+                Some(match crate::mcp::mcp_session_id_from_headers(&headers) {
+                    Some(id) => id,
+                    None => state.mcp_issue_session(),
+                })
             } else {
                 None
             };
-            let session = crate::mcp::mcp_session_id_from_headers(&headers);
+            let header_session = crate::mcp::mcp_session_id_from_headers(&headers);
+            let session = issued.clone().or(header_session);
             match crate::mcp::handle_value_in(&state, v, session.as_deref()).await {
                 Some(out) => {
                     if sse {
@@ -714,14 +723,16 @@ async fn api_mcp_post(State(state): State<AppState>, headers: HeaderMap, body: B
                     if sse {
                         let notes = state.drain_mcp_notifications();
                         let mut res = if notes.is_empty() {
-                            StatusCode::NO_CONTENT.into_response()
+                            StatusCode::ACCEPTED.into_response()
                         } else {
                             mcp_sse_reply(notes, None)
                         };
                         attach_mcp_session(&mut res, issued.as_deref());
                         res
                     } else {
-                        let mut res = StatusCode::NO_CONTENT.into_response();
+                        // MCP Streamable HTTP: input that is only
+                        // notifications/responses gets 202 Accepted (no body).
+                        let mut res = StatusCode::ACCEPTED.into_response();
                         attach_mcp_session(&mut res, issued.as_deref());
                         res
                     }

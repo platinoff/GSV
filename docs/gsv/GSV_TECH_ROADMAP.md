@@ -1726,6 +1726,23 @@ Owner pick: extend the audit series past src/bins (201–202, 204) and tests (20
 | **PH-S2707** | Live | recopy live server + MCP — **✅** |
 | **PH-S2708** | Band close | `--band 206` + fingerprint; one commit + push — **✅** |
 
+## Спринти (band 207) — logic-audit XI (MCP protocol surface)
+
+Owner pick: extend the audit series to a surface only inventoried before (band 203 assert-line counts, band 204 src sweep read it once): the MCP protocol layer end-to-end — dispatch (`src/mcp.rs`), HTTP handlers (`src/server/mod.rs` `/mcp`), stdio bin (`src/bin/gsv_mcp.rs`). Five confirmed fixes, each with a regression where observable.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2709** | Scope | logic-audit XI — MCP protocol surface sweep (`mcp.rs` dispatch/sessions/SSE · `/mcp` handlers · stdio loop); TOOL_NAMES ↔ `call_tool` arms parity re-checked mechanically (56↔56, no drift) — **✅** |
+| **PH-S2710** | re-initialize | `POST /mcp` initialize carrying a live `Mcp-Session-Id` minted a duplicate session and handed back the new id while the old one stayed live until cap eviction — now reuses the validated header id; regression `reinitialize_reuses_live_session` (same sid back, `session_count` stays 1) — **✅** |
+| **PH-S2711** | batch session | an `[initialize, tools/list]` batch marked listed-tools on the header session (`None` for fresh clients), so the issued id never got its `listed_tools` and per-session catalog observability lied — `handle_value_in` now receives the effective (issued/reused) id; regression `initialize_batch_marks_listed_on_issued_session` — **✅** |
+| **PH-S2712** | spec 202 | notifications-only JSON POST answered 204 No Content; MCP Streamable HTTP requires 202 Accepted with no body — both the JSON and empty-SSE-notes branches return 202 now; regressions `notification_only_post_returns_accepted` + `notification_only_batch_returns_accepted` — **✅** |
+| **PH-S2713** | tracker snapshot | `tracker_payload` took two separate `try_read` acquisitions (sprints then records) — a tracker push between them mixed generations in one response; single lock acquisition feeds both fields — **✅** |
+| **PH-S2714** | completion honesty | `completion/complete` truncated matches at `COMPLETION_MAX` then reported `total = page length`, `hasMore: false` — extracted `complete_page(pool, prefix, max)` returning honest `(values, total, has_more)`; regression `complete_page_truncates_honestly` (3-match pool, cap 2 → `hasMore: true`) — **✅** |
+| **PH-S2715** | Gate | fmt · clippy (**0**) · cargo test green (**712**, +4 regressions) · ratio stretch-96 **99.44%** (rust 41822 / product 42059) — **✅** |
+| **PH-S2716** | Docs | HANDOFF / NEXT / MEMORY record the sweep; roadmap band 207 table — **✅** |
+| **PH-S2717** | Speeds | record-speed + record-rust + sync `--check` green — **✅** |
+| **PH-S2718** | Band close | live recopy · `--band 207` + fingerprint; one commit + push — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

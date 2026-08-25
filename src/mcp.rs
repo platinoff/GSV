@@ -15,6 +15,11 @@
 //! Band 185: `catalog_stale` when a session exists but `tools/list` never ran
 //! (or listed ≠ `tool_count`); Galaxy warns to restart Cursor — agent refresh
 //! only resubscribes resources.
+//! Band 207: logic-audit XI (MCP protocol surface) — re-initialize with a live
+//! `Mcp-Session-Id` reuses that session (no duplicate mint); notifications-only
+//! JSON POST → 202 Accepted; initialize batches mark listed on the issued id;
+//! tracker payload takes one consistent lock snapshot; completion/complete
+//! reports honest total/hasMore beyond the page cap.
 
 use std::sync::atomic::Ordering;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -1206,6 +1211,20 @@ fn completion_prefix_rejected(value: &str) -> bool {
     value.contains("..") || value.contains('\\') || value.contains("file:")
 }
 
+/// Prefix-filter `pool`, cap the page at `max`, and report honest paging:
+/// `(page_values, total_matches, has_more)`.
+fn complete_page<'a>(pool: &[&'a str], prefix: &str, max: usize) -> (Vec<&'a str>, usize, bool) {
+    let matched: Vec<&str> = pool
+        .iter()
+        .copied()
+        .filter(|item| item.starts_with(prefix))
+        .collect();
+    let total = matched.len();
+    let values: Vec<&str> = matched.into_iter().take(max).collect();
+    let has_more = total > values.len();
+    (values, total, has_more)
+}
+
 fn completion_complete(params: &Value) -> Result<Value, String> {
     let ref_obj = params
         .get("ref")
@@ -1219,33 +1238,22 @@ fn completion_complete(params: &Value) -> Result<Value, String> {
     if completion_prefix_rejected(value) {
         return Err("invalid completion prefix".into());
     }
-    let values: Vec<&str> = match ref_type {
+    let (values, total, has_more) = match ref_type {
         "ref/resource" => {
             let uri_hint = ref_obj.get("uri").and_then(Value::as_str).unwrap_or("");
             if !uri_hint.is_empty() && completion_prefix_rejected(uri_hint) {
                 return Err("invalid completion prefix".into());
             }
-            RESOURCE_URIS
-                .iter()
-                .copied()
-                .filter(|uri| uri.starts_with(value))
-                .take(COMPLETION_MAX)
-                .collect()
+            complete_page(RESOURCE_URIS, value, COMPLETION_MAX)
         }
-        "ref/prompt" => PROMPT_NAMES
-            .iter()
-            .copied()
-            .filter(|name| name.starts_with(value))
-            .take(COMPLETION_MAX)
-            .collect(),
+        "ref/prompt" => complete_page(PROMPT_NAMES, value, COMPLETION_MAX),
         _ => return Err("unknown completion ref".into()),
     };
-    let total = values.len();
     Ok(json!({
         "completion": {
             "values": values,
             "total": total,
-            "hasMore": false
+            "hasMore": has_more
         }
     }))
 }
@@ -1654,9 +1662,17 @@ fn health_payload(state: &AppState) -> Value {
 }
 
 fn tracker_payload(state: &AppState) -> Value {
+    // One lock acquisition: sprints and records must come from the same
+    // snapshot (a push between two try_read calls used to mix generations).
+    let snap = state.tracker.try_read().ok();
+    let sprints = snap.as_ref().map(|t| t.sprints().clone());
+    let records = snap
+        .as_ref()
+        .map(|t| t.records().to_vec())
+        .unwrap_or_default();
     json!({
-        "sprints": state.tracker.try_read().map(|t| t.sprints().clone()).ok(),
-        "records": state.tracker.try_read().map(|t| t.records().to_vec()).unwrap_or_default(),
+        "sprints": sprints,
+        "records": records,
         "generated_at": crate::vision::rfc3339_now(),
     })
 }
@@ -2569,6 +2585,20 @@ mod tests {
         )
         .await;
         assert_eq!(unknown["error"]["code"], -32602);
+    }
+
+    #[test]
+    fn complete_page_truncates_honestly() {
+        let pool = ["gsv_a1", "gsv_a2", "gsv_b1"];
+        let (values, total, has_more) = complete_page(&pool, "gsv_a", 2);
+        assert_eq!(values, vec!["gsv_a1", "gsv_a2"]);
+        assert_eq!(total, 2);
+        assert!(!has_more);
+        let (values, total, has_more) = complete_page(&pool, "gsv_", 2);
+        assert_eq!(values.len(), 2);
+        assert_eq!(total, 3);
+        assert!(has_more);
+        assert_eq!(complete_page(&pool, "zzz", 5).0, Vec::<&str>::new());
     }
 
     #[tokio::test]
