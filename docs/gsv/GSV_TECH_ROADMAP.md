@@ -1709,6 +1709,23 @@ Owner pick: fix every leftover cosmetic note recorded across bands 197–204 ins
 | **PH-S2697** | Speeds | record-speed + record-rust + sync `--check` green — **✅** |
 | **PH-S2698** | Band close | `--band 205` + fingerprint; one commit + push — **✅** |
 
+## Спринти (band 206) — logic-audit X (non-Rust surfaces sweep)
+
+Owner pick: extend the audit series past src/bins (201–202, 204) and tests (203) to the two surfaces no sweep had read end-to-end: the Galaxy JS glue (`ui/index.html`) and the bench harness (`benches/gsv_dev.rs`). Three confirmed fixes with observable-before/after behavior, three polish notes closed alongside.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2699** | Scope | logic-audit X — non-Rust surfaces sweep: `ui/index.html` glue + `benches/gsv_dev.rs` harness — **✅** |
+| **PH-S2700** | offline truth | `resync` counted only rejected promises while every awaited wrapper swallows internally → `failed` always 0 and each silent resync flipped the badge back «online» even with the server down (contradicts offline-stable band 125 / live-swap band 144); `refreshMeta`/`getText` now resolve `true` on success / `false` on failure, `failed` counts both shapes, 30s health timer drops its dead rejection path; contract `ui_index_resync_offline_follows_results` — **✅** |
+| **PH-S2701** | hook guard | a bare hook click (no scenario id, no source, empty phrase) silently POSTed `{source:"band",id:"177"}` and spawned duplicate tickets of a closed band; now guides («hook needs a scenario id, band id, plan stem, or phrase») without posting; contract `ui_index_hook_requires_input` — **✅** |
+| **PH-S2702** | bench honesty | `"disk_report"` arm was unreachable (absent from the run list) and `_ => {}` let any future typo benchmark an empty loop and print fake numbers; arm wired into the run list (`disk_report` ×16 measured), unknown name now `unreachable!`; output label `median-ish` renamed to `mean` (total/n is a mean, no consumers grepped) — **✅** |
+| **PH-S2703** | chrome polish | `cycleGpuMode` rebuilt body className via regex replace (double-space churn, ordering-dependent); exact `classList.remove/add`; Auto toggle's dead `.off` class now styled `.badge.off{opacity:.55}` so Manual state is visible — **✅** |
+| **PH-S2704** | Gate | fmt · clippy (**0**) · cargo test green (**708**, +2 ui contracts) · bench runs clean incl. measured `disk_report` · ratio stretch-96 **99.43%** (rust 41668 / product 41905) — **✅** |
+| **PH-S2705** | Docs | HANDOFF / NEXT / MEMORY record the sweep; roadmap band 206 table — **✅** |
+| **PH-S2706** | Speeds | record-speed + record-rust + sync `--check` green — **✅** |
+| **PH-S2707** | Live | recopy live server + MCP — **✅** |
+| **PH-S2708** | Band close | `--band 206` + fingerprint; one commit + push — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

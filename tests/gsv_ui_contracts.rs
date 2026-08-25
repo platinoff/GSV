@@ -439,6 +439,50 @@ async fn ui_index_cards_are_offline_stable() {
     );
 }
 
+/// Logic-audit X (band 206): the offline badge follows real outcomes —
+/// `refreshMeta`/`getText` resolve `true` on success and `false` on failure,
+/// and `resync` counts explicit `false` results, not just rejected promises.
+/// Before the fix every wrapper swallowed errors, so `failed` was always 0
+/// and each silent resync forced the badge back to «online».
+#[tokio::test]
+async fn ui_index_resync_offline_follows_results() {
+    let (app, _state) = app();
+    let html = get_index_html(&app).await;
+    assert!(
+        html.contains("r.status===\"rejected\"||r.value===false"),
+        "failed counts false results, not just rejections"
+    );
+    assert!(
+        html.contains("setOffline(true);return false;}}"),
+        "health probe reports failure instead of swallowing"
+    );
+    assert!(
+        html.contains("markStatus(e.message||\"offline\");return false;}}"),
+        "card load reports failure instead of swallowing"
+    );
+    assert!(
+        !html.contains(".catch(()=>setOffline(true)),30000"),
+        "30s health timer has no dead rejection path"
+    );
+}
+
+/// Logic-audit X (band 206): a hook click with no scenario id, no source and
+/// an empty phrase guides the owner instead of silently placing band-177
+/// tickets (the old blind `{source:"band",id:"177"}` fallback).
+#[tokio::test]
+async fn ui_index_hook_requires_input() {
+    let (app, _state) = app();
+    let html = get_index_html(&app).await;
+    assert!(
+        !html.contains("{source:\"band\",id:\"177\",from:\"solo\"}"),
+        "no blind closed-band fallback in hookTickets"
+    );
+    assert!(
+        html.contains("hook needs a scenario id, band id, plan stem, or phrase"),
+        "guidance toast on empty hook click"
+    );
+}
+
 /// Band 143: power menu must stack above workspace cards (P1).
 #[tokio::test]
 async fn ui_index_power_menu_stacks_above_workspace() {

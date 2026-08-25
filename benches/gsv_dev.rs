@@ -106,6 +106,7 @@ fn main() {
         ("scenario_band_create", 16usize),
         ("solo_walk_mds", 8usize),
         ("mds_report", 8usize),
+        ("disk_report", 16usize),
         ("telegram_enqueue_sync", 1_000usize),
         ("hook_parse_phrase", 10_000usize),
         ("hook_roadmap_band", 16usize),
@@ -199,10 +200,10 @@ fn main() {
                 "disk_report" => {
                     let _ = xtask::disk_report(&root, false);
                 }
-                _ => {}
+                _ => unreachable!("gsv_dev: no bench case named {name}"),
             }
         }
         let ns = start.elapsed().as_nanos() / n as u128;
-        println!("gsv_dev {name}: median-ish {ns} ns/iter ({n} runs)");
+        println!("gsv_dev {name}: mean {ns} ns/iter ({n} runs)");
     }
 }

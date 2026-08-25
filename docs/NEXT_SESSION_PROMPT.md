@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-24 (**band 205 · next gsv drain = owner pick**)
+**Оновлено:** 2026-08-24 (**band 206 · next gsv drain = owner pick**)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -360,6 +360,7 @@ band 202 ✅ (logic-audit fixes VI — ui esc attribute-quote hardening + vision
 band 203 ✅ (logic-audit VII tests sweep — vacuous-assertion hunt over all tests/*.rs, verdict clean, docs-only close) ·
 band 204 ✅ (logic-audit VIII — src sweep complete; SseUsageTap byte-boundary chunk-drop fix) ·
 band 205 ✅ (logic-audit IX — cosmetic-notes close: quota lanes union · config atomic apply · github prerelease semver · preview backslash-run scanner · watchdog TR quoting; +7 regressions) ·
+band 206 ✅ (logic-audit X — non-Rust surfaces sweep: ui/index.html glue + benches/gsv_dev.rs; offline-badge truth · hook guard · bench honesty; +2 contracts) ·
 наступний drain = **owner pick** ·
 не комітити `data/gsv_settings.json` / bot token ·
 не комітити kit-only в PoolAI як «замість» GSV drain ·
