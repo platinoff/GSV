@@ -211,9 +211,12 @@ pub fn ensure_stream_include_usage(body: &mut Value) {
 }
 
 /// Incremental SSE tap: last non-zero `usage` on complete `data:` lines.
+///
+/// Buffers raw bytes and decodes per complete line: a chunk that begins
+/// mid-UTF-8 must not drop the `data:` lines it carries (band 204).
 #[derive(Debug, Default, Clone)]
 pub struct SseUsageTap {
-    buf: String,
+    buf: Vec<u8>,
     last: Option<TokenCounts>,
 }
 
@@ -223,13 +226,10 @@ impl SseUsageTap {
     }
 
     pub fn push(&mut self, chunk: &[u8]) {
-        let Ok(s) = std::str::from_utf8(chunk) else {
-            return;
-        };
-        self.buf.push_str(s);
-        while let Some(i) = self.buf.find('\n') {
-            let line: String = self.buf.drain(..=i).collect();
-            if let Some(c) = parse_sse_line(&line) {
+        self.buf.extend_from_slice(chunk);
+        while let Some(i) = self.buf.iter().position(|&b| b == b'\n') {
+            let line: Vec<u8> = self.buf.drain(..=i).collect();
+            if let Some(c) = parse_sse_line(&String::from_utf8_lossy(&line)) {
                 self.last = Some(c);
             }
         }
@@ -238,12 +238,12 @@ impl SseUsageTap {
     /// Parse the buffered tail when the stream ended without a trailing
     /// newline (upstream closed right after the final usage chunk).
     pub fn flush(&mut self) {
-        if self.buf.trim().is_empty() {
+        if self.buf.iter().all(|&b| b.is_ascii_whitespace()) {
             self.buf.clear();
             return;
         }
         let tail = std::mem::take(&mut self.buf);
-        if let Some(c) = parse_sse_line(&tail) {
+        if let Some(c) = parse_sse_line(&String::from_utf8_lossy(&tail)) {
             self.last = Some(c);
         }
     }
@@ -595,6 +595,22 @@ mod tests {
         cut.push(b"data: {\"usage\":{\"prompt_tok");
         cut.flush();
         assert!(cut.last().is_none());
+    }
+
+    #[test]
+    fn sse_tap_keeps_usage_when_chunk_splits_multibyte_char() {
+        let mut tap = SseUsageTap::new();
+        // Chunk A ends mid-'é' (trailing 0xC3 starts a 2-byte char).
+        tap.push(b"data: {\"choices\":[{\"delta\":{\"content\":\"x\xc3\"");
+        assert!(tap.last().is_none(), "no complete line yet");
+        // Chunk B begins with the orphan continuation byte 0xA9 and carries
+        // the final usage chunk in the same segment: it must not be dropped.
+        tap.push(b"\xa9\"}}]}\ndata: {\"usage\":{\"prompt_tokens\":6,\"completion_tokens\":4}}\n");
+        let c = tap
+            .last()
+            .expect("usage must survive a non-UTF8 chunk boundary");
+        assert_eq!(c.prompt_tokens, 6);
+        assert_eq!(c.completion_tokens, 4);
     }
 
     #[test]
