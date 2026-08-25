@@ -374,12 +374,18 @@ pub fn detach_watchdog(repo_root: &Path) -> Result<String, String> {
     ))
 }
 
+/// Persisted task command line. Both paths are double-quoted so repo roots
+/// with spaces survive the `schtasks /TR` / HKCU `Run` command line split.
+fn watchdog_task_tr(win_exe: &str, win_root: &str) -> String {
+    format!("\"{win_exe}\" --repo-root \"{win_root}\"")
+}
+
 /// Persist watchdog across reboot (current user). Prefers the live copy.
 pub fn install_watchdog(repo_root: &Path) -> Result<String, String> {
     let exe = watchdog_spawn_exe(repo_root)?;
     let win_exe = native_path(&exe);
     let win_root = native_path(repo_root);
-    let tr = format!("{win_exe} --repo-root {win_root}");
+    let tr = watchdog_task_tr(&win_exe, &win_root);
     if try_schtasks(&tr) {
         return Ok(format!(
             "gsv-watchdog-install: schtasks GSV-watchdog (ONLOGON)\nTR={tr}"
@@ -802,6 +808,22 @@ fn volume_free_bytes(path: &Path) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn watchdog_task_tr_quotes_paths_with_spaces() {
+        let tr = super::watchdog_task_tr(
+            r"C:\My Dir\target\live\gsv-watchdog.exe",
+            r"S:\Rust Dir\GSV",
+        );
+        assert_eq!(
+            tr,
+            r#""C:\My Dir\target\live\gsv-watchdog.exe" --repo-root "S:\Rust Dir\GSV""#
+        );
+        // A space-free root stays quoted too (harmless, one code path).
+        let plain =
+            super::watchdog_task_tr(r"S:\rust\GSV\target\live\gsv-watchdog.exe", "S:\\rust\\GSV");
+        assert!(plain.starts_with('"') && plain.ends_with('"'), "{plain}");
+    }
 
     #[test]
     fn catalog_lists_products_and_disk() {

@@ -154,19 +154,36 @@ pub fn parse_pkg_version(toml_src: &str) -> Option<String> {
 
 fn parse_triple(ver: &str) -> (u64, u64, u64) {
     let s = ver.trim().trim_start_matches('v');
-    let mut it = s.split('.');
+    // Numeric semver core only: drop any -pre / +build suffix so
+    // "0.205.0-rc.1" parses as (0, 205, 0) instead of failing on "0-rc".
+    let core = s.split(['-', '+']).next().unwrap_or(s);
+    let mut it = core.split('.');
     let a = it.next().and_then(|x| x.parse().ok()).unwrap_or(0);
     let b = it.next().and_then(|x| x.parse().ok()).unwrap_or(0);
     let c = it.next().and_then(|x| x.parse().ok()).unwrap_or(0);
     (a, b, c)
 }
 
-/// True when `remote` is a greater semver than `local`.
+/// True when the version carries a semver pre-release tag (`-rc.1`, `-beta`).
+/// Build metadata (`+meta`) is precedence-neutral and does not count.
+fn is_prerelease(ver: &str) -> bool {
+    let s = ver.trim().trim_start_matches('v');
+    s.contains('-')
+}
+
+/// True when `remote` is a greater semver than `local`. On an identical
+/// numeric triple a plain release outranks its own pre-release
+/// ("0.205.0" > "0.205.0-rc.1"); anything else ties.
 pub fn version_gt(remote: &str, local: &str) -> bool {
     if remote.trim().is_empty() || local.trim().is_empty() {
         return false;
     }
-    parse_triple(remote) > parse_triple(local)
+    let r = parse_triple(remote);
+    let l = parse_triple(local);
+    if r != l {
+        return r > l;
+    }
+    !is_prerelease(remote) && is_prerelease(local)
 }
 
 fn origin_url(repo_root: &Path) -> Option<String> {
@@ -548,6 +565,20 @@ mod tests {
         assert!(!version_gt("0.190.0", "0.190.0"));
         assert!(!version_gt("0.189.0", "0.190.0"));
         assert!(version_gt("1.0.0", "0.190.0"));
+    }
+
+    #[test]
+    fn version_gt_prerelease_ranks_below_release() {
+        // Pre-release suffix parses numerically (old code: "0-rc" → 0).
+        assert!(version_gt("v0.205.0", "0.205.0-rc.1"));
+        assert!(version_gt("0.205.0", "0.205.0-beta"));
+        assert!(!version_gt("0.205.0-rc.1", "0.205.0"));
+        // Same-triple pre-releases never outrank each other by suffix.
+        assert!(!version_gt("0.205.0-rc.2", "0.205.0-rc.1"));
+        // Build metadata is precedence-neutral.
+        assert!(!version_gt("0.205.0", "0.205.0+build.7"));
+        // A newer triple still wins regardless of suffixes.
+        assert!(version_gt("0.206.0-rc.1", "0.205.9"));
     }
 
     #[test]

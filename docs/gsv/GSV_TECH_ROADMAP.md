@@ -1692,6 +1692,23 @@ Owner pick: extend the audit series to the test suite itself — hunt vacuous / 
 | **PH-S2677** | Live | recopy live MCP (server image unchanged — no src diff); owner restart pending from band 202 — **✅** |
 | **PH-S2678** | Band close | `--band 203` + fingerprint; one commit + push — **✅** |
 
+## Спринти (band 205) — logic-audit IX (close the cosmetic notes)
+
+Owner pick: fix every leftover cosmetic note recorded across bands 197–204 instead of letting them rot. Five confirmed fixes, each with a failing-on-old-code regression.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2689** | Scope | logic-audit IX — close all five cosmetic notes from bands 197–204 (`omni/quota` · `omni/config` · `github` · `preview` · `xtask` schtasks) — **✅** |
+| **PH-S2690** | quota lanes | `pick_route` unknown task routed as rust∩web (`want_*` both false); extracted `task_matches` — unknown/empty routes the union like "any"; regressions `task_matches_unknown_task_is_union_not_intersection` + `pick_route_unknown_task_equals_any` — **✅** |
+| **PH-S2691** | config atomicity | `OmniConfig::apply` mutated in place, so a late error (unknown provider / priority overflow) left the live config half-applied while persist was skipped; patch now stages on a clone and swaps on success; regression `apply_patch_error_leaves_config_untouched` — **✅** |
+| **PH-S2692** | github prerelease | `parse_triple("0.205.0-rc.1")` parsed "0-rc" as 0 silently; numeric core now strips `-pre/+build`; equal triples tie-break release > prerelease (`version_gt`); regression `version_gt_prerelease_ranks_below_release` — **✅** |
+| **PH-S2693** | preview scanner | string-literal closer checked only `ends_with("\\\"")`, so a quote after an even backslash run swallowed the rest of the line into the span; scanner counts the run and closes on even; odd-run escaped quote resets it; regressions `highlight_even_backslash_run_closes_string` / `highlight_odd_backslash_run_keeps_quote_escaped` — **✅** |
+| **PH-S2694** | watchdog install | persisted `TR` glued unquoted paths, so a repo path with spaces split at the space; `watchdog_task_tr` double-quotes exe and root for `schtasks /TR` + HKCU Run; regression `watchdog_task_tr_quotes_paths_with_spaces` — **✅** |
+| **PH-S2695** | Gate | fmt · clippy (**0**) · cargo test green (**706**, +7 regressions) · ratio stretch-96 **99.43%** — **✅** |
+| **PH-S2696** | Docs | HANDOFF / NEXT / MEMORY record the five fixes; roadmap band 205 table — **✅** |
+| **PH-S2697** | Speeds | record-speed + record-rust + sync `--check` green — **✅** |
+| **PH-S2698** | Band close | `--band 205` + fingerprint; one commit + push — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

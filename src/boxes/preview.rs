@@ -82,10 +82,19 @@ fn highlight_rs(line: &str) -> String {
             }
             '"' => {
                 let mut lit = String::from("\"");
+                let mut slash_run = 0usize;
                 for c2 in chars.by_ref() {
                     lit.push(c2);
-                    if c2 == '"' && !lit.ends_with("\\\"") {
-                        break;
+                    if c2 == '"' {
+                        if slash_run.is_multiple_of(2) {
+                            break;
+                        }
+                        // Escaped quote: the run it belonged to is spent.
+                        slash_run = 0;
+                    } else if c2 == '\\' {
+                        slash_run += 1;
+                    } else {
+                        slash_run = 0;
                     }
                 }
                 out.push_str(&format!(r#"<span class="g-s">{}"#, escape(&lit)));
@@ -209,5 +218,22 @@ mod tests {
         assert!(!bare.contains("<u8>") && !bare.contains(" & "), "{bare}");
         assert!(bare.contains("&lt;u8&gt;"), "{bare}");
         assert!(bare.contains("&amp;"), "{bare}");
+    }
+
+    #[test]
+    fn highlight_even_backslash_run_closes_string() {
+        // Source line: let s = "a\\" ;
+        let html = highlight_rs(r#"let s = "a\\" ;"#);
+        // The literal must close after the even backslash run; the trailing
+        // ` ;` stays plain text (old code swallowed it into the span).
+        assert!(html.contains("</span> ;"), "{html}");
+    }
+
+    #[test]
+    fn highlight_odd_backslash_run_keeps_quote_escaped() {
+        // Source line: let t = "\"" ;  — the first closing candidate is escaped.
+        let html = highlight_rs(r#"let t = "\"" ;"#);
+        assert!(html.contains("</span> ;"), "{html}");
+        assert_eq!(html.matches("g-s").count(), 1, "{html}");
     }
 }

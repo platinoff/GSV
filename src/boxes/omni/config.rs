@@ -200,6 +200,9 @@ impl OmniConfig {
     /// `{ routing: {...}, provider: { <id>: { base_url?, api_key?, enabled?,
     /// priority? } } }`. Keys are written to the toml; empty strings clear them.
     pub fn apply(&mut self, patch: &Value) -> Result<(), String> {
+        // Stage the whole patch on a clone first: a late error (unknown
+        // provider, priority overflow) must not leave this config half-applied.
+        let mut next = self.clone();
         let obj = patch
             .as_object()
             .ok_or_else(|| "config patch must be an object".to_string())?;
@@ -208,20 +211,20 @@ impl OmniConfig {
                 if !dp.trim().is_empty() && catalog::provider(dp.trim()).is_none() {
                     return Err(format!("unknown default provider: {dp}"));
                 }
-                self.routing.default_provider = dp.trim().to_string();
+                next.routing.default_provider = dp.trim().to_string();
             }
             if let Some(a) = r.get("auto").and_then(Value::as_bool) {
-                self.routing.auto = a;
+                next.routing.auto = a;
             }
             if let Some(fo) = r.get("fallback_order").and_then(Value::as_array) {
-                self.routing.fallback_order = fo
+                next.routing.fallback_order = fo
                     .iter()
                     .filter_map(Value::as_str)
                     .map(ToOwned::to_owned)
                     .collect();
             }
             if let Some(fo) = r.get("free_fallback_order").and_then(Value::as_array) {
-                self.routing.free_fallback_order = fo
+                next.routing.free_fallback_order = fo
                     .iter()
                     .filter_map(Value::as_str)
                     .map(ToOwned::to_owned)
@@ -236,7 +239,7 @@ impl OmniConfig {
                 let v = val
                     .as_object()
                     .ok_or_else(|| format!("provider {id} patch must be an object"))?;
-                let entry = self.provider.entry(id.clone()).or_default();
+                let entry = next.provider.entry(id.clone()).or_default();
                 if let Some(b) = v.get("base_url").and_then(Value::as_str) {
                     entry.base_url = (!b.trim().is_empty()).then(|| b.trim().to_string());
                 }
@@ -252,6 +255,7 @@ impl OmniConfig {
                 }
             }
         }
+        std::mem::swap(self, &mut next);
         Ok(())
     }
 }
@@ -338,6 +342,25 @@ mod tests {
         assert!(cfg
             .apply(&json!({ "provider": { "nope": { "enabled": true } } }))
             .is_err());
+    }
+
+    #[test]
+    fn apply_patch_error_leaves_config_untouched() {
+        let mut cfg = OmniConfig::default();
+        // Valid part first, unknown provider second: the whole patch must be
+        // rejected and the valid half must NOT leak into the live config.
+        let err = cfg
+            .apply(&json!({
+                "routing": { "default_provider": "deepseek" },
+                "provider": {
+                    "deepseek": { "priority": 42 },
+                    "nope": { "enabled": false },
+                }
+            }))
+            .expect_err("mixed patch must fail");
+        assert!(err.contains("nope"));
+        assert_eq!(cfg.routing.default_provider, "openai");
+        assert_eq!(cfg.priority("deepseek"), 0);
     }
 
     #[test]
