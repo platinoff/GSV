@@ -17,7 +17,7 @@ fn default_product() -> String {
 
 /// Auto-detect the IDE from explicit env vars (no process env access — testable).
 ///
-/// Priority: `gsv_ide` (explicit) → `opencode_client` (OpenCode) → `cursor_model` / `cursor_session` (Cursor) → `"cursor"` (legacy default).
+/// Priority: `gsv_ide` (explicit) → `opencode_client` (OpenCode) → `cursor_model` / `cursor_session` (Cursor) → `"unknown"`.
 pub fn detect_ide_from(
     gsv_ide: Option<&str>,
     opencode_client: bool,
@@ -36,12 +36,12 @@ pub fn detect_ide_from(
     if cursor_model || cursor_session {
         return "cursor".to_string();
     }
-    "cursor".to_string()
+    "unknown".to_string()
 }
 
 /// Auto-detect the IDE from process environment variables.
 ///
-/// Priority: `GSV_IDE` (explicit) → `OPENCODE_CLIENT` (OpenCode) → `CURSOR_*` (Cursor) → `"cursor"` (legacy default).
+/// Priority: `GSV_IDE` (explicit) → `OPENCODE_CLIENT` (OpenCode) → `CURSOR_*` (Cursor) → `"unknown"`.
 pub fn detect_ide() -> String {
     detect_ide_from(
         std::env::var("GSV_IDE").ok().as_deref(),
@@ -542,8 +542,8 @@ mod tests {
     }
 
     #[test]
-    fn detect_ide_fallback_cursor() {
-        assert_eq!(detect_ide_from(None, false, false, false), "cursor");
+    fn detect_ide_fallback_unknown() {
+        assert_eq!(detect_ide_from(None, false, false, false), "unknown");
     }
 
     #[test]
