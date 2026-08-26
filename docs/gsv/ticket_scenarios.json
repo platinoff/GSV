@@ -192,6 +192,39 @@
       "body": "The jail whose lease expired or that explicitly reclaims posts kind:reclaim with ticket_id on Godfather. Peers transition their copy in_progress to open (+kind:reclaimed event). No rank change: reclaims never move a merit ladder. Guest mute. Echo of this jail is ignored.",
       "workflow": "ticket-squad",
       "product": "gsv"
+    },
+    {
+      "id": "rank-strategy-update",
+      "title": "Update army ranks strategy",
+      "body": "Audit the current IT+army 16-rank ladder, propose refined army naming aligned with ZSU/NATO conventions, update LADDER const in ranks.rs, refresh GSV_RANKS.md, run tests. Solo or squad.",
+      "workflow": "ticket-claim",
+      "product": "gsv",
+      "tickets": [
+        {
+          "title": "Ranks: audit current ladder",
+          "body": "Read LADDER const in src/boxes/ranks.rs. List all 16 levels with id, IT title, army title. Check ZSU/NATO alignment for army names. Identify any naming inconsistencies or gaps."
+        },
+        {
+          "title": "Ranks: propose new army names",
+          "body": "Based on the audit, propose updated army titles for each level L0-L15. Keep IT titles unchanged. Ensure Ukrainian ZSU enlisted→NCO→officer→general progression is correct. Document rationale for each change."
+        },
+        {
+          "title": "Ranks: update LADDER const",
+          "body": "Edit the LADDER array in src/boxes/ranks.rs:55-168. Update army field for each RankDef. Keep level, id, title, it unchanged. Verify all 16 entries compile."
+        },
+        {
+          "title": "Ranks: update GSV_RANKS.md",
+          "body": "Refresh docs/gsv/GSV_RANKS.md with the new army titles. Update the ladder table, bump the band/date stamp. Ensure the Research section reflects the updated ZSU/NATO mapping."
+        },
+        {
+          "title": "Ranks: format + clippy + test",
+          "body": "Run cargo fmt --all, cargo clippy --all-targets, cargo test. Ensure zero warnings and all tests pass."
+        },
+        {
+          "title": "Ranks: commit + close band",
+          "body": "One commit in the GSV repo. Close all band tickets. Post Godfather summary with before/after rank table."
+        }
+      ]
     }
   ]
 }

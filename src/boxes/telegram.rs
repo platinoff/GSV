@@ -924,9 +924,7 @@ pub fn polished_session_line(p: &PolishedLineParams<'_>) -> String {
         _ => format!("solo claimed {title}"),
     };
 
-    format!(
-        "[L{level} {rank_title}]{scenario_hint} {action} #{short_id}"
-    )
+    format!("[L{level} {rank_title}]{scenario_hint} {action} #{short_id}")
 }
 
 /// `gsv_dev` medians as a session line. Prefers `scenario_bench.json`;

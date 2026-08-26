@@ -1154,10 +1154,8 @@ async fn http_walk_enqueues_telegram_sync() {
     assert_eq!(pstatus, StatusCode::OK, "{pjson}");
     let msgs = pjson["messages"].as_array().cloned().unwrap_or_default();
     assert!(
-        msgs.iter().any(|m| m["body"]
-            .as_str()
-            .unwrap_or("")
-            .contains("solo claimed ")),
+        msgs.iter()
+            .any(|m| m["body"].as_str().unwrap_or("").contains("solo claimed ")),
         "{pjson}"
     );
     assert!(
@@ -1177,8 +1175,10 @@ async fn http_walk_enqueues_telegram_sync() {
         "expected rank badge in message: {pjson}"
     );
     assert!(
-        msgs.iter()
-            .any(|m| m["body"].as_str().unwrap_or("").contains("[memory-disk-speed]")),
+        msgs.iter().any(|m| m["body"]
+            .as_str()
+            .unwrap_or("")
+            .contains("[memory-disk-speed]")),
         "expected scenario context in message: {pjson}"
     );
 }

@@ -86,7 +86,7 @@ pub const LADDER: [RankDef; 16] = [
         id: "associate-sergeant",
         title: "Associate-sergeant",
         it: "Associate",
-        army: "Молодший сержант / Sergeant",
+        army: "Молодший сержант / Junior Sergeant",
     },
     RankDef {
         level: 5,
@@ -107,7 +107,7 @@ pub const LADDER: [RankDef; 16] = [
         id: "lead-warrant",
         title: "Lead-warrant",
         it: "Lead",
-        army: "Головний сержант / Warrant",
+        army: "Головний сержант / Sergeant Major",
     },
     RankDef {
         level: 8,

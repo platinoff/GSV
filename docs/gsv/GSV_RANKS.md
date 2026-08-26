@@ -1,7 +1,7 @@
 # GSV ranks — merit ladder (IT + army)
 
-**Status:** Band **192**.  
-**Date:** 2026-08-20  
+**Status:** Band **194**.  
+**Date:** 2026-08-26  
 **Store:** `data/gsv_ranks.json` (gitignored — Telegram ids never land in git)
 
 ## Research
@@ -13,21 +13,21 @@ GSV mixes those lists into **16 rungs (L0–L15)**. The names are playful on pur
 | L | Mix title | IT | Army |
 |---|-----------|----|------|
 | 0 | **Jun-nub** | Intern | Рядовий / Private |
-| 1 | Intern-private | Intern | Солдат |
+| 1 | Intern-private | Intern | Солдат / Private+ |
 | 2 | Trainee-soldier | Trainee | Старший солдат / PFC |
-| 3 | Junior-corporal | Junior | Капрал |
-| 4 | Associate-sergeant | Associate | Молодший сержант |
+| 3 | Junior-corporal | Junior | Капрал / Corporal |
+| 4 | Associate-sergeant | Associate | Молодший сержант / Junior Sergeant |
 | 5 | Middle-staff | Middle | Сержант / Staff Sergeant |
-| 6 | Senior-NCO | Senior | Старший сержант |
-| 7 | Lead-warrant | Lead | Головний сержант / Warrant |
+| 6 | Senior-NCO | Senior | Старший сержант / SFC |
+| 7 | Lead-warrant | Lead | Головний сержант / Sergeant Major |
 | 8 | Staff-lieutenant | Staff | Молодший лейтенант / 2LT |
 | 9 | Senior-lieutenant | Senior+ | Лейтенант / 1LT |
-| 10 | Principal-captain | Principal | Капітан |
-| 11 | Architect-major | Architect | Майор |
-| 12 | Distinguished-ltcol | Distinguished | Підполковник |
-| 13 | Fellow-colonel | Fellow | Полковник |
-| 14 | General-fellow | Distinguished Engineer | Генерал |
-| 15 | **Marshal-orchestrator** | Orchestrator | Маршал |
+| 10 | Principal-captain | Principal | Капітан / Captain |
+| 11 | Architect-major | Architect | Майор / Major |
+| 12 | Distinguished-ltcol | Distinguished | Підполковник / LtCol |
+| 13 | Fellow-colonel | Fellow | Полковник / Colonel |
+| 14 | General-fellow | Distinguished Engineer | Генерал / General |
+| 15 | **Marshal-orchestrator** | Orchestrator | Маршал / Marshal |
 
 **Floor is 0.** A demote at Jun-nub stays Jun-nub. **Cap is 15.**
 
@@ -52,3 +52,5 @@ Telegram ids are stored only under `data/` and redacted on the wire to a 4-chara
 - Resource `gsv://docs/ranks` → this file
 
 Band **193:** host/mate heartbeats include the redacted rank badge on Godfather `kind:presence` (`rank_id` / `rank_title`). Guest does not post.
+
+Band **194:** army rank titles corrected — L4 "Sergeant" → "Junior Sergeant" (Молодший сержант), L7 "Warrant" → "Sergeant Major" (Головний сержант). Full NATO equivalents filled in the table.
