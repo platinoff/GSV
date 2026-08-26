@@ -13,7 +13,8 @@ Install + what to do: root [`README.md`](../../README.md). SMIL tiles: [`../asse
 | [`GSV_ARCHITECTURE.md`](./GSV_ARCHITECTURE.md) | Архітектура сервера + боксів; Rust/wasm split; шари L0–L5 |
 | [`GSV_SERVER.md`](./GSV_SERVER.md) | `gsv-server`: endpoints, update, offline, metrics resync |
 | [`GSV_BOXES.md`](./GSV_BOXES.md) | Специфікація боксів |
-| [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) | TechPreroadMap (bands 102–**188**; next = owner pick) |
+| [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md) | TechPreroadMap (bands 102–**208**; Telenetis 208 ✅) |
+| [`../telenetis/README.md`](../telenetis/README.md) | Telenetis Mini App + Bot (band 208, Axum 9800) |
 | [`GSV_ALWAYS_ON_UI.md`](./GSV_ALWAYS_ON_UI.md) | Always-on live binary, chrome, products, fingerprints (**143–150 ✅**) |
 | [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md) | After always-on: MCP catch-up (**151–165 ✅**) |
 | [`GSV_VDT_KIT.md`](./GSV_VDT_KIT.md) | Shared rules/skills vs product canon (Accepted, band 127) |

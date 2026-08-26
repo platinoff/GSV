@@ -14,6 +14,7 @@
 | [`HANDOFF_NEW_SESSION.md`](HANDOFF_NEW_SESSION.md) | Операційний зріз для наступної сесії |
 | [`NEXT_SESSION_PROMPT.md`](NEXT_SESSION_PROMPT.md) | Copy-paste промпт наступної сесії |
 | [`assets/presentations/README.md`](assets/presentations/README.md) | SMIL SVG для GitHub README |
+| [`telenetis/README.md`](telenetis/README.md) | Telenetis Telegram Mini App + Bot (band 208, port 9800) |
 
 Архітектура / сервер / бокси / roadmap — [`gsv/README.md`](gsv/README.md).
 
