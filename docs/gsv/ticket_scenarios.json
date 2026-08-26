@@ -250,6 +250,118 @@
           "body": "Verify MCP gsv_fingerprints with recheck=true returns recheck.issue_count + enriched rank fields. Run cargo test."
         }
       ]
+    },
+    {
+      "id": "telenetis-setup",
+      "title": "Telenetis: scaffold + config + state",
+      "body": "Scaffold the telenetis/ crate (Cargo.toml, lib.rs, main.rs), implement Config::from_env, TelenetisError enum, AppState with bus/presence/tickets/flow stores. Port 9800.",
+      "workflow": "ticket-claim",
+      "product": "gsv",
+      "tickets": [
+        {
+          "title": "Telenetis: scaffold Cargo.toml + entry",
+          "body": "Create telenetis/Cargo.toml with tokio, axum(ws), reqwest, chrono, serde, askama. Create lib.rs module stubs and main.rs with tracing + router merge."
+        },
+        {
+          "title": "Telenetis: config + error types",
+          "body": "Config::from_env reads TELENETIS_BOT_TOKEN, _GSV_URL, _PORT, _JAIL_ID, _GODFATHER_CHANNEL_ID, _WEBHOOK_URL. TelenetisError enum with IntoResponse."
+        },
+        {
+          "title": "Telenetis: AppState stores",
+          "body": "AppState with Arc<RwLock> for bus_queue (Vec<BusEnvelope>), presence (HashMap), tickets (Vec<TicketRow>), flows (Vec<FlowEvent>). push_flow caps at 1000."
+        },
+        {
+          "title": "Telenetis: tests + cargo check",
+          "body": "config_test, state_test. cargo check passes with warnings only. cargo fmt."
+        }
+      ]
+    },
+    {
+      "id": "telenetis-bot",
+      "title": "Telenetis: Telegram bot + commands + webhook",
+      "body": "TelegramBot client (send_message, send_mini_app, answer_callback, set_webhook), command parser (/start, /status, /board, /flows, /roles, /help), webhook handler POST /webhook.",
+      "workflow": "ticket-claim",
+      "product": "gsv",
+      "tickets": [
+        {
+          "title": "Telenetis: Telegram API client",
+          "body": "TelegramBot struct with reqwest::Client. send_message(chat_id, text), send_mini_app(chat_id, text, web_app_url) with inline keyboard, answer_callback, set_webhook."
+        },
+        {
+          "title": "Telenetis: command parser + responses",
+          "body": "parse_command('/start') -> Some('start'). Command enum: Start, Status, Board, Flows, Roles, Help, Unknown. command_response() returns markdown text."
+        },
+        {
+          "title": "Telenetis: webhook handler",
+          "body": "Axum POST /webhook route. Classify Telegram updates: message (parse command -> respond), callback_query (answer), my_chat_member (log)."
+        },
+        {
+          "title": "Telenetis: GSV client + bus connector",
+          "body": "GsvClient HTTP client to GSV /api/health, /api/tickets/list, /api/tickets/presence, /api/telegram/status. Bus envelope v1 parser + formatter."
+        },
+        {
+          "title": "Telenetis: bot tests",
+          "body": "bot_test: parse_command, command_response. gsv_test: parse_bus_envelope, parse_sync_envelope. cargo test."
+        }
+      ]
+    },
+    {
+      "id": "telenetis-stream",
+      "title": "Telenetis: live flow streaming",
+      "body": "WebSocket + SSE live stream of bot activity. Broadcast FlowEvent to connected clients. Ticket sync loop polls GSV every 30s. Federation: bus envelopes -> FlowEvent broadcast.",
+      "workflow": "ticket-claim",
+      "product": "gsv",
+      "tickets": [
+        {
+          "title": "Telenetis: WebSocket live endpoint",
+          "body": "GET /ws — Axum WebSocket upgrade. Broadcast::Receiver<FlowEvent>. Serialize each event to JSON per message. Client receives real-time bot activity."
+        },
+        {
+          "title": "Telenetis: SSE fallback endpoint",
+          "body": "GET /events — SSE endpoint, same FlowEvent stream. Content-Type: text/event-stream. Each event: data: {json}\n\n."
+        },
+        {
+          "title": "Telenetis: ticket sync loop",
+          "body": "spawn_ticket_sync(): every 30s call GsvClient::tickets(), update AppState, broadcast changed tickets as FlowEvent."
+        },
+        {
+          "title": "Telenetis: federation flow events",
+          "body": "On bus envelope (presence/claim/done/sync) from GSV poll, create FlowEvent and broadcast to WS/SSE clients. Live flow visualization."
+        },
+        {
+          "title": "Telenetis: stream tests",
+          "body": "stream_test: flow event push + recent_flows. WS message format test. cargo test."
+        }
+      ]
+    },
+    {
+      "id": "telenetis-roles",
+      "title": "Telenetis: roles + timezone + security",
+      "body": "Role management (host/mate/guest/observer), timezone-aware time display, security layer (CSRF, body caps, CSP), Mini App web UI with HTMX.",
+      "workflow": "ticket-claim",
+      "product": "gsv",
+      "tickets": [
+        {
+          "title": "Telenetis: role store",
+          "body": "RoleStore: assign_role(jail_id, role), list_roles(), remove_role(). Roles: Host, Mate, Guest, Observer. Persist to data/telenetis_roles.json."
+        },
+        {
+          "title": "Telenetis: timezone manager",
+          "body": "TimezoneStore: user_tz HashMap<user_id, Tz>. convert_event_time(event, tz). format_for_user(event, user_id). Default: UTC."
+        },
+        {
+          "title": "Telenetis: security layer",
+          "body": "CSRF token extraction from Telegram initData. Body size cap (64 KiB). CSP headers (default-src 'self'). tower-http middleware stack."
+        },
+        {
+          "title": "Telenetis: Mini App UI",
+          "body": "HTMX templates: base.html (layout), dashboard.html (overview cards), board.html (ticket table with status badges), flows.html (live WS log), roles.html (role planner). static/app.css + app.js."
+        },
+        {
+          "title": "Telenetis: integration test + README",
+          "body": "Integration test: start server, verify /health, /ws, /events. README with env vars, architecture, commands, API reference."
+        }
+      ]
     }
   ]
 }

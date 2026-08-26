@@ -2,14 +2,14 @@
 
 **TechPreroadMap**: логічний порядок реалізації проєкту GSV → future sprints.
 
-Дата: 2026-08-05 · **Стан:** band 102 **реалізовано** + band 108 (roles/ratio canon) **✅** +
+Дата: 2026-08-26 · **Стан:** band 102 **реалізовано** + band 108 (roles/ratio canon) **✅** +
 band 109 (Vision sync/migration) **✅** + band 110 (Vision map UI) **✅** + band 111 (Sprint map + doc-preview) **✅** +
 band 112 (Vision auto-sync + sprint-queue planning) **✅** + band 113 (Node search + interactive map) **✅** +
 band 114 (GSV Sprint-board + progress UI) **✅** · band 115 (GSV migration completion) **✅** ·
 band 116 (GSV history charts — speed/rust analytics) **✅** · band 117 (GSV legacy vision deactivation) **✅** ·
 band 118 (GSV sprint UI migration — theme + focus map) **✅** ·
 band 119 (GSV Galaxy UI full parity — colors + box behaviors) **✅** · band 120 (GSV Ratio 96% stretch) **✅** ·
-band 121 (GSV OmniRouter box parity) **✅** · band 125 (GSV Vision/UI polish — a11y/error/offline/stand contracts) **✅** ·
+band 121 (GSV OmniRouter box parity) **✅** · band 208 (Telenetis: Telegram Mini App + Bot) **🔧** · band 125 (GSV Vision/UI polish — a11y/error/offline/stand contracts) **✅** ·
 band 126 (GSV stand smoke + ops canon) **✅** ·
 band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 128** (kit ops + grouped Galaxy UI) **✅** ·
@@ -1742,6 +1742,31 @@ Owner pick: extend the audit series to a surface only inventoried before (band 2
 | **PH-S2716** | Docs | HANDOFF / NEXT / MEMORY record the sweep; roadmap band 207 table — **✅** |
 | **PH-S2717** | Speeds | record-speed + record-rust + sync `--check` green — **✅** |
 | **PH-S2718** | Band close | live recopy · `--band 207` + fingerprint; one commit + push — **✅** |
+
+## Спринти (band 208) — Telenetis: Telegram Mini App + Bot
+
+Новий продукт Telenetis — Rust-first Telegram Mini App + Bot для координації GSV Godfather channel: live ticket boards, bot status, flow streaming, role planning, timezone support.
+
+| Sprint ID | Фокус | Прийнятні критерії |
+|-----------|-------|---------------------|
+| **PH-S2719** | Scaffold | `telenetis/Cargo.toml` + `src/main.rs` + `src/lib.rs`. Port 9800. deps: tokio, axum(ws), reqwest, chrono, serde, askama — **✅** |
+| **PH-S2720** | Config + Error | `Config::from_env` (TELENETIS_BOT_TOKEN, _GSV_URL, _PORT, _JAIL_ID, _GODFATHER_CHANNEL_ID). `TelenetisError` enum — **✅** |
+| **PH-S2721** | AppState | BusEnvelope, WorkerPresence, WorkerStatus (Ready/Busy/Offline), TicketRow, FlowEvent. Arc<RwLock> stores — **✅** |
+| **PH-S2722** | GSV Client | `GsvClient` HTTP to /api/health, /api/tickets/list, /api/tickets/presence, /api/telegram/status. Bus envelope v1 parser — **✅** |
+| **PH-S2723** | Telegram Bot | `TelegramBot` client: send_message, send_mini_app, answer_callback, set_webhook. Commands: /start, /status, /board, /flows, /roles, /help — **✅** |
+| **PH-S2724** | Webhook | POST /webhook Axum handler. Classify Telegram updates: message, callback_query, my_chat_member — **✅** |
+| **PH-S2725** | WebSocket Stream | GET /ws — WebSocket upgrade. Broadcast FlowEvent to connected clients. Live bot activity — **✅** |
+| **PH-S2726** | SSE Fallback | GET /events — SSE endpoint. Same FlowEvent stream. Content-Type: text/event-stream — **✅** |
+| **PH-S2727** | Ticket Sync Loop | spawn_ticket_sync(): every 30s poll GSV, update AppState, broadcast changed tickets — **✅** |
+| **PH-S2728** | Federation Flows | Bus envelopes (presence/claim/done/sync) → FlowEvent → WS/SSE broadcast — **✅** |
+| **PH-S2729** | Role Store | RoleStore: assign/list/remove. Roles: Host, Mate, Guest, Observer. Persist JSONL — **✅** |
+| **PH-S2730** | Timezone Manager | TimezoneStore: user_tz map, convert_event_time, format_for_user. Default UTC — **✅** |
+| **PH-S2731** | Security | CSRF token from Telegram initData. Body cap 64 KiB. CSP headers. tower-http middleware — **✅** |
+| **PH-S2732** | Mini App UI | HTMX templates: dashboard.html, board.html, flows.html, roles.html. static/app.css + app.js — **✅** |
+| **PH-S2733** | Integration Test | Start server, verify /health, /ws, /events. README with env vars, architecture — **✅** |
+| **PH-S2734** | Gate | fmt · clippy (**0**) · cargo test green · ratio 95-100% — **✅** |
+| **PH-S2735** | Docs | Register in PRODUCTS.md. Scenarios: telenetis-setup, telenetis-bot, telenetis-stream, telenetis-roles — **✅** |
+| **PH-S2736** | Band close | `--band 208` + fingerprint; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
