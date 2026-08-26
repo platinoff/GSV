@@ -16,3 +16,34 @@ pub fn security_headers(response: &mut axum::response::Response) {
         "default-src 'self'".parse().unwrap(),
     );
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn csrf_check_empty_fails() {
+        assert!(!csrf_check(""));
+    }
+
+    #[test]
+    fn csrf_check_non_empty_passes() {
+        assert!(csrf_check("some_init_data"));
+    }
+
+    #[test]
+    fn max_body_is_64k() {
+        assert_eq!(MAX_BODY_BYTES, 64 * 1024);
+    }
+
+    #[test]
+    fn security_headers_sets_nosniff() {
+        let mut resp = axum::response::Response::new(axum::body::Body::empty());
+        security_headers(&mut resp);
+        assert_eq!(
+            resp.headers().get("X-Content-Type-Options").unwrap(),
+            "nosniff"
+        );
+        assert_eq!(resp.headers().get("Cache-Control").unwrap(), "no-store");
+    }
+}

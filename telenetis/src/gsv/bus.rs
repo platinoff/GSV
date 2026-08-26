@@ -38,3 +38,48 @@ pub fn format_bus_envelope(env: &BusEnvelope) -> String {
     })
     .to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+
+    #[test]
+    fn parse_presence_envelope() {
+        let json = r#"{"v":1,"kind":"presence","body":"hello","from":"jail-01","ts":"2026-08-26T00:00:00Z"}"#;
+        let env = parse_bus_envelope(json).unwrap();
+        assert_eq!(env.kind, "presence");
+        assert_eq!(env.from, "jail-01");
+        assert_eq!(env.v, 1);
+    }
+
+    #[test]
+    fn parse_sync_envelope_with_data() {
+        let json =
+            r#"{"v":1,"kind":"sync","body":"sync body","from":"gsv","data":{"hint":"test"}}"#;
+        let env = parse_bus_envelope(json).unwrap();
+        assert_eq!(env.kind, "sync");
+        assert!(env.data.is_some());
+    }
+
+    #[test]
+    fn format_roundtrip() {
+        let env = crate::state::BusEnvelope {
+            v: 1,
+            kind: "bus".to_string(),
+            body: "test body".to_string(),
+            from: "jail-01".to_string(),
+            ts: Utc::now(),
+            data: None,
+        };
+        let s = format_bus_envelope(&env);
+        let parsed = parse_bus_envelope(&s).unwrap();
+        assert_eq!(parsed.kind, env.kind);
+        assert_eq!(parsed.body, env.body);
+    }
+
+    #[test]
+    fn parse_invalid_json_errors() {
+        assert!(parse_bus_envelope("not json").is_err());
+    }
+}

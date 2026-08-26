@@ -10,9 +10,12 @@ async fn main() {
 
     let config = telenetis::config::Config::from_env();
     let state = telenetis::state::AppState::new(config.clone());
+    let gsv_client = telenetis::gsv::client::GsvClient::new(&config);
+    telenetis::gsv::poll::spawn_poll_loop(gsv_client, state.clone());
     let app = telenetis::ui::router(state.clone())
         .merge(telenetis::bot::webhook::router(state.clone()))
-        .merge(telenetis::stream::ws::router(state.clone()));
+        .merge(telenetis::stream::ws::router(state.clone()))
+        .merge(telenetis::stream::sse::router(state.clone()));
 
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", config.port))
         .await

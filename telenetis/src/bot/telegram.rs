@@ -6,7 +6,6 @@ use serde_json::{json, Value};
 #[derive(Clone)]
 pub struct TelegramBot {
     http: Client,
-    token: String,
     api_base: String,
 }
 
@@ -14,7 +13,6 @@ impl TelegramBot {
     pub fn new(config: &Config) -> Self {
         Self {
             http: Client::new(),
-            token: config.bot_token.clone(),
             api_base: format!("https://api.telegram.org/bot{}", config.bot_token),
         }
     }

@@ -34,3 +34,28 @@ impl From<serde_json::Error> for TelenetisError {
         Self::Serialization(e.to_string())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::StatusCode;
+
+    #[test]
+    fn telegram_maps_to_bad_gateway() {
+        let resp = TelenetisError::Telegram("tg err".to_string()).into_response();
+        assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
+    }
+
+    #[test]
+    fn config_maps_to_internal_error() {
+        let resp = TelenetisError::Config("cfg err".to_string()).into_response();
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn io_from_std_error() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "not found");
+        let te: TelenetisError = io_err.into();
+        assert!(matches!(te, TelenetisError::Io(_)));
+    }
+}

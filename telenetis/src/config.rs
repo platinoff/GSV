@@ -29,3 +29,31 @@ impl Config {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn config_from_env_reads_vars() {
+        std::env::set_var("TELENETIS_BOT_TOKEN", "test_token_123");
+        std::env::set_var("TELENETIS_GSV_URL", "http://127.0.0.1:9999");
+        std::env::set_var("TELENETIS_PORT", "9800");
+        std::env::set_var("TELENETIS_JAIL_ID", "test-jail");
+        let cfg = Config::from_env();
+        assert_eq!(cfg.bot_token, "test_token_123");
+        assert_eq!(cfg.gsv_url, "http://127.0.0.1:9999");
+        assert_eq!(cfg.port, 9800);
+        assert_eq!(cfg.jail_id, "test-jail");
+    }
+
+    #[test]
+    fn config_defaults_when_optional_missing() {
+        std::env::set_var("TELENETIS_BOT_TOKEN", "tok");
+        std::env::remove_var("TELENETIS_GSV_URL");
+        std::env::remove_var("TELENETIS_WEBHOOK_URL");
+        let cfg = Config::from_env();
+        assert_eq!(cfg.gsv_url, "http://127.0.0.1:9999");
+        assert!(cfg.webhook_url.is_none());
+    }
+}

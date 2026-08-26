@@ -135,3 +135,78 @@ impl AppState {
         flows.iter().rev().take(limit).cloned().collect()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+
+    fn test_config() -> Config {
+        Config {
+            bot_token: "test".to_string(),
+            gsv_url: "http://127.0.0.1:9999".to_string(),
+            port: 9800,
+            jail_id: "test-jail".to_string(),
+            godfather_channel_id: 0,
+            webhook_url: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn appstate_creation_and_jail_id() {
+        let state = AppState::new(test_config());
+        assert_eq!(state.jail_id(), "test-jail");
+        assert!(state.is_online());
+    }
+
+    #[tokio::test]
+    async fn push_flow_caps_at_1000() {
+        let state = AppState::new(test_config());
+        for i in 0..1005 {
+            state
+                .push_flow(FlowEvent {
+                    ts: Utc::now(),
+                    jail_id: "jail".to_string(),
+                    action: format!("action_{}", i),
+                    detail: "detail".to_string(),
+                })
+                .await;
+        }
+        let flows = state.recent_flows(2000).await;
+        assert!(flows.len() <= 1000);
+        assert!(flows.len() >= 500);
+    }
+
+    #[tokio::test]
+    async fn update_presence_and_tickets() {
+        let state = AppState::new(test_config());
+        state
+            .update_presence(WorkerPresence {
+                jail_id: "jail-02".to_string(),
+                actor: "agent".to_string(),
+                ide: "cursor".to_string(),
+                model: "test".to_string(),
+                agent: "orchestrator".to_string(),
+                rank: 5,
+                status: WorkerStatus::Ready,
+                last_heartbeat: Utc::now(),
+                timezone: "UTC".to_string(),
+            })
+            .await;
+        let map = state.presence_map().await;
+        assert_eq!(map.len(), 1);
+        state
+            .set_tickets(vec![TicketRow {
+                id: "t-1".to_string(),
+                title: "Test".to_string(),
+                body: "body".to_string(),
+                status: "open".to_string(),
+                product: "gsv".to_string(),
+                claimed_by: None,
+                scenario: None,
+            }])
+            .await;
+        let tickets = state.tickets().await;
+        assert_eq!(tickets.len(), 1);
+    }
+}

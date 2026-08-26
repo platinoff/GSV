@@ -71,4 +71,35 @@ impl GsvClient {
             .map_err(|e| TelenetisError::Gsv(e.to_string()))?;
         Ok(body)
     }
+
+    pub async fn bus_poll(&self, limit: u8) -> Result<serde_json::Value, TelenetisError> {
+        let resp = self
+            .http
+            .get(format!(
+                "{}/api/telegram/bus?limit={}",
+                self.base_url, limit
+            ))
+            .send()
+            .await
+            .map_err(|e| TelenetisError::Gsv(e.to_string()))?;
+        let body = resp
+            .json()
+            .await
+            .map_err(|e| TelenetisError::Gsv(e.to_string()))?;
+        Ok(body)
+    }
+
+    pub async fn vision_summary(&self) -> Result<serde_json::Value, TelenetisError> {
+        let resp = self
+            .http
+            .get(format!("{}/api/vision/summary", self.base_url))
+            .send()
+            .await
+            .map_err(|e| TelenetisError::Gsv(e.to_string()))?;
+        let body = resp
+            .json()
+            .await
+            .map_err(|e| TelenetisError::Gsv(e.to_string()))?;
+        Ok(body)
+    }
 }
