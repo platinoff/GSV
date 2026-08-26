@@ -431,7 +431,7 @@ fn env_or(key: &str, default: &str) -> String {
 pub fn resolve_claimed_by() -> ClaimedBy {
     ClaimedBy {
         actor: env_or("GSV_ACTOR", "agent"),
-        ide: env_or("GSV_IDE", "cursor"),
+        ide: fingerprint::detect_ide(),
         model: fingerprint::resolve_model(),
         agent: env_or("GSV_AGENT", "orchestrator"),
     }

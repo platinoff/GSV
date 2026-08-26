@@ -15,6 +15,42 @@ fn default_product() -> String {
     "gsv".to_string()
 }
 
+/// Auto-detect the IDE from explicit env vars (no process env access — testable).
+///
+/// Priority: `gsv_ide` (explicit) → `opencode_client` (OpenCode) → `cursor_model` / `cursor_session` (Cursor) → `"cursor"` (legacy default).
+pub fn detect_ide_from(
+    gsv_ide: Option<&str>,
+    opencode_client: bool,
+    cursor_model: bool,
+    cursor_session: bool,
+) -> String {
+    if let Some(ide) = gsv_ide {
+        let ide = ide.trim().to_string();
+        if !ide.is_empty() {
+            return ide;
+        }
+    }
+    if opencode_client {
+        return "opencode".to_string();
+    }
+    if cursor_model || cursor_session {
+        return "cursor".to_string();
+    }
+    "cursor".to_string()
+}
+
+/// Auto-detect the IDE from process environment variables.
+///
+/// Priority: `GSV_IDE` (explicit) → `OPENCODE_CLIENT` (OpenCode) → `CURSOR_*` (Cursor) → `"cursor"` (legacy default).
+pub fn detect_ide() -> String {
+    detect_ide_from(
+        std::env::var("GSV_IDE").ok().as_deref(),
+        std::env::var("OPENCODE_CLIENT").is_ok(),
+        std::env::var("CURSOR_MODEL").is_ok(),
+        std::env::var("CURSOR_SESSION_FILE").is_ok(),
+    )
+}
+
 /// One drain close record.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Fingerprint {
@@ -438,7 +474,7 @@ pub fn record_from_env(
     });
     let band = std::env::var("GSV_BAND").ok().filter(|s| !s.is_empty());
     let actor = env_or("GSV_ACTOR", "agent");
-    let ide = env_or("GSV_IDE", "cursor");
+    let ide = detect_ide();
     let model = nonempty_opt(model_override).unwrap_or_else(resolve_model);
     let agent = env_or("GSV_AGENT", "orchestrator");
     let summary = env_or("GSV_SUMMARY", "drain close");
@@ -476,4 +512,50 @@ pub fn wire(repo_root: &Path, selected: Option<&str>, limit: usize) -> Value {
         "count": fingerprints.len(),
         "fingerprints": fingerprints,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn detect_ide_explicit_gsv_ide_wins() {
+        assert_eq!(
+            detect_ide_from(Some("opencode"), true, false, false),
+            "opencode"
+        );
+    }
+
+    #[test]
+    fn detect_ide_opencode_client_env() {
+        assert_eq!(detect_ide_from(None, true, false, false), "opencode");
+    }
+
+    #[test]
+    fn detect_ide_cursor_model_env() {
+        assert_eq!(detect_ide_from(None, false, true, false), "cursor");
+    }
+
+    #[test]
+    fn detect_ide_cursor_session_env() {
+        assert_eq!(detect_ide_from(None, false, false, true), "cursor");
+    }
+
+    #[test]
+    fn detect_ide_fallback_cursor() {
+        assert_eq!(detect_ide_from(None, false, false, false), "cursor");
+    }
+
+    #[test]
+    fn detect_ide_explicit_overrides_opencode() {
+        assert_eq!(
+            detect_ide_from(Some("cursor"), true, false, false),
+            "cursor"
+        );
+    }
+
+    #[test]
+    fn detect_ide_explicit_empty_falls_through() {
+        assert_eq!(detect_ide_from(Some("  "), true, false, false), "opencode");
+    }
 }
