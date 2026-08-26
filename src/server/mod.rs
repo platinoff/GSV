@@ -1537,6 +1537,9 @@ async fn api_vision_galaxy_svg() -> Response {
         .into_response()
 }
 
+/// Legacy alias of the galaxy backdrop (`/api/vision/galaxy.svg`) — kept for
+/// the documented SLI surface (`vision.theme_svg`). Byte-identical by contract
+/// (`theme_svg_is_byte_alias_of_galaxy` in `tests/gsv_server_contracts.rs`).
 async fn api_vision_theme_svg() -> Response {
     (
         StatusCode::OK,

@@ -503,6 +503,14 @@ async fn vision_galaxy_svg_endpoint() {
 }
 
 #[tokio::test]
+async fn theme_svg_is_byte_alias_of_galaxy() {
+    let (app, _state) = app();
+    let (_, theme) = get_text(&app, "/api/vision/theme-svg").await;
+    let (_, galaxy) = get_text(&app, "/api/vision/galaxy.svg").await;
+    assert_eq!(theme, galaxy);
+}
+
+#[tokio::test]
 async fn starfield_galaxy_svg_have_svg_content_type() {
     let (app, _state) = app();
     for path in [

@@ -1384,22 +1384,38 @@ pub fn wire_sync_status(repo_root: &Path, data_dir: &Path) -> Value {
 
 /// `GET /api/vision/speeds` — speed-index report (latest test-CI + benchmark + history counts).
 pub fn wire_speed_index(repo_root: &Path, data_dir: &Path) -> Value {
-    let r = source_speed_index(repo_root, data_dir);
-    json!({ "ok": true, "present": read_speed_index(repo_root).is_ok(), "speed_index": r })
+    let (present, r) = match read_speed_index(repo_root) {
+        Ok(r) => (true, r),
+        Err(_) => match load_speed_index(data_dir) {
+            Ok(r) => (false, r),
+            Err(_) => (false, SpeedIndexReport::default()),
+        },
+    };
+    json!({ "ok": true, "present": present, "speed_index": r })
 }
 
 /// `GET /api/vision/rust-diagnostics` — rust clippy diagnostics report.
 pub fn wire_rust_diagnostics(repo_root: &Path, data_dir: &Path) -> Value {
-    let r = source_rust_diagnostics(repo_root, data_dir);
-    json!({ "ok": true, "present": read_rust_diagnostics(repo_root).is_ok(), "rust_diagnostics": r })
+    let (present, r) = match read_rust_diagnostics(repo_root) {
+        Ok(r) => (true, r),
+        Err(_) => match load_rust_diagnostics(data_dir) {
+            Ok(r) => (false, r),
+            Err(_) => (false, RustDiagnosticsReport::default()),
+        },
+    };
+    json!({ "ok": true, "present": present, "rust_diagnostics": r })
 }
 
 /// Short `MM-DD` from an ISO `recorded_at` (fallback: truncated raw string).
+///
+/// Char-safe: byte slicing `[5..10]` would panic when a multi-byte UTF-8 char
+/// straddles the cut.
 fn svg_day_label(recorded_at: &str) -> String {
-    if recorded_at.len() >= 10 {
-        recorded_at[5..10].to_string()
+    let chars: Vec<char> = recorded_at.chars().collect();
+    if chars.len() >= 10 {
+        chars[5..10].iter().collect()
     } else {
-        recorded_at.chars().take(10).collect()
+        chars.into_iter().take(10).collect()
     }
 }
 
@@ -1546,8 +1562,11 @@ pub fn rust_diagnostics_chart_svg(repo_root: &Path, data_dir: &Path) -> String {
         ));
     }
     let latest = r.latest.command.clone();
-    let latest = if latest.len() > 48 {
-        format!("{}...", &latest[..48])
+    // Char-safe truncation: `&latest[..48]` panics when byte 48 lands inside
+    // a multi-byte UTF-8 char.
+    let latest = if latest.chars().count() > 48 {
+        let cut: String = latest.chars().take(48).collect();
+        format!("{cut}...")
     } else {
         latest
     };
@@ -3239,6 +3258,41 @@ mod tests {
         assert_eq!(wire["present"], false);
         assert_eq!(wire["rust_diagnostics"]["latest"]["warnings"], 3);
         let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn diag_chart_truncates_multibyte_command_without_panic() {
+        let tmp = std::env::temp_dir().join("gsv_vision_test_diag_multibyte");
+        let _ = std::fs::remove_dir_all(&tmp);
+        let src = tmp.join("src");
+        let vis = src.join("docs").join("vision");
+        std::fs::create_dir_all(&vis).unwrap();
+        // Byte 48 lands inside the multi-byte `×` (47 ASCII + 2-byte char):
+        // the old `[..48]` slice panicked here.
+        let cmd = format!("{}×{}", "x".repeat(47), "y".repeat(20));
+        std::fs::write(
+            vis.join("rust_diagnostics.json"),
+            format!(
+                r#"{{"schema_version":1,"generated_at":"2026-08-04T00:00:00Z","host_label":"PLATINOV","git_head":"50ce232f","source":"local","latest":{{"warnings":3,"errors":0,"ok":true,"recorded_at":"2026-08-04T00:00:00Z","command":"{cmd}","top_codes":[]}},"history":[{{"kind":"clippy","warnings":3,"errors":0,"ok":true}}]}}"#
+            ),
+        )
+        .unwrap();
+
+        let svg = rust_diagnostics_chart_svg(&src, &tmp.join("data"));
+        assert!(svg.starts_with("<svg"));
+        assert!(svg.contains('×'));
+        assert!(svg.contains("..."));
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn svg_day_label_multibyte_safe() {
+        assert_eq!(svg_day_label("2026-08-04T00:00:00Z"), "08-04");
+        // Byte 5..10 cuts inside `é` — must not panic.
+        let weird = "2026\u{e9}-08-04";
+        assert_eq!(svg_day_label(weird), "-08-0");
+        assert_eq!(svg_day_label(""), "");
+        assert_eq!(svg_day_label("2026"), "2026");
     }
 
     #[test]

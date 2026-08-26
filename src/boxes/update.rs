@@ -222,9 +222,15 @@ mod tests {
 
     #[test]
     fn pending_rebuild_logic() {
-        let older = 1u64;
-        let newer = 2u64;
-        assert!(newer > older);
+        let tmp = std::env::temp_dir().join("gsv_update_test_pending_logic");
+        let _ = std::fs::remove_dir_all(&tmp);
+        // Empty src/: no source mtimes at all.
+        std::fs::create_dir_all(tmp.join("src")).unwrap();
+        assert_eq!(newest_src_mtime(&tmp), 0);
+        // A written source file becomes the newest mtime.
+        std::fs::write(tmp.join("src").join("lib.rs"), "fn main() {}\n").unwrap();
+        assert!(newest_src_mtime(&tmp) > 0);
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 
     #[test]
