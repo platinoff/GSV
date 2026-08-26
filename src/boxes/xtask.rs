@@ -65,6 +65,14 @@ pub const TASKS: &[(&str, &str)] = &[
         "fingerprint",
         "Append drain fingerprint JSONL + print trailers (`--model` optional)",
     ),
+    (
+        "fingerprint-recheck",
+        "Audit fingerprints.jsonl: unknown models, duplicates, missing bands",
+    ),
+    (
+        "fingerprint-dedup",
+        "Dedup fingerprints.jsonl: keep best model per (git_head, version)",
+    ),
     ("record-speed", "Time `cargo test` → gsv-speed-index"),
     ("record-rust", "Scan clippy via gsv-rust-diagnostics"),
     (

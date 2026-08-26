@@ -225,6 +225,31 @@
           "body": "One commit in the GSV repo. Close all band tickets. Post Godfather summary with before/after rank table."
         }
       ]
+    },
+    {
+      "id": "fingerprint-recheck",
+      "title": "Fingerprint recheck + ranks enrichment",
+      "body": "Audit fingerprints.jsonl for unknown models, duplicates (same git_head+version), missing bands. Dedup rows keeping the best model. Enrich each fingerprint with rank badge (level, title). Wire recheck report via MCP gsv_fingerprints recheck=true.",
+      "workflow": "ticket-claim",
+      "product": "gsv",
+      "tickets": [
+        {
+          "title": "Fingerprint: recheck audit",
+          "body": "Run recheck on docs/gsv/fingerprints.jsonl. Count unknown_model, duplicate, missing_band issues. Report total issue count and breakdown by kind."
+        },
+        {
+          "title": "Fingerprint: dedup JSONL",
+          "body": "Run dedup_jsonl: for rows sharing (git_head, version) keep the one with best model (non-unknown wins). Report rows removed."
+        },
+        {
+          "title": "Fingerprint: ranks enrichment",
+          "body": "Enrich fingerprints wire with rank badges: for each (actor, ide, agent) look up gsv_ranks.json roster. Add rank_id, rank_title, rank_level fields."
+        },
+        {
+          "title": "Fingerprint: recheck wire test",
+          "body": "Verify MCP gsv_fingerprints with recheck=true returns recheck.issue_count + enriched rank fields. Run cargo test."
+        }
+      ]
     }
   ]
 }

@@ -492,6 +492,139 @@ pub fn record_from_env(
     })
 }
 
+/// One entry in the recheck report.
+#[derive(Debug, Clone, Serialize)]
+pub struct RecheckIssue {
+    pub kind: String,
+    pub line: usize,
+    pub git_head: Option<String>,
+    pub detail: String,
+}
+
+/// Read all fingerprints from the JSONL (no limit).
+fn read_all(path: &Path) -> Vec<Fingerprint> {
+    let Ok(f) = fs::File::open(path) else {
+        return Vec::new();
+    };
+    BufReader::new(f)
+        .lines()
+        .map_while(Result::ok)
+        .filter_map(|line| {
+            let t = line.trim();
+            if t.is_empty() {
+                None
+            } else {
+                serde_json::from_str::<Fingerprint>(t).ok()
+            }
+        })
+        .collect()
+}
+
+/// Audit the JSONL for issues: unknown models, duplicates (same git_head + version), missing band.
+pub fn recheck(repo_root: &Path) -> Vec<RecheckIssue> {
+    let path = jsonl_path(repo_root);
+    let all = read_all(&path);
+    let mut issues = Vec::new();
+    use std::collections::HashMap;
+    let mut seen: HashMap<(String, String), Vec<usize>> = HashMap::new();
+    for (i, fp) in all.iter().enumerate() {
+        let line = i + 1;
+        if fp.model == "unknown" {
+            issues.push(RecheckIssue {
+                kind: "unknown_model".into(),
+                line,
+                git_head: fp.git_head.clone(),
+                detail: format!("actor={} ide={} ts={}", fp.actor, fp.ide, fp.ts),
+            });
+        }
+        if fp.band.is_none() {
+            issues.push(RecheckIssue {
+                kind: "missing_band".into(),
+                line,
+                git_head: fp.git_head.clone(),
+                detail: format!("version={} ts={}", fp.version, fp.ts),
+            });
+        }
+        if let Some(head) = &fp.git_head {
+            let key = (head.clone(), fp.version.clone());
+            seen.entry(key).or_default().push(line);
+        }
+    }
+    for ((head, ver), lines) in &seen {
+        if lines.len() > 1 {
+            issues.push(RecheckIssue {
+                kind: "duplicate".into(),
+                line: lines[0],
+                git_head: Some(head.clone()),
+                detail: format!("git_head={} version={} lines={:?}", head, ver, lines),
+            });
+        }
+    }
+    issues
+}
+
+/// Dedup the JSONL: for rows sharing (git_head, version), keep the one with the
+/// best model (non-unknown wins). Returns the number of rows removed.
+pub fn dedup_jsonl(repo_root: &Path) -> Result<usize, String> {
+    let path = jsonl_path(repo_root);
+    let all = read_all(&path);
+    let before = all.len();
+    use std::collections::HashMap;
+    let mut best: HashMap<(String, String), Fingerprint> = HashMap::new();
+    let mut order: Vec<Fingerprint> = Vec::new();
+    let mut dup_keys: std::collections::HashSet<(String, String)> =
+        std::collections::HashSet::new();
+    for fp in &all {
+        if let Some(head) = &fp.git_head {
+            let key = (head.clone(), fp.version.clone());
+            let is_better = match best.get(&key) {
+                None => true,
+                Some(prev) => {
+                    let fp_good = fp.model != "unknown";
+                    let prev_good = prev.model != "unknown";
+                    (fp_good && !prev_good) || (fp_good == prev_good && fp.ts >= prev.ts)
+                }
+            };
+            if is_better {
+                if best.contains_key(&key) {
+                    dup_keys.insert(key.clone());
+                }
+                best.insert(key, fp.clone());
+            } else {
+                dup_keys.insert(key);
+            }
+        }
+    }
+    for fp in all {
+        if let Some(head) = &fp.git_head {
+            let key = (head.clone(), fp.version.clone());
+            if dup_keys.contains(&key) {
+                if let Some(kept) = best.get(&key) {
+                    if kept.ts == fp.ts && kept.model == fp.model {
+                        order.push(fp);
+                    }
+                }
+            } else {
+                order.push(fp);
+            }
+        } else {
+            order.push(fp);
+        }
+    }
+    let removed = before - order.len();
+    let mut out = String::new();
+    for fp in &order {
+        let line = serde_json::to_string(fp).map_err(|e| format!("serialize: {e}"))?;
+        out.push_str(&line);
+        out.push('\n');
+    }
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("mkdir: {e}"))?;
+    }
+    fs::write(&path, &out).map_err(|e| format!("write {}: {e}", path.display()))?;
+    Ok(removed)
+}
+
 /// HTTP / card wire. `selected` is the VDT product id (may differ from GSV crate).
 pub fn wire(repo_root: &Path, selected: Option<&str>, limit: usize) -> Value {
     let fingerprints = latest(&jsonl_path(repo_root), limit);
@@ -512,6 +645,55 @@ pub fn wire(repo_root: &Path, selected: Option<&str>, limit: usize) -> Value {
         "count": fingerprints.len(),
         "fingerprints": fingerprints,
     })
+}
+
+/// Wire with ranks enrichment + optional recheck report.
+pub fn wire_full(
+    repo_root: &Path,
+    data_dir: &Path,
+    selected: Option<&str>,
+    limit: usize,
+    recheck_flag: bool,
+) -> Value {
+    let base = wire(repo_root, selected, limit);
+    let fingerprints = base["fingerprints"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .map(|fp| {
+                    let actor = fp["actor"].as_str().unwrap_or("agent");
+                    let ide = fp["ide"].as_str().unwrap_or("unknown");
+                    let agent = fp["agent"].as_str().unwrap_or("orchestrator");
+                    let (rank_id, rank_title, level) =
+                        crate::boxes::ranks::badge_full(data_dir, actor, ide, agent);
+                    let mut enriched = fp.clone();
+                    enriched["rank_id"] = json!(rank_id);
+                    enriched["rank_title"] = json!(rank_title);
+                    enriched["rank_level"] = json!(level);
+                    enriched
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let mut result = json!({
+        "ok": true,
+        "path": "docs/gsv/fingerprints.jsonl",
+        "server_product": "gsv",
+        "server_version": crate::gsv_version(),
+        "selected": selected,
+        "selected_version": base.get("selected_version").cloned().unwrap_or(Value::Null),
+        "cross_product": base["cross_product"].as_bool().unwrap_or(false),
+        "count": fingerprints.len(),
+        "fingerprints": fingerprints,
+    });
+    if recheck_flag {
+        let issues = recheck(repo_root);
+        result["recheck"] = json!({
+            "issue_count": issues.len(),
+            "issues": issues,
+        });
+    }
+    result
 }
 
 #[cfg(test)]

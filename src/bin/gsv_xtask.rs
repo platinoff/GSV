@@ -239,6 +239,27 @@ fn main() -> ExitCode {
                 }
             }
         }
+        "fingerprint-recheck" => {
+            let issues = fingerprint::recheck(&root);
+            println!("issues: {}", issues.len());
+            for issue in &issues {
+                println!(
+                    "  {} line={} head={:?} {}",
+                    issue.kind, issue.line, issue.git_head, issue.detail
+                );
+            }
+            ExitCode::SUCCESS
+        }
+        "fingerprint-dedup" => match fingerprint::dedup_jsonl(&root) {
+            Ok(removed) => {
+                println!("dedup: removed {removed} duplicate rows");
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("fingerprint-dedup: {e}");
+                ExitCode::FAILURE
+            }
+        },
         "record-speed" => {
             let skip = args.iter().any(|a| a == "--skip-run");
             match xtask::record_speed(&root, skip) {

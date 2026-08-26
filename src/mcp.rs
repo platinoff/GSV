@@ -278,11 +278,12 @@ pub fn tools_list() -> Vec<Value> {
         tool("gsv_sw", "Service Worker shell cache discovery (cache name + precache urls).", object_schema()),
         tool(
             "gsv_fingerprints",
-            "Drain fingerprints JSONL (actor / IDE / model / time).",
+            "Drain fingerprints JSONL (actor / IDE / model / time). Set recheck=true for dedup + issues + ranks enrichment.",
             json!({
                 "type": "object",
                 "properties": {
-                    "limit": { "type": "integer", "description": "Latest N rows (default 20, cap 100)." }
+                    "limit": { "type": "integer", "description": "Latest N rows (default 20, cap 100)." },
+                    "recheck": { "type": "boolean", "description": "Audit for duplicates, unknown models, missing bands. Enriches with rank info." }
                 }
             }),
         ),
@@ -1404,12 +1405,26 @@ async fn call_tool(state: &AppState, params: &Value, session: Option<&str>) -> V
                     .and_then(|v| v.as_u64())
                     .map(|n| n as usize),
             );
+            let recheck = args
+                .get("recheck")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
             let sel = state.product_selected.lock().ok().and_then(|g| g.clone());
-            tool_ok(crate::boxes::fingerprint::wire(
-                &state.repo_root,
-                sel.as_deref(),
-                limit,
-            ))
+            if recheck {
+                tool_ok(crate::boxes::fingerprint::wire_full(
+                    &state.repo_root,
+                    &state.data_dir,
+                    sel.as_deref(),
+                    limit,
+                    true,
+                ))
+            } else {
+                tool_ok(crate::boxes::fingerprint::wire(
+                    &state.repo_root,
+                    sel.as_deref(),
+                    limit,
+                ))
+            }
         }
         "gsv_xtask" => {
             let task = args
