@@ -1781,6 +1781,18 @@ Owner pick after Telenetis 208: harden the live 9800 deploy (webhook verify, WS 
 | **PH-S2743** | Gate | `cargo fmt -- --check` · `cargo clippy --all-targets` 0 · `cargo test` (telenetis 42 + gsv 715) · `gsv-loc-audit --stretch-96` ≥96% · `gsv_vision_sync` drift 0 — **✅** |
 | **PH-S2744** | Band close | `cargo xtask bump --band 209` · fingerprint · recopy `target/live` · one commit + push — **✅** |
 
+## Спринти (band 210) — Telenetis prod + security audit (owner pick)
+
+Owner pick post-209: prod deploy (systemd/docker 9800) + initData/rate audit, gate.
+
+| Sprint ID | Фокус | Прийнятні критерії |
+|-----------|-------|---------------------|
+| **PH-S2745** | Scope | band 210 scope = this table PH-S2745–2749, vision `next_sprint` PH-S2745 — **✅** |
+| **PH-S2746** | Prod deploy | systemd/docker 9800, `TELENETIS_BOT_TOKEN` vault, `GET /health` + `POST /webhook` + WS/SSE poll 5s/30s — **✅** |
+| **PH-S2747** | Sec audit | `MAX_BODY_BYTES` 64KiB, CSP, Telegram `initData` verify, webhook rate limit, `TimezoneStore` — **✅** |
+| **PH-S2748** | Gate | `cargo fmt` · `clippy` 0 · `cargo test` telenetis 42 + gsv 715 · `gsv-loc-audit` 99.44% · `gsv_vision_sync` drift 0 — **✅** |
+| **PH-S2749** | Band close | `cargo xtask bump --band 210` · fingerprint · recopy `target/live` · one commit + push — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.
