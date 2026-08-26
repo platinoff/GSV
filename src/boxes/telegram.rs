@@ -835,6 +835,100 @@ pub fn session_line(kind: &str, phase: &str, title: &str, worker: &str) -> Strin
     }
 }
 
+/// Parameters for [`polished_session_line`].
+pub struct PolishedLineParams<'a> {
+    pub data_dir: &'a Path,
+    pub kind: &'a str,
+    pub phase: &'a str,
+    pub title: &'a str,
+    pub worker: &'a str,
+    pub ticket_id: &'a str,
+    pub scenario: &'a str,
+    pub actor: &'a str,
+    pub ide: &'a str,
+    pub agent: &'a str,
+    pub host: bool,
+}
+
+/// Polished session line with rank badge and scenario context.
+///
+/// Format: `[L{level} {rank_title}] {kind} {phase} {title} #{ticket_id_short}`
+///
+/// Examples:
+/// - `[L5 Middle] solo claimed PH-S2729 #t-1787`
+/// - `[L12 Distinguished] squad assigned PH-S2729 to worker #t-1787`
+/// - `[L0 Jun-nub] solo done PH-S2729 #t-1787`
+pub fn polished_session_line(p: &PolishedLineParams<'_>) -> String {
+    let title = p.title.trim();
+    let worker = p.worker.trim();
+    let ticket_id = p.ticket_id.trim();
+    let scenario = p.scenario.trim();
+
+    // Get rank badge
+    let (_rank_id, rank_title, level) = {
+        let id = crate::boxes::ranks::identity_from(p.actor, p.ide, p.agent, "");
+        let file = crate::boxes::ranks::load(&crate::boxes::ranks::ranks_path(p.data_dir));
+        let level = file
+            .roster
+            .iter()
+            .find(|r| r.key == id.key())
+            .map(|r| r.level)
+            .unwrap_or(crate::boxes::ranks::MIN_LEVEL);
+        let d = if p.host {
+            crate::boxes::ranks::LADDER[crate::boxes::ranks::MAX_LEVEL as usize]
+        } else {
+            crate::boxes::ranks::def_for(level)
+        };
+        (d.id.to_string(), d.title.to_string(), level)
+    };
+
+    // Short ticket id (last 4 chars)
+    let short_id = if ticket_id.len() > 4 {
+        &ticket_id[ticket_id.len() - 4..]
+    } else {
+        ticket_id
+    };
+
+    // Scenario context
+    let scenario_hint = if scenario.is_empty() {
+        String::new()
+    } else {
+        format!(" [{scenario}]")
+    };
+
+    // Build the message
+    let action = match (p.kind, p.phase) {
+        ("squad", "assigned") | ("squad", "claimed") => {
+            if worker.is_empty() {
+                format!("squad claimed {title}")
+            } else {
+                format!("squad assigned {title} to {worker}")
+            }
+        }
+        ("squad", "done") => format!("squad done {title}"),
+        ("bench", _) => {
+            if title.starts_with("bench ") {
+                title.to_string()
+            } else {
+                format!("bench gsv_dev {title}")
+            }
+        }
+        ("hook", _) => {
+            if title.starts_with("hook ") {
+                title.to_string()
+            } else {
+                format!("hook {title}")
+            }
+        }
+        (_, "done") => format!("solo done {title}"),
+        _ => format!("solo claimed {title}"),
+    };
+
+    format!(
+        "[L{level} {rank_title}]{scenario_hint} {action} #{short_id}"
+    )
+}
+
 /// `gsv_dev` medians as a session line. Prefers `scenario_bench.json`;
 /// missing file falls back to speed-index (zeros in cargo tests).
 pub fn bench_session_line(repo_root: &Path) -> String {
@@ -1421,6 +1515,7 @@ pub async fn sync_walk(
         .filter(|s| !s.is_empty())
         .unwrap_or("solo");
     report.telegram = 0;
+    let host = settings::chat_role(&file) == "host";
     let mut envelopes: Vec<BusEnvelope> = Vec::new();
     for step in &report.walked {
         let kind = if step.kind.is_empty() {
@@ -1428,7 +1523,19 @@ pub async fn sync_walk(
         } else {
             step.kind.as_str()
         };
-        let line = session_line(kind, &step.phase, &step.title, &step.actor);
+        let line = polished_session_line(&PolishedLineParams {
+            data_dir,
+            kind,
+            phase: &step.phase,
+            title: &step.title,
+            worker: "",
+            ticket_id: &step.ticket_id,
+            scenario: &report.scenario,
+            actor: &step.actor,
+            ide: "cursor",
+            agent: "orchestrator",
+            host,
+        });
         let data = collect_sync_data(repo_root, &report.scenario, &step.phase, kind, &step.actor);
         if let Ok(env) = enqueue_session_data(from, &step.ticket_id, &line, Some(data)) {
             report.telegram += 1;

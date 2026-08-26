@@ -1157,18 +1157,29 @@ async fn http_walk_enqueues_telegram_sync() {
         msgs.iter().any(|m| m["body"]
             .as_str()
             .unwrap_or("")
-            .starts_with("solo claimed ")),
+            .contains("solo claimed ")),
         "{pjson}"
     );
     assert!(
         msgs.iter()
-            .any(|m| m["body"].as_str().unwrap_or("").starts_with("solo done ")),
+            .any(|m| m["body"].as_str().unwrap_or("").contains("solo done ")),
         "{pjson}"
     );
     assert!(
         msgs.iter()
             .any(|m| m["body"].as_str().unwrap_or("").contains("bench gsv_dev")),
         "{pjson}"
+    );
+    // Polished format: rank badge + scenario context
+    assert!(
+        msgs.iter()
+            .any(|m| m["body"].as_str().unwrap_or("").contains("[L")),
+        "expected rank badge in message: {pjson}"
+    );
+    assert!(
+        msgs.iter()
+            .any(|m| m["body"].as_str().unwrap_or("").contains("[memory-disk-speed]")),
+        "expected scenario context in message: {pjson}"
     );
 }
 

@@ -356,7 +356,7 @@ pub fn identity_from(actor: &str, ide: &str, agent: &str, telegram_id: &str) -> 
     }
 }
 
-fn load(path: &Path) -> RanksFile {
+pub fn load(path: &Path) -> RanksFile {
     let Ok(raw) = fs::read_to_string(path) else {
         return RanksFile::default();
     };
