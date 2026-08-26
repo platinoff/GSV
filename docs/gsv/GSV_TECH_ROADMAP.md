@@ -1768,6 +1768,19 @@ Owner pick: extend the audit series to a surface only inventoried before (band 2
 | **PH-S2735** | Docs | Register in PRODUCTS.md. Scenarios: telenetis-setup, telenetis-bot, telenetis-stream, telenetis-roles — **✅** |
 | **PH-S2736** | Band close | `--band 208` + fingerprint; one commit + push — **✅** |
 
+## Спринти (band 209) — Telenetis hardening + GSV polish (owner pick)
+
+Owner pick after Telenetis 208: harden the live 9800 deploy (webhook verify, WS reconnect, CSP), polish docs/Galaxy, gate.
+
+| Sprint ID | Фокус | Прийнятні критерії |
+|-----------|-------|---------------------|
+| **PH-S2739** | Scope | band 209 scope = this table PH-S2739–2744, active_sprint PH-S2739, vision `next_sprint` PH-S2739 — **✅** |
+| **PH-S2740** | Live deploy | `telenetis` bind `0.0.0.0:9800`, `GET /health` + `POST /webhook` + `GET /ws` + `GET /events`, poll 5s/30s, `cargo test` 42 pass — **✅** |
+| **PH-S2741** | WS/SSE+sec | WS reconnect 3s, SSE keep_alive 30s, broadcast 256, `MAX_BODY_BYTES` 64KiB, `security_headers` CSP, `TimezoneStore` — **✅** |
+| **PH-S2742** | Docs | `docs/telenetis/README.md` + `docs/README.md` + `docs/gsv/README.md` roadmap 102–209, `PRODUCTS.md`/`gsv.code-workspace` — **✅** |
+| **PH-S2743** | Gate | `cargo fmt -- --check` · `cargo clippy --all-targets` 0 · `cargo test` (telenetis 42 + gsv 715) · `gsv-loc-audit --stretch-96` ≥96% · `gsv_vision_sync` drift 0 — **✅** |
+| **PH-S2744** | Band close | `cargo xtask bump --band 209` · fingerprint · recopy `target/live` · one commit + push — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

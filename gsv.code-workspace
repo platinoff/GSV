@@ -11,6 +11,10 @@
     {
       "name": "LinFS",
       "path": "../LinFS"
+    },
+    {
+      "name": "Telenetis",
+      "path": "./telenetis"
     }
   ],
   "settings": {
