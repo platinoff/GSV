@@ -1,4 +1,5 @@
-use crate::bot::commands::{command_response, parse_command, Command};
+use crate::bot::commands::{handle_command, Command};
+use crate::bot::mini_app::mini_app_url;
 use crate::bot::telegram::TelegramBot;
 use crate::state::{AppState, FlowEvent};
 use axum::{extract::State, routing::post, Json, Router};
@@ -59,28 +60,34 @@ async fn handle_webhook(State(state): State<AppState>, Json(update): Json<Value>
                     .and_then(|v| v.as_str())
                     .unwrap_or("unknown");
 
-                let response_text = if let Some(cmd_str) = parse_command(&text) {
-                    let base = cmd_str.split('@').next().unwrap_or(&cmd_str);
-                    let cmd = Command::from_str(base);
-                    command_response(&cmd)
-                } else {
-                    format!("Echo: {}", text)
-                };
+                let cmd = Command::from_text(&text);
+                let response_text = handle_command(&cmd, &state).await;
 
                 state
                     .push_flow(FlowEvent {
                         ts: Utc::now(),
                         jail_id: state.jail_id().to_string(),
                         action: "telegram_message".to_string(),
-                        detail: format!("chat={} from={} text={}", chat_id, from, text),
+                        detail: format!("chat={} from={} cmd={}", chat_id, from, text),
                     })
                     .await;
 
                 tracing::info!("Reply to {}: {}", chat_id, response_text);
 
                 let bot = TelegramBot::new(state.config());
-                if let Err(e) = bot.send_message(chat_id, &response_text).await {
-                    tracing::warn!("Failed to send reply to {chat_id}: {e}");
+                match &cmd {
+                    Command::Start | Command::Help => {
+                        let url =
+                            mini_app_url(&format!("http://127.0.0.1:{}", state.config().port));
+                        if let Err(e) = bot.send_mini_app(chat_id, &response_text, &url).await {
+                            tracing::warn!("Failed to send mini app to {chat_id}: {e}");
+                        }
+                    }
+                    _ => {
+                        if let Err(e) = bot.send_message(chat_id, &response_text).await {
+                            tracing::warn!("Failed to send reply to {chat_id}: {e}");
+                        }
+                    }
                 }
             }
         }
