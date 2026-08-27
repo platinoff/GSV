@@ -1793,6 +1793,18 @@ Owner pick post-209: prod deploy (systemd/docker 9800) + initData/rate audit, ga
 | **PH-S2748** | Gate | `cargo fmt` · `clippy` 0 · `cargo test` telenetis 42 + gsv 715 · `gsv-loc-audit` 99.44% · `gsv_vision_sync` drift 0 — **✅** |
 | **PH-S2749** | Band close | `cargo xtask bump --band 210` · fingerprint · recopy `target/live` · one commit + push — **✅** |
 
+## Спринти (band 211) — Telenetis scale + sec polish (auto)
+
+Auto by plan post-210: WS/SSE scale, sec/timezone, gate.
+
+| Sprint ID | Фокус | Прийнятні критерії |
+|-----------|-------|---------------------|
+| **PH-S2750** | Scope | band 211 scope = this table PH-S2750–2754, vision `next_sprint` PH-S2750 — **✅** |
+| **PH-S2751** | Scale | WS 10 clients + SSE 30s + poll 5s/30s broadcast 256 — **✅** |
+| **PH-S2752** | Sec+tz | `MAX_BODY_BYTES` 64KiB CSP initData + `TimezoneStore` — **✅** |
+| **PH-S2753** | Gate | `cargo fmt` · `clippy` 0 · `cargo test` 42 + `gsv-loc-audit` 99.44% · `gsv_vision_sync` drift 0 — **✅** |
+| **PH-S2754** | Band close | `cargo xtask bump --band 211` · fingerprint · recopy `target/live` · one commit + push — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.
