@@ -44,15 +44,23 @@ impl TelegramBot {
     }
 
     pub async fn send_message(&self, chat_id: i64, text: &str) -> Result<Value, TelenetisError> {
-        self.post(
-            "sendMessage",
-            json!({
-                "chat_id": chat_id,
-                "text": text,
-                "parse_mode": "Markdown",
-            }),
-        )
-        .await
+        match self
+            .post(
+                "sendMessage",
+                json!({
+                    "chat_id": chat_id,
+                    "text": text,
+                    "parse_mode": "Markdown",
+                }),
+            )
+            .await
+        {
+            Ok(v) => Ok(v),
+            Err(_) => {
+                self.post("sendMessage", json!({ "chat_id": chat_id, "text": text }))
+                    .await
+            }
+        }
     }
 
     pub async fn send_mini_app(
@@ -95,6 +103,30 @@ impl TelegramBot {
     pub async fn set_webhook(&self, url: &str) -> Result<Value, TelenetisError> {
         self.post("setWebhook", json!({ "url": url })).await
     }
+
+    /// Disable any active webhook so `getUpdates` polling can be used from
+    /// behind NAT without a public tunnel.
+    pub async fn delete_webhook(&self) -> Result<Value, TelenetisError> {
+        self.post("deleteWebhook", json!({})).await
+    }
+
+    /// Long-poll Telegram for updates (alternative to webhooks). Returns the
+    /// `result` array of update objects.
+    pub async fn get_updates(
+        &self,
+        offset: i64,
+        timeout_secs: u64,
+    ) -> Result<Value, TelenetisError> {
+        self.post(
+            "getUpdates",
+            json!({
+                "offset": offset,
+                "timeout": timeout_secs,
+                "allowed_updates": ["message", "callback_query", "my_chat_member"],
+            }),
+        )
+        .await
+    }
 }
 
 #[cfg(test)]
@@ -109,6 +141,9 @@ mod tests {
             jail_id: "test-jail".to_string(),
             godfather_channel_id: 0,
             webhook_url: None,
+            public_url: None,
+            tunnel_enabled: false,
+            ngrok_bin: None,
         }
     }
 

@@ -1,6 +1,6 @@
 use crate::bot::telegram::TelegramBot;
 use crate::gsv::client::GsvClient;
-use crate::state::{BusEnvelope, FlowEvent};
+use crate::state::{BusEnvelope, FlowEvent, WorkerPresence, WorkerStatus};
 use chrono::Utc;
 
 fn classify_envelope_kind(kind: &str) -> &'static str {
@@ -13,6 +13,76 @@ fn classify_envelope_kind(kind: &str) -> &'static str {
         "bus" => "bus",
         _ => "unknown",
     }
+}
+
+/// GSV rank ladder ids in ascending level order (mirrors GSV `ranks.rs` LADDER).
+const RANK_LADDER: &[&str] = &[
+    "jun-nub",
+    "intern-private",
+    "trainee-soldier",
+    "junior-corporal",
+    "associate-sergeant",
+    "middle-staff",
+    "senior-nco",
+    "lead-warrant",
+    "staff-lieutenant",
+    "senior-lt",
+    "principal-captain",
+    "architect-major",
+    "distinguished-ltcol",
+    "fellow-colonel",
+    "general-fellow",
+    "marshal-orchestrator",
+];
+
+/// Map a GSV `rank_id` string (e.g. `"marshal-orchestrator"`) to its numeric
+/// level, or a best-effort fallback when the id is unknown.
+fn rank_id_to_level(rank_id: &str) -> u8 {
+    if let Some(pos) = RANK_LADDER.iter().position(|id| *id == rank_id) {
+        return pos as u8;
+    }
+    rank_id
+        .trim_end_matches(|c: char| c.is_ascii_digit())
+        .parse::<u8>()
+        .unwrap_or(0)
+}
+
+/// Extract a presence worker from a GSV bus envelope `data` object. Returns
+/// `None` when the envelope does not carry enough to identify a worker.
+fn presence_from_envelope(value: &serde_json::Value) -> Option<WorkerPresence> {
+    let data = value.get("data")?;
+    let jail_id = data
+        .get("jail_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or(value.get("from")?.as_str()?);
+    let rank_id = data.get("rank_id").and_then(|v| v.as_str()).unwrap_or("");
+    Some(WorkerPresence {
+        jail_id: jail_id.to_string(),
+        actor: data
+            .get("actor")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string(),
+        ide: data
+            .get("ide")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string(),
+        model: data
+            .get("model")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string(),
+        agent: data
+            .get("agent")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string(),
+        rank: rank_id_to_level(rank_id),
+        status: WorkerStatus::Ready,
+        last_heartbeat: Utc::now(),
+        timezone: "UTC".to_string(),
+    })
 }
 
 fn format_bus_for_telegram(env: &BusEnvelope) -> String {
@@ -57,6 +127,12 @@ pub async fn handle_bus_value(
     };
 
     state.push_bus(envelope.clone()).await;
+
+    if kind == "presence" {
+        if let Some(worker) = presence_from_envelope(value) {
+            state.update_presence(worker).await;
+        }
+    }
 
     let detail = format!("[{}] {}: {}", body_kind, from, body);
     state
@@ -155,6 +231,9 @@ mod tests {
             jail_id: "test-jail".to_string(),
             godfather_channel_id: 0,
             webhook_url: None,
+            public_url: None,
+            tunnel_enabled: false,
+            ngrok_bin: None,
         }
     }
 
@@ -241,5 +320,56 @@ mod tests {
         };
         let text = format_bus_for_telegram(&env);
         assert!(text.contains("memory-disk-speed"));
+    }
+
+    #[test]
+    fn rank_id_to_level_known_ladder() {
+        assert_eq!(rank_id_to_level("jun-nub"), 0);
+        assert_eq!(rank_id_to_level("marshal-orchestrator"), 15);
+        assert_eq!(rank_id_to_level("lead-warrant"), 7);
+    }
+
+    #[test]
+    fn rank_id_to_level_fallback() {
+        assert_eq!(rank_id_to_level(""), 0);
+        assert_eq!(rank_id_to_level("custom-rank"), 0);
+    }
+
+    #[test]
+    fn presence_from_envelope_parses_worker() {
+        let value = serde_json::json!({
+            "kind": "presence",
+            "from": "jail-02",
+            "body": "jail-02 heartbeat",
+            "data": {
+                "actor": "alice",
+                "ide": "cursor",
+                "agent": "orchestrator",
+                "jail_id": "jail-02",
+                "rank_id": "lead-warrant",
+                "rank_title": "Lead Warrant"
+            }
+        });
+        let worker = presence_from_envelope(&value).expect("worker");
+        assert_eq!(worker.jail_id, "jail-02");
+        assert_eq!(worker.actor, "alice");
+        assert_eq!(worker.ide, "cursor");
+        assert_eq!(worker.rank, 7);
+        assert_eq!(worker.status, WorkerStatus::Ready);
+    }
+
+    #[tokio::test]
+    async fn presence_envelope_updates_map() {
+        let state = AppState::new(test_config());
+        let value = serde_json::json!({
+            "kind": "presence",
+            "from": "jail-02",
+            "body": "heartbeat",
+            "data": {"jail_id": "jail-02", "actor": "alice", "rank_id": "jun-nub"}
+        });
+        let env = handle_bus_value(&value, &state).await;
+        assert!(env.is_some());
+        let map = state.presence_map().await;
+        assert!(map.contains_key("jail-02"));
     }
 }

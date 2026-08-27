@@ -8,6 +8,18 @@ pub struct Config {
     pub jail_id: String,
     pub godfather_channel_id: i64,
     pub webhook_url: Option<String>,
+    /// Public HTTPS base for the Telegram WebApp button. Without an external
+    /// host the Mini App's `web_app_url` (e.g. `http://127.0.0.1:9800`) will
+    /// only open on the same machine's Telegram client — Telegram WebApp
+    /// requires a reachable HTTPS URL to work from phones / remote clients.
+    /// When empty, the tunnel manager auto-derives it from ngrok.
+    pub public_url: Option<String>,
+    /// Auto-start an ngrok tunnel when a public URL is needed (webhook /
+    /// Mini App). Set `false` to disable.
+    pub tunnel_enabled: bool,
+    /// Optional explicit path to the ngrok binary. If empty, ngrok is looked
+    /// up on PATH and a few well-known locations.
+    pub ngrok_bin: Option<String>,
 }
 
 impl Config {
@@ -26,6 +38,11 @@ impl Config {
                 .parse()
                 .unwrap_or(0),
             webhook_url: env::var("TELENETIS_WEBHOOK_URL").ok(),
+            public_url: env::var("TELENETIS_PUBLIC_URL").ok(),
+            tunnel_enabled: env::var("TELENETIS_TUNNEL_ENABLED")
+                .map(|v| v != "0" && v.to_lowercase() != "false")
+                .unwrap_or(true),
+            ngrok_bin: env::var("TELENETIS_NGROK_BIN").ok(),
         }
     }
 }

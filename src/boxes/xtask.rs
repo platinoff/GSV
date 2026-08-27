@@ -345,6 +345,7 @@ pub fn run_live(repo_root: &Path, host: &str, port: u16) -> Result<(), String> {
     if crate::boxes::update::is_cargo_test_harness() {
         return Err("live supervisor skipped in cargo-test harness".into());
     }
+    eprintln!("gsv-live: {}", spawn_telenetis_live(repo_root));
     loop {
         let live = watchdog::copy_debug_to_live(repo_root)?;
         let mut child = Command::new(&live);
@@ -358,6 +359,56 @@ pub fn run_live(repo_root: &Path, host: &str, port: u16) -> Result<(), String> {
             .map_err(|e| e.to_string())?;
         eprintln!("gsv-live: process exited ({status}), restarting in 1s");
         thread::sleep(Duration::from_secs(1));
+    }
+}
+
+/// Spawn the Telenetis live supervisor (best-effort) alongside gsv-live so the
+/// Telegram bot stays up and its webhook keeps delivering squad messages.
+///
+/// Looks for `telenetis/target/{live,debug}/telenetis-live` and, if missing,
+/// best-effort `cargo build --bin telenetetis-live` inside `telenetis/`. The
+/// spawned supervisor copies debug → live and respawns the bot on exit, so it
+/// runs independently of gsv-live's own loop.
+pub fn spawn_telenetis_live(repo_root: &Path) -> String {
+    if crate::boxes::update::is_cargo_test_harness() {
+        return "telenetis-live: skipped (test harness)".into();
+    }
+    let telenetis_dir = repo_root.join("telenetis");
+    if !telenetis_dir.is_dir() {
+        return "telenetis-live: telenetis crate not present — skipped".into();
+    }
+    let live_exe = telenetis_dir.join("target/live/telenetis-live.exe");
+    let debug_exe = telenetis_dir.join("target/debug/telenetis-live.exe");
+    let exe = if live_exe.is_file() {
+        live_exe
+    } else if debug_exe.is_file() {
+        debug_exe
+    } else {
+        eprintln!("telenetis-live: building (cargo build --bin telenetis-live)…");
+        let built = Command::new("cargo")
+            .args(["build", "--bin", "telenetis-live"])
+            .current_dir(&telenetis_dir)
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if !built || !debug_exe.is_file() {
+            return "telenetis-live: build skipped/failed — run `cargo build --bin telenetis-live` in telenetis/".into();
+        }
+        debug_exe
+    };
+
+    let mut cmd = Command::new(&exe);
+    cmd.stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(watchdog::SPAWN_LIVE_WINDOWS_FLAGS);
+    }
+    match cmd.spawn() {
+        Ok(_) => format!("telenetis-live: spawned ({})", products::display_path(&exe)),
+        Err(e) => format!("telenetis-live: spawn failed: {e}"),
     }
 }
 

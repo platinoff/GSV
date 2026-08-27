@@ -25,3 +25,7 @@ tower = { version = "0.5", features = ["util"] }
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
+
+[[bin]]
+name = "telenetis-live"
+path = "src/bin/telenetis_live.rs"

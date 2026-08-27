@@ -62,6 +62,7 @@ pub struct AppState {
     flows: Arc<RwLock<Vec<FlowEvent>>>,
     flows_tx: broadcast::Sender<FlowEvent>,
     online: Arc<std::sync::atomic::AtomicBool>,
+    tunnel_url: Arc<RwLock<Option<String>>>,
 }
 
 impl AppState {
@@ -75,7 +76,16 @@ impl AppState {
             flows: Arc::new(RwLock::new(Vec::new())),
             flows_tx,
             online: Arc::new(std::sync::atomic::AtomicBool::new(true)),
+            tunnel_url: Arc::new(RwLock::new(None)),
         }
+    }
+
+    pub async fn set_tunnel_url(&self, url: String) {
+        *self.tunnel_url.write().await = Some(url);
+    }
+
+    pub async fn tunnel_url(&self) -> Option<String> {
+        self.tunnel_url.read().await.clone()
     }
 
     pub fn jail_id(&self) -> &str {
@@ -140,6 +150,48 @@ impl AppState {
     }
 }
 
+/// Register the bot itself (Telenetis jail) as an online worker so `/roles`
+/// and `/status` show `@GsvOfficialBot` as Ready even when no other worker is
+/// connected. Refreshed on a heartbeat and via `/reconnect`.
+pub fn register_self_presence(state: &AppState) {
+    let presence = worker_presence(
+        state.jail_id(),
+        "bot",
+        "telegram",
+        "n/a",
+        "telenetis",
+        2,
+        WorkerStatus::Ready,
+    );
+    let state = state.clone();
+    tokio::spawn(async move {
+        state.update_presence(presence).await;
+    });
+}
+
+/// Build a [`WorkerPresence`] with the current timestamp and UTC timezone.
+pub fn worker_presence(
+    jail_id: &str,
+    actor: &str,
+    ide: &str,
+    model: &str,
+    agent: &str,
+    rank: u8,
+    status: WorkerStatus,
+) -> WorkerPresence {
+    WorkerPresence {
+        jail_id: jail_id.to_string(),
+        actor: actor.to_string(),
+        ide: ide.to_string(),
+        model: model.to_string(),
+        agent: agent.to_string(),
+        rank,
+        status,
+        last_heartbeat: chrono::Utc::now(),
+        timezone: "UTC".to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -153,6 +205,9 @@ mod tests {
             jail_id: "test-jail".to_string(),
             godfather_channel_id: 0,
             webhook_url: None,
+            public_url: None,
+            tunnel_enabled: false,
+            ngrok_bin: None,
         }
     }
 

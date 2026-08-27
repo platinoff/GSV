@@ -29,6 +29,8 @@ pub enum Command {
     Done(String),
     Sync,
     App,
+    Tunnel,
+    Reconnect,
     Help,
     Unknown(String),
 }
@@ -46,6 +48,8 @@ impl Command {
             "scenarios" => Self::Scenarios,
             "sync" => Self::Sync,
             "app" => Self::App,
+            "tunnel" => Self::Tunnel,
+            "reconnect" => Self::Reconnect,
             "help" => Self::Help,
             other => Self::Unknown(other.to_string()),
         }
@@ -68,6 +72,8 @@ impl Command {
             "done" => Self::Done(args),
             "sync" => Self::Sync,
             "app" => Self::App,
+            "tunnel" => Self::Tunnel,
+            "reconnect" => Self::Reconnect,
             "help" => Self::Help,
             other => Self::Unknown(other.to_string()),
         }
@@ -91,6 +97,8 @@ pub fn command_response(cmd: &Command) -> String {
              /done <id> — Mark ticket done\n\
              /sync — Force sync from GSV\n\
              /app — Open Mini App\n\
+             /tunnel — Show / refresh public tunnel URL\n\
+             /reconnect — Reconnect bot to channel\n\
              /help — This message"
             .to_string(),
         Command::Status => "Fetching status...".to_string(),
@@ -105,6 +113,8 @@ pub fn command_response(cmd: &Command) -> String {
         Command::Done(id) => format!("Marking ticket `{id}` done..."),
         Command::Sync => "Syncing from GSV...".to_string(),
         Command::App => "Opening Mini App...".to_string(),
+        Command::Tunnel => "Tunnel".to_string(),
+        Command::Reconnect => "Reconnect".to_string(),
         Command::Unknown(cmd) => format!("Unknown command: /{cmd}"),
     }
 }
@@ -124,8 +134,36 @@ pub async fn handle_command(cmd: &Command, state: &AppState) -> String {
         Command::Done(id) => handle_done(id, state).await,
         Command::Sync => handle_sync(state).await,
         Command::App => command_response(cmd),
+        Command::Tunnel => handle_tunnel(state).await,
+        Command::Reconnect => handle_reconnect(state).await,
         Command::Unknown(_) => command_response(cmd),
     }
+}
+
+/// Refresh the public tunnel URL (ensure ngrok is up) and report it.
+async fn handle_tunnel(state: &AppState) -> String {
+    let config = state.config().clone();
+    match crate::tunnel::ensure_public_url(&config).await {
+        Ok(url) => {
+            state.set_tunnel_url(url.clone()).await;
+            format!(
+                "🕳️ *Tunnel* is live.\nPublic URL: `{}`\n\nThis is the address the `/app` Mini App button opens from phones.",
+                url
+            )
+        }
+        Err(e) => format!("⚠️ *Tunnel unavailable*: `{e}`\n\nSet `TELENETIS_PUBLIC_URL` in `.env` to pin a fixed host."),
+    }
+}
+
+/// Reconnect the bot flow: re-register self presence and force a GSV re-sync.
+async fn handle_reconnect(state: &AppState) -> String {
+    crate::state::register_self_presence(state);
+    let sync = handle_sync(state).await;
+    format!(
+        "🔄 *Reconnected.*\n\nWorker presence re-registered for `{}`.\n\n{}",
+        state.jail_id(),
+        sync
+    )
 }
 
 async fn handle_status(state: &AppState) -> String {
@@ -425,6 +463,9 @@ mod tests {
             jail_id: "test-jail".to_string(),
             godfather_channel_id: 0,
             webhook_url: None,
+            public_url: None,
+            tunnel_enabled: false,
+            ngrok_bin: None,
         }
     }
 
@@ -464,6 +505,8 @@ mod tests {
         assert!(matches!(Command::from_str("ranks"), Command::Ranks));
         assert!(matches!(Command::from_str("sync"), Command::Sync));
         assert!(matches!(Command::from_str("app"), Command::App));
+        assert!(matches!(Command::from_str("tunnel"), Command::Tunnel));
+        assert!(matches!(Command::from_str("reconnect"), Command::Reconnect));
         assert!(matches!(Command::from_str("help"), Command::Help));
     }
 

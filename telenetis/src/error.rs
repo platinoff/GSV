@@ -8,6 +8,7 @@ pub enum TelenetisError {
     Gsv(String),
     Config(String),
     Serialization(String),
+    Tunnel(String),
     Io(std::io::Error),
     Reqwest(reqwest::Error),
 }
@@ -19,6 +20,7 @@ impl fmt::Display for TelenetisError {
             Self::Gsv(msg) => write!(f, "GSV: {msg}"),
             Self::Config(msg) => write!(f, "Config: {msg}"),
             Self::Serialization(msg) => write!(f, "Serialization: {msg}"),
+            Self::Tunnel(msg) => write!(f, "Tunnel: {msg}"),
             Self::Io(err) => write!(f, "IO: {err}"),
             Self::Reqwest(err) => write!(f, "HTTP: {err}"),
         }
@@ -32,6 +34,7 @@ impl IntoResponse for TelenetisError {
             Self::Gsv(msg) => (StatusCode::BAD_GATEWAY, msg.clone()),
             Self::Config(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
             Self::Serialization(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
+            Self::Tunnel(msg) => (StatusCode::BAD_GATEWAY, msg.clone()),
             Self::Io(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
             Self::Reqwest(err) => (StatusCode::BAD_GATEWAY, err.to_string()),
         };
