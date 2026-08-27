@@ -54,6 +54,11 @@ pub fn git_head(repo_root: &Path) -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
+/// Read `git rev-parse --short HEAD` at `repo_root`, returning `"unknown"` on failure.
+pub fn git_head_short(repo_root: &Path) -> String {
+    git_head(repo_root).unwrap_or_else(|| "unknown".into())
+}
+
 /// Read `docs/development/{file}` or `docs/vision/{file}` as JSON.
 pub fn read_vision_json(repo_root: &Path, rel: &str) -> Option<Value> {
     for candidate in [

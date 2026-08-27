@@ -46,6 +46,18 @@ pub const MCP_SESSION_HEADER: &str = "mcp-session-id";
 /// Cap on process-local HTTP MCP sessions (oldest dropped).
 pub const MCP_SESSION_CAP: usize = 32;
 
+/// JSON-RPC parse error (message could not be parsed).
+pub const RPC_PARSE_ERROR: i32 = -32700;
+
+/// JSON-RPC invalid request (valid JSON but not a valid request object).
+pub const RPC_INVALID_REQUEST: i32 = -32600;
+
+/// JSON-RPC method not found.
+pub const RPC_METHOD_NOT_FOUND: i32 = -32601;
+
+/// JSON-RPC invalid params.
+pub const RPC_INVALID_PARAMS: i32 = -32602;
+
 /// Visible ASCII session id: 8–128 alphanumeric or hyphen.
 pub fn valid_mcp_session_id(id: &str) -> bool {
     let n = id.len();
@@ -786,7 +798,7 @@ pub async fn handle_line(state: &AppState, line: &str) -> Option<String> {
     }
     let response = match serde_json::from_str::<Value>(line) {
         Ok(v) => handle_value_in(state, v, Some("stdio")).await,
-        Err(e) => Some(rpc_error(None, -32700, format!("parse: {e}"))),
+        Err(e) => Some(rpc_error(None, RPC_PARSE_ERROR, format!("parse: {e}"))),
     };
     let mut lines: Vec<String> = state
         .drain_mcp_notifications()
@@ -966,13 +978,13 @@ fn rpc_result(id: Option<Value>, result: Value) -> Value {
 async fn handle_one(state: &AppState, value: Value, session: Option<&str>) -> Option<Value> {
     let obj = match value.as_object() {
         Some(o) => o,
-        None => return Some(rpc_error(None, -32600, "invalid request")),
+        None => return Some(rpc_error(None, RPC_INVALID_REQUEST, "invalid request")),
     };
     let id = obj.get("id").cloned();
     let method = obj.get("method").and_then(Value::as_str).unwrap_or("");
     let params = obj.get("params").cloned().unwrap_or_else(|| json!({}));
     if method.is_empty() {
-        return Some(rpc_error(id, -32600, "invalid request"));
+        return Some(rpc_error(id, RPC_INVALID_REQUEST, "invalid request"));
     }
     match method {
         "initialize" => {
@@ -988,28 +1000,28 @@ async fn handle_one(state: &AppState, value: Value, session: Option<&str>) -> Op
         "resources/list" => Some(rpc_result(id, json!({ "resources": resources_list() }))),
         "resources/read" => match resources_read(state, &params) {
             Ok(result) => Some(rpc_result(id, result)),
-            Err(msg) => Some(rpc_error(id, -32602, msg)),
+            Err(msg) => Some(rpc_error(id, RPC_INVALID_PARAMS, msg)),
         },
         "resources/subscribe" => match resources_subscribe(state, &params) {
             Ok(result) => Some(rpc_result(id, result)),
-            Err(msg) => Some(rpc_error(id, -32602, msg)),
+            Err(msg) => Some(rpc_error(id, RPC_INVALID_PARAMS, msg)),
         },
         "resources/unsubscribe" => match resources_unsubscribe(state, &params) {
             Ok(result) => Some(rpc_result(id, result)),
-            Err(msg) => Some(rpc_error(id, -32602, msg)),
+            Err(msg) => Some(rpc_error(id, RPC_INVALID_PARAMS, msg)),
         },
         "prompts/list" => Some(rpc_result(id, json!({ "prompts": prompts_list() }))),
         "prompts/get" => match prompts_get(&params) {
             Ok(result) => Some(rpc_result(id, result)),
-            Err(msg) => Some(rpc_error(id, -32602, msg)),
+            Err(msg) => Some(rpc_error(id, RPC_INVALID_PARAMS, msg)),
         },
         "logging/setLevel" => match logging_set_level(state, &params) {
             Ok(result) => Some(rpc_result(id, result)),
-            Err(msg) => Some(rpc_error(id, -32602, msg)),
+            Err(msg) => Some(rpc_error(id, RPC_INVALID_PARAMS, msg)),
         },
         "completion/complete" => match completion_complete(&params) {
             Ok(result) => Some(rpc_result(id, result)),
-            Err(msg) => Some(rpc_error(id, -32602, msg)),
+            Err(msg) => Some(rpc_error(id, RPC_INVALID_PARAMS, msg)),
         },
         "notifications/initialized" => {
             notify_tools_list_changed(state);
@@ -1017,7 +1029,7 @@ async fn handle_one(state: &AppState, value: Value, session: Option<&str>) -> Op
         }
         "notifications/cancelled" => None,
         _ if id.is_none() => None,
-        _ => Some(rpc_error(id, -32601, format!("method not found: {method}"))),
+        _ => Some(rpc_error(id, RPC_METHOD_NOT_FOUND, format!("method not found: {method}"))),
     }
 }
 
@@ -1284,8 +1296,8 @@ async fn call_tool(state: &AppState, params: &Value, session: Option<&str>) -> V
             &state.data_dir,
         )),
         "gsv_ide_sessions" => {
-            let sel = state.ide_selection.try_read().ok();
-            tool_ok(to_json(ide::wire(sel.as_deref().and_then(|s| s.as_ref()))))
+            let sel = state.ide_selection_snapshot();
+            tool_ok(to_json(ide::wire(sel.as_ref())))
         }
         "gsv_terminal" => tool_terminal(state, &args),
         "gsv_omni_chat" => tool_omni(state, &args, session).await,
@@ -1977,7 +1989,7 @@ mod tests {
         let s = state();
         let req = json!({ "jsonrpc": "2.0", "id": 9, "method": "nope" });
         let out = handle_value(&s, req).await.expect("response");
-        assert_eq!(out["error"]["code"], -32601);
+        assert_eq!(out["error"]["code"], RPC_METHOD_NOT_FOUND);
     }
 
     #[test]
@@ -2081,7 +2093,7 @@ mod tests {
         assert!(handle_line(&s, "  \n").await.is_none());
         let err = handle_line(&s, "{not-json").await.expect("parse error");
         let v: Value = serde_json::from_str(&err).expect("json");
-        assert_eq!(v["error"]["code"], -32700);
+        assert_eq!(v["error"]["code"], RPC_PARSE_ERROR);
     }
 
     #[tokio::test]
@@ -2334,9 +2346,9 @@ mod tests {
 
     #[test]
     fn rpc_error_uses_null_id_when_missing() {
-        let v = rpc_error(None, -32600, "invalid request");
+        let v = rpc_error(None, RPC_INVALID_REQUEST, "invalid request");
         assert_eq!(v["id"], Value::Null);
-        assert_eq!(v["error"]["code"], -32600);
+        assert_eq!(v["error"]["code"], RPC_INVALID_REQUEST);
         assert_eq!(v["jsonrpc"], "2.0");
     }
 
@@ -2456,7 +2468,7 @@ mod tests {
             json!({ "uri": "file:///etc/passwd" }),
         )
         .await;
-        assert_eq!(bad["error"]["code"], -32602);
+        assert_eq!(bad["error"]["code"], RPC_INVALID_PARAMS);
 
         let trav = rpc(
             &s,
@@ -2465,7 +2477,7 @@ mod tests {
             json!({ "uri": "gsv://vision/../../../.env" }),
         )
         .await;
-        assert_eq!(trav["error"]["code"], -32602);
+        assert_eq!(trav["error"]["code"], RPC_INVALID_PARAMS);
     }
 
     #[tokio::test]
@@ -2491,7 +2503,7 @@ mod tests {
         );
 
         let unknown = rpc(&s, 67, "prompts/get", json!({ "name": "nope" })).await;
-        assert_eq!(unknown["error"]["code"], -32602);
+        assert_eq!(unknown["error"]["code"], RPC_INVALID_PARAMS);
     }
 
     #[test]
@@ -2523,7 +2535,7 @@ mod tests {
         assert_eq!(http_info(&s)["log_level"], "warning");
 
         let bad = rpc(&s, 71, "logging/setLevel", json!({ "level": "trace" })).await;
-        assert_eq!(bad["error"]["code"], -32602);
+        assert_eq!(bad["error"]["code"], RPC_INVALID_PARAMS);
         assert_eq!(http_info(&s)["log_level"], "warning");
     }
 
@@ -2575,7 +2587,7 @@ mod tests {
             }),
         )
         .await;
-        assert_eq!(trav["error"]["code"], -32602);
+        assert_eq!(trav["error"]["code"], RPC_INVALID_PARAMS);
 
         let file_uri = rpc(
             &s,
@@ -2587,7 +2599,7 @@ mod tests {
             }),
         )
         .await;
-        assert_eq!(file_uri["error"]["code"], -32602);
+        assert_eq!(file_uri["error"]["code"], RPC_INVALID_PARAMS);
 
         let unknown = rpc(
             &s,
@@ -2599,7 +2611,7 @@ mod tests {
             }),
         )
         .await;
-        assert_eq!(unknown["error"]["code"], -32602);
+        assert_eq!(unknown["error"]["code"], RPC_INVALID_PARAMS);
     }
 
     #[test]
@@ -2646,7 +2658,7 @@ mod tests {
             json!({ "uri": "file:///etc/passwd" }),
         )
         .await;
-        assert_eq!(bad["error"]["code"], -32602);
+        assert_eq!(bad["error"]["code"], RPC_INVALID_PARAMS);
 
         let trav = rpc(
             &s,
@@ -2655,7 +2667,7 @@ mod tests {
             json!({ "uri": "gsv://vision/../../../.env" }),
         )
         .await;
-        assert_eq!(trav["error"]["code"], -32602);
+        assert_eq!(trav["error"]["code"], RPC_INVALID_PARAMS);
 
         let off = rpc(
             &s,
@@ -2919,7 +2931,7 @@ mod tests {
         assert!(out.get("error").is_none(), "{out}");
         assert!(text.contains("band 151"), "{text}");
         let trav = rpc(&s, 92, "resources/read", json!({ "uri": "gsv://docs/../" })).await;
-        assert_eq!(trav["error"]["code"], -32602);
+        assert_eq!(trav["error"]["code"], RPC_INVALID_PARAMS);
         let spec = rpc(
             &s,
             93,

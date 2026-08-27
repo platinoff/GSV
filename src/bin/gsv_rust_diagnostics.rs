@@ -92,19 +92,7 @@ fn repo_root() -> PathBuf {
 }
 
 fn git_head_short(root: &Path) -> String {
-    Command::new("git")
-        .args(["rev-parse", "--short", "HEAD"])
-        .current_dir(root)
-        .output()
-        .ok()
-        .and_then(|o| {
-            if o.status.success() {
-                Some(String::from_utf8_lossy(&o.stdout).trim().to_string())
-            } else {
-                None
-            }
-        })
-        .unwrap_or_else(|| "unknown".into())
+    gsv::vision::git_head_short(root)
 }
 
 fn load_index(path: &Path) -> RustDiagnostics {

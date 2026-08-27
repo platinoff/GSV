@@ -386,15 +386,7 @@ pub fn resolve_model() -> String {
 }
 
 fn git_head_short(root: &Path) -> Option<String> {
-    crate::vision::command("git")
-        .current_dir(root)
-        .args(["rev-parse", "--short", "HEAD"])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
+    crate::vision::git_head(root)
 }
 
 /// Commit trailers for the drain-close commit.

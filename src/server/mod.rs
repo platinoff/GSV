@@ -30,6 +30,15 @@ pub const INDEX_HTML: &str = include_str!("../../ui/index.html");
 /// Ported vision diagram (`GSV/ui/vision.svg`), ratio-safe: `.svg` is audit-ignored.
 pub const VISION_SVG: &str = include_str!("../../ui/vision.svg");
 
+/// SSE notification poll interval.
+const SSE_POLL_MS: u64 = 400;
+
+/// SSE keepalive interval.
+const SSE_KEEPALIVE_SECS: u64 = 15;
+
+/// Pre-exit delay for shutdown/restart.
+const SHUTDOWN_DELAY_MS: u64 = 200;
+
 /// Canonical JSON error response — every error carries `{ok:false, error}`.
 fn err_json(status: StatusCode, msg: impl Into<String>) -> Response {
     (status, Json(json!({ "ok": false, "error": msg.into() }))).into_response()
@@ -657,7 +666,7 @@ fn mcp_sse_hold(
     let later =
         stream::unfold(state, |state| async move {
             loop {
-                tokio::time::sleep(Duration::from_millis(400)).await;
+                tokio::time::sleep(Duration::from_millis(SSE_POLL_MS)).await;
                 let notes = state.drain_mcp_notifications();
                 if !notes.is_empty() {
                     return Some((notes, state));
@@ -671,7 +680,7 @@ fn mcp_sse_hold(
         });
     Sse::new(first.chain(later)).keep_alive(
         KeepAlive::new()
-            .interval(Duration::from_secs(15))
+            .interval(Duration::from_secs(SSE_KEEPALIVE_SECS))
             .text("keepalive"),
     )
 }
@@ -755,7 +764,7 @@ async fn api_index() -> Json<Value> {
     Json(json!({
         "ok": true,
         "api": "GSV",
-        "port": 9999,
+        "port": crate::DEFAULT_PORT,
         "categories": [
             "/api/vision/", "/api/ui/", "/api/ratio/", "/api/toolchain/",
             "/api/ide/", "/api/omni/", "/api/sli", "/api/tracker", "/api/products",
@@ -828,7 +837,7 @@ async fn api_toolchain(State(state): State<AppState>) -> Json<Value> {
 }
 
 async fn api_ide_sessions(State(state): State<AppState>) -> Json<Value> {
-    let selection = state.ide_selection.try_read().ok().and_then(|s| s.clone());
+    let selection = state.ide_selection_snapshot();
     Json(json!(crate::boxes::ide::wire(selection.as_ref())))
 }
 
@@ -957,7 +966,7 @@ async fn api_update_apply(State(state): State<AppState>) -> Json<Value> {
     let body = crate::boxes::update::apply_update(&state);
     if crate::boxes::update::apply_should_exit() {
         tokio::spawn(async {
-            tokio::time::sleep(Duration::from_millis(200)).await;
+            tokio::time::sleep(Duration::from_millis(SHUTDOWN_DELAY_MS)).await;
             std::process::exit(0);
         });
     }
@@ -1222,7 +1231,7 @@ async fn card_wire(state: &AppState, name: &str, q: &CardQuery) -> Result<Value,
         ),
         "update" => json!(crate::boxes::update::wire(state)),
         "ide" => {
-            let selection = state.ide_selection.try_read().ok().and_then(|s| s.clone());
+            let selection = state.ide_selection_snapshot();
             json!(crate::boxes::ide::wire(selection.as_ref()))
         }
         "vision" => crate::boxes::vision::wire_summary(&state.repo_root, &state.data_dir),
@@ -1581,7 +1590,7 @@ async fn api_vision_events(State(state): State<AppState>) -> Json<Value> {
 }
 
 async fn api_vision_ide_session(State(state): State<AppState>) -> Json<Value> {
-    let selection = state.ide_selection.try_read().ok().and_then(|s| s.clone());
+    let selection = state.ide_selection_snapshot();
     Json(json!({
         "ok": true,
         "selection": selection,
@@ -1712,7 +1721,7 @@ async fn api_vision_snapshot(State(state): State<AppState>) -> Json<Value> {
 async fn api_vision_shutdown(State(state): State<AppState>) -> Json<Value> {
     state.emit("event: shutdown\ndata: requested".to_string());
     tokio::spawn(async {
-        tokio::time::sleep(Duration::from_millis(200)).await;
+        tokio::time::sleep(Duration::from_millis(SHUTDOWN_DELAY_MS)).await;
         std::process::exit(0);
     });
     Json(json!({ "ok": true, "action": "shutdown", "generated_at": vision::rfc3339_now() }))
@@ -1723,7 +1732,7 @@ async fn api_vision_restart(State(state): State<AppState>) -> Json<Value> {
     let exe = std::env::current_exe().unwrap_or_default();
     let dir = std::env::current_dir().unwrap_or_default();
     tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_millis(200)).await;
+        tokio::time::sleep(Duration::from_millis(SHUTDOWN_DELAY_MS)).await;
         let _ = crate::vision::command(&exe).current_dir(&dir).spawn();
         std::process::exit(0);
     });
@@ -1755,7 +1764,7 @@ async fn api_ide_pending_rebuild() -> Json<Value> {
 }
 
 async fn api_ide_active_session(State(state): State<AppState>) -> Json<Value> {
-    let selection = state.ide_selection.try_read().ok().and_then(|s| s.clone());
+    let selection = state.ide_selection_snapshot();
     Json(json!({ "ok": true, "selection": selection }))
 }
 
@@ -1864,7 +1873,7 @@ async fn events(
     });
     Sse::new(stream).keep_alive(
         KeepAlive::new()
-            .interval(Duration::from_secs(15))
+            .interval(Duration::from_secs(SSE_KEEPALIVE_SECS))
             .text("keepalive"),
     )
 }

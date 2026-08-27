@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitCode};
+use std::process::ExitCode;
 
 const DEFAULT_OUTPUT: &str = "docs/vision/speed_index.json";
 const HISTORY_TEST_CAP: usize = 24;
@@ -91,19 +91,7 @@ fn repo_root() -> PathBuf {
 }
 
 fn git_head_short(root: &Path) -> String {
-    Command::new("git")
-        .args(["rev-parse", "--short", "HEAD"])
-        .current_dir(root)
-        .output()
-        .ok()
-        .and_then(|o| {
-            if o.status.success() {
-                Some(String::from_utf8_lossy(&o.stdout).trim().to_string())
-            } else {
-                None
-            }
-        })
-        .unwrap_or_else(|| "unknown".into())
+    gsv::vision::git_head_short(root)
 }
 
 fn load_index(path: &Path) -> SpeedIndex {

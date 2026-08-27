@@ -406,10 +406,13 @@ fn find_row_mut<'a>(file: &'a mut RanksFile, id: &Identity) -> &'a mut RosterRow
     file.roster.last_mut().expect("just pushed")
 }
 
+/// Maximum event history entries kept in the ranks file.
+const MAX_RANK_EVENTS: usize = 20;
+
 fn push_event(file: &mut RanksFile, ev: RankEvent) {
     file.events.push(ev);
-    if file.events.len() > 20 {
-        let drop = file.events.len() - 20;
+    if file.events.len() > MAX_RANK_EVENTS {
+        let drop = file.events.len() - MAX_RANK_EVENTS;
         file.events.drain(0..drop);
     }
 }

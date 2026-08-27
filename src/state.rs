@@ -188,6 +188,11 @@ impl AppState {
         self.mcp_sessions.read().map(|m| m.len()).unwrap_or(0)
     }
 
+    /// Clone the current IDE selection (lock-and-clone helper).
+    pub fn ide_selection_snapshot(&self) -> Option<crate::boxes::ide::IdeSelection> {
+        self.ide_selection.try_read().ok().and_then(|s| s.clone())
+    }
+
     /// Record that `tools/list` returned `n` tools (process-wide + optional session).
     pub fn mcp_mark_listed(&self, session: Option<&str>, n: u32) {
         self.mcp_listed_tools.store(n, Ordering::Relaxed);
