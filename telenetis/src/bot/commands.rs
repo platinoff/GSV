@@ -2,15 +2,27 @@ use crate::state::AppState;
 
 pub fn parse_command(text: &str) -> Option<String> {
     let cmd = text.split_whitespace().next()?;
-    cmd.strip_prefix('/').map(|s| s.to_string())
+    let stripped = cmd.strip_prefix('/')?;
+    if let Some(idx) = stripped.find('@') {
+        Some(stripped[..idx].to_string())
+    } else {
+        Some(stripped.to_string())
+    }
 }
 
 pub fn parse_command_args(text: &str) -> (Option<String>, String) {
     let mut parts = text.splitn(2, |c: char| c.is_whitespace());
-    let cmd = parts
+    let raw_cmd = parts
         .next()
         .and_then(|s| s.strip_prefix('/'))
         .map(|s| s.to_string());
+    let cmd = raw_cmd.map(|c| {
+        if let Some(idx) = c.find('@') {
+            c[..idx].to_string()
+        } else {
+            c
+        }
+    });
     let args = parts.next().unwrap_or("").trim().to_string();
     (cmd, args)
 }
@@ -472,6 +484,7 @@ mod tests {
     #[test]
     fn parse_start_command() {
         assert_eq!(parse_command("/start"), Some("start".to_string()));
+        assert_eq!(parse_command("/status@gsv_bot"), Some("status".to_string()));
         assert_eq!(parse_command("/board extra"), Some("board".to_string()));
     }
 

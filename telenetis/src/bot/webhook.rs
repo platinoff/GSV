@@ -91,8 +91,16 @@ pub async fn process_update(state: &AppState, update: &Value) {
                             },
                         };
                         let url = mini_app_url(&base);
-                        if let Err(e) = bot.send_mini_app(chat_id, &response_text, &url).await {
-                            tracing::warn!("Failed to send mini app to {chat_id}: {e}");
+                        let res = if url.starts_with("https://") {
+                            bot.send_mini_app(chat_id, &response_text, &url).await
+                        } else {
+                            Err(crate::error::TelenetisError::Tunnel("Mini App requires HTTPS tunnel URL (run /tunnel)".to_string()))
+                        };
+                        if let Err(e) = res {
+                            let fallback_text = format!("{}\n\n⚠️ Mini App requires HTTPS tunnel URL.\nURL: {}\nError: {e}\n\nTip: Run /tunnel to start ngrok.", response_text, url);
+                            if let Err(err) = bot.send_message(chat_id, &fallback_text).await {
+                                tracing::warn!("Failed to send fallback reply to {chat_id}: {err}");
+                            }
                         }
                     }
                     _ => {
