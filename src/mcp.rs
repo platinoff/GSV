@@ -1029,7 +1029,11 @@ async fn handle_one(state: &AppState, value: Value, session: Option<&str>) -> Op
         }
         "notifications/cancelled" => None,
         _ if id.is_none() => None,
-        _ => Some(rpc_error(id, RPC_METHOD_NOT_FOUND, format!("method not found: {method}"))),
+        _ => Some(rpc_error(
+            id,
+            RPC_METHOD_NOT_FOUND,
+            format!("method not found: {method}"),
+        )),
     }
 }
 

@@ -34,5 +34,9 @@ Thumbs.db
 /comitmsg/*
 !/comitmsg/README.md
 
+# Telenetis local run logs (never staged)
+/telenetis/*.log
+/telenetis/**/*.log
+
 # Obsidian vault (owner notes; never staged per obsidian-vault skill)
 /vault/

@@ -26,8 +26,16 @@ impl TelegramBot {
         let resp = self.http.post(&url).json(&body).send().await?;
         let status = resp.status();
         if !status.is_success() {
+            let detail = if let Ok(v) = resp.json::<Value>().await {
+                v.get("description")
+                    .and_then(|d| d.as_str())
+                    .unwrap_or("")
+                    .to_string()
+            } else {
+                String::new()
+            };
             return Err(TelenetisError::Telegram(format!(
-                "HTTP {status} from Telegram {method}"
+                "HTTP {status} from Telegram {method} (detail: {detail})"
             )));
         }
         let body: Value = resp.json().await?;

@@ -149,7 +149,7 @@ pub async fn run_polling(state: AppState) {
             Ok(v) => v,
             Err(e) if e.to_string().contains("409") => {
                 tracing::warn!(
-                    "getUpdates 409 Conflict — a webhook owns the bot; removing it and retrying"
+                    "getUpdates 409 Conflict — a webhook owns the bot; removing it and retrying (detail: {e})"
                 );
                 if let Err(de) = bot.delete_webhook().await {
                     tracing::warn!("deleteWebhook failed: {de}");
