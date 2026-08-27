@@ -27,3 +27,26 @@ async fn sse_handler(
             .text("ping"),
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+    use crate::state::AppState;
+
+    fn test_state() -> AppState {
+        AppState::new(Config {
+            bot_token: "test".to_string(),
+            gsv_url: "http://127.0.0.1:9999".to_string(),
+            port: 9800,
+            jail_id: "test-jail".to_string(),
+            godfather_channel_id: 0,
+            webhook_url: None,
+        })
+    }
+
+    #[test]
+    fn router_builds_without_panic() {
+        let _app = router(test_state());
+    }
+}

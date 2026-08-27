@@ -91,7 +91,11 @@ impl AppState {
     }
 
     pub async fn push_bus(&self, env: BusEnvelope) {
-        self.bus_queue.write().await.push(env);
+        let mut queue = self.bus_queue.write().await;
+        queue.push(env);
+        if queue.len() > 1000 {
+            queue.drain(0..500);
+        }
     }
 
     pub async fn bus_queue(&self) -> Vec<BusEnvelope> {

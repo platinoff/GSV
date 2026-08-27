@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-24 (**band 207 · next gsv drain = owner pick**)
+**Оновлено:** 2026-08-26 (**band 212 · next gsv drain = owner pick**)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -267,8 +267,9 @@ Close: `cargo xtask bump --band N` (semver **and** vision queue **close of N**: 
   **band 195** (PH-S2589…S2598) ✅ — federated `kind:done` (finisher closes the claimed host-board row; ranks process-local).
    **band 196** (PH-S2599…S2608) ✅ — federated `kind:reclaim` (lease sweep / explicit release posts the reclaim; peer boards back to `open`; ranks process-local — lifecycle presence → claim → done → reclaim complete).
    **band 201–206** ✅ — logic-audit V–X sweeps (src / bins+ui / tests / cosmetic notes / non-Rust surfaces).
-   **band 207** (PH-S2709…S2718) ✅ — logic-audit XI MCP protocol surface: re-initialize session reuse, batch initialize marks issued id, notifications-only POST → 202 Accepted, tracker single-snapshot payload, honest completion paging (+4 contracts, 712 tests).
-   **Наступний drain:** owner pick after a warnings-first scan.
+    **band 207** (PH-S2709…S2718) ✅ — logic-audit XI MCP protocol surface: re-initialize session reuse, batch initialize marks issued id, notifications-only POST → 202 Accepted, tracker single-snapshot payload, honest completion paging (+4 contracts, 712 tests).
+    **band 212** (PH-S2755…S2765) ✅ — telenetis to 100%: security wiring (limit_layer + security_headers_middleware), HTTP status checks (gsv/client + bot/telegram), webhook reply, `From<reqwest::Error>` + `Display`, bus_queue cap 1000, graceful shutdown, +13 tests (55 total).
+    **Наступний drain:** owner pick after a warnings-first scan.
 
 ## Канон GSV
 

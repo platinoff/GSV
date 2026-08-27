@@ -17,23 +17,42 @@ impl TelegramBot {
         }
     }
 
+    pub fn api_base(&self) -> &str {
+        &self.api_base
+    }
+
+    async fn post(&self, method: &str, body: Value) -> Result<Value, TelenetisError> {
+        let url = format!("{}/{}", self.api_base, method);
+        let resp = self.http.post(&url).json(&body).send().await?;
+        let status = resp.status();
+        if !status.is_success() {
+            return Err(TelenetisError::Telegram(format!(
+                "HTTP {status} from Telegram {method}"
+            )));
+        }
+        let body: Value = resp.json().await?;
+        if body.get("ok").and_then(|v| v.as_bool()) != Some(true) {
+            let desc = body
+                .get("description")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown error");
+            return Err(TelenetisError::Telegram(format!(
+                "Telegram {method}: {desc}"
+            )));
+        }
+        Ok(body)
+    }
+
     pub async fn send_message(&self, chat_id: i64, text: &str) -> Result<Value, TelenetisError> {
-        let resp = self
-            .http
-            .post(format!("{}/sendMessage", self.api_base))
-            .json(&json!({
+        self.post(
+            "sendMessage",
+            json!({
                 "chat_id": chat_id,
                 "text": text,
                 "parse_mode": "Markdown",
-            }))
-            .send()
-            .await
-            .map_err(|e| TelenetisError::Telegram(e.to_string()))?;
-        let body = resp
-            .json()
-            .await
-            .map_err(|e| TelenetisError::Telegram(e.to_string()))?;
-        Ok(body)
+            }),
+        )
+        .await
     }
 
     pub async fn send_mini_app(
@@ -42,10 +61,9 @@ impl TelegramBot {
         text: &str,
         web_app_url: &str,
     ) -> Result<Value, TelenetisError> {
-        let resp = self
-            .http
-            .post(format!("{}/sendMessage", self.api_base))
-            .json(&json!({
+        self.post(
+            "sendMessage",
+            json!({
                 "chat_id": chat_id,
                 "text": text,
                 "reply_markup": {
@@ -54,15 +72,9 @@ impl TelegramBot {
                         "web_app": { "url": web_app_url }
                     }]]
                 }
-            }))
-            .send()
-            .await
-            .map_err(|e| TelenetisError::Telegram(e.to_string()))?;
-        let body = resp
-            .json()
-            .await
-            .map_err(|e| TelenetisError::Telegram(e.to_string()))?;
-        Ok(body)
+            }),
+        )
+        .await
     }
 
     pub async fn answer_callback(
@@ -70,35 +82,48 @@ impl TelegramBot {
         callback_query_id: &str,
         text: &str,
     ) -> Result<Value, TelenetisError> {
-        let resp = self
-            .http
-            .post(format!("{}/answerCallbackQuery", self.api_base))
-            .json(&json!({
+        self.post(
+            "answerCallbackQuery",
+            json!({
                 "callback_query_id": callback_query_id,
                 "text": text,
-            }))
-            .send()
-            .await
-            .map_err(|e| TelenetisError::Telegram(e.to_string()))?;
-        let body = resp
-            .json()
-            .await
-            .map_err(|e| TelenetisError::Telegram(e.to_string()))?;
-        Ok(body)
+            }),
+        )
+        .await
     }
 
     pub async fn set_webhook(&self, url: &str) -> Result<Value, TelenetisError> {
-        let resp = self
-            .http
-            .post(format!("{}/setWebhook", self.api_base))
-            .json(&json!({ "url": url }))
-            .send()
-            .await
-            .map_err(|e| TelenetisError::Telegram(e.to_string()))?;
-        let body = resp
-            .json()
-            .await
-            .map_err(|e| TelenetisError::Telegram(e.to_string()))?;
-        Ok(body)
+        self.post("setWebhook", json!({ "url": url })).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_config() -> Config {
+        Config {
+            bot_token: "test_token_123:ABC".to_string(),
+            gsv_url: "http://127.0.0.1:9999".to_string(),
+            port: 9800,
+            jail_id: "test-jail".to_string(),
+            godfather_channel_id: 0,
+            webhook_url: None,
+        }
+    }
+
+    #[test]
+    fn new_builds_api_base() {
+        let bot = TelegramBot::new(&test_config());
+        assert_eq!(
+            bot.api_base(),
+            "https://api.telegram.org/bottest_token_123:ABC"
+        );
+    }
+
+    #[test]
+    fn api_base_is_url() {
+        let bot = TelegramBot::new(&test_config());
+        assert!(bot.api_base().starts_with("https://api.telegram.org/bot"));
     }
 }

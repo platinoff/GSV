@@ -16,90 +16,72 @@ impl GsvClient {
         }
     }
 
+    pub fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
+    async fn get_json(&self, path: &str) -> Result<serde_json::Value, TelenetisError> {
+        let url = format!("{}{}", self.base_url, path);
+        let resp = self.http.get(&url).send().await?;
+        let status = resp.status();
+        if !status.is_success() {
+            return Err(TelenetisError::Gsv(format!("HTTP {status} from {url}")));
+        }
+        Ok(resp.json().await?)
+    }
+
     pub async fn health(&self) -> Result<serde_json::Value, TelenetisError> {
-        let resp = self
-            .http
-            .get(format!("{}/api/health", self.base_url))
-            .send()
-            .await
-            .map_err(|e| TelenetisError::Gsv(e.to_string()))?;
-        let body = resp
-            .json()
-            .await
-            .map_err(|e| TelenetisError::Gsv(e.to_string()))?;
-        Ok(body)
+        self.get_json("/api/health").await
     }
 
     pub async fn tickets(&self) -> Result<serde_json::Value, TelenetisError> {
-        let resp = self
-            .http
-            .get(format!("{}/api/tickets/list", self.base_url))
-            .send()
-            .await
-            .map_err(|e| TelenetisError::Gsv(e.to_string()))?;
-        let body = resp
-            .json()
-            .await
-            .map_err(|e| TelenetisError::Gsv(e.to_string()))?;
-        Ok(body)
+        self.get_json("/api/tickets/list").await
     }
 
     pub async fn presence(&self) -> Result<serde_json::Value, TelenetisError> {
-        let resp = self
-            .http
-            .get(format!("{}/api/tickets/presence", self.base_url))
-            .send()
-            .await
-            .map_err(|e| TelenetisError::Gsv(e.to_string()))?;
-        let body = resp
-            .json()
-            .await
-            .map_err(|e| TelenetisError::Gsv(e.to_string()))?;
-        Ok(body)
+        self.get_json("/api/tickets/presence").await
     }
 
     pub async fn telegram_status(&self) -> Result<serde_json::Value, TelenetisError> {
-        let resp = self
-            .http
-            .get(format!("{}/api/telegram/status", self.base_url))
-            .send()
-            .await
-            .map_err(|e| TelenetisError::Gsv(e.to_string()))?;
-        let body = resp
-            .json()
-            .await
-            .map_err(|e| TelenetisError::Gsv(e.to_string()))?;
-        Ok(body)
+        self.get_json("/api/telegram/status").await
     }
 
     pub async fn bus_poll(&self, limit: u8) -> Result<serde_json::Value, TelenetisError> {
-        let resp = self
-            .http
-            .get(format!(
-                "{}/api/telegram/bus?limit={}",
-                self.base_url, limit
-            ))
-            .send()
+        self.get_json(&format!("/api/telegram/bus?limit={limit}"))
             .await
-            .map_err(|e| TelenetisError::Gsv(e.to_string()))?;
-        let body = resp
-            .json()
-            .await
-            .map_err(|e| TelenetisError::Gsv(e.to_string()))?;
-        Ok(body)
     }
 
     pub async fn vision_summary(&self) -> Result<serde_json::Value, TelenetisError> {
-        let resp = self
-            .http
-            .get(format!("{}/api/vision/summary", self.base_url))
-            .send()
-            .await
-            .map_err(|e| TelenetisError::Gsv(e.to_string()))?;
-        let body = resp
-            .json()
-            .await
-            .map_err(|e| TelenetisError::Gsv(e.to_string()))?;
-        Ok(body)
+        self.get_json("/api/vision/summary").await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_config() -> Config {
+        Config {
+            bot_token: "test".to_string(),
+            gsv_url: "http://127.0.0.1:9999".to_string(),
+            port: 9800,
+            jail_id: "test-jail".to_string(),
+            godfather_channel_id: 0,
+            webhook_url: None,
+        }
+    }
+
+    #[test]
+    fn new_strips_trailing_slash() {
+        let mut cfg = test_config();
+        cfg.gsv_url = "http://127.0.0.1:9999/".to_string();
+        let client = GsvClient::new(&cfg);
+        assert_eq!(client.base_url(), "http://127.0.0.1:9999");
+    }
+
+    #[test]
+    fn new_preserves_url_without_slash() {
+        let client = GsvClient::new(&test_config());
+        assert_eq!(client.base_url(), "http://127.0.0.1:9999");
     }
 }

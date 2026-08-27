@@ -9,7 +9,7 @@ band 114 (GSV Sprint-board + progress UI) **✅** · band 115 (GSV migration com
 band 116 (GSV history charts — speed/rust analytics) **✅** · band 117 (GSV legacy vision deactivation) **✅** ·
 band 118 (GSV sprint UI migration — theme + focus map) **✅** ·
 band 119 (GSV Galaxy UI full parity — colors + box behaviors) **✅** · band 120 (GSV Ratio 96% stretch) **✅** ·
-band 121 (GSV OmniRouter box parity) **✅** · band 208 (Telenetis: Telegram Mini App + Bot) **🔧** · band 125 (GSV Vision/UI polish — a11y/error/offline/stand contracts) **✅** ·
+band 121 (GSV OmniRouter box parity) **✅** · band 208 (Telenetis: Telegram Mini App + Bot) **✅** · band 125 (GSV Vision/UI polish — a11y/error/offline/stand contracts) **✅** ·
 band 126 (GSV stand smoke + ops canon) **✅** ·
 band 127 (GSV VDT kit — точка входу) **✅** ·
 **band 128** (kit ops + grouped Galaxy UI) **✅** ·
@@ -1804,6 +1804,24 @@ Auto by plan post-210: WS/SSE scale, sec/timezone, gate.
 | **PH-S2752** | Sec+tz | `MAX_BODY_BYTES` 64KiB CSP initData + `TimezoneStore` — **✅** |
 | **PH-S2753** | Gate | `cargo fmt` · `clippy` 0 · `cargo test` 42 + `gsv-loc-audit` 99.44% · `gsv_vision_sync` drift 0 — **✅** |
 | **PH-S2754** | Band close | `cargo xtask bump --band 211` · fingerprint · recopy `target/live` · one commit + push — **✅** |
+
+## Спринти (band 212) — Telenetis to 100% (owner pick)
+
+Hardening: wire dead security code, HTTP status checks, webhook reply, reqwest From impl, bus_queue cap, graceful shutdown, +13 new tests.
+
+| Sprint ID | Фокус | Прийнятні критерії |
+|-----------|-------|---------------------|
+| **PH-S2755** | Error | `From<reqwest::Error>` + `Reqwest` variant in `TelenetisError` + `Display` impl — **✅** |
+| **PH-S2756** | GSV client | HTTP status checks in all 6 `GsvClient` methods via `get_json` helper — **✅** |
+| **PH-S2757** | Telegram bot | HTTP status + `ok` field checks in all 4 `TelegramBot` methods via `post` helper — **✅** |
+| **PH-S2758** | Webhook reply | `handle_webhook` sends reply via `TelegramBot::send_message` — **✅** |
+| **PH-S2759** | Security wiring | `limit_layer()` + `security_headers_middleware` in `main.rs` router — **✅** |
+| **PH-S27560** | State cap | `bus_queue` capped at 1000 (drain 0..500) — **✅** |
+| **PH-S27561** | Dead code | Remove unused `tval` in `poll.rs` — **✅** |
+| **PH-S27562** | Graceful shutdown | `ctrl_c` + `with_graceful_shutdown` in `main.rs` — **✅** |
+| **PH-S27563** | Tests | +13 tests: client (2), telegram (2), tickets (6), ws (1), sse (1), error (1) — **✅** |
+| **PH-S27564** | Gate | `cargo fmt` · `clippy` 0 · `cargo test` telenetis 55 + gsv pass · `gsv-loc-audit` ≥96% — **✅** |
+| **PH-S27565** | Band close | `cargo xtask bump --band 212` · fingerprint · one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

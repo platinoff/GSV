@@ -1,13 +1,12 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-08-25 (band **208** · next = **owner pick**)
+**Оновлено:** 2026-08-26 (band **212** · next = **owner pick**)
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
 **`абракадабра` / `abrakadabra`** → `cargo xtask products` → **AskQuestion на проєкти з environment**
 (не `gsv | poolai` з голови) → S0 диск/git → project scan (warnings first) →
-якщо **gsv:** settings/Telegram/tickets spec bands **166–203 ✅**
-+ **band 205** logic-audit IX closed every cosmetic note from 197–204 (quota lanes · config atomic apply · github prerelease · preview backslash-run · schtasks quoting)
-+ **band 206** logic-audit X — non-Rust surfaces sweep (`ui/index.html` glue + `benches/gsv_dev.rs`: offline-badge truth · hook guard · bench honesty)
+якщо **gsv:** settings/Telegram/tickets spec bands **166–212 ✅**
++ **band 212** telenetis to 100% — security wiring + HTTP checks + graceful shutdown + 13 new tests (55 total)
 **Next = owner pick** after a warnings-first scan. Speeds + Rust panel →
 vision-sync → **один commit** → **`git push` + самарі**.
 

@@ -69,10 +69,7 @@ pub fn spawn_poll_loop(client: GsvClient, state: crate::state::AppState) {
                     }
                     // ticket sync every 30s (every 6 ticks of 5s)
                     if tick.is_multiple_of(6) {
-                        if let Ok(tval) = client.tickets().await {
-                            let _ = crate::gsv::tickets::sync_tickets(&client, &state).await;
-                            let _ = tval;
-                        }
+                        let _ = crate::gsv::tickets::sync_tickets(&client, &state).await;
                     }
                 }
                 Err(e) => {

@@ -7,7 +7,13 @@ pub async fn sync_tickets(
     state: &crate::state::AppState,
 ) -> Result<(), TelenetisError> {
     let resp = client.tickets().await?;
-    let rows = resp["wire"]
+    let rows = parse_ticket_rows(&resp);
+    state.set_tickets(rows).await;
+    Ok(())
+}
+
+pub fn parse_ticket_rows(resp: &serde_json::Value) -> Vec<TicketRow> {
+    resp["wire"]
         .as_array()
         .map(|arr| {
             arr.iter()
@@ -24,7 +30,84 @@ pub async fn sync_tickets(
                 })
                 .collect()
         })
-        .unwrap_or_default();
-    state.set_tickets(rows).await;
-    Ok(())
+        .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn parse_empty_wire() {
+        let resp = json!({});
+        assert!(parse_ticket_rows(&resp).is_empty());
+    }
+
+    #[test]
+    fn parse_empty_array() {
+        let resp = json!({"wire": []});
+        assert!(parse_ticket_rows(&resp).is_empty());
+    }
+
+    #[test]
+    fn parse_full_row() {
+        let resp = json!({"wire": [{
+            "id": "t-1",
+            "title": "Fix bug",
+            "body": "desc",
+            "status": "open",
+            "product": "gsv",
+            "claimed_by": "agent-01",
+            "scenario": "telenetis-setup"
+        }]});
+        let rows = parse_ticket_rows(&resp);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].id, "t-1");
+        assert_eq!(rows[0].title, "Fix bug");
+        assert_eq!(rows[0].status, "open");
+        assert_eq!(rows[0].product, "gsv");
+        assert_eq!(rows[0].claimed_by.as_deref(), Some("agent-01"));
+        assert_eq!(rows[0].scenario.as_deref(), Some("telenetis-setup"));
+    }
+
+    #[test]
+    fn parse_missing_optional_fields() {
+        let resp = json!({"wire": [{
+            "id": "t-2",
+            "title": null,
+            "body": null,
+            "status": null,
+            "product": null
+        }]});
+        let rows = parse_ticket_rows(&resp);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].id, "t-2");
+        assert_eq!(rows[0].title, "");
+        assert_eq!(rows[0].status, "open");
+        assert_eq!(rows[0].product, "gsv");
+        assert!(rows[0].claimed_by.is_none());
+        assert!(rows[0].scenario.is_none());
+    }
+
+    #[test]
+    fn parse_skips_row_without_id() {
+        let resp = json!({"wire": [
+            {"title": "no id"},
+            {"id": "t-3", "title": "has id"}
+        ]});
+        let rows = parse_ticket_rows(&resp);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].id, "t-3");
+    }
+
+    #[test]
+    fn parse_multiple_rows() {
+        let resp = json!({"wire": [
+            {"id": "t-10", "title": "A"},
+            {"id": "t-11", "title": "B"},
+            {"id": "t-12", "title": "C"}
+        ]});
+        assert_eq!(parse_ticket_rows(&resp).len(), 3);
+    }
 }

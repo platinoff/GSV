@@ -1,4 +1,5 @@
 use crate::bot::commands::{command_response, parse_command, Command};
+use crate::bot::telegram::TelegramBot;
 use crate::state::{AppState, FlowEvent};
 use axum::{extract::State, routing::post, Json, Router};
 use chrono::Utc;
@@ -76,6 +77,11 @@ async fn handle_webhook(State(state): State<AppState>, Json(update): Json<Value>
                     .await;
 
                 tracing::info!("Reply to {}: {}", chat_id, response_text);
+
+                let bot = TelegramBot::new(state.config());
+                if let Err(e) = bot.send_message(chat_id, &response_text).await {
+                    tracing::warn!("Failed to send reply to {chat_id}: {e}");
+                }
             }
         }
         UpdateKind::CallbackQuery => {
