@@ -1,3 +1,4 @@
+use crate::bot::telegram::TelegramBot;
 use crate::gsv::client::GsvClient;
 use crate::state::{BusEnvelope, FlowEvent};
 use chrono::Utc;
@@ -12,6 +13,29 @@ fn classify_envelope_kind(kind: &str) -> &'static str {
         "bus" => "bus",
         _ => "unknown",
     }
+}
+
+fn format_bus_for_telegram(env: &BusEnvelope) -> String {
+    let icon = match env.kind.as_str() {
+        "presence" => "🟢",
+        "claim" => "📌",
+        "done" => "✅",
+        "reclaim" => "🔄",
+        "sync" => "🔁",
+        "bus" => "💬",
+        _ => "📨",
+    };
+    let data_hint = env
+        .data
+        .as_ref()
+        .and_then(|d| d.get("hint"))
+        .and_then(|h| h.as_str())
+        .map(|h| format!(" ({h})"))
+        .unwrap_or_default();
+    format!(
+        "{icon} *{}* `{}` — {}{data_hint}",
+        env.kind, env.from, env.body
+    )
 }
 
 pub async fn handle_bus_value(
@@ -44,7 +68,45 @@ pub async fn handle_bus_value(
         })
         .await;
 
+    let channel_id = state.config().godfather_channel_id;
+    if channel_id != 0 && from != state.jail_id() {
+        let text = format_bus_for_telegram(&envelope);
+        let bot = TelegramBot::new(state.config());
+        if let Err(e) = bot.send_message(channel_id, &text).await {
+            tracing::warn!("Failed to forward bus to Telegram channel: {e}");
+        }
+    }
+
     Some(envelope)
+}
+
+pub async fn post_bus_envelope(
+    state: &crate::state::AppState,
+    kind: &str,
+    body: &str,
+    ticket_id: Option<&str>,
+) -> Result<(), crate::error::TelenetisError> {
+    let client = GsvClient::new(state.config());
+    let payload = serde_json::json!({
+        "v": 1,
+        "kind": kind,
+        "body": body,
+        "from": state.jail_id(),
+        "ticket_id": ticket_id,
+    });
+    let url = format!("{}/api/telegram/bus", client.base_url());
+    let resp = reqwest::Client::new()
+        .post(&url)
+        .json(&payload)
+        .send()
+        .await?;
+    let status = resp.status();
+    if !status.is_success() {
+        return Err(crate::error::TelenetisError::Gsv(format!(
+            "HTTP {status} posting bus envelope"
+        )));
+    }
+    Ok(())
 }
 
 pub fn spawn_poll_loop(client: GsvClient, state: crate::state::AppState) {
@@ -67,7 +129,6 @@ pub fn spawn_poll_loop(client: GsvClient, state: crate::state::AppState) {
                     for env in envelopes {
                         handle_bus_value(&env, &state).await;
                     }
-                    // ticket sync every 30s (every 6 ticks of 5s)
                     if tick.is_multiple_of(6) {
                         let _ = crate::gsv::tickets::sync_tickets(&client, &state).await;
                     }
@@ -117,8 +178,68 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn classify_unknown_kind() {
+    async fn handle_bus_value_no_telegram_when_channel_zero() {
+        let state = AppState::new(test_config());
+        let value = serde_json::json!({
+            "v": 1,
+            "kind": "bus",
+            "body": "test",
+            "from": "other-jail"
+        });
+        let env = handle_bus_value(&value, &state).await;
+        assert!(env.is_some());
+    }
+
+    #[tokio::test]
+    async fn handle_bus_value_skips_own_jail_forwarding() {
+        let cfg = Config {
+            godfather_channel_id: 12345,
+            ..test_config()
+        };
+        let state = AppState::new(cfg);
+        let value = serde_json::json!({
+            "v": 1,
+            "kind": "bus",
+            "body": "own message",
+            "from": "test-jail"
+        });
+        let env = handle_bus_value(&value, &state).await;
+        assert!(env.is_some());
+    }
+
+    #[test]
+    fn classify_unknown_kind() {
         assert_eq!(classify_envelope_kind("foobar"), "unknown");
         assert_eq!(classify_envelope_kind("sync"), "sync");
+    }
+
+    #[test]
+    fn format_bus_for_telegram_icons() {
+        let env = BusEnvelope {
+            v: 1,
+            kind: "claim".to_string(),
+            body: "claimed T-1".to_string(),
+            from: "jail-02".to_string(),
+            ts: Utc::now(),
+            data: None,
+        };
+        let text = format_bus_for_telegram(&env);
+        assert!(text.contains("📌"));
+        assert!(text.contains("claim"));
+        assert!(text.contains("jail-02"));
+    }
+
+    #[test]
+    fn format_bus_for_telegram_with_hint() {
+        let env = BusEnvelope {
+            v: 1,
+            kind: "sync".to_string(),
+            body: "syncing".to_string(),
+            from: "jail-03".to_string(),
+            ts: Utc::now(),
+            data: Some(serde_json::json!({"hint": "memory-disk-speed"})),
+        };
+        let text = format_bus_for_telegram(&env);
+        assert!(text.contains("memory-disk-speed"));
     }
 }

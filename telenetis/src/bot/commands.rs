@@ -19,9 +19,11 @@ pub enum Command {
     Start,
     Status,
     Board,
+    BoardScenario(String),
     Flows,
     Roles,
     Ranks,
+    Scenarios,
     Ticket(String),
     Claim(String),
     Done(String),
@@ -41,6 +43,7 @@ impl Command {
             "flows" => Self::Flows,
             "roles" => Self::Roles,
             "ranks" => Self::Ranks,
+            "scenarios" => Self::Scenarios,
             "sync" => Self::Sync,
             "app" => Self::App,
             "help" => Self::Help,
@@ -54,10 +57,12 @@ impl Command {
         match name.as_str() {
             "start" => Self::Start,
             "status" => Self::Status,
+            "board" if !args.is_empty() => Self::BoardScenario(args),
             "board" => Self::Board,
             "flows" => Self::Flows,
             "roles" => Self::Roles,
             "ranks" => Self::Ranks,
+            "scenarios" => Self::Scenarios,
             "ticket" => Self::Ticket(args),
             "claim" => Self::Claim(args),
             "done" => Self::Done(args),
@@ -76,6 +81,8 @@ pub fn command_response(cmd: &Command) -> String {
              *Commands:*\n\
              /status — Bot + GSV status\n\
              /board — Ticket board\n\
+             /board <scenario> — Filter by scenario\n\
+             /scenarios — List scenarios\n\
              /flows — Recent bot flows\n\
              /roles — Role management\n\
              /ranks — Worker ranks\n\
@@ -88,9 +95,11 @@ pub fn command_response(cmd: &Command) -> String {
             .to_string(),
         Command::Status => "Fetching status...".to_string(),
         Command::Board => "Fetching ticket board...".to_string(),
+        Command::BoardScenario(s) => format!("Fetching board for scenario `{s}`..."),
         Command::Flows => "Opening live flows...".to_string(),
         Command::Roles => "Opening role manager...".to_string(),
         Command::Ranks => "Fetching ranks...".to_string(),
+        Command::Scenarios => "Fetching scenarios...".to_string(),
         Command::Ticket(id) => format!("Looking up ticket `{id}`..."),
         Command::Claim(id) => format!("Claiming ticket `{id}`..."),
         Command::Done(id) => format!("Marking ticket `{id}` done..."),
@@ -104,10 +113,12 @@ pub async fn handle_command(cmd: &Command, state: &AppState) -> String {
     match cmd {
         Command::Start | Command::Help => command_response(cmd),
         Command::Status => handle_status(state).await,
-        Command::Board => handle_board(state).await,
+        Command::Board => handle_board(state, None).await,
+        Command::BoardScenario(s) => handle_board(state, Some(s)).await,
         Command::Flows => handle_flows(state).await,
         Command::Roles => handle_roles(state).await,
         Command::Ranks => handle_ranks(state).await,
+        Command::Scenarios => handle_scenarios(state).await,
         Command::Ticket(id) => handle_ticket_detail(id, state).await,
         Command::Claim(id) => handle_claim(id, state).await,
         Command::Done(id) => handle_done(id, state).await,
@@ -162,14 +173,29 @@ async fn handle_status(state: &AppState) -> String {
     )
 }
 
-async fn handle_board(state: &AppState) -> String {
+async fn handle_board(state: &AppState, scenario_filter: Option<&str>) -> String {
     let tickets = state.tickets().await;
-    if tickets.is_empty() {
-        return "No tickets on the board.".to_string();
+    let filtered: Vec<_> = match scenario_filter {
+        Some(s) => tickets
+            .iter()
+            .filter(|t| t.scenario.as_deref() == Some(s))
+            .collect(),
+        None => tickets.iter().collect(),
+    };
+    if filtered.is_empty() {
+        return if let Some(s) = scenario_filter {
+            format!("No tickets for scenario `{s}`.")
+        } else {
+            "No tickets on the board.".to_string()
+        };
     }
 
-    let mut lines: Vec<String> = vec!["*Ticket Board*".to_string(), "".to_string()];
-    for t in &tickets {
+    let header = match scenario_filter {
+        Some(s) => format!("*Board — {s}*"),
+        None => "*Ticket Board*".to_string(),
+    };
+    let mut lines: Vec<String> = vec![header, "".to_string()];
+    for t in &filtered {
         let status_icon = match t.status.as_str() {
             "open" => "🟢",
             "in_progress" => "🟡",
@@ -194,6 +220,36 @@ async fn handle_board(state: &AppState) -> String {
     }
 
     format!("{}\n\nUse /ticket <id> for details.", lines.join("\n"))
+}
+
+async fn handle_scenarios(state: &AppState) -> String {
+    let tickets = state.tickets().await;
+    let mut scenario_map: std::collections::HashMap<String, Vec<&str>> =
+        std::collections::HashMap::new();
+    for t in &tickets {
+        let scenario = t.scenario.as_deref().unwrap_or("(none)");
+        scenario_map
+            .entry(scenario.to_string())
+            .or_default()
+            .push(&t.id);
+    }
+    if scenario_map.is_empty() {
+        return "No tickets — no scenarios.".to_string();
+    }
+
+    let mut lines: Vec<String> = vec!["*Scenarios*".to_string(), "".to_string()];
+    let mut sorted: Vec<_> = scenario_map.into_iter().collect();
+    sorted.sort_by(|a, b| b.1.len().cmp(&a.1.len()));
+    for (name, ids) in &sorted {
+        lines.push(format!(
+            "*{}* — {} tickets: {}",
+            name,
+            ids.len(),
+            ids.join(", ")
+        ));
+    }
+
+    lines.join("\n")
 }
 
 async fn handle_flows(state: &AppState) -> String {
@@ -300,6 +356,16 @@ async fn handle_claim(id: &str, state: &AppState) -> String {
             t.status = "in_progress".to_string();
             t.claimed_by = Some(state.jail_id().to_string());
             state.set_tickets(tickets).await;
+            if let Err(e) = crate::gsv::poll::post_bus_envelope(
+                state,
+                "claim",
+                &format!("claimed {id}"),
+                Some(id),
+            )
+            .await
+            {
+                tracing::warn!("Failed to post claim bus envelope: {e}");
+            }
             format!("Ticket `{id}` claimed by `{}`.", state.jail_id())
         }
         None => format!("Ticket `{id}` not found."),
@@ -318,6 +384,16 @@ async fn handle_done(id: &str, state: &AppState) -> String {
             }
             t.status = "done".to_string();
             state.set_tickets(tickets).await;
+            if let Err(e) = crate::gsv::poll::post_bus_envelope(
+                state,
+                "done",
+                &format!("completed {id}"),
+                Some(id),
+            )
+            .await
+            {
+                tracing::warn!("Failed to post done bus envelope: {e}");
+            }
             format!("Ticket `{id}` marked done.")
         }
         None => format!("Ticket `{id}` not found."),
@@ -608,5 +684,117 @@ mod tests {
         let high_pos = resp.find("jail-high").unwrap();
         let low_pos = resp.find("jail-low").unwrap();
         assert!(high_pos < low_pos);
+    }
+
+    #[tokio::test]
+    async fn handle_board_filters_by_scenario() {
+        let state = crate::state::AppState::new(test_config());
+        state
+            .set_tickets(vec![
+                crate::state::TicketRow {
+                    id: "T-1".to_string(),
+                    title: "A".to_string(),
+                    body: String::new(),
+                    status: "open".to_string(),
+                    product: "gsv".to_string(),
+                    claimed_by: None,
+                    scenario: Some("setup".to_string()),
+                },
+                crate::state::TicketRow {
+                    id: "T-2".to_string(),
+                    title: "B".to_string(),
+                    body: String::new(),
+                    status: "open".to_string(),
+                    product: "gsv".to_string(),
+                    claimed_by: None,
+                    scenario: Some("drain".to_string()),
+                },
+            ])
+            .await;
+        let resp = handle_command(&Command::BoardScenario("setup".to_string()), &state).await;
+        assert!(resp.contains("T-1"));
+        assert!(!resp.contains("T-2"));
+        assert!(resp.contains("setup"));
+    }
+
+    #[tokio::test]
+    async fn handle_board_filters_empty_scenario() {
+        let state = crate::state::AppState::new(test_config());
+        state
+            .set_tickets(vec![crate::state::TicketRow {
+                id: "T-1".to_string(),
+                title: "A".to_string(),
+                body: String::new(),
+                status: "open".to_string(),
+                product: "gsv".to_string(),
+                claimed_by: None,
+                scenario: Some("setup".to_string()),
+            }])
+            .await;
+        let resp = handle_command(&Command::BoardScenario("nope".to_string()), &state).await;
+        assert!(resp.contains("No tickets for scenario"));
+    }
+
+    #[tokio::test]
+    async fn handle_scenarios_groups_tickets() {
+        let state = crate::state::AppState::new(test_config());
+        state
+            .set_tickets(vec![
+                crate::state::TicketRow {
+                    id: "T-1".to_string(),
+                    title: "A".to_string(),
+                    body: String::new(),
+                    status: "open".to_string(),
+                    product: "gsv".to_string(),
+                    claimed_by: None,
+                    scenario: Some("setup".to_string()),
+                },
+                crate::state::TicketRow {
+                    id: "T-2".to_string(),
+                    title: "B".to_string(),
+                    body: String::new(),
+                    status: "open".to_string(),
+                    product: "gsv".to_string(),
+                    claimed_by: None,
+                    scenario: Some("setup".to_string()),
+                },
+                crate::state::TicketRow {
+                    id: "T-3".to_string(),
+                    title: "C".to_string(),
+                    body: String::new(),
+                    status: "open".to_string(),
+                    product: "gsv".to_string(),
+                    claimed_by: None,
+                    scenario: None,
+                },
+            ])
+            .await;
+        let resp = handle_command(&Command::Scenarios, &state).await;
+        assert!(resp.contains("setup"));
+        assert!(resp.contains("2 tickets"));
+        assert!(resp.contains("(none)"));
+    }
+
+    #[tokio::test]
+    async fn handle_scenarios_empty() {
+        let state = crate::state::AppState::new(test_config());
+        let resp = handle_command(&Command::Scenarios, &state).await;
+        assert!(resp.contains("No tickets"));
+    }
+
+    #[test]
+    fn command_from_text_board_with_scenario() {
+        assert!(matches!(
+            Command::from_text("/board setup"),
+            Command::BoardScenario(a) if a == "setup"
+        ));
+    }
+
+    #[test]
+    fn command_from_text_scenarios() {
+        assert!(matches!(
+            Command::from_text("/scenarios"),
+            Command::Scenarios
+        ));
     }
 }
