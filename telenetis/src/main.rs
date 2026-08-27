@@ -55,7 +55,11 @@ async fn main() {
     });
 
     let bot = telenetis::bot::telegram::TelegramBot::new(&config);
-    if let Some(webhook_url) = &config.webhook_url {
+    if config.bot_token.is_empty() {
+        tracing::warn!(
+            "TELENETIS_BOT_TOKEN not set — Telegram bot features (polling/webhooks) are disabled."
+        );
+    } else if let Some(webhook_url) = &config.webhook_url {
         let full = if webhook_url.ends_with("/webhook") {
             webhook_url.clone()
         } else {

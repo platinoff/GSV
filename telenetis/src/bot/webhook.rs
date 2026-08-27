@@ -147,6 +147,9 @@ pub async fn process_update(state: &AppState, update: &Value) {
 /// Conflict` means an active webhook still owns the bot, so we re-remove it
 /// (Telegram needs a moment) before resuming polling.
 pub async fn run_polling(state: AppState) {
+    if state.config().bot_token.is_empty() {
+        return;
+    }
     let bot = TelegramBot::new(state.config());
     if let Err(e) = bot.delete_webhook().await {
         tracing::warn!("Failed to delete webhook before polling: {e}");

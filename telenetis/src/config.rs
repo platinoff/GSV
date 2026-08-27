@@ -25,7 +25,7 @@ pub struct Config {
 impl Config {
     pub fn from_env() -> Self {
         Self {
-            bot_token: env::var("TELENETIS_BOT_TOKEN").expect("TELENETIS_BOT_TOKEN required"),
+            bot_token: env::var("TELENETIS_BOT_TOKEN").unwrap_or_default(),
             gsv_url: env::var("TELENETIS_GSV_URL")
                 .unwrap_or_else(|_| "http://127.0.0.1:9999".to_string()),
             port: env::var("TELENETIS_PORT")
