@@ -93,6 +93,39 @@ impl TelegramBot {
         .await
     }
 
+    /// Send a regular URL button (channels/groups reject `web_app` buttons).
+    /// Pointing it at a direct-link Mini App still opens the app embedded.
+    pub async fn send_url_button(
+        &self,
+        chat_id: i64,
+        text: &str,
+        button_text: &str,
+        url: &str,
+    ) -> Result<Value, TelenetisError> {
+        self.post(
+            "sendMessage",
+            json!({
+                "chat_id": chat_id,
+                "text": text,
+                "reply_markup": {
+                    "inline_keyboard": [[{ "text": button_text, "url": url }]]
+                }
+            }),
+        )
+        .await
+    }
+
+    /// The bot's own username (without `@`), from `getMe`.
+    pub async fn get_me(&self) -> Result<String, TelenetisError> {
+        let body = self.post("getMe", json!({})).await?;
+        Ok(body
+            .get("result")
+            .and_then(|r| r.get("username"))
+            .and_then(|u| u.as_str())
+            .unwrap_or_default()
+            .to_string())
+    }
+
     pub async fn answer_callback(
         &self,
         callback_query_id: &str,

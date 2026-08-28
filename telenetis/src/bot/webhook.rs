@@ -40,6 +40,13 @@ fn extract_message_text(update: &Value) -> Option<String> {
         .map(|s| s.to_string())
 }
 
+/// Telegram assigns positive ids to private chats; channels and groups are
+/// negative (`-100…` for channels/supergroups). `web_app` buttons are only
+/// accepted in private chats.
+pub fn is_private_chat(chat_id: i64) -> bool {
+    chat_id > 0
+}
+
 async fn handle_webhook(State(state): State<AppState>, Json(update): Json<Value>) -> &'static str {
     process_update(&state, &update).await;
     "ok"
@@ -91,10 +98,18 @@ pub async fn process_update(state: &AppState, update: &Value) {
                             },
                         };
                         let url = mini_app_url(&base);
-                        let res = if url.starts_with("https://") {
+                        let res = if !url.starts_with("https://") {
+                            Err(crate::error::TelenetisError::Tunnel("Mini App requires HTTPS tunnel URL (run /tunnel)".to_string()))
+                        } else if is_private_chat(chat_id) {
+                            // Private chats support embedded `web_app` buttons.
                             bot.send_mini_app(chat_id, &response_text, &url).await
                         } else {
-                            Err(crate::error::TelenetisError::Tunnel("Mini App requires HTTPS tunnel URL (run /tunnel)".to_string()))
+                            // Channels/groups reject `web_app` buttons
+                            // (BUTTON_TYPE_INVALID); a direct-link Mini App URL
+                            // still opens the app embedded there.
+                            let username = bot.get_me().await.unwrap_or_default();
+                            let app_link = format!("https://t.me/{username}?startapp=telenetis");
+                            bot.send_url_button(chat_id, &response_text, "Open Telenetis", &app_link).await
                         };
                         if let Err(e) = res {
                             let fallback_text = format!("{}\n\n⚠️ Mini App requires HTTPS tunnel URL.\nURL: {}\nError: {e}\n\nTip: Run /tunnel to start ngrok.", response_text, url);
@@ -226,5 +241,12 @@ mod tests {
     fn extract_text_missing() {
         let v = json!({"message": {}});
         assert_eq!(extract_message_text(&v), None);
+    }
+
+    #[test]
+    fn private_chat_detection() {
+        assert!(is_private_chat(123_456));
+        assert!(!is_private_chat(-100_387_203_5653));
+        assert!(!is_private_chat(-42));
     }
 }
