@@ -1,4 +1,13 @@
-const WS_URL = `ws://${window.location.host}/ws`;
+const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
+
+function initTelegramWebApp() {
+    if (window.Telegram && window.Telegram.WebApp) {
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.ready();
+        tg.setHeaderColor && tg.setHeaderColor('#1c2733');
+    }
+}
 
 function connectWS() {
     const ws = new WebSocket(WS_URL);
@@ -33,6 +42,7 @@ async function loadStatus() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    initTelegramWebApp();
     connectWS();
     loadStatus();
     setInterval(loadStatus, 30000);

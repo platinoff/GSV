@@ -182,4 +182,38 @@ mod tests {
             .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
     }
+
+    #[tokio::test]
+    async fn app_page_keeps_html_content_type_through_headers() {
+        use crate::security::auth::security_headers;
+        use axum::middleware;
+
+        async fn headers(
+            req: axum::http::Request<axum::body::Body>,
+            next: middleware::Next,
+        ) -> axum::response::Response {
+            let mut resp = next.run(req).await;
+            security_headers(&mut resp);
+            resp
+        }
+
+        let app = router(test_state()).layer(middleware::from_fn(headers));
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/app")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert!(resp
+            .headers()
+            .get(header::CONTENT_TYPE)
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .contains("text/html"));
+    }
 }
