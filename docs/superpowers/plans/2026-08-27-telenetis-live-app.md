@@ -28,9 +28,17 @@ Everything here is grounded in the 2026 Telegram Mini App + rank-strategy resear
    - Keep WS `/ws` as the primary live channel (broadcast FlowEvent); SSE `/events` fallback.
    - Client reconnect with exponential backoff; server keep-alive; drop-tolerant.
 
-3. **Cold start**
-   - Skeleton screens, prefetch on `/start`, small static bundles; WS upgrade as early as the
-     dashboard loads so board/flows feel instant.
+3. **Cold start** — ✅ **landed (band 217)**.
+   - Skeleton screens (shimmer rows per `data-area`, `aria-busy`) in all five
+     templates — first paint is never blank.
+   - `GET /api/snapshot?lang=` consolidated bundle (status + tickets + flows +
+     workers + i18n + live config) prefetched in one round-trip; `<link rel="preload">`
+     hint in every template.
+   - `app.js` `bootstrap()` opens the WS immediately (early upgrade, parallel with
+     the snapshot) and hydrates board/flows/roles/status from the snapshot.
+   - `/start` server-side prefetch (`warm_start` in `bot/webhook.rs`) syncs the
+     board before the Mini App opens; offline fallbacks keep skeletons + SSE live.
+   - Remaining P-scope is the Mini App board actions (claim/done buttons) + i18n.
 
 4. **Ranks + messaging polish (GSV box, not telenetis)**
    - Alive Godfather lines always attach a reason: `done <t> +1` / `error <t> −1`.

@@ -110,3 +110,32 @@ async fn static_assets_served() {
         assert_eq!(resp.status(), StatusCode::OK, "uri {}", uri);
     }
 }
+
+#[tokio::test]
+async fn snapshot_endpoint_served() {
+    let state = test_state();
+    let app = telenetis::ui::router(state.clone())
+        .merge(telenetis::stream::ws::router(state.clone()))
+        .merge(telenetis::stream::sse::router(state.clone()));
+
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/snapshot?lang=en")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(json["status"]["jail_id"], "integration-jail");
+    assert_eq!(json["i18n"]["lang"], "en");
+    assert!(json["tickets"].is_array());
+    assert!(json["flows"].is_array());
+    assert!(json["workers"].is_array());
+    assert_eq!(json["live"]["keepalive_secs"], 25);
+}

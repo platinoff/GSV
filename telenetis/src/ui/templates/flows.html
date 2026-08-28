@@ -5,12 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title data-i18n="app.title">Telenetis - Live Flows</title>
     <link rel="stylesheet" href="/static/app.css">
+    <link rel="preload" href="/api/snapshot?lang=en" as="fetch" crossorigin>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body class="platform-unknown">
     <div id="app">
         <h1 data-i18n="nav.flows">Live Bot Flows</h1>
-        <div id="flow-log"></div>
+        <div id="flow-log" data-area="flow-log" data-feed="offline" aria-busy="true">
+            <div class="flow-entry" data-skeleton="flow-log" aria-hidden="true">
+                <span class="flow-ts skeleton skeleton-line"></span>
+                <span class="skeleton skeleton-line short"></span>
+            </div>
+            <div class="flow-entry" data-skeleton="flow-log" aria-hidden="true">
+                <span class="flow-ts skeleton skeleton-line"></span>
+                <span class="skeleton skeleton-line short"></span>
+            </div>
+        </div>
     </div>
     <script src="/static/app.js"></script>
 </body>

@@ -1900,6 +1900,27 @@ one `#flow-log`.
 | **PH-S27591** | SSE fallback | JS falls back to `/events` SSE after `max_attempts` WS failures; unified `renderFlow` for both feeds; `sse-fallback` + WS/SSE feed badge — **✅** |
 | **PH-S27592** | Tests + gate | 9 new tests (7 backoff unit + 1 state + 1 HTTP live-config) → telenetis **126** (was 117) · fmt clean · clippy 0 · version bump **0.216.0** — **✅** |
 
+## Спринти (band 217) — telenetis cold start, plan P3 (owner pick)
+
+Land band-213 plan **P3** (`docs/superpowers/plans/2026-08-27-telenetis-live-app.md`):
+make the Mini App feel instant in a cold Telegram WebView. Templates ship
+**skeleton screens** (shimmer rows, `aria-busy`) so first paint is never blank;
+a new consolidated **`GET /api/snapshot?lang=`** bundle (status + tickets +
+flows + workers + i18n + live config in ONE round-trip) prefetches everything a
+cold start needs; `app.js` opens the **WS immediately** (early upgrade) and
+hydrates board/flows/roles/status the moment the snapshot lands; the bot's
+`/start` runs a **server-side warm-up** (`warm_start`) that syncs the board so
+the first-opened Mini App is already fresh.
+
+| ID | Area | Deliverable / status |
+|----|------|----------------------|
+| **PH-S27593** | Snapshot | `GET /api/snapshot?lang=` — consolidated bundle `{v,ts,status,tickets,workers,flows,i18n,live}` in one round-trip; shared `wire_tickets`/`wire_workers`/`wire_flows` — **✅** |
+| **PH-S27594** | `/start` prefetch | `bot/webhook.rs` `warm_start()` — best-effort GSV sync on `Command::Start` + `cold_start` flow event; unreachable GSV tolerated — **✅** |
+| **PH-S27595** | Skeleton screens | all 5 templates carry `.skeleton` shimmer rows per `data-area` (`tickets`/`workers`/`board`/`flow-log`/`roles`) + `aria-busy` + `.skeleton::after` shimmer CSS — **✅** |
+| **PH-S27596** | Cold-start JS | `app.js` `bootstrap()`: early `connectWS()` + one `fetchSnapshot(lang)` → `hydrateFromSnapshot` clears skeletons and renders status/tickets/board/workers/roles/flows; `?lang=` i18n; `<link rel="preload">` hint in every template; SSE/`/api/live/config` fallbacks offline — **✅** |
+| **PH-S27597** | Tests | 11 new (snapshot HTTP/state/lang/live, skeleton template contracts, preload hint, `app.js` hydrate contract, `warm_start` ×3, snapshot integration) → telenetis **137** (was 126) — **✅** |
+| **PH-S27598** | Gate + docs | fmt clean · clippy 0 · `cargo test` telenetis 137 + gsv pass · ratio ≥96% · version bump **0.217.0** + `cargo xtask bump --band 217` · HANDOFF/NEXT/plan/roadmap · fingerprint — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

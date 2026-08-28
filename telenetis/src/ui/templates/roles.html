@@ -5,12 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title data-i18n="app.title">Telenetis - Role Management</title>
     <link rel="stylesheet" href="/static/app.css">
+    <link rel="preload" href="/api/snapshot?lang=en" as="fetch" crossorigin>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body class="platform-unknown">
     <div id="app">
         <h1 data-i18n="nav.roles">Role Management</h1>
-        <div id="roles"></div>
+        <div id="roles" data-area="roles" aria-busy="true">
+            <div class="skeleton skeleton-row" data-skeleton="roles" aria-hidden="true"></div>
+            <div class="skeleton skeleton-row" data-skeleton="roles" aria-hidden="true"></div>
+        </div>
     </div>
     <script src="/static/app.js"></script>
 </body>

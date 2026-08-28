@@ -115,19 +115,28 @@ function setupSafeArea() {
     setStable();
 }
 
-/* P1e: i18n — pull the string table from the Rust endpoint keyed by language,
-   then fill every [data-i18n] node. No user-visible text is hardcoded in JS. */
-async function applyI18n() {
+/* P1e: i18n — strings come from the Rust endpoint (en/uk/ru, en fallback).
+   The snapshot hydration carries the table so a cold start needs no extra
+   round-trip; `fetchI18n` is only a fallback when the snapshot is unavailable. */
+let i18nStrings = null;
+
+function applyI18nStrings(strings) {
+    if (!strings) return;
+    i18nStrings = strings;
+    document.querySelectorAll('[data-i18n]').forEach(function (el) {
+        if (el.hasAttribute('data-skip-i18n')) return;
+        const key = el.getAttribute('data-i18n');
+        if (key && strings[key]) el.textContent = strings[key];
+    });
+}
+
+async function fetchI18n() {
     const tg = telegram();
-    let lang = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.language_code) || 'en';
+    const lang = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.language_code) || 'en';
     try {
         const resp = await fetch(`/api/mini-app/i18n?lang=${encodeURIComponent(lang)}`);
         const data = await resp.json();
-        const strings = data.strings || {};
-        document.querySelectorAll('[data-i18n]').forEach(function (el) {
-            const key = el.getAttribute('data-i18n');
-            if (key && strings[key]) el.textContent = strings[key];
-        });
+        applyI18nStrings(data.strings || {});
         document.documentElement.lang = data.lang || 'en';
     } catch (e) {
         console.error('i18n load failed:', e);
@@ -149,15 +158,20 @@ let wsAttempts = 0;
 let usingSse = false;
 let sseSource = null;
 
+function applyLiveConfig(data) {
+    if (!data) return;
+    liveConfig = Object.assign({}, liveConfig, {
+        reconnect: Object.assign({}, liveConfig.reconnect, (data && data.reconnect) || {}),
+        keepalive_secs: (data && data.keepalive_secs) || liveConfig.keepalive_secs,
+    });
+}
+
 async function loadLiveConfig() {
     try {
         const resp = await fetch('/api/live/config');
         if (resp.ok) {
             const data = await resp.json();
-            liveConfig = Object.assign({}, LIVE_DEFAULTS, {
-                reconnect: Object.assign({}, LIVE_DEFAULTS.reconnect, (data && data.reconnect) || {}),
-                keepalive_secs: (data && data.keepalive_secs) || LIVE_DEFAULTS.keepalive_secs,
-            });
+            applyLiveConfig(data);
         }
     } catch (e) { /* keep defaults */ }
 }
@@ -271,15 +285,192 @@ async function loadStatus() {
     }
 }
 
-/* a tiny local fallback for the status line while /api/mini-app/i18n loads */
+/* String lookups resolved from the snapshot i18n table when present, else a
+   tiny English fallback (so the status line never shows a raw key). */
 function t(key) {
+    if (i18nStrings && i18nStrings[key]) return i18nStrings[key];
     const map = {
+        'app.title': 'Telenetis',
         'status.online': 'Online',
         'status.offline': 'Offline',
         'status.tickets': 'Tickets',
         'status.workers': 'Workers',
+        'board.empty': 'No tickets on the board.',
+        'workers.none': 'No workers online.',
     };
     return map[key] || key;
+}
+
+/* ---- cold start (band 217, plan P3) ----
+   A cold Telegram WebView must paint structure instantly and feel live in
+   under ~2s. Strategy:
+     1. The templates ship skeleton screens (shimmer rows) — first paint is
+        never blank.
+     2. `bootstrap()` opens the WS immediately and fetches ONE consolidated
+        `/api/snapshot` bundle (status + tickets + flows + workers + i18n +
+        live config) — a single round-trip instead of five sequential ones.
+     3. Hydration swaps skeleton → real content the moment the snapshot lands;
+        the WS (now already open, or the SSE fallback) keeps it live from then on. */
+
+function clearArea(el, area) {
+    if (!el) return;
+    el.querySelectorAll('[data-skeleton]').forEach(function (node) {
+        node.remove();
+    });
+    el.removeAttribute('aria-busy');
+}
+
+function hydrateStatus(st) {
+    const el = document.getElementById('status');
+    if (!el) return;
+    el.setAttribute('data-skip-i18n', '1');
+    el.textContent = `${st.online ? t('status.online') : t('status.offline')} | ${t('status.tickets')}: ${st.tickets_count} | ${t('status.workers')}: ${st.workers_online}`;
+}
+
+function renderTicketRows(tickets) {
+    const tbody = document.getElementById('board-body');
+    if (!tbody) return;
+    clearArea(tbody, 'board');
+    if (!tickets.length) {
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 5;
+        td.textContent = t('board.empty');
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+        return;
+    }
+    tickets.forEach(function (tk) {
+        const tr = document.createElement('tr');
+        ['id', 'title', 'status', 'product', 'claimed_by', 'scenario'].forEach(function (k) {
+            const td = document.createElement('td');
+            if (k === 'status') td.className = 'status-' + (tk.status || 'open');
+            td.textContent = tk[k] || '';
+            tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+    });
+}
+
+function renderTickets(tickets) {
+    const el = document.getElementById('tickets');
+    if (!el) return;
+    clearArea(el, 'tickets');
+    if (!tickets.length) {
+        el.textContent = t('board.empty');
+        return;
+    }
+    const list = document.createElement('ul');
+    list.className = 'ticket-list';
+    tickets.forEach(function (tk) {
+        const li = document.createElement('li');
+        li.className = 'ticket-item';
+        const badge = document.createElement('span');
+        badge.className = 'status-badge status-' + (tk.status || 'open');
+        badge.textContent = tk.status || '';
+        li.textContent = `${tk.id} — ${tk.title}`;
+        li.prepend(badge);
+        list.appendChild(li);
+    });
+    el.appendChild(list);
+}
+
+function renderWorkers(workers) {
+    const el = document.getElementById('workers');
+    if (!el) return;
+    clearArea(el, 'workers');
+    if (!workers.length) {
+        el.textContent = t('workers.none');
+        return;
+    }
+    const list = document.createElement('ul');
+    list.className = 'worker-list';
+    workers.forEach(function (w) {
+        const li = document.createElement('li');
+        li.className = 'worker-item';
+        const dot = document.createElement('span');
+        dot.className = 'worker-dot status-' + (w.status || 'offline');
+        li.textContent = `${w.jail_id} — ${w.ide} L${w.rank}`;
+        li.prepend(dot);
+        list.appendChild(li);
+    });
+    el.appendChild(list);
+}
+
+function renderRoles(workers) {
+    const el = document.getElementById('roles');
+    if (!el) return;
+    clearArea(el, 'roles');
+    if (!workers.length) {
+        el.textContent = t('workers.none');
+        return;
+    }
+    const list = document.createElement('ul');
+    list.className = 'worker-list';
+    workers.slice().sort(function (a, b) { return (b.rank || 0) - (a.rank || 0); })
+        .forEach(function (w) {
+            const li = document.createElement('li');
+            li.className = 'role-item';
+            li.textContent = `L${w.rank} — ${w.jail_id} · ${w.agent} · ${w.ide} [${w.status}]`;
+            list.appendChild(li);
+        });
+    el.appendChild(list);
+}
+
+function renderFlows(flows) {
+    const log = flowLog();
+    if (!log) return;
+    clearArea(log, 'flow-log');
+    (flows || []).forEach(function (data) { renderFlow(data); });
+}
+
+function hydrateFromSnapshot(s) {
+    if (!s) return;
+    if (s.i18n) {
+        applyI18nStrings(s.i18n.strings || {});
+        document.documentElement.lang = s.i18n.lang || 'en';
+    }
+    if (s.live) applyLiveConfig(s.live);
+    if (s.status) hydrateStatus(s.status);
+    if (Array.isArray(s.tickets)) {
+        renderTickets(s.tickets);
+        renderTicketRows(s.tickets);
+    }
+    if (Array.isArray(s.workers)) {
+        renderWorkers(s.workers);
+        renderRoles(s.workers);
+    }
+    if (Array.isArray(s.flows)) renderFlows(s.flows);
+    if (s.status && s.status.jail_id) {
+        document.body.classList.add('jail-' + String(s.status.jail_id).replace(/[^a-z0-9-]/gi, ''));
+    }
+}
+
+async function fetchSnapshot(lang) {
+    const resp = await fetch(`/api/snapshot?lang=${encodeURIComponent(lang || 'en')}`);
+    if (!resp.ok) throw new Error('snapshot ' + resp.status);
+    return resp.json();
+}
+
+async function bootstrap() {
+    const tg = telegram();
+    const lang = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.language_code) || 'en';
+
+    // Early WS upgrade: open the live channel in parallel with the snapshot
+    // prefetch, so the first live events can stream the instant hydration lands.
+    connectWS();
+
+    try {
+        hydrateFromSnapshot(await fetchSnapshot(lang));
+    } catch (e) {
+        // Offline cold start: keep the skeletons visible and rely on the
+        // standalone fallbacks (i18n + live config endpoints) so the board is
+        // never a frozen blank page.
+        console.error('snapshot failed:', e);
+        fetchI18n();
+        loadLiveConfig();
+    }
+    loadStatus();
 }
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -291,12 +482,11 @@ document.addEventListener('DOMContentLoaded', function () {
     applyTheme();
     setupSafeArea();
     setupBackButton();
-    applyI18n().then(function () { loadStatus(); });
 
     if (tg && tg.onEvent && tg.isVersionAtLeast && tg.isVersionAtLeast('7.0')) {
         tg.onEvent('themeChanged', applyTheme);
     }
 
-    loadLiveConfig().then(function () { connectWS(); });
+    bootstrap();
     setInterval(loadStatus, 30000);
 });

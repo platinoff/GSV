@@ -69,6 +69,51 @@ h1 {
     color: var(--hint);
 }
 
+/* Cold-start skeletons (plan P3): shimmering placeholders render at first
+   paint so a cold Telegram WebView is never blank; app.js removes them once
+   the /api/snapshot hydration arrives. */
+.skeleton {
+    position: relative;
+    overflow: hidden;
+    background: var(--panel);
+    border-radius: 6px;
+}
+
+.skeleton-line {
+    display: inline-block;
+    height: 13px;
+    margin: 2px 0;
+    vertical-align: middle;
+}
+
+.skeleton-line.short {
+    width: 40%;
+}
+
+.skeleton-row {
+    height: 40px;
+    margin: 8px 0;
+}
+
+.skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.09), transparent);
+    animation: skeleton-shimmer 1.4s infinite;
+}
+
+@keyframes skeleton-shimmer {
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+[aria-busy='false'] {
+    transition: opacity 0.15s ease;
+}
+
 .tabs {
     display: flex;
     gap: 8px;
@@ -167,3 +212,45 @@ button, .btn {
 button.error, .btn.error {
     background: #f85149;
 }
+
+/* Hydrated ticket / worker lists (band 217) — rendered by app.js from the
+   /api/snapshot bundle after the skeletons are cleared. */
+.ticket-list, .worker-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ticket-item, .worker-item, .role-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+    border-radius: 8px;
+    background: var(--panel);
+    border: 1px solid var(--divider);
+}
+
+.status-badge, .worker-dot {
+    display: inline-block;
+    border-radius: 10px;
+    font-size: 11px;
+    padding: 2px 8px;
+    text-transform: uppercase;
+}
+
+.worker-dot {
+    width: 8px;
+    height: 8px;
+    padding: 0;
+    border-radius: 50%;
+    flex: none;
+}
+
+.status-open { background: rgba(63, 185, 80, 0.15); color: #3fb950; }
+.status-in_progress { background: rgba(210, 153, 34, 0.15); color: #d29922; }
+.status-blocked { background: rgba(248, 81, 73, 0.15); color: #f85149; }
+.worker-dot.status-ready { background: #3fb950; }
+.worker-dot.status-busy { background: #d29922; }
+.worker-dot.status-offline { background: var(--hint); }

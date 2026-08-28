@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title data-i18n="app.title">Telenetis</title>
     <link rel="stylesheet" href="/static/app.css">
+    <link rel="preload" href="/api/snapshot?lang=en" as="fetch" crossorigin>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body class="platform-unknown">
@@ -17,8 +18,15 @@
             <a href="/flows" class="tab" data-i18n="nav.flows">Flows</a>
             <a href="/roles" class="tab" data-i18n="nav.roles">Roles</a>
         </nav>
-        <div id="tickets"></div>
-        <div id="workers"></div>
+        <div id="tickets" data-area="tickets" aria-busy="true">
+            <div class="skeleton skeleton-row" data-skeleton="tickets" aria-hidden="true"></div>
+            <div class="skeleton skeleton-row" data-skeleton="tickets" aria-hidden="true"></div>
+            <div class="skeleton skeleton-row" data-skeleton="tickets" aria-hidden="true"></div>
+        </div>
+        <div id="workers" data-area="workers" aria-busy="true">
+            <div class="skeleton skeleton-row" data-skeleton="workers" aria-hidden="true"></div>
+            <div class="skeleton skeleton-row" data-skeleton="workers" aria-hidden="true"></div>
+        </div>
     </div>
     <script src="/static/app.js"></script>
 </body>

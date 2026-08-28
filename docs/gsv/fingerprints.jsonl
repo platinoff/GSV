@@ -72,3 +72,4 @@
 {"ts":"2026-08-28T01:23:00Z","actor":"agent","ide":"opencode","model":"big-pickle","agent":"orchestrator","version":"0.213.0","git_head":"9d68d14","summary":"drain close","product":"gsv"}
 {"ts":"2026-08-28T02:38:42Z","actor":"platinoff","ide":"opencode","model":"big-pickle","agent":"opencode","version":"0.1.0","git_head":"f7a3979","band":"215","summary":"band 215: Telegram Mini App native layer","product":"telenetis"}
 {"ts":"2026-08-28T03:10:11Z","actor":"agent","ide":"opencode","model":"big-pickle","agent":"orchestrator","version":"0.1.0","git_head":"666f8e6","band":"216","summary":"band 216: live stream primacy (plan P2)","product":"telenetis"}
+{"ts":"2026-08-28T03:40:31Z","actor":"agent","ide":"opencode","model":"big-pickle","agent":"orchestrator","version":"0.1.0","git_head":"d743170","band":"217","summary":"band 217: telenetis cold start (plan P3)","product":"telenetis"}

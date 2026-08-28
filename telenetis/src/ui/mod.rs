@@ -27,6 +27,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/verify", get(api_verify_init_data))
         .route("/api/mini-app/i18n", get(api_mini_app_i18n))
         .route("/api/live/config", get(api_live_config))
+        .route("/api/snapshot", get(api_snapshot))
         .with_state(state)
 }
 
@@ -63,6 +64,115 @@ async fn api_live_config(State(state): State<AppState>) -> Json<serde_json::Valu
         },
         "keepalive_secs": crate::stream::backoff::WS_KEEPALIVE_SECS,
     }))
+}
+
+#[derive(Deserialize)]
+struct SnapshotQuery {
+    lang: Option<String>,
+}
+
+/// Consolidated cold-start bundle (plan P3). The Mini App fetches this once on
+/// `/start` and hydrates every region of the app from a single round-trip
+/// instead of issuing status + tickets + flows + workers + i18n + live-config
+/// requests sequentially — that is what makes the first paint fast in a cold
+/// Telegram WebView. The optional `?lang=` selects the i18n table (en default).
+async fn api_snapshot(
+    State(state): State<AppState>,
+    Query(query): Query<SnapshotQuery>,
+) -> Json<serde_json::Value> {
+    let lang = miniapp::Lang::parse(query.lang.as_deref().unwrap_or("en"));
+    let tickets = state.tickets().await;
+    let presence = state.presence_map().await;
+    let flows = state.recent_flows(50).await;
+    let backoff = state.live_reconnect();
+
+    let mut strings = serde_json::Map::new();
+    for key in miniapp::I18N_KEYS {
+        strings.insert((*key).to_string(), json!(miniapp::t(key, lang)));
+    }
+
+    Json(json!({
+        "v": 1,
+        "ts": chrono::Utc::now().timestamp_millis(),
+        "status": {
+            "online": state.is_online(),
+            "jail_id": state.jail_id(),
+            "tickets_count": tickets.len(),
+            "workers_online": presence.len(),
+            "recent_flows": flows.len(),
+        },
+        "tickets": wire_tickets(&tickets),
+        "workers": wire_workers(&presence),
+        "flows": wire_flows(&flows),
+        "i18n": {"lang": lang.as_str(), "strings": serde_json::Value::Object(strings)},
+        "live": {
+            "reconnect": {
+                "base_ms": backoff.base_ms,
+                "cap_ms": backoff.cap_ms,
+                "max_attempts": backoff.max_attempts,
+            },
+            "keepalive_secs": crate::stream::backoff::WS_KEEPALIVE_SECS,
+        },
+    }))
+}
+
+/// Wire ticket rows for the JSON surface; the router, board rows and snapshot
+/// all share the same shape so the Mini App can render one `<tr>` template.
+fn wire_tickets(tickets: &[crate::state::TicketRow]) -> Vec<serde_json::Value> {
+    tickets
+        .iter()
+        .map(|t| {
+            json!({
+                "id": t.id,
+                "title": t.title,
+                "status": t.status,
+                "product": t.product,
+                "claimed_by": t.claimed_by,
+                "scenario": t.scenario,
+            })
+        })
+        .collect()
+}
+
+fn wire_workers(
+    presence: &std::collections::HashMap<String, crate::state::WorkerPresence>,
+) -> Vec<serde_json::Value> {
+    let mut rows: Vec<serde_json::Value> = presence
+        .values()
+        .map(|w| {
+            let status_str = match w.status {
+                crate::state::WorkerStatus::Ready => "ready",
+                crate::state::WorkerStatus::Busy => "busy",
+                crate::state::WorkerStatus::Offline => "offline",
+            };
+            json!({
+                "jail_id": w.jail_id,
+                "actor": w.actor,
+                "ide": w.ide,
+                "model": w.model,
+                "agent": w.agent,
+                "rank": w.rank,
+                "status": status_str,
+                "timezone": w.timezone,
+            })
+        })
+        .collect();
+    rows.sort_by(|a, b| a["jail_id"].as_str().cmp(&b["jail_id"].as_str()));
+    rows
+}
+
+fn wire_flows(flows: &[crate::state::FlowEvent]) -> Vec<serde_json::Value> {
+    flows
+        .iter()
+        .map(|f| {
+            json!({
+                "ts": f.ts.to_rfc3339(),
+                "jail_id": f.jail_id,
+                "action": f.action,
+                "detail": f.detail,
+            })
+        })
+        .collect()
 }
 
 #[derive(Deserialize)]
@@ -147,19 +257,7 @@ async fn status(State(state): State<AppState>) -> Json<serde_json::Value> {
 
 async fn api_tickets(State(state): State<AppState>) -> Json<serde_json::Value> {
     let tickets = state.tickets().await;
-    let rows: Vec<serde_json::Value> = tickets
-        .iter()
-        .map(|t| {
-            json!({
-                "id": t.id,
-                "title": t.title,
-                "status": t.status,
-                "product": t.product,
-                "claimed_by": t.claimed_by,
-            })
-        })
-        .collect();
-    Json(json!({"tickets": rows}))
+    Json(json!({"tickets": wire_tickets(&tickets)}))
 }
 
 async fn api_flows(State(state): State<AppState>) -> Json<serde_json::Value> {
@@ -467,6 +565,215 @@ mod tests {
             json["keepalive_secs"],
             crate::stream::backoff::WS_KEEPALIVE_SECS
         );
+    }
+
+    // ---- cold start (band 217, plan P3) snapshot + skeleton contracts ----
+
+    #[tokio::test]
+    async fn snapshot_returns_consolidated_bundle() {
+        let app = router(test_state());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/snapshot")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        for key in [
+            "v", "ts", "status", "tickets", "workers", "flows", "i18n", "live",
+        ] {
+            assert!(json.get(key).is_some(), "snapshot missing {}", key);
+        }
+        assert_eq!(json["v"], 1);
+        assert_eq!(json["status"]["jail_id"], "test-jail");
+        assert_eq!(json["i18n"]["lang"], "en");
+    }
+
+    #[tokio::test]
+    async fn snapshot_reflects_seeded_state() {
+        let state = test_state();
+        state
+            .set_tickets(vec![
+                crate::state::TicketRow {
+                    id: "T-1".to_string(),
+                    title: "Fix bug".to_string(),
+                    body: String::new(),
+                    status: "open".to_string(),
+                    product: "gsv".to_string(),
+                    claimed_by: None,
+                    scenario: Some("setup".to_string()),
+                },
+                crate::state::TicketRow {
+                    id: "T-2".to_string(),
+                    title: "Ship".to_string(),
+                    body: String::new(),
+                    status: "in_progress".to_string(),
+                    product: "poolai".to_string(),
+                    claimed_by: Some("test-jail".to_string()),
+                    scenario: None,
+                },
+            ])
+            .await;
+        state
+            .push_flow(crate::state::FlowEvent {
+                ts: chrono::Utc::now(),
+                jail_id: "jail-02".to_string(),
+                action: "presence".to_string(),
+                detail: "heartbeat".to_string(),
+            })
+            .await;
+        state
+            .update_presence(crate::state::WorkerPresence {
+                jail_id: "jail-02".to_string(),
+                actor: "alice".to_string(),
+                ide: "cursor".to_string(),
+                model: "m".to_string(),
+                agent: "orchestrator".to_string(),
+                rank: 7,
+                status: crate::state::WorkerStatus::Ready,
+                last_heartbeat: chrono::Utc::now(),
+                timezone: "UTC".to_string(),
+            })
+            .await;
+
+        let app = router(state);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/snapshot")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["status"]["tickets_count"], 2);
+        assert_eq!(json["status"]["workers_online"], 1);
+        assert_eq!(json["tickets"].as_array().unwrap().len(), 2);
+        assert_eq!(json["workers"][0]["jail_id"], "jail-02");
+        assert_eq!(json["flows"].as_array().unwrap().len(), 1);
+        assert_eq!(json["tickets"][0]["scenario"], "setup");
+        assert_eq!(json["tickets"][1]["claimed_by"], "test-jail");
+    }
+
+    #[tokio::test]
+    async fn snapshot_i18n_respects_lang_query() {
+        let app = router(test_state());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/snapshot?lang=uk")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["i18n"]["lang"], "uk");
+        assert_eq!(json["i18n"]["strings"]["action.claim"], "Взяти");
+    }
+
+    #[tokio::test]
+    async fn snapshot_live_config_matches_backoff() {
+        let app = router(test_state());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/snapshot")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let p = crate::stream::backoff::ReconnectPolicy::default();
+        assert_eq!(json["live"]["reconnect"]["base_ms"], p.base_ms);
+        assert_eq!(json["live"]["reconnect"]["cap_ms"], p.cap_ms);
+        assert_eq!(json["live"]["reconnect"]["max_attempts"], p.max_attempts);
+        assert_eq!(
+            json["live"]["keepalive_secs"],
+            crate::stream::backoff::WS_KEEPALIVE_SECS
+        );
+    }
+
+    #[test]
+    fn all_templates_carry_skeleton_markup() {
+        let templates: Vec<(&str, &str)> = vec![
+            ("dashboard.html", include_str!("templates/dashboard.html")),
+            ("base.html", include_str!("templates/base.html")),
+            ("board.html", include_str!("templates/board.html")),
+            ("flows.html", include_str!("templates/flows.html")),
+            ("roles.html", include_str!("templates/roles.html")),
+        ];
+        for (name, html) in &templates {
+            assert!(
+                html.contains("class=\"skeleton"),
+                "{} has no skeleton markup",
+                name
+            );
+            assert!(
+                html.contains("data-skeleton="),
+                "{} has no data-skeleton clears",
+                name
+            );
+            assert!(
+                html.contains("aria-busy=\"true\""),
+                "{} region is not marked busy",
+                name
+            );
+            assert!(
+                html.contains("data-area="),
+                "{} regions have no hydration areas",
+                name
+            );
+            assert!(
+                html.contains("<link rel=\"preload\" href=\"/api/snapshot?lang=en\" as=\"fetch\""),
+                "{} does not preload the snapshot",
+                name
+            );
+        }
+    }
+
+    #[test]
+    fn flow_log_page_starts_offline_with_skeleton() {
+        let html = include_str!("templates/flows.html");
+        assert!(html.contains("id=\"flow-log\""));
+        assert!(html.contains("data-area=\"flow-log\""));
+        assert!(html.contains("data-feed=\"offline\""));
+        assert!(html.contains("data-skeleton=\"flow-log\""));
+    }
+
+    #[test]
+    fn app_js_hydrates_from_snapshot() {
+        let js = include_str!("static/app.js");
+        // bootstrap() must open the WS immediately and fetch the one snapshot.
+        assert!(js.contains("async function bootstrap()"));
+        assert!(js.contains("connectWS();"));
+        assert!(js.contains("fetchSnapshot"));
+        assert!(js.contains("/api/snapshot?lang="));
+        assert!(js.contains("hydrateFromSnapshot"));
+        // Skeleton clearing + aria contract.
+        assert!(js.contains("function clearArea"));
+        assert!(js.contains("querySelectorAll('[data-skeleton]')"));
+        assert!(js.contains("removeAttribute('aria-busy')"));
     }
 
     #[tokio::test]

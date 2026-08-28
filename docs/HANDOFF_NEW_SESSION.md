@@ -1,6 +1,6 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-08-27 (band **216** · next = **owner pick**)
+**Оновлено:** 2026-08-28 (band **217** · next = **owner pick**)
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
 **`абракадабра` / `abrakadabra`** → `cargo xtask products` → **AskQuestion на проєкти з environment**
@@ -21,8 +21,20 @@
   `stream/ws.rs` server keep-alive heartbeat (`{"type":"ping"}` every 25s) + broadcast `Lagged`
   drop-tolerance, `GET /api/live/config` server-authoritative schedule, `app.js` exponential-backoff
   WS reconnect + SSE `/events` fallback after `max_attempts` (unified `renderFlow`, `data-feed`
-  WS/SSE/offline badge); 9 new tests → telenetis **126**; version **0.216.0**. Next telenetis code
-  band lands plan **P3** (cold start — skeleton screens + prefetch + early WS upgrade).
+  WS/SSE/offline badge); 9 new tests → telenetis **126**; version **0.216.0**. Next telenetis code band lands plan **P3** (cold start).
++ **band 217** telenetis cold start (plan P3) — skeleton screens in all 5 templates (`.skeleton`
+  shimmer rows per `data-area`, `aria-busy`, `.skeleton::after` animation) so a cold Telegram
+  WebView is never blank; consolidated **`GET /api/snapshot?lang=`** bundle (status + tickets +
+  flows + workers + i18n + live config in ONE round-trip, shared `wire_tickets`/`wire_workers`/
+  `wire_flows`); `app.js` `bootstrap()` opens the **WS immediately** (early upgrade, in parallel
+  with the snapshot prefetch) then `hydrateFromSnapshot` clears skeletons and renders
+  status/tickets/board/workers/roles/flows; `<link rel="preload" href="/api/snapshot?lang=en">`
+  hint in every template; **`/start` server-side prefetch** (`bot/webhook.rs` `warm_start()` —
+  best-effort GSV sync + `cold_start` flow event, unreachable GSV tolerated, offline fallbacks
+  `fetchI18n()` + `loadLiveConfig()`); hydration lists CSS (.ticket-list/.worker-list/.status-badge);
+  11 new tests → telenetis **137**; version **0.217.0**. Next telenetis code band lands plan **P4**
+  (ranks + messaging polish is GSV-hosted, not telenetis) — candidate: remaining P-scope i18n
+  board buttons / claim action in the Mini App UI.
 **Next = owner pick** after a warnings-first scan. Speeds + Rust panel →
 vision-sync → **один commit** → **`git push` + самарі**.
 

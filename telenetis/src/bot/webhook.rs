@@ -52,6 +52,30 @@ async fn handle_webhook(State(state): State<AppState>, Json(update): Json<Value>
     "ok"
 }
 
+/// Cold-start warm-up for the Mini App (plan P3). When the owner taps the
+/// bot's `Start` web-app button, `process_update` syncs the board from GSV so
+/// the snapshot the WebView fetches is already fresh, and records a
+/// `cold_start` flow event so the live log shows the warm-up. Best-effort: a
+/// GSV outage must not block the reply, so the sync failure is swallowed and
+/// only reflected in the flow detail. Returns the number of tickets now on
+/// the board.
+pub async fn warm_start(state: &AppState) -> usize {
+    let client = crate::gsv::client::GsvClient::new(state.config());
+    let synced = crate::gsv::tickets::sync_tickets(&client, state)
+        .await
+        .is_ok();
+    let count = state.tickets().await.len();
+    state
+        .push_flow(FlowEvent {
+            ts: Utc::now(),
+            jail_id: state.jail_id().to_string(),
+            action: "cold_start".to_string(),
+            detail: format!("prefetch synced={synced} tickets={count}"),
+        })
+        .await;
+    count
+}
+
 /// Shared update handler for both the webhook route and the long-poll loop.
 pub async fn process_update(state: &AppState, update: &Value) {
     let kind = classify_update(update);
@@ -75,6 +99,16 @@ pub async fn process_update(state: &AppState, update: &Value) {
 
                 let cmd = Command::from_text(&text);
                 let response_text = handle_command(&cmd, state).await;
+
+                if matches!(cmd, Command::Start) {
+                    // Cold-start prefetch (plan P3): the first interaction after
+                    // the Mini App button opens syncs the board from GSV so the
+                    // WebView snapshot is already fresh, and records the warm-up
+                    // in the live log. Best-effort — an unreachable GSV must not
+                    // block the reply.
+                    let warmed = warm_start(state).await;
+                    tracing::info!("cold start: prefetched {} tickets", warmed);
+                }
 
                 state
                     .push_flow(FlowEvent {
@@ -215,6 +249,20 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    fn test_config() -> crate::config::Config {
+        crate::config::Config {
+            bot_token: "test".to_string(),
+            gsv_url: "http://127.0.0.1:9999".to_string(),
+            port: 9800,
+            jail_id: "test-jail".to_string(),
+            godfather_channel_id: 0,
+            webhook_url: None,
+            public_url: None,
+            tunnel_enabled: false,
+            ngrok_bin: None,
+        }
+    }
+
     #[test]
     fn classify_message() {
         let v = json!({"message": {"text": "hi"}});
@@ -256,5 +304,48 @@ mod tests {
         assert!(is_private_chat(123_456));
         assert!(!is_private_chat(-1_003_872_035_653));
         assert!(!is_private_chat(-42));
+    }
+
+    #[tokio::test]
+    async fn warm_start_pushes_cold_start_flow() {
+        let state = crate::state::AppState::new(test_config());
+        let count = warm_start(&state).await;
+        assert_eq!(count, 0);
+        let flows = state.recent_flows(5).await;
+        assert_eq!(flows.len(), 1);
+        assert_eq!(flows[0].action, "cold_start");
+        assert!(flows[0].detail.contains("prefetch"));
+    }
+
+    #[tokio::test]
+    async fn warm_start_reflects_seeded_tickets() {
+        let state = crate::state::AppState::new(test_config());
+        state
+            .set_tickets(vec![crate::state::TicketRow {
+                id: "T-1".to_string(),
+                title: "Task".to_string(),
+                body: String::new(),
+                status: "open".to_string(),
+                product: "gsv".to_string(),
+                claimed_by: None,
+                scenario: None,
+            }])
+            .await;
+        let count = warm_start(&state).await;
+        assert_eq!(count, 1);
+    }
+
+    #[tokio::test]
+    async fn warm_start_tolerates_unreachable_gsv() {
+        let mut cfg = test_config();
+        cfg.gsv_url = "http://127.0.0.1:9".to_string();
+        let state = crate::state::AppState::new(cfg);
+        // An unreachable GSV must not panic or block the reply — the warm-up
+        // still records the attempt and returns the (empty) board length.
+        let count = warm_start(&state).await;
+        assert_eq!(count, 0);
+        let flows = state.recent_flows(5).await;
+        assert_eq!(flows.len(), 1);
+        assert_eq!(flows[0].action, "cold_start");
     }
 }
