@@ -1,8 +1,25 @@
+/* Telenetis Mini App — Telegram-native styling (band 215, plan P1).
+   The fallback palette mirrors the Telegram dark scheme; live Telegram
+   theme is applied at runtime as --tg-theme-* custom properties on <body>.
+   Never rely on 100vh — use --tg-viewport-stable-height. */
+
 :root {
     --bg: #0d1117;
     --fg: #c9d1d9;
     --accent: #58a6ff;
+    --muted: #8b949e;
     --border: #30363d;
+}
+
+/* surface colors resolve from Telegram theme where present, else fallback */
+body {
+    background: var(--tg-theme-bg_color, var(--bg));
+    color: var(--tg-theme-text_color, var(--fg));
+    --accent: var(--tg-theme-button_color, var(--accent));
+    --tag-text: var(--tg-theme-button_text_color, #ffffff);
+    --hint: var(--tg-theme-hint_color, var(--muted));
+    --divider: var(--tg-theme-section_separator_color, var(--border));
+    --panel: var(--tg-theme-secondary_bg_color, var(--border));
 }
 
 * {
@@ -11,16 +28,65 @@
     box-sizing: border-box;
 }
 
+html, body {
+    /* never 100vh — Telegram WebView scroll/viewport sizing differs */
+    min-height: 100%;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: var(--bg);
-    color: var(--fg);
     padding: 20px;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    /* reserve for the in-app gesture bar / home indicator */
+}
+
+/* Platform-specific safe-area padding (P1a/P1d): only touch devices need the
+   notch + gesture-bar insets; desktop/web get nothing extra. */
+body.platform-ios,
+body.platform-android {
+    padding-left: max(20px, env(safe-area-inset-left, 0px));
+    padding-right: max(20px, env(safe-area-inset-right, 0px));
+}
+
+#app {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-height: var(--tg-viewport-stable-height, auto);
 }
 
 h1 {
     color: var(--accent);
-    margin-bottom: 20px;
+    margin-bottom: 4px;
+}
+
+.subtitle {
+    color: var(--hint);
+    font-size: 14px;
+}
+
+.status {
+    color: var(--hint);
+}
+
+.tabs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 8px 0;
+}
+
+.tab {
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: var(--panel);
+    color: var(--tg-theme-text_color, var(--fg));
+    text-decoration: none;
+    border: 1px solid var(--divider);
+}
+
+.tab:hover {
+    border-color: var(--accent);
 }
 
 table {
@@ -31,17 +97,17 @@ table {
 th, td {
     padding: 10px;
     text-align: left;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--divider);
 }
 
 th {
-    background: var(--border);
+    background: var(--panel);
     color: var(--accent);
 }
 
 .status-open { color: #3fb950; }
 .status-in_progress { color: #d29922; }
-.status-done { color: #8b949e; }
+.status-done { color: var(--hint); }
 .status-blocked { color: #f85149; }
 
 #flow-log {
@@ -49,9 +115,13 @@ th {
     font-size: 14px;
     max-height: 600px;
     overflow-y: auto;
-    background: var(--border);
+    background: var(--panel);
     padding: 10px;
     border-radius: 6px;
+}
+
+#flow-log.ws-offline {
+    opacity: 0.55;
 }
 
 .flow-entry {
@@ -61,6 +131,20 @@ th {
 }
 
 .flow-ts {
-    color: #8b949e;
+    color: var(--hint);
     margin-right: 10px;
+}
+
+/* Buttons (claim/done/error) that carry haptics in JS — style for touch */
+button, .btn {
+    padding: 10px 16px;
+    border-radius: 10px;
+    border: none;
+    background: var(--accent);
+    color: var(--tag-text);
+    font-size: 15px;
+}
+
+button.error, .btn.error {
+    background: #f85149;
 }

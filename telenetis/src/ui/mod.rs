@@ -9,6 +9,8 @@ use axum::{
 use serde::Deserialize;
 use serde_json::json;
 
+pub mod miniapp;
+
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/", get(dashboard))
@@ -23,7 +25,28 @@ pub fn router(state: AppState) -> Router {
         .route("/static/app.css", get(serve_css))
         .route("/static/app.js", get(serve_js))
         .route("/api/verify", get(api_verify_init_data))
+        .route("/api/mini-app/i18n", get(api_mini_app_i18n))
         .with_state(state)
+}
+
+/// Resolve the Mini App UI strings for a requested language. The client asks
+/// with its `initDataUnsafe.user.language_code`; unknown codes fall back to
+/// English via the table in [`miniapp`].
+#[derive(Deserialize)]
+struct I18nQuery {
+    lang: Option<String>,
+}
+
+async fn api_mini_app_i18n(Query(q): Query<I18nQuery>) -> Json<serde_json::Value> {
+    let lang = miniapp::Lang::parse(q.lang.as_deref().unwrap_or("en"));
+    let mut strings = serde_json::Map::new();
+    for key in miniapp::I18N_KEYS {
+        strings.insert((*key).to_string(), json!(miniapp::t(key, lang)));
+    }
+    Json(json!({
+        "lang": lang.as_str(),
+        "strings": serde_json::Value::Object(strings),
+    }))
 }
 
 #[derive(Deserialize)]
@@ -344,5 +367,90 @@ mod tests {
         let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["ok"], false);
+    }
+
+    #[tokio::test]
+    async fn mini_app_i18n_returns_requested_language() {
+        let app = router(test_state());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/mini-app/i18n?lang=uk")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 8192).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["lang"], "uk");
+        assert_eq!(json["strings"]["status.online"], "Онлайн");
+        assert_eq!(json["strings"]["action.claim"], "Взяти");
+    }
+
+    #[tokio::test]
+    async fn mini_app_i18n_defaults_to_english() {
+        let app = router(test_state());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/mini-app/i18n")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 8192).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["lang"], "en");
+        assert_eq!(json["strings"]["status.online"], "Online");
+        assert_eq!(json["strings"]["app.title"], "Telenetis");
+    }
+
+    #[tokio::test]
+    async fn mini_app_i18n_falls_back_from_unknown_lang() {
+        let app = router(test_state());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/mini-app/i18n?lang=zz")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 8192).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["lang"], "en");
+        assert_eq!(json["strings"]["nav.roles"], "Roles");
+    }
+
+    #[tokio::test]
+    async fn i18n_table_matches_html_i18n_attributes() {
+        let app = router(test_state());
+        let resp = app
+            .oneshot(Request::builder().uri("/app").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+            .await
+            .unwrap();
+        let html = String::from_utf8_lossy(&body);
+
+        // /app (dashboard) shell only carries app.* and status.* keys — every
+        // data-i18n attribute the template uses must resolve to a non-empty
+        // string for at least the default English UI.
+        for key in ["app.title", "app.subtitle", "status.loading"] {
+            assert!(
+                html.contains(&format!("data-i18n=\"{}\"", key)),
+                "template missing attribute for {}",
+                key
+            );
+            assert!(!crate::ui::miniapp::t(key, crate::ui::miniapp::Lang::En).is_empty());
+        }
     }
 }

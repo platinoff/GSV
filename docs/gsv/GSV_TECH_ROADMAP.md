@@ -1856,6 +1856,29 @@ HTTP surface. References pinned against independently computed OpenSSL vectors.
 | **PH-S27577** | Tests | 14 new: secret_key/hash vs independent OpenSSL reference, accept / tampered-user / wrong-token / missing hash|user / stale / future auth_date, constant-time compare, percent-decode, 3 HTTP verify routes — telenetis **105** (was 91) — **✅** |
 | **PH-S27578** | Gate | fmt clean · clippy 0 · `cargo test` telenetis 105 pass · version bump 0.214.0 — **✅** |
 
+## Спринти (band 215) — telenetis Mini App Telegram-native layer, plan P1 (owner pick)
+
+Land band-213 plan **P1** (`docs/superpowers/plans/2026-08-27-telenetis-live-app.md`):
+the Telegram-native Mini App layer. The browser side is wired through
+`static/app.js` (Telegram SDK); all *server-testable* logic lives in a new Rust
+module `src/ui/miniapp.rs`: platform classification + body class, safe CSS
+custom-property builder (feeds `--tg-theme-*` without injection), and an i18n
+string table keyed by `language_code` (en/uk/ru, en fallback) served at
+`GET /api/mini-app/i18n`. Templates gain Telegram SDK, `--tg-viewport-stable-height`
+safe-area sizing (never `100vh`), `data-i18n` attributes and a platform body-class
+default; CSS resolves surface colors from Telegram theme at runtime.
+
+| ID | Area | Deliverable / status |
+|----|------|----------------------|
+| **PH-S27579** | miniapp module | `src/ui/miniapp.rs` — `Platform::classify`/`body_class`/`needs_safe_area`, `ThemeVar::tg`/`as_css` (injection-safe), `Lang::parse`/`t` i18n table (en/uk/ru) — **✅** |
+| **PH-S27580** | i18n endpoint | `GET /api/mini-app/i18n?lang=` returns `{lang, strings}`; unknown → en — **✅** |
+| **PH-S27581** | platform class | JS `whereAmI()` reads `Telegram.WebApp.platform` → `platform-{ios,android,macos,windows,linux,web}` body class — **✅** |
+| **PH-S27582** | theme | JS `applyTheme()` maps `themeParams` → `--tg-theme-*` CSS vars, light/dark via `themeChanged`, `tg.ready()` — **✅** |
+| **PH-S27583** | back+baptics | JS `setupBackButton()` (native BackButton, non-root only) + `haptics()` (impact/notification) — **✅** |
+| **PH-S27584** | safe-area + i18n | `--tg-viewport-stable-height` (never `100vh`) + `data-i18n` fill from endpoint by `language_code` — **✅** |
+| **PH-S27585** | Tests | 12 new: 8 miniapp unit (platform/theme-var/i18n) + 4 HTTP i18n routes + template-attr contract — telenetis **117** (was 105) — **✅** |
+| **PH-S27586** | Gate + docs | fmt clean · clippy 0 · `cargo test` telenetis 117 + gsv 715(–1 drift fixed by sync) · version bump **0.215.0** + `cargo xtask bump --band 215` re-syncs vision lockstep (was drifted from band-214 close) — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

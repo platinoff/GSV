@@ -1,17 +1,22 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Telenetis</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title data-i18n="app.title">Telenetis</title>
     <link rel="stylesheet" href="/static/app.css">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
-<body>
+<body class="platform-unknown">
     <div id="app">
-        <h1>Telenetis</h1>
-        <p>Telegram Mini App for GSV Godfather Channel</p>
-        <div id="status">Loading...</div>
+        <h1 data-i18n="app.title">Telenetis</h1>
+        <p class="subtitle" data-i18n="app.subtitle">Telegram Mini App for GSV Godfather Channel</p>
+        <div id="status" class="status" data-i18n="status.loading">Loading...</div>
+        <nav class="tabs" id="tabs">
+            <a href="/board" class="tab" data-i18n="nav.board">Board</a>
+            <a href="/flows" class="tab" data-i18n="nav.flows">Flows</a>
+            <a href="/roles" class="tab" data-i18n="nav.roles">Roles</a>
+        </nav>
         <div id="tickets"></div>
         <div id="workers"></div>
     </div>

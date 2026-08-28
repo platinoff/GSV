@@ -1,14 +1,16 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Telenetis - Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title data-i18n="app.title">Telenetis - Dashboard</title>
     <link rel="stylesheet" href="/static/app.css">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
-<body>
+<body class="platform-unknown">
     <div id="app">
-        <h1>Telenetis Dashboard</h1>
-        <div id="status">Loading...</div>
+        <h1 data-i18n="app.title">Telenetis Dashboard</h1>
+        <div id="status" class="status" data-i18n="status.loading">Loading...</div>
         <div id="tickets"></div>
         <div id="workers"></div>
     </div>
