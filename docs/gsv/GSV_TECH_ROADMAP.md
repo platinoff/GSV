@@ -1921,6 +1921,19 @@ the first-opened Mini App is already fresh.
 | **PH-S27597** | Tests | 11 new (snapshot HTTP/state/lang/live, skeleton template contracts, preload hint, `app.js` hydrate contract, `warm_start` ×3, snapshot integration) → telenetis **137** (was 126) — **✅** |
 | **PH-S27598** | Gate + docs | fmt clean · clippy 0 · `cargo test` telenetis 137 + gsv pass · ratio ≥96% · version bump **0.217.0** + `cargo xtask bump --band 217` · HANDOFF/NEXT/plan/roadmap · fingerprint — **✅** |
 
+## Спринти (band 218) — telenetis Mini App board actions, plan P4 (owner pick)
+
+Land band-213 plan **P4** (`docs/superpowers/plans/2026-08-27-telenetis-live-app.md`):
+drive the ticket lifecycle from the Mini App board. A new **Actions** column
+puts claim/done/error buttons on each row. Rust core `src/actions.rs` models
+`BoardAction` (Claim/Done/Error) with parsing, i18n keys and a forward body;
+the GSV client forwards to the GSV `/api/tickets/claim|done|error` endpoints on
+behalf of the verified Mini App user (initData HMAC from band 214).
+
+| ID | Area | Deliverable / status |
+|----|------|----------------------|
+| **PH-S2828** | Board actions | `src/actions.rs` `BoardAction` enum (Claim/Done/Error · `parse`/`as_str`/`gsv_path`/`label_key`/`busy_key`/`ok_key`/`ALL`) + `BoardActionBody`/`parse_body` + `err_json` + `forward_body`; GSV `client.rs` `post_json`+`board_action`; `POST /api/board/claim|done|error` (initData HMAC → parse → forward); Mini App Actions column (`board.actions`) + claim/done/error buttons (`makeActionButton`/`postBoardAction` — haptics, busy/ok) + i18n en/uk/ru; 18 new tests → telenetis **155** (was 137); fmt clean · clippy 0 · version bump **0.218.0** + `cargo xtask bump --band 218` · HANDOFF/NEXT/roadmap · fingerprint — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

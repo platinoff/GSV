@@ -254,3 +254,40 @@ button.error, .btn.error {
 .worker-dot.status-ready { background: #3fb950; }
 .worker-dot.status-busy { background: #d29922; }
 .worker-dot.status-offline { background: var(--hint); }
+
+/* Board action buttons (band 218, plan P4) — compact touch targets inside the
+   ticket table, colored per verb, disabled while in flight. */
+.board-actions {
+    white-space: nowrap;
+}
+
+.board-btn {
+    padding: 4px 8px;
+    margin: 2px;
+    border-radius: 6px;
+    border: none;
+    font-size: 12px;
+    cursor: pointer;
+    background: var(--panel-solid, var(--panel));
+    border: 1px solid var(--divider);
+    color: var(--text);
+}
+
+.board-btn:hover {
+    border-color: var(--accent);
+}
+
+.board-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.board-btn.board-done { color: #3fb950; }
+.board-btn.board-error { color: #f85149; }
+.board-btn.board-claim { color: var(--accent); }
+
+.board-btn.board-btn-ok {
+    background: rgba(63, 185, 80, 0.15);
+    color: #3fb950;
+}
+

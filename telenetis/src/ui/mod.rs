@@ -2,8 +2,8 @@ use crate::state::AppState;
 use axum::{
     extract::{Query, State},
     http::{header, StatusCode},
-    response::{Html, IntoResponse},
-    routing::get,
+    response::{Html, IntoResponse, Response},
+    routing::{get, post},
     Json, Router,
 };
 use serde::Deserialize;
@@ -28,6 +28,9 @@ pub fn router(state: AppState) -> Router {
         .route("/api/mini-app/i18n", get(api_mini_app_i18n))
         .route("/api/live/config", get(api_live_config))
         .route("/api/snapshot", get(api_snapshot))
+        .route("/api/board/claim", post(api_board_claim))
+        .route("/api/board/done", post(api_board_done))
+        .route("/api/board/error", post(api_board_error))
         .with_state(state)
 }
 
@@ -210,6 +213,98 @@ async fn api_verify_init_data(
     ) {
         Ok(()) => Json(json!({"ok": true})),
         Err(e) => Json(json!({"ok": false, "error": e.to_string()})),
+    }
+}
+
+/// Query params for the board-action surface: the Telegram `initData`
+/// handshake string (band 214) plus an optional `authDate` clock override that
+/// mirrors `/api/verify`, so the freshness window is testable.
+#[derive(Deserialize)]
+struct ActionQuery {
+    #[serde(rename = "initData", default)]
+    init_data: String,
+    #[serde(rename = "authDate", default)]
+    auth_date: Option<i64>,
+}
+
+async fn api_board_claim(
+    State(state): State<AppState>,
+    Query(q): Query<ActionQuery>,
+    Json(body): Json<serde_json::Value>,
+) -> Response {
+    api_board_action(crate::actions::BoardAction::Claim, state, q, body).await
+}
+
+async fn api_board_done(
+    State(state): State<AppState>,
+    Query(q): Query<ActionQuery>,
+    Json(body): Json<serde_json::Value>,
+) -> Response {
+    api_board_action(crate::actions::BoardAction::Done, state, q, body).await
+}
+
+async fn api_board_error(
+    State(state): State<AppState>,
+    Query(q): Query<ActionQuery>,
+    Json(body): Json<serde_json::Value>,
+) -> Response {
+    api_board_action(crate::actions::BoardAction::Error, state, q, body).await
+}
+
+/// Shared board-action handler (band 218, plan P4). Verifies the Telegram
+/// Mini App `initData` handshake before anything is mutated — a public tunnel
+/// must never let an anonymous caller claim/close tickets — then parses
+/// `{id, note?}` and forwards server-side to GSV's `/api/tickets/{verb}`.
+async fn api_board_action(
+    action: crate::actions::BoardAction,
+    state: AppState,
+    q: ActionQuery,
+    body: serde_json::Value,
+) -> Response {
+    let token = &state.config().bot_token;
+    if token.is_empty() {
+        return (
+            StatusCode::BAD_GATEWAY,
+            Json(crate::actions::err_json("bot token not configured")),
+        )
+            .into_response();
+    }
+    let now = q
+        .auth_date
+        .unwrap_or_else(|| chrono::Utc::now().timestamp());
+    if let Err(e) = crate::security::verify_init_data(
+        &q.init_data,
+        token,
+        now,
+        crate::security::initdata::DEFAULT_MAX_AGE_SECS,
+    ) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(crate::actions::err_json(&format!("initData: {e}"))),
+        )
+            .into_response();
+    }
+    let parsed = match crate::actions::parse_body(&body) {
+        Ok(p) => p,
+        Err(message) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(crate::actions::err_json(&message)),
+            )
+                .into_response();
+        }
+    };
+    let client = crate::gsv::client::GsvClient::new(state.config());
+    match client
+        .board_action(action, &parsed.id, parsed.note.as_deref())
+        .await
+    {
+        Ok(v) => Json(v).into_response(),
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            Json(crate::actions::err_json(&format!("GSV: {e}"))),
+        )
+            .into_response(),
     }
 }
 
@@ -481,6 +576,139 @@ mod tests {
         let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["ok"], false);
+    }
+
+    // ---- band 218 (plan P4) board action endpoints ----
+
+    async fn post_action(
+        verb: &str,
+        init: &str,
+        auth: i64,
+        body: serde_json::Value,
+    ) -> axum::response::Response {
+        let app = router(test_state());
+        let init_q = percent_encode_query(&test_init_data(init));
+        app.oneshot(
+            Request::builder()
+                .uri(format!(
+                    "/api/board/{verb}?initData={}&authDate={}",
+                    init_q, auth
+                ))
+                .method("POST")
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn board_action_rejects_missing_init_data() {
+        let app = router(test_state());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/board/claim")
+                    .method("POST")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"id":"T-1"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn board_action_rejects_tampered_init_data() {
+        let resp = post_action(
+            "claim",
+            TEST_TAMPERED_USER_RAW,
+            1750000010,
+            serde_json::json!({"id": "T-1"}),
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["ok"], false);
+    }
+
+    #[tokio::test]
+    async fn board_action_rejects_missing_ticket_id() {
+        let resp = post_action("claim", TEST_USER_RAW, 1750000010, serde_json::json!({})).await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["ok"], false);
+        assert!(json["error"].as_str().unwrap().contains("ticket id"));
+    }
+
+    #[tokio::test]
+    async fn board_action_valid_claim_forwards_to_gsv() {
+        // A verified handshake with a well-formed body passes validation and
+        // reaches the GSV forward. Point the client at an unreachable GSV so
+        // the test never touches a live board; the forward must surface as a
+        // gateway failure rather than a 4xx.
+        let mut cfg = Config {
+            bot_token: "test".to_string(),
+            gsv_url: "http://127.0.0.1:1".to_string(),
+            port: 9800,
+            jail_id: "test-jail".to_string(),
+            godfather_channel_id: 0,
+            webhook_url: None,
+            public_url: None,
+            tunnel_enabled: false,
+            ngrok_bin: None,
+        };
+        cfg.bot_token = "test".to_string();
+        let app = router(AppState::new(cfg));
+        let init_q = percent_encode_query(&test_init_data(TEST_USER_RAW));
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri(format!(
+                        "/api/board/claim?initData={}&authDate=1750000010",
+                        init_q
+                    ))
+                    .method("POST")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"id":"T-1"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["ok"], false);
+    }
+
+    #[tokio::test]
+    async fn board_action_done_endpoint_registered() {
+        // Same trust path for the done verb: tampered handshake is refused.
+        let resp = post_action(
+            "done",
+            TEST_TAMPERED_USER_RAW,
+            1750000010,
+            serde_json::json!({"id": "T-1"}),
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn board_action_error_endpoint_registered() {
+        // Same trust path for the error verb: tampered handshake is refused.
+        let resp = post_action(
+            "error",
+            TEST_TAMPERED_USER_RAW,
+            1750000010,
+            serde_json::json!({"id": "T-1"}),
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
     }
 
     #[tokio::test]
@@ -774,6 +1002,77 @@ mod tests {
         assert!(js.contains("function clearArea"));
         assert!(js.contains("querySelectorAll('[data-skeleton]')"));
         assert!(js.contains("removeAttribute('aria-busy')"));
+    }
+
+    // ---- band 218 (plan P4) board action wiring contracts ----
+
+    #[test]
+    fn board_template_has_actions_column() {
+        let html = include_str!("templates/board.html");
+        assert!(
+            html.contains("<th data-i18n=\"board.actions\">Actions</th>"),
+            "board.html lacks the localized Actions column header"
+        );
+        // The actions column makes the board 6 wide; skeleton rows must match.
+        assert!(html.contains("colspan=\"6\""));
+        assert!(!html.contains("colspan=\"5\""));
+    }
+
+    #[test]
+    fn board_actions_i18n_key_resolves_in_all_languages() {
+        for lang in [
+            crate::ui::miniapp::Lang::En,
+            crate::ui::miniapp::Lang::Uk,
+            crate::ui::miniapp::Lang::Ru,
+        ] {
+            assert!(
+                !crate::ui::miniapp::t("board.actions", lang).is_empty(),
+                "board.actions missing for {lang:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn action_verb_i18n_keys_resolve_in_all_languages() {
+        let keys = [
+            "action.claim",
+            "action.done",
+            "action.error",
+            "action.claiming",
+            "action.doing",
+            "action.erroring",
+            "action.claimed",
+            "action.done_ok",
+            "action.error_ok",
+        ];
+        for lang in [
+            crate::ui::miniapp::Lang::En,
+            crate::ui::miniapp::Lang::Uk,
+            crate::ui::miniapp::Lang::Ru,
+        ] {
+            for key in &keys {
+                assert!(
+                    !crate::ui::miniapp::t(key, lang).is_empty(),
+                    "{} missing for {lang:?}",
+                    key
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn app_js_wires_board_action_buttons() {
+        let js = include_str!("static/app.js");
+        assert!(js.contains("function makeActionButton"));
+        assert!(js.contains("function actionButtonsCell"));
+        assert!(js.contains("async function postBoardAction"));
+        assert!(js.contains("function actionLabel"));
+        // The POST must carry the initData handshake + authDate, then forward.
+        assert!(js.contains("/api/board/${action}"));
+        assert!(js.contains("initData"));
+        assert!(js.contains("authDate"));
+        // Buttons render per ticket row.
+        assert!(js.contains("tr.appendChild(actionButtonsCell(tk))"));
     }
 
     #[tokio::test]

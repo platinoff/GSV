@@ -296,7 +296,17 @@ function t(key) {
         'status.tickets': 'Tickets',
         'status.workers': 'Workers',
         'board.empty': 'No tickets on the board.',
+        'board.actions': 'Actions',
         'workers.none': 'No workers online.',
+        'action.claim': 'Claim',
+        'action.done': 'Done',
+        'action.error': 'Error',
+        'action.claiming': 'Claiming...',
+        'action.doing': 'Marking done...',
+        'action.erroring': 'Flagging error...',
+        'action.claimed': 'Claimed',
+        'action.done_ok': 'Done',
+        'action.error_ok': 'Error flagged',
     };
     return map[key] || key;
 }
@@ -334,7 +344,7 @@ function renderTicketRows(tickets) {
     if (!tickets.length) {
         const tr = document.createElement('tr');
         const td = document.createElement('td');
-        td.colSpan = 5;
+        td.colSpan = 6;
         td.textContent = t('board.empty');
         tr.appendChild(td);
         tbody.appendChild(tr);
@@ -348,8 +358,71 @@ function renderTicketRows(tickets) {
             td.textContent = tk[k] || '';
             tr.appendChild(td);
         });
+        tr.appendChild(actionButtonsCell(tk));
         tbody.appendChild(tr);
     });
+}
+
+/* ---- board action buttons (band 218, plan P4) ----
+   Each row offers Claim / Done / Error. The click POSTs the Telegram
+   `initData` handshake (server-side HMAC-verified in Rust) and the ticket id to
+   /api/board/{verb}; telenetis forwards to GSV. While in flight the button
+   shows its busy label and is disabled; success toasts + haptic, failure
+   restores the label and haptic-errors. */
+
+function makeActionButton(action, ticketId) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'board-btn board-' + action;
+    btn.textContent = t(action === 'claim' ? 'action.claim' : (action === 'done' ? 'action.done' : 'action.error'));
+    btn.addEventListener('click', function () {
+        postBoardAction(action, ticketId, btn);
+    });
+    return btn;
+}
+
+function actionButtonsCell(tk) {
+    const td = document.createElement('td');
+    td.className = 'board-actions';
+    ['claim', 'done', 'error'].forEach(function (action) {
+        td.appendChild(makeActionButton(action, tk.id));
+    });
+    return td;
+}
+
+function actionLabel(action, ok) {
+    const busy = { claim: 'action.claiming', done: 'action.doing', error: 'action.erroring' };
+    const done = { claim: 'action.claimed', done: 'action.done_ok', error: 'action.error_ok' };
+    const plain = { claim: 'action.claim', done: 'action.done', error: 'action.error' };
+    return t(ok ? done[action] : (busy[action] || plain[action]));
+}
+
+async function postBoardAction(action, ticketId, btn) {
+    const tg = telegram();
+    const initData = (tg && tg.initData) ? tg.initData : '';
+    const authDate = Math.floor(Date.now() / 1000);
+    btn.disabled = true;
+    btn.textContent = actionLabel(action, false);
+    try {
+        const resp = await fetch(`/api/board/${action}?initData=${encodeURIComponent(initData)}&authDate=${authDate}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: ticketId }),
+        });
+        const data = await resp.json();
+        if (data && data.ok) {
+            haptics('done');
+            btn.textContent = actionLabel(action, true);
+            btn.classList.add('board-btn-ok');
+        } else {
+            throw new Error((data && data.error) || ('HTTP ' + resp.status));
+        }
+    } catch (e) {
+        btn.disabled = false;
+        btn.textContent = actionLabel(action, false);
+        haptics('error');
+        console.error('board action failed:', e);
+    }
 }
 
 function renderTickets(tickets) {

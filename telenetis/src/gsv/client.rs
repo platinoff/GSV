@@ -30,6 +30,20 @@ impl GsvClient {
         Ok(resp.json().await?)
     }
 
+    async fn post_json(
+        &self,
+        path: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value, TelenetisError> {
+        let url = format!("{}{}", self.base_url, path);
+        let resp = self.http.post(&url).json(body).send().await?;
+        let status = resp.status();
+        if !status.is_success() {
+            return Err(TelenetisError::Gsv(format!("HTTP {status} from {url}")));
+        }
+        Ok(resp.json().await?)
+    }
+
     pub async fn health(&self) -> Result<serde_json::Value, TelenetisError> {
         self.get_json("/api/health").await
     }
@@ -53,6 +67,18 @@ impl GsvClient {
 
     pub async fn vision_summary(&self) -> Result<serde_json::Value, TelenetisError> {
         self.get_json("/api/vision/summary").await
+    }
+
+    /// Forward a board action (claim/done/error) to GSV's ticket wire. The
+    /// verb+id mapping plus the JSON payload live in [`crate::actions`].
+    pub async fn board_action(
+        &self,
+        action: crate::actions::BoardAction,
+        id: &str,
+        note: Option<&str>,
+    ) -> Result<serde_json::Value, TelenetisError> {
+        let body = serde_json::json!({ "id": id, "note": note });
+        self.post_json(action.gsv_path(), &body).await
     }
 }
 
