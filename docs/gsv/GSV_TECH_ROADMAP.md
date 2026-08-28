@@ -1879,6 +1879,27 @@ default; CSS resolves surface colors from Telegram theme at runtime.
 | **PH-S27585** | Tests | 12 new: 8 miniapp unit (platform/theme-var/i18n) + 4 HTTP i18n routes + template-attr contract — telenetis **117** (was 105) — **✅** |
 | **PH-S27586** | Gate + docs | fmt clean · clippy 0 · `cargo test` telenetis 117 + gsv 715(–1 drift fixed by sync) · version bump **0.215.0** + `cargo xtask bump --band 215` re-syncs vision lockstep (was drifted from band-214 close) — **✅** |
 
+## Спринти (band 216) — telenetis live stream primacy, plan P2 (owner pick)
+
+Land band-213 plan **P2** (`docs/superpowers/plans/2026-08-27-telenetis-live-app.md`):
+make the websocket `/ws` the *primary* live channel and the SSE `/events` the
+*fallback*, with a server-authoritative reconnect schedule. Server maths live
+in a new Rust module `stream/backoff.rs` (exponential backoff + deterministic
+jitter) served at `GET /api/live/config`; the WS now sends a keep-alive
+heartbeat and is drop-tolerant to slow/lagged receivers; the Mini App client
+(`app.js`) reconnects with the same exponential-backoff schedule and falls back
+to SSE only after `max_attempts` consecutive WS failures, still rendering into
+one `#flow-log`.
+
+| ID | Area | Deliverable / status |
+|----|------|----------------------|
+| **PH-S27587** | backoff | `stream/backoff.rs` — `ReconnectPolicy` (base 1s / cap 30s / max 6) exponential delay + deterministic jitter (`splitmix`-based, seed+attempt), WS keep-alive const — **✅** |
+| **PH-S27588** | WS keep-alive + drop | `stream/ws.rs` server heartbeat (`{"type":"ping"}` every 25 s) so silent-but-open sockets are detectable; broadcast `Lagged` slow-receiver is drop-tolerant (keep streaming), `Closed` ends; SSE 30 s keep-alive unchanged — **✅** |
+| **PH-S27589** | live config | `GET /api/live/config` returns server-authoritative `{reconnect:{base_ms,cap_ms,max_attempts}, keepalive_secs}`; `state::live_reconnect()` — **✅** |
+| **PH-S27590** | JS backoff reconnect | `app.js` reads schedule from `/api/live/config`; exponential-backoff WS reconnect (attempt counting + matching jitter), `data-feed`/`ws-live` indicator — **✅** |
+| **PH-S27591** | SSE fallback | JS falls back to `/events` SSE after `max_attempts` WS failures; unified `renderFlow` for both feeds; `sse-fallback` + WS/SSE feed badge — **✅** |
+| **PH-S27592** | Tests + gate | 9 new tests (7 backoff unit + 1 state + 1 HTTP live-config) → telenetis **126** (was 117) · fmt clean · clippy 0 · version bump **0.216.0** — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

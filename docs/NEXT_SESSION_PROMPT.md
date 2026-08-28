@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-27 (**band 215 · next gsv drain = owner pick**)
+**Оновлено:** 2026-08-27 (**band 216 · next gsv drain = owner pick**)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -271,6 +271,7 @@ Close: `cargo xtask bump --band N` (semver **and** vision queue **close of N**: 
     **band 212** (PH-S2755…S2765) ✅ — telenetis to 100%: security wiring (limit_layer + security_headers_middleware), HTTP status checks (gsv/client + bot/telegram), webhook reply, `From<reqwest::Error>` + `Display`, bus_queue cap 1000, graceful shutdown, +13 tests (55 total).
     **band 214** (PH-S27573…S27578) ✅ — telenetis Mini App initData HMAC-SHA256 verify (P0 of band-213 plan): `security/initdata.rs` real handshake verification (parse → sort signable → secret key HMAC key `WebAppData` → expected hash → constant-time hex compare; `auth_date` freshness + `user` presence), placeholder `csrf_check` replaced with a real verifier, `GET /api/verify` HTTP surface, deps `hmac` 0.12 + `sha2` 0.10, 14 new tests pinned vs independent OpenSSL reference vectors → telenetis **105** (91 → 105), version 0.214.0.
     **band 215** (PH-S27579…S27586) ✅ — telenetis Mini App Telegram-native layer (plan P1): `src/ui/miniapp.rs` (Platform classify/body-class, injection-safe `ThemeVar` for `--tg-theme-*`, en/uk/ru `t()` i18n table), `GET /api/mini-app/i18n?lang=`, JS `whereAmI()`/`applyTheme()`/`themeChanged`/BackButton/haptics/safe-area `--tg-viewport-stable-height` (never `100vh`) + `data-i18n`; 12 new tests → telenetis **117** (105 → 117); version **0.215.0**; `cargo xtask bump --band 215` re-synced vision lockstep (was drifted from band-214 close).
+    **band 216** (PH-S27587…S27592) ✅ — telenetis live stream primacy (plan P2): `stream/backoff.rs` (`ReconnectPolicy` base 1s/cap 30s/max 6 exponential backoff + deterministic jitter), `stream/ws.rs` server keep-alive heartbeat (`{"type":"ping"}` every 25s) + broadcast `Lagged` drop-tolerance, `GET /api/live/config` server-authoritative schedule (`state::live_reconnect`), `app.js` exponential-backoff WS reconnect + SSE `/events` fallback after max_attempts (unified `renderFlow` + `data-feed` WS/SSE/offline badge); 9 new tests → telenetis **126** (117 → 126); version **0.216.0**.
     **Наступний drain:** owner pick after a warnings-first scan.
 
 ## Канон GSV

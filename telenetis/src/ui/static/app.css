@@ -124,6 +124,25 @@ th {
     opacity: 0.55;
 }
 
+#flow-log.sse-fallback {
+    border: 1px dashed var(--hint);
+    opacity: 0.85;
+}
+
+#flow-log[data-feed='sse']::after {
+    content: '· SSE';
+    color: var(--hint);
+    font-size: 12px;
+    padding-left: 8px;
+}
+
+#flow-log[data-feed='ws']::after {
+    content: '· WS';
+    color: var(--hint);
+    font-size: 12px;
+    padding-left: 8px;
+}
+
 .flow-entry {
     margin-bottom: 5px;
     padding: 5px;

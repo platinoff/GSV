@@ -26,6 +26,7 @@ pub fn router(state: AppState) -> Router {
         .route("/static/app.js", get(serve_js))
         .route("/api/verify", get(api_verify_init_data))
         .route("/api/mini-app/i18n", get(api_mini_app_i18n))
+        .route("/api/live/config", get(api_live_config))
         .with_state(state)
 }
 
@@ -46,6 +47,21 @@ async fn api_mini_app_i18n(Query(q): Query<I18nQuery>) -> Json<serde_json::Value
     Json(json!({
         "lang": lang.as_str(),
         "strings": serde_json::Value::Object(strings),
+    }))
+}
+
+/// Server-authoritative live-stream config for the Mini App JS client
+/// (plan P2). Mirrors [`crate::stream::backoff`] so reconnecting clients wait
+/// the same exponential-backoff schedule the Rust server defines and tests.
+async fn api_live_config(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let backoff = state.live_reconnect();
+    Json(json!({
+        "reconnect": {
+            "base_ms": backoff.base_ms,
+            "cap_ms": backoff.cap_ms,
+            "max_attempts": backoff.max_attempts,
+        },
+        "keepalive_secs": crate::stream::backoff::WS_KEEPALIVE_SECS,
     }))
 }
 
@@ -426,6 +442,31 @@ mod tests {
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["lang"], "en");
         assert_eq!(json["strings"]["nav.roles"], "Roles");
+    }
+
+    #[tokio::test]
+    async fn live_config_reports_server_authoritative_backoff() {
+        let app = router(test_state());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/live/config")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let p = crate::stream::backoff::ReconnectPolicy::default();
+        assert_eq!(json["reconnect"]["base_ms"], p.base_ms);
+        assert_eq!(json["reconnect"]["cap_ms"], p.cap_ms);
+        assert_eq!(json["reconnect"]["max_attempts"], p.max_attempts);
+        assert_eq!(
+            json["keepalive_secs"],
+            crate::stream::backoff::WS_KEEPALIVE_SECS
+        );
     }
 
     #[tokio::test]

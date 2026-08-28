@@ -144,6 +144,12 @@ impl AppState {
         &self.flows_tx
     }
 
+    /// The server-authoritative WS reconnect policy served to the Mini App
+    /// client at `GET /api/live/config`. Kept small and fixed for now.
+    pub fn live_reconnect(&self) -> crate::stream::backoff::ReconnectPolicy {
+        crate::stream::backoff::ReconnectPolicy::default()
+    }
+
     pub async fn recent_flows(&self, limit: usize) -> Vec<FlowEvent> {
         let flows = self.flows.read().await;
         flows.iter().rev().take(limit).cloned().collect()
@@ -234,6 +240,17 @@ mod tests {
         let flows = state.recent_flows(2000).await;
         assert!(flows.len() <= 1000);
         assert!(flows.len() >= 500);
+    }
+
+    #[tokio::test]
+    async fn live_reconnect_matches_default_policy() {
+        let state = AppState::new(test_config());
+        let p = state.live_reconnect();
+        let d = crate::stream::backoff::ReconnectPolicy::default();
+        assert_eq!(p, d);
+        assert_eq!(p.base_ms, d.base_ms);
+        assert_eq!(p.cap_ms, d.cap_ms);
+        assert_eq!(p.max_attempts, d.max_attempts);
     }
 
     #[tokio::test]
