@@ -1823,6 +1823,22 @@ Hardening: wire dead security code, HTTP status checks, webhook reply, reqwest F
 | **PH-S27564** | Gate | `cargo fmt` · `clippy` 0 · `cargo test` telenetis 55 + gsv pass · `gsv-loc-audit` ≥96% — **✅** |
 | **PH-S27565** | Band close | `cargo xtask bump --band 212` · fingerprint · one commit + push — **✅** |
 
+## Спринти (band 213) — live-app research + roadmap adaptation (owner pick)
+
+Research + roadmap/plan adaptation (not heavy Rust). Web research 2026 + GSV/telenetis audit
+→ `docs/gsv/GSV_RESEARCH_STRATEGY.md`, `docs/superpowers/plans/2026-08-27-telenetis-live-app.md`.
+Registered scenario `gsv-live-app-research`. Code-landing scheduled as the next telenetis bands.
+
+| ID | Area | Deliverable / status |
+|----|------|----------------------|
+| **PH-S27566** | Res rank/strategy | Layered MMR-vs-visible rank, wide middle tier, promotion/demotion grace, top-tier decay, legible `+1/−1 with reason` — **✅ docs** |
+| **PH-S27567** | Res Telegram app | WebView-is-not-browser (no cookies/`100vh`/`window.open`), `--tg-theme-*`, BackButton, haptics, safe-area, initData HMAC, whereAmI, i18n, WS-first, cold-start <2s, tunnel dev — **✅ docs** |
+| **PH-S27568** | Adapt telenetis live | Plan doc: Telegram-native layer, live stream primacy (WS/SSE + backoff), cold-start skeleton/prefetch — **✅ plan** |
+| **PH-S27569** | Adapt solo/isquad messaging | Cadence/rate-limits, legible reason-bearing lines, rank/role awareness, ranks process-local — **✅ docs** |
+| **PH-S27570** | Docs | `GSV_RESEARCH_STRATEGY.md` + plan + this table; scenario registered — **✅** |
+| **PH-S27571** | Warn / gate | telenetis clippy 1 fixed (`webhook.rs:249` digit-grouping); fmt/clippy/test; bump 213 · fingerprint — **✅** |
+| **PH-S27572** | Close | openbot walk `gsv-live-app-research` · Godfather sync · one commit + push — **in progress** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

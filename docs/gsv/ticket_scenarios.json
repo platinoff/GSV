@@ -362,6 +362,39 @@
           "body": "Integration test: start server, verify /health, /ws, /events. README with env vars, architecture, commands, API reference."
         }
       ]
+    },
+    {
+      "id": "gsv-live-app-research",
+      "title": "GSV live-app research + roadmap adaptation (band 213, owner pick)",
+      "body": "Research best rank-ladder/game-strategy models similar to GSV and Telegram Mini App / bot best practices; adapt the telenetis plan + roadmap so the app and bot work in solo/isquad are maximally live. Then walk the band via the openbot flow.",
+      "workflow": "ticket-claim",
+      "product": "gsv",
+      "tickets": [
+        {
+          "title": "Res: game rank/strategy ~ GSV",
+          "body": "Research best game rank-ladder / progression-strategy models similar to GSV ranks (layered MMR vs visible rank, tier design, promotion/demotion, decay, seasons, psychology). Map findings to ranks.rs L0-L15 and the Godfather host/merit ladder."
+        },
+        {
+          "title": "Res: Telegram Mini App + bot best practices",
+          "body": "Research Telegram Mini App / bot best practices 2026: Telegram WebView-is-not-a-browser constraints, themeParams, initData HMAC, haptics/BackButton, tunnel dev (cloudflared), cold-start <2s, WebSocket vs polling, i18n. Map each to telenetis."
+        },
+        {
+          "title": "Adapt: telenetis maximally-live plan",
+          "body": "Write docs/superpowers/plans/2026-08-27-telenetis-live-app.md + GSV_TECH_ROADMAP.md band 213 table: make the telenetis Mini App maximally live (WS broadcast, theme params, native back/haptic, cold-start skeleton, initData verify, per-platform testing)."
+        },
+        {
+          "title": "Adapt: solo/isquad live bot messaging",
+          "body": "Research-informed bot coordination for solo/isquad live work: what to post to the Godfather channel, cadence, rank/role awareness, federated presence/claim/done. Apply to ticket_scenarios messaging."
+        },
+        {
+          "title": "Docs: research + roadmap band 213",
+          "body": "Write docs/gsv/GSV_RESEARCH_STRATEGY.md (rank strategy + Telegram app practices + solo/isquad messaging) and append the band 213 table to GSV_TECH_ROADMAP.md. Register scenario csv-live-app-research."
+        },
+        {
+          "title": "Gate + close band 213",
+          "body": "fmt/clippy/test, bump --band 213, fingerprint, recopy live, one commit + push, Godfather summary."
+        }
+      ]
     }
   ]
 }

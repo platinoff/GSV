@@ -246,7 +246,7 @@ mod tests {
     #[test]
     fn private_chat_detection() {
         assert!(is_private_chat(123_456));
-        assert!(!is_private_chat(-100_387_203_5653));
+        assert!(!is_private_chat(-1_003_872_035_653));
         assert!(!is_private_chat(-42));
     }
 }

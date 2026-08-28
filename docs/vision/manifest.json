@@ -3336,7 +3336,7 @@
       "signature": "queue: FM §5.12 next band 107"
     }
   ],
-  "last_sprint_closed": "PH-S2768",
+  "last_sprint_closed": "PH-S2778",
   "layers": [
     {
       "id": "L0",
@@ -3369,7 +3369,7 @@
       "z": 5
     }
   ],
-  "next_sprint": "PH-S2769",
+  "next_sprint": "PH-S2779",
   "nodes": [
     {
       "id": "galaxy_grid",
