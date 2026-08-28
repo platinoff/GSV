@@ -22,6 +22,7 @@ askama = "0.13"
 futures = "0.3"
 tokio-stream = { version = "0.1", features = ["sync"] }
 tower = { version = "0.5", features = ["util"] }
+dotenvy = "0.15"
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

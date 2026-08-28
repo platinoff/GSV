@@ -37,12 +37,16 @@ impl Config {
                 .unwrap_or_default()
                 .parse()
                 .unwrap_or(0),
-            webhook_url: env::var("TELENETIS_WEBHOOK_URL").ok(),
-            public_url: env::var("TELENETIS_PUBLIC_URL").ok(),
+            webhook_url: env::var("TELENETIS_WEBHOOK_URL")
+                .ok()
+                .filter(|s| !s.is_empty()),
+            public_url: env::var("TELENETIS_PUBLIC_URL")
+                .ok()
+                .filter(|s| !s.is_empty()),
             tunnel_enabled: env::var("TELENETIS_TUNNEL_ENABLED")
                 .map(|v| v != "0" && v.to_lowercase() != "false")
                 .unwrap_or(true),
-            ngrok_bin: env::var("TELENETIS_NGROK_BIN").ok(),
+            ngrok_bin: env::var("TELENETIS_NGROK_BIN").ok().filter(|s| !s.is_empty()),
         }
     }
 }

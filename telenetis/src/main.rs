@@ -20,6 +20,12 @@ async fn main() {
         )
         .init();
 
+    dotenvy::from_path(format!(
+        "{}/.env",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .ok();
+
     let config = telenetis::config::Config::from_env();
     let state = telenetis::state::AppState::new(config.clone());
     let gsv_client = telenetis::gsv::client::GsvClient::new(&config);
@@ -67,7 +73,13 @@ async fn main() {
         };
         match bot.set_webhook(&full).await {
             Ok(_) => tracing::info!("Telegram webhook registered at {}", full),
-            Err(e) => tracing::warn!("Failed to register Telegram webhook at {}: {}", full, e),
+            Err(e) => {
+                tracing::warn!("Failed to register Telegram webhook at {}: {}", full, e);
+                let poll_state = state.clone();
+                tokio::spawn(async move {
+                    telenetis::bot::webhook::run_polling(poll_state).await;
+                });
+            }
         }
     } else {
         tracing::info!(
