@@ -42,6 +42,17 @@ async fn main() {
                 Ok(url) => {
                     tunnel_state.set_tunnel_url(url.clone()).await;
                     tracing::info!("Public tunnel URL: {}", url);
+                    if !config.bot_token.is_empty() {
+                        let bot = telenetis::bot::telegram::TelegramBot::new(&config);
+                        match bot.set_chat_menu_button(&url).await {
+                            Ok(_) => {
+                                tracing::info!("Telegram menu button points at {}", url)
+                            }
+                            Err(e) => {
+                                tracing::warn!("Failed to set Telegram menu button: {}", e)
+                            }
+                        }
+                    }
                 }
                 Err(e) => {
                     tracing::warn!("Could not auto-start tunnel: {}", e);

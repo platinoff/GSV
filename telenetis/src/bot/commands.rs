@@ -158,6 +158,10 @@ async fn handle_tunnel(state: &AppState) -> String {
     match crate::tunnel::ensure_public_url(&config).await {
         Ok(url) => {
             state.set_tunnel_url(url.clone()).await;
+            let bot = crate::bot::telegram::TelegramBot::new(&config);
+            if let Err(e) = bot.set_chat_menu_button(&url).await {
+                tracing::warn!("Failed to refresh Telegram menu button: {}", e);
+            }
             format!(
                 "🕳️ *Tunnel* is live.\nPublic URL: `{}`\n\nThis is the address the `/app` Mini App button opens from phones.",
                 url

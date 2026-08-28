@@ -112,6 +112,23 @@ impl TelegramBot {
         self.post("setWebhook", json!({ "url": url })).await
     }
 
+    /// Point the bot's chat Menu button at a WebApp. With no `chat_id` this
+    /// sets the default menu button for every user who opens a private chat
+    /// with the bot — the app then opens embedded inside Telegram.
+    pub async fn set_chat_menu_button(&self, url: &str) -> Result<Value, TelenetisError> {
+        self.post(
+            "setChatMenuButton",
+            json!({
+                "menu_button": {
+                    "type": "web_app",
+                    "text": "Open Telenetis",
+                    "web_app": { "url": url }
+                }
+            }),
+        )
+        .await
+    }
+
     /// Disable any active webhook so `getUpdates` polling can be used from
     /// behind NAT without a public tunnel.
     pub async fn delete_webhook(&self) -> Result<Value, TelenetisError> {
