@@ -1837,7 +1837,24 @@ Registered scenario `gsv-live-app-research`. Code-landing scheduled as the next 
 | **PH-S27569** | Adapt solo/isquad messaging | Cadence/rate-limits, legible reason-bearing lines, rank/role awareness, ranks process-local — **✅ docs** |
 | **PH-S27570** | Docs | `GSV_RESEARCH_STRATEGY.md` + plan + this table; scenario registered — **✅** |
 | **PH-S27571** | Warn / gate | telenetis clippy 1 fixed (`webhook.rs:249` digit-grouping); fmt/clippy/test; bump 213 · fingerprint — **✅** |
-| **PH-S27572** | Close | openbot walk `gsv-live-app-research` · Godfather sync · one commit + push — **in progress** |
+| **PH-S27572** | Close | openbot walk `gsv-live-app-research` · Godfather sync · one commit + push — **✅** |
+
+## Спринти (band 214) — telenetis Mini App initData HMAC verify (owner pick)
+
+Code-landing of band 213 plan P0 (`docs/superpowers/plans/2026-08-27-telenetis-live-app.md`):
+real server-side Telegram Mini App handshake verification. Replaces the placeholder
+`csrf_check` (which only tested non-empty `initData`) with HMAC-SHA256 signature
+verification + `auth_date` freshness + `user` presence, wired to a `/api/verify`
+HTTP surface. References pinned against independently computed OpenSSL vectors.
+
+| ID | Area | Deliverable / status |
+|----|------|----------------------|
+| **PH-S27573** | initData verify | `security/initdata.rs` — parse pairs, sort signable form, secret key = HMAC(key `WebAppData`, msg token), expected hash, constant-time hex compare; `auth_date` freshness + `user` presence — **✅** |
+| **PH-S27574** | auth wiring | `csrf_check` delegates to real `verify_init_data` instead of a length test; `security/mod.rs` re-exports — **✅** |
+| **PH-S27575** | HTTP surface | `GET /api/verify?initData=&authDate=` returns `{ok,error?}`; guards empty token / empty initData; bots token from config — **✅** |
+| **PH-S27576** | Deps | `hmac` + `sha2` added to telenetis — **✅** |
+| **PH-S27577** | Tests | 14 new: secret_key/hash vs independent OpenSSL reference, accept / tampered-user / wrong-token / missing hash|user / stale / future auth_date, constant-time compare, percent-decode, 3 HTTP verify routes — telenetis **105** (was 91) — **✅** |
+| **PH-S27578** | Gate | fmt clean · clippy 0 · `cargo test` telenetis 105 pass · version bump 0.214.0 — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

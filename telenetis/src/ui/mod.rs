@@ -1,11 +1,12 @@
 use crate::state::AppState;
 use axum::{
-    extract::State,
+    extract::{Query, State},
     http::{header, StatusCode},
     response::{Html, IntoResponse},
     routing::get,
     Json, Router,
 };
+use serde::Deserialize;
 use serde_json::json;
 
 pub fn router(state: AppState) -> Router {
@@ -21,7 +22,46 @@ pub fn router(state: AppState) -> Router {
         .route("/api/flows", get(api_flows))
         .route("/static/app.css", get(serve_css))
         .route("/static/app.js", get(serve_js))
+        .route("/api/verify", get(api_verify_init_data))
         .with_state(state)
+}
+
+#[derive(Deserialize)]
+struct VerifyQuery {
+    #[serde(rename = "initData", default)]
+    init_data: String,
+    #[serde(rename = "authDate", default)]
+    auth_date: Option<i64>,
+}
+
+/// Server-side verification surface for the Telegram Mini App handshake.
+/// The client sends the raw `initData` from `initDataUnsafe` along with the
+/// client's current unix time; the server HMAC-SHA256 verifies the signature
+/// against the bot token and enforces `auth_date` freshness, returning
+/// `{ok, error?}` so the Mini App can decide whether to trust requests.
+async fn api_verify_init_data(
+    State(state): State<AppState>,
+    Query(query): Query<VerifyQuery>,
+) -> Json<serde_json::Value> {
+    let token = &state.config().bot_token;
+    if token.is_empty() {
+        return Json(json!({"ok": false, "error": "bot token not configured"}));
+    }
+    if query.init_data.is_empty() {
+        return Json(json!({"ok": false, "error": "no initData"}));
+    }
+    let now = query
+        .auth_date
+        .unwrap_or_else(|| chrono::Utc::now().timestamp());
+    match crate::security::verify_init_data(
+        &query.init_data,
+        token,
+        now,
+        crate::security::initdata::DEFAULT_MAX_AGE_SECS,
+    ) {
+        Ok(()) => Json(json!({"ok": true})),
+        Err(e) => Json(json!({"ok": false, "error": e.to_string()})),
+    }
 }
 
 async fn dashboard() -> Html<String> {
@@ -199,12 +239,7 @@ mod tests {
 
         let app = router(test_state()).layer(middleware::from_fn(headers));
         let resp = app
-            .oneshot(
-                Request::builder()
-                    .uri("/app")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
+            .oneshot(Request::builder().uri("/app").body(Body::empty()).unwrap())
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
@@ -215,5 +250,99 @@ mod tests {
             .to_str()
             .unwrap()
             .contains("text/html"));
+    }
+
+    // Reference initData for bot_token == "test" (matches test_state()).
+    // Hash computed independently with OpenSSL (band 214). RAW form is
+    // percent-encoded at request time via percent_encode_query().
+    const TEST_USER_RAW: &str =
+        "{\"id\":279058397,\"first_name\":\"Vlad\",\"language_code\":\"en\"}";
+    const TEST_HASH: &str = "5cd657d1cc938ded22c052bb9450bb8f9d9842f450195b53703303cf555f410a";
+    const TEST_TAMPERED_USER_RAW: &str =
+        "{\"id\":999999,\"first_name\":\"Eve\",\"language_code\":\"en\"}";
+
+    fn test_init_data(user: &str) -> String {
+        format!(
+            "auth_date=1750000000&query_id=AAHdF6IQAAAAAN0XohDhrOrc&user={}&hash={}",
+            percent_encode_query(user),
+            TEST_HASH
+        )
+    }
+
+    fn percent_encode_query(input: &str) -> String {
+        input
+            .bytes()
+            .map(|b| match b {
+                b'!'
+                | b'\''
+                | b'('
+                | b')'
+                | b'*'
+                | b'-'
+                | b'.'
+                | b'_'
+                | b'~'
+                | b'a'..=b'z'
+                | b'A'..=b'Z'
+                | b'0'..=b'9' => (b as char).to_string(),
+                _ => format!("%{:02X}", b),
+            })
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn verify_endpoint_accepts_valid_init_data() {
+        let app = router(test_state());
+        let init = percent_encode_query(&test_init_data(TEST_USER_RAW));
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/api/verify?initData={}&authDate=1750000010", init))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["ok"], true);
+    }
+
+    #[tokio::test]
+    async fn verify_endpoint_rejects_tampered_init_data() {
+        let app = router(test_state());
+        let init = percent_encode_query(&test_init_data(TEST_TAMPERED_USER_RAW));
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/api/verify?initData={}", init))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["ok"], false);
+    }
+
+    #[tokio::test]
+    async fn verify_endpoint_missing_init_data_fails() {
+        let app = router(test_state());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/verify")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["ok"], false);
     }
 }

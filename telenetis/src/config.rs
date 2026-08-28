@@ -46,7 +46,9 @@ impl Config {
             tunnel_enabled: env::var("TELENETIS_TUNNEL_ENABLED")
                 .map(|v| v != "0" && v.to_lowercase() != "false")
                 .unwrap_or(true),
-            ngrok_bin: env::var("TELENETIS_NGROK_BIN").ok().filter(|s| !s.is_empty()),
+            ngrok_bin: env::var("TELENETIS_NGROK_BIN")
+                .ok()
+                .filter(|s| !s.is_empty()),
         }
     }
 }

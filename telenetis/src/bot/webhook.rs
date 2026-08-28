@@ -99,7 +99,9 @@ pub async fn process_update(state: &AppState, update: &Value) {
                         };
                         let url = mini_app_url(&base);
                         let res = if !url.starts_with("https://") {
-                            Err(crate::error::TelenetisError::Tunnel("Mini App requires HTTPS tunnel URL (run /tunnel)".to_string()))
+                            Err(crate::error::TelenetisError::Tunnel(
+                                "Mini App requires HTTPS tunnel URL (run /tunnel)".to_string(),
+                            ))
                         } else if is_private_chat(chat_id) {
                             // Private chats support embedded `web_app` buttons.
                             bot.send_mini_app(chat_id, &response_text, &url).await
@@ -109,7 +111,13 @@ pub async fn process_update(state: &AppState, update: &Value) {
                             // still opens the app embedded there.
                             let username = bot.get_me().await.unwrap_or_default();
                             let app_link = format!("https://t.me/{username}?startapp=telenetis");
-                            bot.send_url_button(chat_id, &response_text, "Open Telenetis", &app_link).await
+                            bot.send_url_button(
+                                chat_id,
+                                &response_text,
+                                "Open Telenetis",
+                                &app_link,
+                            )
+                            .await
                         };
                         if let Err(e) = res {
                             let fallback_text = format!("{}\n\n⚠️ Mini App requires HTTPS tunnel URL.\nURL: {}\nError: {e}\n\nTip: Run /tunnel to start ngrok.", response_text, url);

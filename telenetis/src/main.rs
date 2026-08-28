@@ -20,11 +20,7 @@ async fn main() {
         )
         .init();
 
-    dotenvy::from_path(format!(
-        "{}/.env",
-        env!("CARGO_MANIFEST_DIR")
-    ))
-    .ok();
+    dotenvy::from_path(format!("{}/.env", env!("CARGO_MANIFEST_DIR"))).ok();
 
     let config = telenetis::config::Config::from_env();
     let state = telenetis::state::AppState::new(config.clone());

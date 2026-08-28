@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-26 (**band 212 · next gsv drain = owner pick**)
+**Оновлено:** 2026-08-27 (**band 214 · next gsv drain = owner pick**)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -269,6 +269,7 @@ Close: `cargo xtask bump --band N` (semver **and** vision queue **close of N**: 
    **band 201–206** ✅ — logic-audit V–X sweeps (src / bins+ui / tests / cosmetic notes / non-Rust surfaces).
     **band 207** (PH-S2709…S2718) ✅ — logic-audit XI MCP protocol surface: re-initialize session reuse, batch initialize marks issued id, notifications-only POST → 202 Accepted, tracker single-snapshot payload, honest completion paging (+4 contracts, 712 tests).
     **band 212** (PH-S2755…S2765) ✅ — telenetis to 100%: security wiring (limit_layer + security_headers_middleware), HTTP status checks (gsv/client + bot/telegram), webhook reply, `From<reqwest::Error>` + `Display`, bus_queue cap 1000, graceful shutdown, +13 tests (55 total).
+    **band 214** (PH-S27573…S27578) ✅ — telenetis Mini App initData HMAC-SHA256 verify (P0 of band-213 plan): `security/initdata.rs` real handshake verification (parse → sort signable → secret key HMAC key `WebAppData` → expected hash → constant-time hex compare; `auth_date` freshness + `user` presence), placeholder `csrf_check` replaced with a real verifier, `GET /api/verify` HTTP surface, deps `hmac` 0.12 + `sha2` 0.10, 14 new tests pinned vs independent OpenSSL reference vectors → telenetis **105** (91 → 105), version 0.214.0.
     **Наступний drain:** owner pick after a warnings-first scan.
 
 ## Канон GSV

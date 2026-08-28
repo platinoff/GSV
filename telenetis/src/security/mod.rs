@@ -1,4 +1,7 @@
 pub mod auth;
+pub mod initdata;
+
+pub use initdata::{verify_init_data, InitDataError};
 
 use tower_http::limit::RequestBodyLimitLayer;
 

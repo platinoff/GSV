@@ -1,16 +1,27 @@
 use axum::http::header;
 
+use super::initdata::{self, verify_init_data};
+
 pub const MAX_BODY_BYTES: usize = 64 * 1024;
 
-pub fn csrf_check(init_data: &str) -> bool {
-    !init_data.is_empty()
+/// Convenience boolean wrapper over [`verify_init_data`]: true only when the
+/// `initData` handshake carries a valid HMAC-SHA256 signature for `bot_token`
+/// and its `auth_date` is within the default freshness window of `now_unix`.
+pub fn csrf_check(init_data: &str, bot_token: &str, now_unix: i64) -> bool {
+    verify_init_data(
+        init_data,
+        bot_token,
+        now_unix,
+        initdata::DEFAULT_MAX_AGE_SECS,
+    )
+    .is_ok()
 }
 
 pub fn security_headers(response: &mut axum::response::Response) {
     let headers = response.headers_mut();
-    headers.entry(header::CONTENT_TYPE).or_insert(
-        header::HeaderValue::from_static("application/json"),
-    );
+    headers
+        .entry(header::CONTENT_TYPE)
+        .or_insert(header::HeaderValue::from_static("application/json"));
     headers.insert("X-Content-Type-Options", "nosniff".parse().unwrap());
     headers.insert("Cache-Control", "no-store".parse().unwrap());
     headers.insert(
@@ -27,12 +38,18 @@ mod tests {
 
     #[test]
     fn csrf_check_empty_fails() {
-        assert!(!csrf_check(""));
+        assert!(!csrf_check("", "token", 1_750_000_000));
     }
 
     #[test]
-    fn csrf_check_non_empty_passes() {
-        assert!(csrf_check("some_init_data"));
+    fn csrf_check_tampered_fails() {
+        // A non-empty but unsigned initData must NOT pass CSRF now that the
+        // check is a real HMAC verification (not a length test).
+        assert!(!csrf_check(
+            "auth_date=1&user=%7B%7D&hash=ffff",
+            "token",
+            1_750_000_000
+        ));
     }
 
     #[test]
