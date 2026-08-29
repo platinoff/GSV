@@ -848,16 +848,22 @@ pub struct PolishedLineParams<'a> {
     pub ide: &'a str,
     pub agent: &'a str,
     pub host: bool,
+    /// Signed merit delta applied for a `done` step (+1, −1, 0 when held).
+    pub rank_delta: i8,
+    /// True when the `−1` was suppressed by the demotion grace window.
+    pub rank_held: bool,
 }
 
-/// Polished session line with rank badge and scenario context.
+/// Polished session line with rank badge, scenario context, and a legible
+/// merit reason (band 220 — research §1.4: never a bare `+1`).
 ///
-/// Format: `[L{level} {rank_title}] {kind} {phase} {title} #{ticket_id_short}`
+/// Format: `[L{level} {rank_title}] {kind} {phase} {title} #{ticket_id_short} {±1}`
 ///
 /// Examples:
-/// - `[L5 Middle] solo claimed PH-S2729 #t-1787`
+/// - `[L3 Junior] solo claimed PH-S2729 #t-1787`
 /// - `[L12 Distinguished] squad assigned PH-S2729 to worker #t-1787`
-/// - `[L0 Jun-nub] solo done PH-S2729 #t-1787`
+/// - `[L5 Middle] solo done PH-S2729 #t-1787 +1`
+/// - `[L5 Middle] solo error PH-S2729 #t-1787 (grace-held)`
 pub fn polished_session_line(p: &PolishedLineParams<'_>) -> String {
     let title = p.title.trim();
     let worker = p.worker.trim();
@@ -924,7 +930,25 @@ pub fn polished_session_line(p: &PolishedLineParams<'_>) -> String {
         _ => format!("solo claimed {title}"),
     };
 
-    format!("[L{level} {rank_title}]{scenario_hint} {action} #{short_id}")
+    // Merit reason (band 220): a done/error step carries the signed delta, or
+    // a "(grace-held)" marker when the demotion was suppressed by the grace
+    // window. Claim/assigned/boundary lines carry no merit move.
+    let merit = match p.phase {
+        "done" | "error" => {
+            if p.rank_held {
+                " (grace-held)".to_string()
+            } else {
+                match p.rank_delta {
+                    1 => " +1".to_string(),
+                    -1 => " −1".to_string(),
+                    _ => String::new(),
+                }
+            }
+        }
+        _ => String::new(),
+    };
+
+    format!("[L{level} {rank_title}]{scenario_hint} {action} #{short_id}{merit}")
 }
 
 /// `gsv_dev` medians as a session line. Prefers `scenario_bench.json`;
@@ -1533,6 +1557,8 @@ pub async fn sync_walk(
             ide: "cursor",
             agent: "orchestrator",
             host,
+            rank_delta: step.rank_delta,
+            rank_held: step.rank_held,
         });
         let data = collect_sync_data(repo_root, &report.scenario, &step.phase, kind, &step.actor);
         if let Ok(env) = enqueue_session_data(from, &step.ticket_id, &line, Some(data)) {

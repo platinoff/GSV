@@ -260,6 +260,13 @@ pub struct WalkStep {
     pub kind: String,
     #[serde(default)]
     pub actor: String,
+    /// Signed merit delta applied for a `done` step (+1, −1, or 0 when
+    /// grace-held). Band 220 — feeds the legible Godfather reason line.
+    #[serde(default)]
+    pub rank_delta: i8,
+    /// True when a `−1` was suppressed by the demotion grace window.
+    #[serde(default)]
+    pub rank_held: bool,
 }
 
 /// Solo-bot walk of open tickets (optional scenario filter).
@@ -1813,7 +1820,8 @@ pub fn claim_with(
     )
 }
 
-/// `in_progress` → `done`.
+/// `in_progress` → `done`. Returns the completed ticket plus the rank move
+/// (delta / grace-held) so callers can compose a legible merit reason.
 pub fn done(
     repo_root: &Path,
     data_dir: &Path,
@@ -1821,7 +1829,7 @@ pub fn done(
     who: ClaimedBy,
     note: &str,
     presence: Option<&PresenceStore>,
-) -> Result<Ticket, TicketError> {
+) -> Result<(Ticket, ranks::RankMove), TicketError> {
     let actor = who.actor.clone();
     let ide = who.ide.clone();
     let agent = who.agent.clone();
@@ -1838,7 +1846,7 @@ pub fn done(
         },
         presence,
     )?;
-    ranks::on_ticket_done(
+    let mv = ranks::on_ticket_done(
         data_dir,
         &actor,
         &ide,
@@ -1847,7 +1855,7 @@ pub fn done(
         &t.id,
         note,
     );
-    Ok(t)
+    Ok((t, mv))
 }
 
 /// `in_progress` → `done` for a **remote** jail (`kind:done`). Same transition
@@ -1905,7 +1913,8 @@ pub fn reclaim_remote(
     Ok(updated)
 }
 
-/// `in_progress` → `blocked` (error).
+/// `in_progress` → `blocked` (error). Returns the blocked ticket plus the rank
+/// move (delta / grace-held) for a legible merit reason.
 pub fn error_ticket(
     repo_root: &Path,
     data_dir: &Path,
@@ -1913,7 +1922,7 @@ pub fn error_ticket(
     who: ClaimedBy,
     note: &str,
     presence: Option<&PresenceStore>,
-) -> Result<Ticket, TicketError> {
+) -> Result<(Ticket, ranks::RankMove), TicketError> {
     let actor = who.actor.clone();
     let ide = who.ide.clone();
     let agent = who.agent.clone();
@@ -1930,7 +1939,7 @@ pub fn error_ticket(
         },
         presence,
     )?;
-    ranks::on_ticket_error(
+    let mv = ranks::on_ticket_error(
         data_dir,
         &actor,
         &ide,
@@ -1939,7 +1948,7 @@ pub fn error_ticket(
         &t.id,
         note,
     );
-    Ok(t)
+    Ok((t, mv))
 }
 
 /// If someone is online, claim as solo/squad pick. Otherwise leave `open`.
@@ -2057,7 +2066,7 @@ pub fn wire_done(
     let note = body.get("note").and_then(Value::as_str).unwrap_or("");
     let tg = ranks::telegram_from(Some(body));
     let who = resolve_claimed_by();
-    let ticket = ranks::with_telegram(&tg, || {
+    let (ticket, _mv) = ranks::with_telegram(&tg, || {
         done(repo_root, data_dir, id, who.clone(), note, presence)
     })?;
     let file = settings::load_result(data_dir).unwrap_or_default();
@@ -2075,7 +2084,7 @@ pub fn wire_error(
     let id = body.get("id").and_then(Value::as_str).unwrap_or("");
     let note = body.get("note").and_then(Value::as_str).unwrap_or("");
     let tg = ranks::telegram_from(Some(body));
-    let ticket = ranks::with_telegram(&tg, || {
+    let (ticket, _mv) = ranks::with_telegram(&tg, || {
         error_ticket(
             repo_root,
             data_dir,
@@ -2226,6 +2235,8 @@ pub fn solo_walk(
             phase: phase.into(),
             kind: kind.into(),
             actor: actor.clone(),
+            rank_delta: 0,
+            rank_held: false,
         });
         let finisher = claimed.claimed_by.clone().unwrap_or_else(|| who.clone());
         let note = if kind == "squad" {
@@ -2233,7 +2244,7 @@ pub fn solo_walk(
         } else {
             "solo walk"
         };
-        let finished = done(
+        let (finished, mv) = done(
             repo_root,
             data_dir,
             &claimed.id,
@@ -2247,6 +2258,8 @@ pub fn solo_walk(
             phase: "done".into(),
             kind: kind.into(),
             actor: finisher.actor,
+            rank_delta: mv.delta,
+            rank_held: mv.held,
         });
     }
     Ok(WalkReport {
@@ -2838,7 +2851,7 @@ mod unit {
             let _inner = board_lock();
         }
         let finished = done(&kit, &data, &t.id, resolve_claimed_by(), "ok", None).expect("done");
-        assert_eq!(finished.status, "done");
+        assert_eq!(finished.0.status, "done");
         let _ = fs::remove_dir_all(&kit);
     }
 }

@@ -21,6 +21,18 @@ pub const MAX_LEVEL: u8 = 15;
 /// Process env for the human Telegram id (`from.id`).
 pub const TELEGRAM_ID_ENV: &str = "GSV_TELEGRAM_USER_ID";
 
+/// Default grace seconds after a fresh `+1` before a `−1` can land (band 220).
+///
+/// Research (GSV_RESEARCH_STRATEGY §1.3): a short demotion grace after a fresh
+/// `+1` stops one error from feeling punitive / oscillating the badge.
+pub const GRACE_SECS: u64 = 3600;
+
+/// Earned level at which host-only top-tier decay applies (band 220).
+pub const TOP_DECAY_LEVEL: u8 = 14;
+
+/// A host with no `done` for this long decays in the top tiers (default 14 d).
+pub const HOST_DECAY_SECS: u64 = 14 * 24 * 60 * 60;
+
 thread_local! {
     /// Request-scoped Telegram id. Thread-local on purpose: a process-global
     /// slot let two concurrent HTTP/MCP calls attribute each other's ids.
@@ -258,6 +270,12 @@ pub struct RosterRow {
     pub done_ok: u32,
     #[serde(default)]
     pub done_bad: u32,
+    /// Highest merit level ever reached (peak-rank snapshot, band 220).
+    #[serde(default)]
+    pub peak: u8,
+    /// RFC3339 of the last merit move (award/demote). Basis for grace/decay.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub last_move_ts: String,
 }
 
 impl RosterRow {
@@ -271,6 +289,8 @@ impl RosterRow {
             level,
             done_ok: 0,
             done_bad: 0,
+            peak: level,
+            last_move_ts: String::new(),
         }
     }
 }
@@ -406,6 +426,23 @@ fn find_row_mut<'a>(file: &'a mut RanksFile, id: &Identity) -> &'a mut RosterRow
     file.roster.last_mut().expect("just pushed")
 }
 
+/// Result of a rank apply: the persisted row plus the *applied* delta.
+///
+/// `delta` is the signed level change actually applied (0 when grace-held).
+/// `held` is true when a `−1` was suppressed by the demotion grace window.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RankMove {
+    pub row: RosterRow,
+    pub delta: i8,
+    pub held: bool,
+}
+
+impl RankMove {
+    pub fn level(&self) -> u8 {
+        self.row.level
+    }
+}
+
 /// Maximum event history entries kept in the ranks file.
 const MAX_RANK_EVENTS: usize = 20;
 
@@ -425,28 +462,47 @@ fn apply(
     ticket_id: &str,
     git_head: &str,
     note: &str,
-) -> Result<RosterRow, String> {
+) -> Result<RankMove, String> {
     let path = ranks_path(data_dir);
     let mut file = load(&path);
+    let now = crate::vision::rfc3339_now();
+    let mut held = false;
     let level = {
         let row = find_row_mut(&mut file, id);
         if delta > 0 {
             row.level = row.level.saturating_add(delta as u8).min(MAX_LEVEL);
             row.done_ok = row.done_ok.saturating_add(1);
+            row.last_move_ts = now.clone();
         } else if delta < 0 {
-            row.level = row.level.saturating_sub((-delta) as u8);
-            row.done_bad = row.done_bad.saturating_add(1);
+            // Demotion grace (band 220): an error right after a fresh award is
+            // held instead of dropping the badge, so one misstep is not punitive.
+            let recent_award = grace_blocked(&row.last_move_ts);
+            if recent_award {
+                held = true;
+            } else {
+                row.level = row.level.saturating_sub((-delta) as u8);
+                row.done_bad = row.done_bad.saturating_add(1);
+                row.last_move_ts = now.clone();
+            }
         }
         row.actor = id.actor.clone();
         row.ide = id.ide.clone();
         row.agent = id.agent.clone();
+        if row.level > row.peak {
+            row.peak = row.level;
+        }
         row.level
     };
+    let d = if held { 0 } else { delta };
     push_event(
         &mut file,
         RankEvent {
-            ts: crate::vision::rfc3339_now(),
-            kind: kind.into(),
+            ts: now.clone(),
+            kind: if held {
+                "grace-held".into()
+            } else {
+                kind.into()
+            },
             actor: id.actor.clone(),
             ide: id.ide.clone(),
             telegram_tail: telegram_tail(&id.telegram_id),
@@ -463,31 +519,51 @@ fn apply(
         .find(|r| r.key == id.key())
         .cloned()
         .unwrap_or_else(|| RosterRow::from_identity(id, level));
-    Ok(row)
+    Ok(RankMove {
+        row,
+        delta: d,
+        held,
+    })
 }
 
-/// +1 rank for a completed ticket (cap 15).
+/// True when the row's last move was recent enough (within [`GRACE_SECS`]) to
+/// protect a fresh `+1` from an immediate `−1`. Empty history → no guard.
+fn grace_blocked(last_move_ts: &str) -> bool {
+    let Ok(last) = chrono::DateTime::parse_from_rfc3339(last_move_ts) else {
+        return false;
+    };
+    let Ok(now_text) = chrono::DateTime::parse_from_rfc3339(&crate::vision::rfc3339_now()) else {
+        return false;
+    };
+    let delta = now_text.signed_duration_since(last);
+    let secs = delta.num_seconds();
+    secs >= 0 && (secs as u64) < GRACE_SECS
+}
+
+/// +1 rank for a completed ticket (cap 15). Honors the demotion grace on the
+/// *next* demote; updates the peak-rank snapshot.
 pub fn award(
     data_dir: &Path,
     id: &Identity,
     ticket_id: &str,
     note: &str,
-) -> Result<RosterRow, String> {
+) -> Result<RankMove, String> {
     apply(data_dir, id, 1, "award", ticket_id, "", note)
 }
 
-/// −1 rank (floor 0) for a bad ticket or failed tests.
+/// −1 rank (floor 0) for a bad ticket or failed tests. Suppressed by the
+/// demotion grace window recorded after a fresh `+1` ([`GRACE_SECS`]).
 pub fn demote(
     data_dir: &Path,
     id: &Identity,
     ticket_id: &str,
     git_head: &str,
     note: &str,
-) -> Result<RosterRow, String> {
+) -> Result<RankMove, String> {
     apply(data_dir, id, -1, "demote", ticket_id, git_head, note)
 }
 
-/// Ticket `done` helper.
+/// Ticket `done` helper → [`RankMove`].
 pub fn on_ticket_done(
     data_dir: &Path,
     actor: &str,
@@ -496,12 +572,19 @@ pub fn on_ticket_done(
     telegram_id: &str,
     ticket_id: &str,
     note: &str,
-) {
+) -> RankMove {
     let id = identity_from(actor, ide, agent, telegram_id);
-    let _ = award(data_dir, &id, ticket_id, note);
+    award(data_dir, &id, ticket_id, note).unwrap_or_else(|_| {
+        let row = RosterRow::from_identity(&id, MIN_LEVEL);
+        RankMove {
+            row,
+            delta: 0,
+            held: false,
+        }
+    })
 }
 
-/// Ticket `error` helper.
+/// Ticket `error` helper → [`RankMove`] (demotion grace-aware).
 pub fn on_ticket_error(
     data_dir: &Path,
     actor: &str,
@@ -510,9 +593,16 @@ pub fn on_ticket_error(
     telegram_id: &str,
     ticket_id: &str,
     note: &str,
-) {
+) -> RankMove {
     let id = identity_from(actor, ide, agent, telegram_id);
-    let _ = demote(data_dir, &id, ticket_id, "", note);
+    demote(data_dir, &id, ticket_id, "", note).unwrap_or_else(|_| {
+        let row = RosterRow::from_identity(&id, MIN_LEVEL);
+        RankMove {
+            row,
+            delta: 0,
+            held: false,
+        }
+    })
 }
 
 fn latest_failed_test(repo_root: &Path) -> Option<(String, bool)> {
@@ -572,7 +662,9 @@ pub fn review_failed_tests(repo_root: &Path, data_dir: &Path) -> Option<RosterRo
     } else {
         identity_from("agent", "cursor", "orchestrator", &telegram_from(None))
     };
-    let row = demote(data_dir, &id, "", &head, "tests failed after commit").ok()?;
+    let row = demote(data_dir, &id, "", &head, "tests failed after commit")
+        .ok()
+        .map(|m| m.row)?;
     let mut file = load(&path);
     file.penalized_heads.push(head);
     if file.penalized_heads.len() > 40 {
@@ -581,6 +673,42 @@ pub fn review_failed_tests(repo_root: &Path, data_dir: &Path) -> Option<RosterRo
     }
     let _ = save(&path, &file);
     Some(row)
+}
+
+/// Top-tier host decay (band 220). Research §1.3: a host that stops draining
+/// should not hold an elite earned level forever. Only the **host** row and only
+/// at `level >= TOP_DECAY_LEVEL` with no merit move in `HOST_DECAY_SECS` decays
+/// by one rung each pass. Activity (any move) resets `last_move_ts`.
+fn maybe_decay_host(data_dir: &Path) {
+    let path = ranks_path(data_dir);
+    let mut file = load(&path);
+    let settings = settings::load_result(data_dir).unwrap_or_default();
+    if settings::chat_role(&settings) != "host" {
+        return;
+    }
+    let Ok(now) = chrono::DateTime::parse_from_rfc3339(&crate::vision::rfc3339_now()) else {
+        return;
+    };
+    let mut changed = false;
+    for row in file.roster.iter_mut() {
+        if row.level < TOP_DECAY_LEVEL {
+            continue;
+        }
+        if row.last_move_ts.is_empty() {
+            continue;
+        }
+        let Ok(last) = chrono::DateTime::parse_from_rfc3339(&row.last_move_ts) else {
+            continue;
+        };
+        let secs = now.signed_duration_since(last).num_seconds();
+        if secs >= 0 && (secs as u64) >= HOST_DECAY_SECS {
+            row.level = row.level.saturating_sub(1);
+            changed = true;
+        }
+    }
+    if changed {
+        let _ = save(&path, &file);
+    }
 }
 
 fn redact_row(row: &RosterRow, host: bool) -> Value {
@@ -599,6 +727,7 @@ fn redact_row(row: &RosterRow, host: bool) -> Value {
         "telegram_set": tg_set,
         "telegram_tail": telegram_tail(&row.telegram_id),
         "level": row.level,
+        "peak": row.peak,
         "rank_id": d.id,
         "title": d.title,
         "it": d.it,
@@ -613,6 +742,7 @@ fn redact_row(row: &RosterRow, host: bool) -> Value {
 /// `GET /api/ranks` / Galaxy / MCP (redacted Telegram).
 pub fn wire(repo_root: &Path, data_dir: &Path) -> Value {
     let _ = review_failed_tests(repo_root, data_dir);
+    maybe_decay_host(data_dir);
     let file = load(&ranks_path(data_dir));
     let settings = settings::load_result(data_dir).unwrap_or_default();
     let role = settings::chat_role(&settings);
@@ -749,8 +879,8 @@ mod tests {
         let dir = tmp();
         let id = identity_from("alice", "cursor", "bot", "123456789");
         let row = demote(&dir, &id, "t1", "abc", "bad").unwrap();
-        assert_eq!(row.level, 0);
-        assert_eq!(row.done_bad, 1);
+        assert_eq!(row.level(), 0);
+        assert_eq!(row.row.done_bad, 1);
         assert_eq!(telegram_tail("123456789"), "6789");
         let _ = fs::remove_dir_all(&dir);
     }
@@ -761,7 +891,7 @@ mod tests {
         let id = identity_from("bob", "opencode", "bot", "");
         let mut level = 0u8;
         for _ in 0..20 {
-            level = award(&dir, &id, "t", "ok").unwrap().level;
+            level = award(&dir, &id, "t", "ok").unwrap().level();
         }
         assert_eq!(level, MAX_LEVEL);
         let wire = wire(Path::new("."), &dir);
@@ -778,8 +908,8 @@ mod tests {
         award(&dir, &fp, "a", "").unwrap();
         let tg = identity_from("agent", "cursor", "orchestrator", "42");
         let row = award(&dir, &tg, "b", "").unwrap();
-        assert_eq!(row.level, 2);
-        assert_eq!(row.key, "tg:42");
+        assert_eq!(row.level(), 2);
+        assert_eq!(row.row.key, "tg:42");
         let file = load(&ranks_path(&dir));
         assert_eq!(file.roster.len(), 1);
         let _ = fs::remove_dir_all(&dir);
@@ -837,5 +967,45 @@ mod tests {
         assert_eq!(row.actor, "agent");
         let _ = fs::remove_dir_all(&kit);
         let _ = fs::remove_dir_all(&data);
+    }
+
+    #[test]
+    fn peak_snapshot_tracks_high_water_mark() {
+        let dir = tmp();
+        let id = identity_from("carol", "opencode", "bot", "");
+        // Climb to L3 then come back from a (post-grace) demote; peak stays 3.
+        for _ in 0..3 {
+            award(&dir, &id, "t", "ok").unwrap();
+        }
+        // Age the last move past the grace window so the demote actually lands.
+        {
+            let path = ranks_path(&dir);
+            let mut file = load(&path);
+            let row = file.roster.iter_mut().find(|r| r.key == id.key()).unwrap();
+            row.last_move_ts = "2000-01-01T00:00:00Z".to_string();
+            let _ = save(&path, &file);
+        }
+        assert_eq!(demote(&dir, &id, "t", "h", "no").unwrap().level(), 2);
+        let file = load(&ranks_path(&dir));
+        let row = file.roster.iter().find(|r| r.key == id.key()).unwrap();
+        assert_eq!(row.peak, 3);
+        assert_eq!(row.level, 2);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn demotion_grace_holds_fresh_award() {
+        let dir = tmp();
+        let id = identity_from("dave", "cursor", "bot", "");
+        let up = award(&dir, &id, "t1", "ok").unwrap();
+        assert_eq!(up.delta, 1);
+        // Immediately after a fresh +1, a −1 is held (no level drop).
+        let held = demote(&dir, &id, "t2", "", "bad").unwrap();
+        assert!(held.held);
+        assert_eq!(held.delta, 0);
+        assert_eq!(held.level(), 1);
+        let file = load(&ranks_path(&dir));
+        assert_eq!(file.events.last().unwrap().kind, "grace-held");
+        let _ = fs::remove_dir_all(&dir);
     }
 }

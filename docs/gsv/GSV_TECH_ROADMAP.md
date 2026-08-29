@@ -1949,6 +1949,24 @@ empty states, and i18n coverage of the remaining visible strings (`action.reclai
 |----|------|----------------------|
 | **PH-S2829** | Lifecycle UX | `BoardAction::Reclaim` + `available_actions`; `POST /api/board/reclaim`; snapshot wires `actions` + `body`; board detail row (`.ticket-detail`), offline/error empty states (`board.offline`/`board.empty`), `status.*` + `action.reclaim*` + `board.*` i18n en/uk/ru; `app.js` renders from `tk.actions` (fixed column bug: 6 data + actions vs 6-col header), `app.css` band-219 styles; 12 new tests → telenetis **167** (163 lib + 4 integration; was 155); fmt clean · clippy 0 · version bump **0.219.0** + `cargo xtask bump --band 219` · HANDOFF/NEXT/plan/roadmap · fingerprint — **✅** |
 
+## Спринти (band 220) — GSV ranks + messaging polish (owner pick, GSV-hosted)
+
+Land the deferred telenetis plan **"ranks + messaging polish"** in the GSV `ranks` box.
+Godfather lines become **reason-bearing** — a done ticket reads `… +1`, an error
+`… −1` (or ` (grace-held)` when a demotion is held) — never a bare `+1`. New protections:
+**demotion grace** (a `−1` within `GRACE_SECS` 1 h of the last move is held, level kept,
+event kind `grace-held`), **top-tier host decay** (host-only row at level ≥ `TOP_DECAY_LEVEL`
+14 with no move for `HOST_DECAY_SECS` 14 days decays −1 on `wire()`; earned marshal never
+decays), and a **peak snapshot** (`RosterRow.peak` high-water mark + `last_move_ts` RFC3339).
+`award`/`demote`/`apply`/`on_ticket_done`/`on_ticket_error` return `RankMove { row, delta, held }`;
+`done`/`error_ticket` return `(Ticket, RankMove)`; the walk/done/error handlers thread
+`delta`/`held` into the Godfather line. Federation (`done_remote`/`reclaim_remote`) stays
+process-local and rank-free.
+
+| ID | Area | Deliverable / status |
+|----|------|----------------------|
+| **PH-S2849** | Ranks + messaging | `src/boxes/ranks.rs`: `RosterRow.peak` + `last_move_ts`, `RankMove` return, peak tracking, demotion grace (`grace-held` event), `grace_blocked`, `maybe_decay_host` (level ≥ 14 / `HOST_DECAY_SECS`), wire-time decay, `redact_row` emits `peak`; `tickets.rs` `(Ticket, RankMove)` + `WalkStep.rank_delta`/`rank_held` + `solo_walk`; `telegram.rs` reason-bearing polished line (` +1` / ` −1` / ` (grace-held)`); 2 new tests → GSV 296 lib + contracts green; clippy 0; **GSV_RANKS.md**; version **0.220.0** + `cargo xtask bump --band 220` · HANDOFF/NEXT/roadmap · fingerprint — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

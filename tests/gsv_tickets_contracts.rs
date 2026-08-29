@@ -632,7 +632,7 @@ fn scenario_create_then_done_and_error_events() {
         None,
     )
     .expect("done");
-    assert_eq!(finished.status, "done");
+    assert_eq!(finished.0.status, "done");
     let claims_raw = std::fs::read_to_string(tickets::claims_path(&kit)).expect("claims");
     assert!(claims_raw.contains("\"kind\":\"claimed\""), "{claims_raw}");
     assert!(claims_raw.contains("\"kind\":\"done\""), "{claims_raw}");
@@ -642,7 +642,7 @@ fn scenario_create_then_done_and_error_events() {
     tickets::claim(&kit, &kit.join("data"), &other.id, who()).expect("c2");
     let blocked = tickets::error_ticket(&kit, &kit.join("data"), &other.id, who(), "boom", None)
         .expect("err");
-    assert_eq!(blocked.status, "blocked");
+    assert_eq!(blocked.0.status, "blocked");
     let claims_raw = std::fs::read_to_string(tickets::claims_path(&kit)).expect("claims2");
     assert!(claims_raw.contains("\"kind\":\"error\""), "{claims_raw}");
     assert!(claims_raw.contains("boom"), "{claims_raw}");
