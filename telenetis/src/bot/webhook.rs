@@ -2,7 +2,7 @@ use crate::bot::commands::{handle_command, Command};
 use crate::bot::mini_app::mini_app_url;
 use crate::bot::telegram::TelegramBot;
 use crate::state::{AppState, FlowEvent};
-use axum::{extract::State, routing::post, Json, Router};
+use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
 use chrono::Utc;
 use serde_json::Value;
 
@@ -10,6 +10,46 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/webhook", post(handle_webhook))
         .with_state(state)
+}
+
+/// Constant-time comparison of two byte strings (avoids leaking prefix length
+/// details through timing when the webhook secret is checked).
+fn ct_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff = 0u8;
+    for (x, y) in a.iter().zip(b.iter()) {
+        diff |= x ^ y;
+    }
+    diff == 0
+}
+
+/// True only when the incoming webhook carries the configured secret in
+/// `X-Telegram-Bot-Api-Secret-Token`. When no secret is configured the check
+/// is a no-op (secret-less webhook setup is still supported, but not advised).
+fn webhook_secret_ok(headers: &axum::http::HeaderMap, configured: Option<&str>) -> bool {
+    match configured {
+        None => true,
+        Some(secret) => headers
+            .get("X-Telegram-Bot-Api-Secret-Token")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| ct_eq(s.as_bytes(), secret.as_bytes()))
+            .unwrap_or(false),
+    }
+}
+
+async fn handle_webhook(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+    Json(update): Json<Value>,
+) -> (StatusCode, &'static str) {
+    if !webhook_secret_ok(&headers, state.config().webhook_secret.as_deref()) {
+        tracing::warn!("webhook rejected (missing or mismatched secret token)");
+        return (StatusCode::FORBIDDEN, "forbidden");
+    }
+    process_update(&state, &update).await;
+    (StatusCode::OK, "ok")
 }
 
 #[derive(Debug, PartialEq)]
@@ -45,11 +85,6 @@ fn extract_message_text(update: &Value) -> Option<String> {
 /// accepted in private chats.
 pub fn is_private_chat(chat_id: i64) -> bool {
     chat_id > 0
-}
-
-async fn handle_webhook(State(state): State<AppState>, Json(update): Json<Value>) -> &'static str {
-    process_update(&state, &update).await;
-    "ok"
 }
 
 /// Cold-start warm-up for the Mini App (plan P3). When the owner taps the
@@ -257,6 +292,7 @@ mod tests {
             jail_id: "test-jail".to_string(),
             godfather_channel_id: 0,
             webhook_url: None,
+            webhook_secret: None,
             public_url: None,
             tunnel_enabled: false,
             ngrok_bin: None,
@@ -347,5 +383,81 @@ mod tests {
         let flows = state.recent_flows(5).await;
         assert_eq!(flows.len(), 1);
         assert_eq!(flows[0].action, "cold_start");
+    }
+
+    // ---- band 222: webhook secret-token auth ----
+
+    #[test]
+    fn ct_eq_compares_bytes() {
+        assert!(ct_eq(b"secret", b"secret"));
+        assert!(!ct_eq(b"secret", b"secrey"));
+        assert!(!ct_eq(b"secret", b"secret2"));
+        assert!(!ct_eq(b"", b"x"));
+        assert!(ct_eq(b"", b""));
+    }
+
+    #[test]
+    fn webhook_secret_ok_passes_when_matching() {
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert("X-Telegram-Bot-Api-Secret-Token", "s3cret".parse().unwrap());
+        assert!(webhook_secret_ok(&headers, Some("s3cret")));
+    }
+
+    #[test]
+    fn webhook_secret_ok_rejects_wrong_or_missing() {
+        let mut headers = axum::http::HeaderMap::new();
+        // Missing header with a configured secret → rejected.
+        assert!(!webhook_secret_ok(&headers, Some("s3cret")));
+        headers.insert("X-Telegram-Bot-Api-Secret-Token", "wrong".parse().unwrap());
+        assert!(!webhook_secret_ok(&headers, Some("s3cret")));
+        // No secret configured → any request is accepted (no-op gate).
+        assert!(webhook_secret_ok(&headers, None));
+    }
+
+    #[tokio::test]
+    async fn webhook_rejects_forged_update_when_secret_configured() {
+        use axum::body::Body;
+        use axum::http::Request;
+        use tower::ServiceExt;
+
+        let mut cfg = test_config();
+        cfg.webhook_secret = Some("s3cret".to_string());
+        let app = router(crate::state::AppState::new(cfg));
+        // Callback-query update: handled locally (flow push), never makes an
+        // outbound Telegram call, so the test stays hermetic and fast.
+        let body = json!({
+            "update_id": 1,
+            "callback_query": {"id": "42", "data": "x"}
+        });
+
+        // Missing secret header → 403, update not processed.
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/webhook")
+                    .method("POST")
+                    .header("content-type", "application/json")
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+
+        // With the correct secret header → 200.
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/webhook")
+                    .method("POST")
+                    .header("content-type", "application/json")
+                    .header("X-Telegram-Bot-Api-Secret-Token", "s3cret")
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 }

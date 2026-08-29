@@ -2,6 +2,7 @@ use crate::config::Config;
 use crate::error::TelenetisError;
 use reqwest::Client;
 use serde_json::{json, Value};
+use std::time::Duration;
 
 #[derive(Clone)]
 pub struct TelegramBot {
@@ -11,8 +12,16 @@ pub struct TelegramBot {
 
 impl TelegramBot {
     pub fn new(config: &Config) -> Self {
+        // `get_updates` long-polls for `timeout` seconds (30), so the request
+        // timeout must comfortably exceed that; the connect timeout keeps a
+        // dead API host from hanging the poller forever.
+        let http = Client::builder()
+            .timeout(Duration::from_secs(65))
+            .connect_timeout(Duration::from_secs(10))
+            .build()
+            .unwrap_or_else(|_| Client::new());
         Self {
-            http: Client::new(),
+            http,
             api_base: format!("https://api.telegram.org/bot{}", config.bot_token),
         }
     }
@@ -141,8 +150,16 @@ impl TelegramBot {
         .await
     }
 
-    pub async fn set_webhook(&self, url: &str) -> Result<Value, TelenetisError> {
-        self.post("setWebhook", json!({ "url": url })).await
+    pub async fn set_webhook(
+        &self,
+        url: &str,
+        secret_token: Option<&str>,
+    ) -> Result<Value, TelenetisError> {
+        let mut body = json!({ "url": url });
+        if let Some(secret) = secret_token.filter(|s| !s.is_empty()) {
+            body["secret_token"] = json!(secret);
+        }
+        self.post("setWebhook", body).await
     }
 
     /// Point the bot's chat Menu button at a WebApp. With no `chat_id` this
@@ -199,6 +216,7 @@ mod tests {
             jail_id: "test-jail".to_string(),
             godfather_channel_id: 0,
             webhook_url: None,
+            webhook_secret: None,
             public_url: None,
             tunnel_enabled: false,
             ngrok_bin: None,

@@ -171,7 +171,10 @@ pub async fn post_bus_envelope(
         "ticket_id": ticket_id,
     });
     let url = format!("{}/api/telegram/bus", client.base_url());
-    let resp = reqwest::Client::new()
+    let resp = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new())
         .post(&url)
         .json(&payload)
         .send()
@@ -185,6 +188,24 @@ pub async fn post_bus_envelope(
     Ok(())
 }
 
+/// Extract pending bus envelopes from a GSV `GET /api/telegram/bus` response.
+///
+/// GSV returns `{"ok":true, "dry_run":…, "messages":[ …envelopes… ]}` on every
+/// path (dry-run stub queue and live `getUpdates`). Earlier builds wrongly read
+/// `envelopes` (or a top-level array) and so always got an empty result against
+/// real GSV — the bus→Telegram forward / presence / flows pipeline never fired.
+/// The `messages` key is the canonical shape; a bare top-level array is kept as
+/// a legacy robustness fallback but is not the contract.
+pub fn extract_messages(value: &serde_json::Value) -> Vec<serde_json::Value> {
+    if let Some(arr) = value.get("messages").and_then(|v| v.as_array()) {
+        return arr.clone();
+    }
+    if let Some(arr) = value.as_array() {
+        return arr.clone();
+    }
+    vec![]
+}
+
 pub fn spawn_poll_loop(client: GsvClient, state: crate::state::AppState) {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
@@ -194,15 +215,7 @@ pub fn spawn_poll_loop(client: GsvClient, state: crate::state::AppState) {
             tick = tick.wrapping_add(1);
             match client.bus_poll(8).await {
                 Ok(value) => {
-                    let envelopes =
-                        if let Some(arr) = value.get("envelopes").and_then(|v| v.as_array()) {
-                            arr.clone()
-                        } else if let Some(arr) = value.as_array() {
-                            arr.clone()
-                        } else {
-                            vec![]
-                        };
-                    for env in envelopes {
+                    for env in extract_messages(&value) {
                         handle_bus_value(&env, &state).await;
                     }
                     if tick.is_multiple_of(6) {
@@ -210,7 +223,10 @@ pub fn spawn_poll_loop(client: GsvClient, state: crate::state::AppState) {
                     }
                 }
                 Err(e) => {
-                    tracing::debug!("poll bus error: {:?}", e);
+                    // A GSV outage is the single most common reason the bridge
+                    // goes quiet — it must be visible at the default log level,
+                    // not only under debug tracing.
+                    tracing::warn!("poll bus error: {:?}", e);
                 }
             }
         }
@@ -231,6 +247,7 @@ mod tests {
             jail_id: "test-jail".to_string(),
             godfather_channel_id: 0,
             webhook_url: None,
+            webhook_secret: None,
             public_url: None,
             tunnel_enabled: false,
             ngrok_bin: None,
@@ -290,6 +307,75 @@ mod tests {
     fn classify_unknown_kind() {
         assert_eq!(classify_envelope_kind("foobar"), "unknown");
         assert_eq!(classify_envelope_kind("sync"), "sync");
+    }
+
+    // ---- band 222: bus wire-contract fix ----
+    // GSV `GET /api/telegram/bus` returns {ok, dry_run, messages:[envelopes]}
+    // in both the dry-run stub queue and the live getUpdates path. The poll
+    // loop MUST read `messages`, not `envelopes`. These tests pin the contract.
+
+    #[test]
+    fn extract_messages_reads_gsv_messages_key() {
+        let value = serde_json::json!({
+            "ok": true,
+            "dry_run": false,
+            "messages": [
+                {"v":1,"kind":"presence","body":"jail-02","from":"jail-02"},
+                {"v":1,"kind":"done","body":"done T-1","from":"jail-03"}
+            ]
+        });
+        let msgs = extract_messages(&value);
+        assert_eq!(msgs.len(), 2);
+        assert_eq!(msgs[0]["kind"], "presence");
+        assert_eq!(msgs[1]["kind"], "done");
+    }
+
+    #[test]
+    fn extract_messages_ignores_legacy_envelopes_key() {
+        // The pre-fix shape would have silently decoded nothing — the object
+        // carries `messages` (canonical), never a bare `envelopes` array. A
+        // stray `envelopes` key must NOT be read.
+        let value = serde_json::json!({
+            "ok": true,
+            "messages": [{"v":1,"kind":"sync","from":"jail-01"}],
+            "envelopes": [{"v":1,"kind":"ignored","from":"legacy"}]
+        });
+        let msgs = extract_messages(&value);
+        assert_eq!(msgs.len(), 1);
+        assert_eq!(msgs[0]["kind"], "sync");
+    }
+
+    #[test]
+    fn extract_messages_empty_object_yields_none() {
+        assert!(extract_messages(&serde_json::json!({})).is_empty());
+    }
+
+    #[test]
+    fn extract_messages_tolerates_bare_top_level_array() {
+        // Legacy robustness fallback (pre-object shape) must still work.
+        let value = serde_json::json!([{"v":1,"kind":"bus","from":"jail-09"}]);
+        let msgs = extract_messages(&value);
+        assert_eq!(msgs.len(), 1);
+        assert_eq!(msgs[0]["kind"], "bus");
+    }
+
+    #[tokio::test]
+    async fn handle_bus_value_parses_gsv_messages_envelope() {
+        // Feed the exact envelope shape GSV puts on the wire into the handler
+        // and confirm it produces a flow — i.e. the bridge actually fires.
+        let state = AppState::new(test_config());
+        let value = serde_json::json!({
+            "v": 1,
+            "kind": "presence",
+            "body": "jail-02 heartbeat",
+            "from": "jail-02",
+            "data": {"jail_id": "jail-02", "actor": "alice", "rank_id": "jun-nub"}
+        });
+        let env = handle_bus_value(&value, &state).await;
+        assert!(env.is_some());
+        let flows = state.recent_flows(5).await;
+        assert_eq!(flows.len(), 1);
+        assert_eq!(flows[0].action, "presence");
     }
 
     #[test]

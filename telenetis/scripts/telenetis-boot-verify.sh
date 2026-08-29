@@ -38,10 +38,16 @@ req "GET  /api/live/config"   curl "$BASE/api/live/config"
 # POST /webhook with a minimal (unknown-kind) Telegram update — classifies to
 # Unknown and still returns the canonical "ok" (200). A malformed JSON body is
 # rejected 400 by the Json<Value> extractor, so the body MUST be valid JSON.
+# When TELENETIS_WEBHOOK_SECRET is set on the server, echo it back in the
+# X-Telegram-Bot-Api-Secret-Token header (else the server rejects with 403).
 echo -n "POST /webhook (minimal update) ... "
 BODY='{"update_id":0}'
-CODE="$(curl -o /dev/null -s -w '%{http_code}' --max-time 10 \
-  -H 'Content-Type: application/json' -d "$BODY" "$BASE/webhook")"
+CURL_POST=(curl -o /dev/null -s -w '%{http_code}' --max-time 10 \
+  -H 'Content-Type: application/json' -d "$BODY")
+if [ -n "${TELENETIS_WEBHOOK_SECRET:-}" ]; then
+  CURL_POST+=(-H "X-Telegram-Bot-Api-Secret-Token: $TELENETIS_WEBHOOK_SECRET")
+fi
+CODE="$("${CURL_POST[@]}" "$BASE/webhook")"
 if [ "$CODE" = "200" ]; then
   echo "ok (200)"; PASS=$((PASS + 1))
 else

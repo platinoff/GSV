@@ -82,6 +82,7 @@ mod tests {
             jail_id: "test-jail".to_string(),
             godfather_channel_id: 0,
             webhook_url: None,
+            webhook_secret: None,
             public_url: None,
             tunnel_enabled: false,
             ngrok_bin: None,

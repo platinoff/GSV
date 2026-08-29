@@ -12,6 +12,7 @@ fn test_state() -> AppState {
         jail_id: "integration-jail".to_string(),
         godfather_channel_id: 0,
         webhook_url: None,
+        webhook_secret: None,
         public_url: None,
         tunnel_enabled: false,
         ngrok_bin: None,

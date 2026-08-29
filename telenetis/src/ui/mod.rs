@@ -196,10 +196,27 @@ struct VerifyQuery {
     auth_date: Option<i64>,
 }
 
+/// Resolve the "now" anchor for the initData freshness gate.
+///
+/// Production MUST anchor on the server clock so a captured `initData` (rides
+/// the Mini App URL through browser history / logs) cannot be refreshed by a
+/// client-supplied `authDate` that zeroes its age. The `authDate` query param
+/// is kept only as a test-only clock override and is ignored outside `cfg(test)`.
+fn freshness_now(client_auth_date: Option<i64>) -> i64 {
+    #[cfg(test)]
+    {
+        client_auth_date.unwrap_or_else(|| chrono::Utc::now().timestamp())
+    }
+    #[cfg(not(test))]
+    {
+        let _ = client_auth_date;
+        chrono::Utc::now().timestamp()
+    }
+}
+
 /// Server-side verification surface for the Telegram Mini App handshake.
-/// The client sends the raw `initData` from `initDataUnsafe` along with the
-/// client's current unix time; the server HMAC-SHA256 verifies the signature
-/// against the bot token and enforces `auth_date` freshness, returning
+/// The server HMAC-SHA256 verifies the signature against the bot token and
+/// enforces `auth_date` freshness against the **server** clock, returning
 /// `{ok, error?}` so the Mini App can decide whether to trust requests.
 async fn api_verify_init_data(
     State(state): State<AppState>,
@@ -212,9 +229,7 @@ async fn api_verify_init_data(
     if query.init_data.is_empty() {
         return Json(json!({"ok": false, "error": "no initData"}));
     }
-    let now = query
-        .auth_date
-        .unwrap_or_else(|| chrono::Utc::now().timestamp());
+    let now = freshness_now(query.auth_date);
     match crate::security::verify_init_data(
         &query.init_data,
         token,
@@ -287,9 +302,7 @@ async fn api_board_action(
         )
             .into_response();
     }
-    let now = q
-        .auth_date
-        .unwrap_or_else(|| chrono::Utc::now().timestamp());
+    let now = freshness_now(q.auth_date);
     if let Err(e) = crate::security::verify_init_data(
         &q.init_data,
         token,
@@ -414,6 +427,7 @@ mod tests {
             jail_id: "test-jail".to_string(),
             godfather_channel_id: 0,
             webhook_url: None,
+            webhook_secret: None,
             public_url: None,
             tunnel_enabled: false,
             ngrok_bin: None,
@@ -596,6 +610,15 @@ mod tests {
         assert_eq!(json["ok"], false);
     }
 
+    #[test]
+    fn freshness_now_pins_to_client_value_in_tests() {
+        // Under cfg(test) the clock override is honored: a pinned anchor is
+        // returned verbatim, and an empty one falls back to ~now.
+        assert_eq!(freshness_now(Some(1_750_000_010)), 1_750_000_010);
+        let fallback = freshness_now(None);
+        assert!((chrono::Utc::now().timestamp() - fallback).abs() < 5);
+    }
+
     // ---- band 218 (plan P4) board action endpoints ----
 
     async fn post_action(
@@ -676,6 +699,7 @@ mod tests {
             jail_id: "test-jail".to_string(),
             godfather_channel_id: 0,
             webhook_url: None,
+            webhook_secret: None,
             public_url: None,
             tunnel_enabled: false,
             ngrok_bin: None,
@@ -1226,6 +1250,7 @@ mod tests {
             jail_id: "test-jail".to_string(),
             godfather_channel_id: 0,
             webhook_url: None,
+            webhook_secret: None,
             public_url: None,
             tunnel_enabled: false,
             ngrok_bin: None,

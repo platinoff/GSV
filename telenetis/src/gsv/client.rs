@@ -1,6 +1,7 @@
 use crate::config::Config;
 use crate::error::TelenetisError;
 use reqwest::Client;
+use std::time::Duration;
 
 #[derive(Clone)]
 pub struct GsvClient {
@@ -10,8 +11,16 @@ pub struct GsvClient {
 
 impl GsvClient {
     pub fn new(config: &Config) -> Self {
+        // A stalled GSV must not hang the 5s poll loop or a board-action
+        // forward indefinitely — bound the whole request (TCP connect +
+        // response) so an unreachable upstream fails fast.
+        let http = Client::builder()
+            .timeout(Duration::from_secs(5))
+            .connect_timeout(Duration::from_secs(3))
+            .build()
+            .unwrap_or_else(|_| Client::new());
         Self {
-            http: Client::new(),
+            http,
             base_url: config.gsv_url.trim_end_matches('/').to_string(),
         }
     }
@@ -94,6 +103,7 @@ mod tests {
             jail_id: "test-jail".to_string(),
             godfather_channel_id: 0,
             webhook_url: None,
+            webhook_secret: None,
             public_url: None,
             tunnel_enabled: false,
             ngrok_bin: None,

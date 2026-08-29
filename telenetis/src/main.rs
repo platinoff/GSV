@@ -78,7 +78,10 @@ async fn main() {
         } else {
             format!("{}/webhook", webhook_url.trim_end_matches('/'))
         };
-        match bot.set_webhook(&full).await {
+        match bot
+            .set_webhook(&full, config.webhook_secret.as_deref())
+            .await
+        {
             Ok(_) => tracing::info!("Telegram webhook registered at {}", full),
             Err(e) => {
                 tracing::warn!("Failed to register Telegram webhook at {}: {}", full, e);

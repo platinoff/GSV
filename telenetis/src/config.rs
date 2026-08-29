@@ -8,6 +8,11 @@ pub struct Config {
     pub jail_id: String,
     pub godfather_channel_id: i64,
     pub webhook_url: Option<String>,
+    /// Optional `secret_token` sent to Telegram with `setWebhook` and
+    /// required (in the `X-Telegram-Bot-Api-Secret-Token` header) on every
+    /// inbound `/webhook` POST. When set, forged updates are rejected. Mutually
+    /// tied to `webhook_url` — polling (`getUpdates`) has no secret.
+    pub webhook_secret: Option<String>,
     /// Public HTTPS base for the Telegram WebApp button. Without an external
     /// host the Mini App's `web_app_url` (e.g. `http://127.0.0.1:9800`) will
     /// only open on the same machine's Telegram client — Telegram WebApp
@@ -38,6 +43,9 @@ impl Config {
                 .parse()
                 .unwrap_or(0),
             webhook_url: env::var("TELENETIS_WEBHOOK_URL")
+                .ok()
+                .filter(|s| !s.is_empty()),
+            webhook_secret: env::var("TELENETIS_WEBHOOK_SECRET")
                 .ok()
                 .filter(|s| !s.is_empty()),
             public_url: env::var("TELENETIS_PUBLIC_URL")

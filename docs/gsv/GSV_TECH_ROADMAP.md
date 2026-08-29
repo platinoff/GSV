@@ -1996,6 +1996,40 @@ surfaces already carry the logic. This band adds the **prod packaging** and a
 |----|------|----------------------|
 | **PH-S2850** | Prod deploy | `telenetis/Dockerfile` + `docker-compose.yml` + `.env.example`; `deploy/systemd/telenetis.service`; `scripts/telenetis-boot-verify.sh` (7/7 live pass); `docs/telenetis/ops.md` + README deploy link; clippy 0 · 167 tests · version **0.221.0** + `cargo xtask bump --band 221` · HANDOFF/NEXT · fingerprint — **✅** |
 
+## Спринти (band 222) — telenetis↔GSV bus wire-contract fix + hardening (owner pick)
+
+Fix the **confirmed dead** telenetis↔GSV bus bridge and harden the Telegram
+webhook path. The cross-tree audit proved the production bridge never fired:
+GSV `/api/telegram/bus` answers `{"ok":true,"messages":[…]}` (verified at
+`src/boxes/telegram.rs:2540-2569`, `:2705-2751`), but telenetis
+`src/gsv/poll.rs` `spawn_poll_loop` read `envelopes` / a bare top-level array →
+every poll returned nothing → presence/flows/forwarding were silently dropped.
+
+- **Wire-contract fix** — telenetis now reads the GSV `messages` key
+  (`extract_messages`), tolerates a bare top-level array for legacy, and logs
+  the rejection at `warn!` instead of failing silently; `post_bus_envelope`
+  gets a 5s timeout. 5 contract tests bind the shape
+  (`extract_messages_reads_gsv_messages_key`, `_ignores_legacy_envelopes_key`,
+  `_empty_object_yields_none`, `_tolerates_bare_top_level_array`,
+  `handle_bus_value_parses_gsv_messages_envelope`).
+- **Webhook secret-token auth** — `TELENETIS_WEBHOOK_SECRET` is sent to
+  Telegram with `setWebhook` (`secret_token`) and every inbound `POST /webhook`
+  must echo it in `X-Telegram-Bot-Api-Secret-Token` (constant-time compare,
+  `ct_eq`) or is rejected **403**; forged updates are blocked
+  (`webhook_rejects_forged_update_when_secret_configured`).
+- **initData freshness on server clock** — `ui/mod.rs` `freshness_now()`
+  anchors freshness with `Utc::now()` (the client `authDate` is ignored in
+  production; `cfg(test)` also honors a pinned value
+  `freshness_now_pins_to_client_value_in_tests`).
+- **Outbound timeouts** — `GsvClient` (5s req / 3s connect) and `TelegramBot`
+  (65s req / 10s connect) no longer hang on dead peers.
+- **Ops** — `.env.example`, `docs/telenetis/{README,ops}.md` document the
+  secret; `scripts/telenetis-boot-verify.sh` forwards it when set.
+
+| ID | Area | Deliverable / status |
+|----|------|----------------------|
+| **PH-S2851** | Bus bridge + hardening | `src/gsv/poll.rs` `extract_messages` (+5 tests) + `warn!` logging; `src/config.rs` `webhook_secret` + env; `src/bot/telegram.rs` `set_webhook` secret + timeouts; `src/bot/webhook.rs` `ct_eq`/`webhook_secret_ok` 403 gate (+4 tests, hermetic); `src/ui/mod.rs` `freshness_now` server-clock (+1 test); `src/gsv/client.rs` timeouts; `.env.example` + README/ops + boot-verify secret support; clippy 0 · **177** tests (173 lib + 4 integration; was 167) · version **0.222.0** + `cargo xtask bump --band 222` · HANDOFF/NEXT/roadmap · fingerprint — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

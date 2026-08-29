@@ -14,7 +14,7 @@ GSV (9999)  <--HTTP-->  Telenetis (9800)  <--HTTPS-->  Telegram Bot API
               WS/SSE broadcast  <--WS-->  Mini App UI (board/flows/roles)
 ```
 
-- **Config** (`src/config.rs`): `TELENETIS_BOT_TOKEN`, `TELENETIS_GSV_URL` (default 9999), `TELENETIS_PORT` (9800), `TELENETIS_JAIL_ID`, `TELENETIS_GODFATHER_CHANNEL_ID`, `TELENETIS_WEBHOOK_URL`.
+- **Config** (`src/config.rs`): `TELENETIS_BOT_TOKEN`, `TELENETIS_GSV_URL` (default 9999), `TELENETIS_PORT` (9800), `TELENETIS_JAIL_ID`, `TELENETIS_GODFATHER_CHANNEL_ID`, `TELENETIS_WEBHOOK_URL`, `TELENETIS_WEBHOOK_SECRET` (optional webhook `secret_token`; inbound `/webhook` must echo it or is rejected 403).
 - **AppState** (`src/state.rs`): `bus_queue`, `presence`, `tickets`, `flows` (cap 1000) + `broadcast::Sender<FlowEvent>` for WS/SSE.
 - **GSV client** (`src/gsv/client.rs`): `/api/health`, `/api/tickets/list`, `/api/tickets/presence`, `/api/telegram/status`, `/api/telegram/bus`.
 - **Bus** (`src/gsv/bus.rs`): v1 envelope `{v,kind,body,from,ts,data}` parse/format.
@@ -39,6 +39,7 @@ export TELENETIS_PORT="9800"
 export TELENETIS_JAIL_ID="telenetis-01"
 export TELENETIS_GODFATHER_CHANNEL_ID="0"
 export TELENETIS_WEBHOOK_URL="https://example.com/webhook" # optional
+export TELENETIS_WEBHOOK_SECRET="change-me"                 # optional, recommended
 cd telenetis
 cargo run
 ```
@@ -76,4 +77,4 @@ cargo clippy --all-targets
 cargo test
 ```
 
-**163** unit tests + **4** integration tests (`tests/integration_test.rs`) = **167** total.
+**173** unit tests + **4** integration tests (`tests/integration_test.rs`) = **177** total.

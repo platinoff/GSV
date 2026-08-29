@@ -3,7 +3,7 @@
 This is the prod-ops companion to the telenetis README. It covers shipping the
 Telegram Mini App + Bot on **port 9800** for real use: Docker, bare-metal
 systemd, the Windows always-on supervisor, environment/secrets, and a
-post-boot verification pass. Rust unit + integration tests (163 + 4) already
+post-boot verification pass. Rust unit + integration tests (177 + 4) already
 verify the HTTP/WS/SSE/webhook surfaces; the boot-verify script below is the
 same check run against a live deploy.
 
@@ -31,6 +31,7 @@ All config is env-driven (`src/config.rs`). Copy `.env.example` to `.env`
 | `TELENETIS_GSV_URL` | yes | GSV server (default `http://127.0.0.1:9999`). |
 | `TELENETIS_PUBLIC_URL` | prod | Public HTTPS base for the Mini App (phones/remote). |
 | `TELENETIS_WEBHOOK_URL` | if webhook | Public base; `/webhook` appended. Empty ⇒ long polling. |
+| `TELENETIS_WEBHOOK_SECRET` | webhook (rec.) | Secret sent to Telegram with `setWebhook`; every inbound `/webhook` must echo it in `X-Telegram-Bot-Api-Secret-Token` or is rejected (403). |
 | `TELENETIS_PORT` | no | Listen port (9800). |
 | `TELENETIS_JAIL_ID` | no | GSV presence/bus jail id. |
 | `TELENETIS_GODFATHER_CHANNEL_ID` | no | Numeric channel; 0 disables forwarding. |
@@ -99,7 +100,8 @@ for always-on on Windows.
 
 - `GET /health` 200
 - `GET /api/snapshot?lang=en`, `/api/status`, `/api/live/config` 200
-- `POST /webhook` (empty update) 200
+- `POST /webhook` 200 (with `TELENETIS_WEBHOOK_SECRET` set, add
+  `X-Telegram-Bot-Api-Secret-Token: <secret>` or the server returns 403)
 - `GET /ws` HTTP 101 Upgrade (WebSocket alive)
 - `GET /events` `Content-Type: text/event-stream`
 
