@@ -376,7 +376,7 @@ band 206 ✅ (logic-audit X — non-Rust surfaces sweep: ui/index.html glue + be
 band 207 ✅ (logic-audit XI — MCP protocol surface: re-initialize session reuse · batch initialize marks issued id · notifications-only POST → 202 · tracker single-snapshot · completion honest paging; +4 contracts) ·
 band 221 ✅ (telenetis prod ops/deploy — Dockerfile/compose/.env.example/systemd/boot-verify/ops.md; clippy 0 · 167 tests · 0.221.0; closes PH-S2745/2746) ·
 band 222 ✅ (telenetis↔GSV bus wire-contract fix — reads GSV `messages` key, `warn!` reject, 5s post timeout, 5 contract tests · webhook secret-token 403 auth `ct_eq` · server-clock initData freshness · outbound timeouts; clippy 0 · 177 tests · 0.222.0) ·
-наступний drain = **owner pick** ·
+наступний drain = **owner pick (L:\qwen4lama_rs\Qwen3.8-27B-UD-IQ2_XXS.gguf integration with OpenBot, OpenCode, Cursor, Telenetis)** ·
 не комітити `data/gsv_settings.json` / bot token ·
 не комітити kit-only в PoolAI як «замість» GSV drain ·
 staging `GSV/data/*` / `certs/*.pem` /
