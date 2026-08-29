@@ -22,7 +22,9 @@ GSV (9999)  <--HTTP-->  Telenetis (9800)  <--HTTPS-->  Telegram Bot API
 - **Streams** (`src/stream/ws.rs` + `sse.rs`): `GET /ws` (WebSocket) + `GET /events` (SSE) from `flows_tx`.
 - **Roles** (`src/roles/store.rs`): `Host|Mate|Guest|Observer` + **Timezone** (`tz.rs`) via `chrono-tz`.
 - **Security** (`src/security/auth.rs`): `MAX_BODY_BYTES 64 KiB`, `csrf_check`, `security_headers` (nosniff/no-store/CSP).
-- **UI** (`src/ui/mod.rs`): `GET /`, `/app`, `/board`, `/flows`, `/roles`, `/health`, `/api/status`, `/api/tickets`, `/api/flows`, `/static/app.css|js` (Askama templates in `src/ui/templates`).
+- **Security** (`src/security/initdata.rs`): Telegram Mini App `initData` HMAC-SHA256 verification (secret key HMAC `WebAppData`, `auth_date` freshness, constant-time compare) — guards `/api/verify` + all `/api/board/*` actions.
+- **Actions** (`src/actions.rs`): `BoardAction` (Claim/Done/Error/Reclaim) + `available_actions(status)` + body parsing + GSV forward; `/api/board/claim|done|error|reclaim` POST routes forward on behalf of the verified Mini App user to GSV `/api/tickets/*`.
+- **UI** (`src/ui/mod.rs`): `GET /`, `/app`, `/board`, `/flows`, `/roles`, `/health`, `/api/status`, `/api/tickets`, `/api/flows`, `/api/snapshot?lang=`, `/api/mini-app/i18n`, `/api/live/config`, `/api/verify`, `/api/board/*`, `/static/app.css|js` (Askama templates in `src/ui/templates`).
 - **Main** (`src/main.rs`): merges `ui + webhook + ws + sse` routers, spawns poll loop, binds `0.0.0.0:{port}`.
 
 ## Setup
@@ -52,6 +54,11 @@ cargo run
 - `GET /health` → `{status, service, version}`
 - `GET /api/status` → `{online, jail_id, tickets_count, workers_online, recent_flows}`
 - `GET /api/tickets` → `{tickets: [{id,title,status,product,claimed_by}]}`
+- `GET /api/snapshot?lang=` → consolidated bundle (status + tickets + flows + workers + i18n + live config); tickets carry server-authoritative `actions` + `body`
+- `GET /api/mini-app/i18n?lang=` → `{lang, strings}` (en/uk/ru)
+- `GET /api/live/config` → server-authoritative reconnect + keep-alive schedule
+- `GET /api/verify?initData=&authDate=` → initData HMAC validation `{ok, error?}`
+- `POST /api/board/claim|done|error|reclaim` → initData HMAC verify → forward to GSV (`ActionQuery {initData, authDate}` + JSON `{action, ticket_id, note}`)
 - `GET /api/flows` → `{flows: [FlowEvent]}`
 - `POST /webhook` → `"ok"` (Telegram update)
 - `GET /ws` → WebSocket JSON `FlowEvent` stream
@@ -66,4 +73,4 @@ cargo clippy --all-targets
 cargo test
 ```
 
-38 unit tests + 3 integration tests (`tests/integration_test.rs`).
+**163** unit tests + **4** integration tests (`tests/integration_test.rs`) = **167** total.

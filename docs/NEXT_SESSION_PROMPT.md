@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-28 (**band 218 · next gsv drain = owner pick**)
+**Оновлено:** 2026-08-28 (**band 219 · next gsv drain = owner pick**)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -274,7 +274,8 @@ Close: `cargo xtask bump --band N` (semver **and** vision queue **close of N**: 
     **band 216** (PH-S27587…S27592) ✅ — telenetis live stream primacy (plan P2): `stream/backoff.rs` (`ReconnectPolicy` base 1s/cap 30s/max 6 exponential backoff + deterministic jitter), `stream/ws.rs` server keep-alive heartbeat (`{"type":"ping"}` every 25s) + broadcast `Lagged` drop-tolerance, `GET /api/live/config` server-authoritative schedule (`state::live_reconnect`), `app.js` exponential-backoff WS reconnect + SSE `/events` fallback after max_attempts (unified `renderFlow` + `data-feed` WS/SSE/offline badge); 9 new tests → telenetis **126** (117 → 126); version **0.216.0**.
      **band 217** (PH-S27593…S27598) ✅ — telenetis cold start (plan P3): `GET /api/snapshot?lang=` consolidated bundle (status+tickets+flows+workers+i18n+live in ONE round-trip; shared `wire_tickets`/`wire_workers`/`wire_flows`), skeleton screens in all 5 templates (`.skeleton` shimmer rows per `data-area` + `aria-busy` + preload hint), `app.js` `bootstrap()` = early `connectWS()` + `fetchSnapshot` → `hydrateFromSnapshot` clears skeletons and renders status/tickets/board/workers/roles/flows, `/start` server-side prefetch `bot/webhook.rs` `warm_start()` (best-effort GSV sync + `cold_start` flow, offline fallbacks `fetchI18n()`/`loadLiveConfig()`); 11 new tests → telenetis **137** (126 → 137); version **0.217.0**.
      **band 218** (PH-S2828…S2828) ✅ — telenetis Mini App board actions (plan P4): `src/actions.rs` `BoardAction` enum (Claim/Done/Error) + payload parsing + i18n keys + GSV forward; GSV `client.rs` `post_json` + `board_action`; `/api/board/claim|done|error` POST routes (initData HMAC verify → parse body → forward to GSV `/api/tickets/claim|done|error`); Mini App board Actions column buttons (`claim`/`done`/`error` with haptics + busy/ok states) wired via `app.js` `postBoardAction`, i18n keys `board.actions` + action.* in en/uk/ru; 18 new tests → telenetis **155** (137 → 155); version **0.218.0**.
-    **Наступний drain:** owner pick after a warnings-first scan.
+     **band 219** (PH-S2829…S2829) ✅ — telenetis Mini App ticket lifecycle UX (plan P4 remaining P-scope): `BoardAction::Reclaim` + `available_actions(&str)` (open → [Claim]; in_progress → [Done, Error, Reclaim]; terminal/unknown → []) ; `POST /api/board/reclaim` (initData HMAC → parse → forward to GSV `/api/tickets/reclaim`); snapshot wires server-authoritative `actions` + ticket `body`; board detail row (`.ticket-detail` expand/collapse) + offline/error empty states + i18n coverage of remaining strings (`action.reclaim*`, `status.*`, `board.detail`/`no_description`/`no_actions`/`offline`); `app.js` renders buttons from `tk.actions` (fixed `renderTicketRows` 7-vs-6 column bug); 12 new tests → telenetis **167** (163 lib + 4 integration; 155 → 167); version **0.219.0**.
+     **Наступний drain:** owner pick after a warnings-first scan.
 
 ## Канон GSV
 

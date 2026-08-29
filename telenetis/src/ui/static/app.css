@@ -291,3 +291,51 @@ button.error, .btn.error {
     color: #3fb950;
 }
 
+/* Ticket lifecycle UX (band 219) — server-authoritative action cell, the
+   expandable detail row, and the empty/offline board states. */
+
+.board-actions-none {
+    color: var(--hint);
+    white-space: normal;
+    font-size: 12px;
+}
+
+.board-reclaim {
+    color: #d29922;
+}
+
+.detail-toggle {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 8px;
+    font-size: 11px;
+    background: none;
+    border: 1px solid var(--divider);
+    border-radius: 6px;
+    color: var(--hint);
+    cursor: pointer;
+}
+
+.ticket-detail td {
+    background: var(--panel);
+    color: var(--tg-theme-text_color, var(--fg));
+    font-size: 13px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.board-empty {
+    text-align: center;
+    color: var(--hint);
+    padding: 24px 10px;
+}
+
+.board-offline {
+    border: 1px dashed var(--divider);
+    border-radius: 6px;
+}
+
+.board-title {
+    word-break: break-word;
+}
+

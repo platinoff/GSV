@@ -38,7 +38,8 @@ Everything here is grounded in the 2026 Telegram Mini App + rank-strategy resear
      the snapshot) and hydrates board/flows/roles/status from the snapshot.
    - `/start` server-side prefetch (`warm_start` in `bot/webhook.rs`) syncs the
      board before the Mini App opens; offline fallbacks keep skeletons + SSE live.
-   - Remaining P-scope is the Mini App board actions (claim/done buttons) + i18n.
+   - Remaining P-scope (Mini App board actions + i18n + offline empty states) —
+     ✅ **landed (bands 218 + 219)**.
 
 4. **Ranks + messaging polish (GSV box, not telenetis)**
    - Alive Godfather lines always attach a reason: `done <t> +1` / `error <t> −1`.

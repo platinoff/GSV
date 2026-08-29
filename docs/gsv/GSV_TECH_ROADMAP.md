@@ -1934,6 +1934,21 @@ behalf of the verified Mini App user (initData HMAC from band 214).
 |----|------|----------------------|
 | **PH-S2828** | Board actions | `src/actions.rs` `BoardAction` enum (Claim/Done/Error · `parse`/`as_str`/`gsv_path`/`label_key`/`busy_key`/`ok_key`/`ALL`) + `BoardActionBody`/`parse_body` + `err_json` + `forward_body`; GSV `client.rs` `post_json`+`board_action`; `POST /api/board/claim|done|error` (initData HMAC → parse → forward); Mini App Actions column (`board.actions`) + claim/done/error buttons (`makeActionButton`/`postBoardAction` — haptics, busy/ok) + i18n en/uk/ru; 18 new tests → telenetis **155** (was 137); fmt clean · clippy 0 · version bump **0.218.0** + `cargo xtask bump --band 218` · HANDOFF/NEXT/roadmap · fingerprint — **✅** |
 
+## Спринти (band 219) — telenetis Mini App ticket lifecycle UX (owner pick)
+
+Code-landing of band-213 plan **P4** remaining P-scope: the Mini App board now drives the
+full ticket lifecycle with correct per-status affordances. `src/actions.rs` adds
+`BoardAction::Reclaim` (`available_actions(&str)` for `open` → `[Claim]`,
+`in_progress` → `[Done, Error, Reclaim]`, terminal/unknown → `[]`); `POST /api/board/reclaim`
+forwards to GSV `/api/tickets/reclaim`. The snapshot now carries server-authoritative
+`actions` + ticket `body`; the board renders a detail row (expand/collapse), offline/error
+empty states, and i18n coverage of the remaining visible strings (`action.reclaim*`,
+`status.*`, `board.detail`/`no_description`/`no_actions`/`offline`).
+
+| ID | Area | Deliverable / status |
+|----|------|----------------------|
+| **PH-S2829** | Lifecycle UX | `BoardAction::Reclaim` + `available_actions`; `POST /api/board/reclaim`; snapshot wires `actions` + `body`; board detail row (`.ticket-detail`), offline/error empty states (`board.offline`/`board.empty`), `status.*` + `action.reclaim*` + `board.*` i18n en/uk/ru; `app.js` renders from `tk.actions` (fixed column bug: 6 data + actions vs 6-col header), `app.css` band-219 styles; 12 new tests → telenetis **167** (163 lib + 4 integration; was 155); fmt clean · clippy 0 · version bump **0.219.0** + `cargo xtask bump --band 219` · HANDOFF/NEXT/plan/roadmap · fingerprint — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

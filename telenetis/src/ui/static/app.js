@@ -297,18 +297,38 @@ function t(key) {
         'status.workers': 'Workers',
         'board.empty': 'No tickets on the board.',
         'board.actions': 'Actions',
+        'board.detail': 'Details',
+        'board.no_description': 'No description.',
+        'board.no_actions': 'No actions',
+        'board.offline': 'Board unavailable — reconnecting…',
         'workers.none': 'No workers online.',
         'action.claim': 'Claim',
         'action.done': 'Done',
         'action.error': 'Error',
+        'action.reclaim': 'Release',
         'action.claiming': 'Claiming...',
         'action.doing': 'Marking done...',
         'action.erroring': 'Flagging error...',
+        'action.reclaiming': 'Releasing...',
         'action.claimed': 'Claimed',
         'action.done_ok': 'Done',
         'action.error_ok': 'Error flagged',
+        'action.reclaim_ok': 'Released',
+        'status.open': 'Open',
+        'status.in_progress': 'In progress',
+        'status.done': 'Done',
+        'status.blocked': 'Blocked',
+        'status.closed': 'Closed',
     };
     return map[key] || key;
+}
+
+/* Map a ticket status string to its display label. Falls back to the raw
+   status when unknown so the board never shows a blank cell. */
+function statusLabel(status) {
+    const key = 'status.' + String(status || '');
+    const label = t(key);
+    return (key === label) ? (status || '') : label;
 }
 
 /* ---- cold start (band 217, plan P3) ----
@@ -341,40 +361,89 @@ function renderTicketRows(tickets) {
     const tbody = document.getElementById('board-body');
     if (!tbody) return;
     clearArea(tbody, 'board');
-    if (!tickets.length) {
+    if (!tickets || !tickets.length) {
         const tr = document.createElement('tr');
         const td = document.createElement('td');
         td.colSpan = 6;
-        td.textContent = t('board.empty');
+        td.className = 'board-empty';
         tr.appendChild(td);
+        // No tickets at all → empty; otherwise hydration simply hasn't landed
+        // (a skeleton/offline state) — the offline message covers the latter.
+        td.textContent = t('board.empty');
         tbody.appendChild(tr);
         return;
     }
     tickets.forEach(function (tk) {
         const tr = document.createElement('tr');
-        ['id', 'title', 'status', 'product', 'claimed_by', 'scenario'].forEach(function (k) {
-            const td = document.createElement('td');
-            if (k === 'status') td.className = 'status-' + (tk.status || 'open');
-            td.textContent = tk[k] || '';
-            tr.appendChild(td);
-        });
+        tr.setAttribute('data-ticket', tk.id || '');
+        renderBoardRowData(tr, tk);
         tr.appendChild(actionButtonsCell(tk));
         tbody.appendChild(tr);
+        // Expandable detail row (ticket notes / description).
+        const detail = document.createElement('tr');
+        detail.className = 'ticket-detail';
+        detail.hidden = true;
+        const detailTd = document.createElement('td');
+        detailTd.colSpan = 6;
+        const bodyText = (tk.body && String(tk.body).trim()) ? tk.body : t('board.no_description');
+        detailTd.textContent = bodyText;
+        detail.appendChild(detailTd);
+        tbody.appendChild(detail);
     });
 }
 
-/* ---- board action buttons (band 218, plan P4) ----
-   Each row offers Claim / Done / Error. The click POSTs the Telegram
-   `initData` handshake (server-side HMAC-verified in Rust) and the ticket id to
-   /api/board/{verb}; telenetis forwards to GSV. While in flight the button
-   shows its busy label and is disabled; success toasts + haptic, failure
-   restores the label and haptic-errors. */
+/* Render the five data cells of a board row (ID, Title, Status, Product,
+   Claimed By) to match the 6-column header; actions go in a 6th cell. The
+   title cell toggles the expandable detail row below. */
+function renderBoardRowData(tr, tk) {
+    const cols = [
+        { key: 'id', cls: 'board-id' },
+        { key: 'title', cls: 'board-title' },
+        { key: 'status', cls: 'board-status' },
+        { key: 'product', cls: 'board-product' },
+        { key: 'claimed_by', cls: 'board-claimed' },
+    ];
+    cols.forEach(function (c, i) {
+        const td = document.createElement('td');
+        td.className = c.cls;
+        if (c.key === 'status') {
+            td.className += ' status-' + (tk.status || 'open');
+            td.textContent = statusLabel(tk.status);
+        } else {
+            td.textContent = tk[c.key] != null ? String(tk[c.key]) : '';
+        }
+        if (c.key === 'title') {
+            const toggle = document.createElement('button');
+            toggle.type = 'button';
+            toggle.className = 'detail-toggle';
+            toggle.textContent = t('board.detail');
+            toggle.addEventListener('click', function () {
+                const detail = tr.nextElementSibling;
+                if (detail) {
+                    detail.hidden = !detail.hidden;
+                    haptics('nav');
+                }
+            });
+            td.appendChild(toggle);
+        }
+        tr.appendChild(td);
+    });
+}
+
+/* ---- board action buttons (band 218, plan P4; band 219, ticket lifecycle) ----
+   Each row offers the *server-authoritative* action set for its status
+   (`tk.actions` from the snapshot wire): `open` → Claim; `in_progress` →
+   Done / Error / Release; terminal statuses → none. The click POSTs the
+   Telegram `initData` handshake (server-side HMAC-verified in Rust) and the
+   ticket id to /api/board/{verb}; telenetis forwards to GSV. While in flight
+   the button shows its busy label and is disabled; success toasts + haptic,
+   failure restores the label and haptic-errors. */
 
 function makeActionButton(action, ticketId) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'board-btn board-' + action;
-    btn.textContent = t(action === 'claim' ? 'action.claim' : (action === 'done' ? 'action.done' : 'action.error'));
+    btn.textContent = t(actionLabel(action, false));
     btn.addEventListener('click', function () {
         postBoardAction(action, ticketId, btn);
     });
@@ -384,16 +453,22 @@ function makeActionButton(action, ticketId) {
 function actionButtonsCell(tk) {
     const td = document.createElement('td');
     td.className = 'board-actions';
-    ['claim', 'done', 'error'].forEach(function (action) {
+    const actions = (tk && Array.isArray(tk.actions)) ? tk.actions : [];
+    if (!actions.length) {
+        td.className = 'board-actions board-actions-none';
+        td.textContent = t('board.no_actions');
+        return td;
+    }
+    actions.forEach(function (action) {
         td.appendChild(makeActionButton(action, tk.id));
     });
     return td;
 }
 
 function actionLabel(action, ok) {
-    const busy = { claim: 'action.claiming', done: 'action.doing', error: 'action.erroring' };
-    const done = { claim: 'action.claimed', done: 'action.done_ok', error: 'action.error_ok' };
-    const plain = { claim: 'action.claim', done: 'action.done', error: 'action.error' };
+    const busy = { claim: 'action.claiming', done: 'action.doing', error: 'action.erroring', reclaim: 'action.reclaiming' };
+    const done = { claim: 'action.claimed', done: 'action.done_ok', error: 'action.error_ok', reclaim: 'action.reclaim_ok' };
+    const plain = { claim: 'action.claim', done: 'action.done', error: 'action.error', reclaim: 'action.reclaim' };
     return t(ok ? done[action] : (busy[action] || plain[action]));
 }
 
@@ -540,10 +615,27 @@ async function bootstrap() {
         // standalone fallbacks (i18n + live config endpoints) so the board is
         // never a frozen blank page.
         console.error('snapshot failed:', e);
+        setBoardOffline();
         fetchI18n();
         loadLiveConfig();
     }
     loadStatus();
+}
+
+/* Offline/error empty state for the board: swap the rows for a single
+   reconnecting notice so a worker a cold WebView can't mistake a lack of data
+   for an empty board. */
+function setBoardOffline() {
+    const tbody = document.getElementById('board-body');
+    if (!tbody) return;
+    clearArea(tbody, 'board');
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 6;
+    td.className = 'board-empty board-offline';
+    td.textContent = t('board.offline');
+    tr.appendChild(td);
+    tbody.appendChild(tr);
 }
 
 document.addEventListener('DOMContentLoaded', function () {

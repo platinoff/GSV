@@ -31,6 +31,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/board/claim", post(api_board_claim))
         .route("/api/board/done", post(api_board_done))
         .route("/api/board/error", post(api_board_error))
+        .route("/api/board/reclaim", post(api_board_reclaim))
         .with_state(state)
 }
 
@@ -121,17 +122,26 @@ async fn api_snapshot(
 
 /// Wire ticket rows for the JSON surface; the router, board rows and snapshot
 /// all share the same shape so the Mini App can render one `<tr>` template.
+/// `actions` is the server-authoritative, status-driven set of board actions
+/// the row may offer (band 219) — the Mini App renders exactly these buttons,
+/// never a fixed claim/done/error triad.
 fn wire_tickets(tickets: &[crate::state::TicketRow]) -> Vec<serde_json::Value> {
     tickets
         .iter()
         .map(|t| {
+            let actions: Vec<&str> = crate::actions::available_actions(&t.status)
+                .iter()
+                .map(|a| a.as_str())
+                .collect();
             json!({
                 "id": t.id,
                 "title": t.title,
+                "body": t.body,
                 "status": t.status,
                 "product": t.product,
                 "claimed_by": t.claimed_by,
                 "scenario": t.scenario,
+                "actions": actions,
             })
         })
         .collect()
@@ -249,6 +259,14 @@ async fn api_board_error(
     Json(body): Json<serde_json::Value>,
 ) -> Response {
     api_board_action(crate::actions::BoardAction::Error, state, q, body).await
+}
+
+async fn api_board_reclaim(
+    State(state): State<AppState>,
+    Query(q): Query<ActionQuery>,
+    Json(body): Json<serde_json::Value>,
+) -> Response {
+    api_board_action(crate::actions::BoardAction::Reclaim, state, q, body).await
 }
 
 /// Shared board-action handler (band 218, plan P4). Verifies the Telegram
@@ -1038,12 +1056,15 @@ mod tests {
             "action.claim",
             "action.done",
             "action.error",
+            "action.reclaim",
             "action.claiming",
             "action.doing",
             "action.erroring",
+            "action.reclaiming",
             "action.claimed",
             "action.done_ok",
             "action.error_ok",
+            "action.reclaim_ok",
         ];
         for lang in [
             crate::ui::miniapp::Lang::En,
@@ -1073,6 +1094,189 @@ mod tests {
         assert!(js.contains("authDate"));
         // Buttons render per ticket row.
         assert!(js.contains("tr.appendChild(actionButtonsCell(tk))"));
+    }
+
+    // ---- band 219 (ticket lifecycle UX) contract tests ----
+
+    #[test]
+    fn app_js_renders_server_authoritative_actions() {
+        let js = include_str!("static/app.js");
+        // The row renders the actions the server wired onto the ticket, not a
+        // fixed claim/done/error triad.
+        assert!(js.contains("tk.actions"));
+        assert!(js.contains("Array.isArray(tk.actions)"));
+        assert!(js.contains("board.no_actions"));
+        assert!(js.contains("function statusLabel"));
+        // Reclaim rides the same makeActionButton path.
+        assert!(js.contains("reclaim"));
+    }
+
+    #[test]
+    fn app_js_wires_ticket_detail_and_offline_states() {
+        let js = include_str!("static/app.js");
+        assert!(js.contains("function renderBoardRowData"));
+        assert!(js.contains("ticket-detail"));
+        assert!(js.contains("board.detail"));
+        assert!(js.contains("board.offline"));
+        assert!(js.contains("function setBoardOffline"));
+        assert!(js.contains("detail.hidden"));
+    }
+
+    #[tokio::test]
+    async fn snapshot_wires_ticket_body_and_actions() {
+        let state = test_state();
+        state
+            .set_tickets(vec![
+                crate::state::TicketRow {
+                    id: "T-1".to_string(),
+                    title: "Open task".to_string(),
+                    body: "   a description   ".to_string(),
+                    status: "open".to_string(),
+                    product: "gsv".to_string(),
+                    claimed_by: None,
+                    scenario: None,
+                },
+                crate::state::TicketRow {
+                    id: "T-2".to_string(),
+                    title: "Claimed task".to_string(),
+                    body: String::new(),
+                    status: "in_progress".to_string(),
+                    product: "poolai".to_string(),
+                    claimed_by: Some("jail-01".to_string()),
+                    scenario: None,
+                },
+                crate::state::TicketRow {
+                    id: "T-3".to_string(),
+                    title: "Finished".to_string(),
+                    body: String::new(),
+                    status: "done".to_string(),
+                    product: "gsv".to_string(),
+                    claimed_by: None,
+                    scenario: None,
+                },
+            ])
+            .await;
+        let app = router(state);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/snapshot")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let tickets = json["tickets"].as_array().unwrap();
+        // Body now rides the wire for the ticket-detail view.
+        assert_eq!(tickets[0]["body"], "   a description   ");
+        // Context-sensitive actions: open → claim only; in_progress → the
+        // three working verbs; terminal → none.
+        assert_eq!(tickets[0]["actions"], serde_json::json!(["claim"]));
+        assert_eq!(
+            tickets[1]["actions"],
+            serde_json::json!(["done", "error", "reclaim"])
+        );
+        assert_eq!(tickets[2]["actions"], serde_json::json!([]));
+    }
+
+    #[tokio::test]
+    async fn board_reclaim_endpoint_registered() {
+        // Reclaim uses the same trust path as the other verbs: a tampered
+        // handshake is refused before anything reaches GSV.
+        let resp = post_action(
+            "reclaim",
+            TEST_TAMPERED_USER_RAW,
+            1750000010,
+            serde_json::json!({"id": "T-1"}),
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn board_reclaim_rejects_missing_init_data() {
+        let app = router(test_state());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/board/reclaim")
+                    .method("POST")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"id":"T-1"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn board_reclaim_valid_forwards_to_gsv() {
+        // A verified handshake with a well-formed body passes validation and
+        // reaches the GSV reclaim forward; an unreachable GSV must surface as
+        // a gateway failure rather than a 4xx.
+        let cfg = Config {
+            bot_token: "test".to_string(),
+            gsv_url: "http://127.0.0.1:1".to_string(),
+            port: 9800,
+            jail_id: "test-jail".to_string(),
+            godfather_channel_id: 0,
+            webhook_url: None,
+            public_url: None,
+            tunnel_enabled: false,
+            ngrok_bin: None,
+        };
+        let app = router(AppState::new(cfg));
+        let init_q = percent_encode_query(&test_init_data(TEST_USER_RAW));
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri(format!(
+                        "/api/board/reclaim?initData={}&authDate=1750000010",
+                        init_q
+                    ))
+                    .method("POST")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"id":"T-1"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["ok"], false);
+    }
+
+    #[tokio::test]
+    async fn status_display_i18n_keys_resolve() {
+        for lang in [
+            crate::ui::miniapp::Lang::En,
+            crate::ui::miniapp::Lang::Uk,
+            crate::ui::miniapp::Lang::Ru,
+        ] {
+            for key in [
+                "status.open",
+                "status.in_progress",
+                "status.done",
+                "status.blocked",
+                "status.closed",
+                "board.detail",
+                "board.no_description",
+                "board.no_actions",
+                "board.offline",
+            ] {
+                assert!(
+                    !crate::ui::miniapp::t(key, lang).is_empty(),
+                    "{} missing for {lang:?}",
+                    key
+                );
+            }
+        }
     }
 
     #[tokio::test]

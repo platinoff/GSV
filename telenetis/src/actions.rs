@@ -10,14 +10,15 @@
 
 use serde_json::{json, Value};
 
-/// The three board actions a Mini App user can take on a ticket. They mirror
-/// the three GSV ticket verbs: `claim` (start working), `done` (finish ok),
-/// `error` (finish failed).
+/// The board actions a Mini App user can take on a ticket. They mirror the GSV
+/// ticket verbs: `claim` (start working), `done` (finish ok), `error` (finish
+/// failed) and `reclaim` (release a claimed ticket back to `open`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BoardAction {
     Claim,
     Done,
     Error,
+    Reclaim,
 }
 
 impl BoardAction {
@@ -27,6 +28,7 @@ impl BoardAction {
             "claim" => Some(BoardAction::Claim),
             "done" => Some(BoardAction::Done),
             "error" => Some(BoardAction::Error),
+            "reclaim" => Some(BoardAction::Reclaim),
             _ => None,
         }
     }
@@ -37,6 +39,7 @@ impl BoardAction {
             BoardAction::Claim => "claim",
             BoardAction::Done => "done",
             BoardAction::Error => "error",
+            BoardAction::Reclaim => "reclaim",
         }
     }
 
@@ -46,6 +49,7 @@ impl BoardAction {
             BoardAction::Claim => "/api/tickets/claim",
             BoardAction::Done => "/api/tickets/done",
             BoardAction::Error => "/api/tickets/error",
+            BoardAction::Reclaim => "/api/tickets/reclaim",
         }
     }
 
@@ -55,6 +59,7 @@ impl BoardAction {
             BoardAction::Claim => "action.claim",
             BoardAction::Done => "action.done",
             BoardAction::Error => "action.error",
+            BoardAction::Reclaim => "action.reclaim",
         }
     }
 
@@ -64,6 +69,7 @@ impl BoardAction {
             BoardAction::Claim => "action.claiming",
             BoardAction::Done => "action.doing",
             BoardAction::Error => "action.erroring",
+            BoardAction::Reclaim => "action.reclaiming",
         }
     }
 
@@ -73,11 +79,17 @@ impl BoardAction {
             BoardAction::Claim => "action.claimed",
             BoardAction::Done => "action.done_ok",
             BoardAction::Error => "action.error_ok",
+            BoardAction::Reclaim => "action.reclaim_ok",
         }
     }
 
     /// All actions — used to render the header/button set and in tests.
-    pub const ALL: [BoardAction; 3] = [BoardAction::Claim, BoardAction::Done, BoardAction::Error];
+    pub const ALL: [BoardAction; 4] = [
+        BoardAction::Claim,
+        BoardAction::Done,
+        BoardAction::Error,
+        BoardAction::Reclaim,
+    ];
 }
 
 /// Parsed body of a board-action POST: `{id, note?}`.
@@ -113,6 +125,25 @@ pub fn forward_body(body: &BoardActionBody) -> Value {
     })
 }
 
+/// Ticket lifecycle status → the actions the board should offer a worker.
+///
+/// The board should never show a button that GSV would reject. GSV's ticket
+/// lifecycle is: `open` → `in_progress` → (`done` | `blocked` | → `open` via
+/// reclaim). `claim` moves `open`→`in_progress`; `done`/`error`/`reclaim`
+/// apply to a claimed `in_progress` row; terminal statuses (`done`, `blocked`,
+/// `closed`) offer nothing. Unknown statuses are treated conservatively —
+/// nothing is offered rather than a button that would 4xx.
+///
+/// This is the server-side truth the Mini App renders from (band 219), so the
+/// three-button-per-row mislead of bands 214–218 is gone.
+pub fn available_actions(status: &str) -> &'static [BoardAction] {
+    match status.trim().to_ascii_lowercase().as_str() {
+        "open" => &[BoardAction::Claim],
+        "in_progress" => &[BoardAction::Done, BoardAction::Error, BoardAction::Reclaim],
+        _ => &[],
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -123,8 +154,9 @@ mod tests {
         assert_eq!(BoardAction::parse("claim"), Some(BoardAction::Claim));
         assert_eq!(BoardAction::parse("DONE"), Some(BoardAction::Done));
         assert_eq!(BoardAction::parse(" error "), Some(BoardAction::Error));
+        assert_eq!(BoardAction::parse("reclaim"), Some(BoardAction::Reclaim));
         assert_eq!(BoardAction::parse(""), None);
-        assert_eq!(BoardAction::parse("reclaim"), None);
+        assert_eq!(BoardAction::parse("reassign"), None);
         assert_eq!(BoardAction::parse("garbage"), None);
     }
 
@@ -198,5 +230,62 @@ mod tests {
         let fwd = forward_body(&body);
         assert_eq!(fwd["id"], "T-2");
         assert!(fwd["note"].is_null());
+    }
+
+    #[test]
+    fn open_ticket_offers_claim_only() {
+        assert_eq!(available_actions("open"), &[BoardAction::Claim]);
+        // Case + whitespace resilient.
+        assert_eq!(available_actions(" OPEN "), &[BoardAction::Claim]);
+    }
+
+    #[test]
+    fn in_progress_ticket_offers_done_error_reclaim() {
+        assert_eq!(
+            available_actions("in_progress"),
+            &[BoardAction::Done, BoardAction::Error, BoardAction::Reclaim]
+        );
+    }
+
+    #[test]
+    fn terminal_and_unknown_statuses_offer_nothing() {
+        for status in ["done", "blocked", "closed", "canceled", "", "mystery"] {
+            assert!(
+                available_actions(status).is_empty(),
+                "{} should offer no actions",
+                status
+            );
+        }
+    }
+
+    #[test]
+    fn every_available_action_has_i18n_in_all_langs() {
+        for open_status in ["open"] {
+            for action in available_actions(open_status) {
+                assert!(
+                    !crate::ui::miniapp::t(action.label_key(), crate::ui::miniapp::Lang::En)
+                        .is_empty()
+                );
+            }
+        }
+        for in_progress_status in ["in_progress"] {
+            for action in available_actions(in_progress_status) {
+                assert!(
+                    !crate::ui::miniapp::t(action.ok_key(), crate::ui::miniapp::Lang::Uk)
+                        .is_empty()
+                );
+                assert!(
+                    !crate::ui::miniapp::t(action.busy_key(), crate::ui::miniapp::Lang::Ru)
+                        .is_empty()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn reclaim_maps_to_gsv_reclaim_verb() {
+        assert_eq!(BoardAction::Reclaim.gsv_path(), "/api/tickets/reclaim");
+        assert_eq!(BoardAction::Reclaim.as_str(), "reclaim");
+        assert_eq!(BoardAction::parse("reclaim"), Some(BoardAction::Reclaim));
     }
 }
