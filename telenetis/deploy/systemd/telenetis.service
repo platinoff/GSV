@@ -1,0 +1,45 @@
+# telenetis systemd unit (Linux prod, port 9800)
+#
+# Install:
+#   sudo cp deploy/systemd/telenetis.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   # put secrets in /etc/telenetis.env (0600 root:telenetis)
+#   sudo systemctl enable --now telenetis
+#
+# The unit runs the built server binary directly with graceful shutdown on
+# SIGTERM; systemd handles restart. Prefer Docker on hosts that run containers
+# (docker-compose.yml) — this unit is the bare-metal/systemd path.
+
+[Unit]
+Description=Telenetis Telegram Mini App + Bot for GSV Godfather
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Set the install path where telenetis/target/release/telenetis was built
+# (Docker build or a local `cargo build --release --bin telenetis`).
+ExecStart=/opt/telenetis/telenetis
+WorkingDirectory=/opt/telenetis
+EnvironmentFile=/etc/telenetis.env
+# Port is read from env; default 9800. Tunnel is disabled in prod.
+Environment=TELENETIS_PORT=9800
+Environment=TELENETIS_TUNNEL_ENABLED=0
+Restart=always
+RestartSec=5
+User=telenetis
+Group=telenetis
+
+# Hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/telenetis/data
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,26 @@
+services:
+  telenetis:
+    build: .
+    container_name: telenetis
+    restart: unless-stopped
+    ports:
+      - "9800:9800"
+    env_file:
+      - .env
+    environment:
+      # Overrides that must not rely on the host .env (tunnel disabled by
+      # default in a container — supply TELENETIS_PUBLIC_URL or use a
+      # reverse proxy / tunnel in front of 9800 for the Telegram WebApp).
+      TELENETIS_PORT: "9800"
+      TELENETIS_GSV_URL: "${TELENETIS_GSV_URL:-http://host.docker.internal:9999}"
+    volumes:
+      - telenetis_data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9800/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+volumes:
+  telenetis_data:

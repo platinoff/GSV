@@ -1967,6 +1967,35 @@ process-local and rank-free.
 |----|------|----------------------|
 | **PH-S2849** | Ranks + messaging | `src/boxes/ranks.rs`: `RosterRow.peak` + `last_move_ts`, `RankMove` return, peak tracking, demotion grace (`grace-held` event), `grace_blocked`, `maybe_decay_host` (level ≥ 14 / `HOST_DECAY_SECS`), wire-time decay, `redact_row` emits `peak`; `tickets.rs` `(Ticket, RankMove)` + `WalkStep.rank_delta`/`rank_held` + `solo_walk`; `telegram.rs` reason-bearing polished line (` +1` / ` −1` / ` (grace-held)`); 2 new tests → GSV 296 lib + contracts green; clippy 0; **GSV_RANKS.md**; version **0.220.0** + `cargo xtask bump --band 220` · HANDOFF/NEXT/roadmap · fingerprint — **✅** |
 
+## Спринти (band 221) — telenetis prod ops / deploy (owner pick)
+
+Ship telenetis (`port 9800`) for real use — the deferred prod-deploy intent from
+`PH-S2745/2746`. No Rust src change (clippy 0, 167 tests green): the existing
+server, `telenetis-live` supervisor (Windows), and the HTTP/WS/SSE/webhook
+surfaces already carry the logic. This band adds the **prod packaging** and a
+**verifiable boot flow**:
+
+- **`Dockerfile`** — multi-stage (rust builder → debian-slim runtime), non-root
+  `telenetis` user, binds `0.0.0.0:9800`, `HEALTHCHECK /health`, runs the plain
+  `--bin telenetis` (graceful SIGTERM shutdown) — no in-container supervisor.
+- **`docker-compose.yml`** — `restart: unless-stopped`, port `9800:9800`,
+  `env_file .env`, `healthcheck`, `telenetis_data` volume, GSV default
+  `http://host.docker.internal:9999`.
+- **`.env.example`** — documented env matrix (`TELENETIS_*`, incl. `PUBLIC_URL`,
+  `WEBHOOK_URL`, `TUNNEL_ENABLED=0` in prod); secrets stay in gitignored `.env`.
+- **`deploy/systemd/telenetis.service`** — bare-metal Linux unit: `Restart=always`,
+  `EnvironmentFile=/etc/telenetis.env`, strict hardening, read-write only `/data`.
+- **`scripts/telenetis-boot-verify.sh`** — post-boot probe of all 5 prod
+  surfaces (`/health`, snapshot/status/live-config, `POST /webhook`, `GET /ws`
+  101 Upgrade, `GET /events` SSE) — verified **7/7 pass** against a live
+  release binary.
+- **`docs/telenetis/ops.md`** — runbook (Docker / systemd / Windows
+  `telenetis-live`, env matrix, boot-verify, TLS reverse-proxy note).
+
+| ID | Area | Deliverable / status |
+|----|------|----------------------|
+| **PH-S2850** | Prod deploy | `telenetis/Dockerfile` + `docker-compose.yml` + `.env.example`; `deploy/systemd/telenetis.service`; `scripts/telenetis-boot-verify.sh` (7/7 live pass); `docs/telenetis/ops.md` + README deploy link; clippy 0 · 167 tests · version **0.221.0** + `cargo xtask bump --band 221` · HANDOFF/NEXT · fingerprint — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

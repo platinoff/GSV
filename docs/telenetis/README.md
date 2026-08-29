@@ -2,6 +2,9 @@
 
 Standalone Rust (Axum 0.8, Tokio) server on **port 9800** that bridges the GSV Godfather channel to a Telegram Mini App.
 
+> **Production deploy:** see [`ops.md`](ops.md) — Docker, bare-metal systemd,
+> Windows always-on supervisor, env matrix, and the post-boot verification.
+
 ## Architecture
 
 ```
