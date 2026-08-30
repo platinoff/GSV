@@ -395,6 +395,31 @@
           "body": "fmt/clippy/test, bump --band 213, fingerprint, recopy live, one commit + push, Godfather summary."
         }
       ]
+    },
+    {
+      "id": "llama-rs-test",
+      "title": "llama-rs READY-TO-TEST runtime milestone",
+      "body": "llama-rs state is READY TO TEST (HANDOFF 2026-08-29): backend 0.1.154, `models/Qwen3.8-27B-UD-IQ2_XXS.gguf` (6.8 GiB, GDN hybrid) loads + generates via target/release/llama_rs.exe. Run the three runtime checks, record the bench, then commit + push in S:/rust/llama-rs. Watch disk (S: ~4.5 GiB free at prep) and RAM (~0.6 GiB free; mmap load only).",
+      "workflow": "ticket-claim",
+      "product": "llama-rs",
+      "tickets": [
+        {
+          "title": "llama-rs: API E2E with real model",
+          "body": "cwd S:/rust/llama-rs. Run `LLAMA_RS_TEST_MODEL=models/Qwen3.8-27B-UD-IQ2_XXS.gguf cargo test generate_with_model_if_env_set -- --nocapture` (tests/integration.rs). Model must load (mmap) and generate 4 tokens; exit 0."
+        },
+        {
+          "title": "llama-rs: speed bench + BENCHMARKS.md",
+          "body": "`LLAMA_RS_BENCH_MODEL=models/Qwen3.8-27B-UD-IQ2_XXS.gguf cargo bench --bench speed -- --sample-size 10`. Expect slow on 5500U (32-token GDN batches). Record tokens/sec + time-to-first-token into docs/BENCHMARKS.md."
+        },
+        {
+          "title": "llama-rs: full scan",
+          "body": "cwd S:/rust/llama-rs. cargo fmt --all then `cargo fmt -- --check`, `cargo clippy --all-targets`, `cargo test` (10 lib unit + 5 integration + doc-tests). Zero warnings/errors."
+        },
+        {
+          "title": "llama-rs: one commit + push + summary",
+          "body": "Stage only sprint files (never Cargo.lock, .env*, models/, target/). One commit in S:/rust/llama-rs, push origin master, post Godfather summary (bench numbers, tests ok)."
+        }
+      ]
     }
   ]
 }
