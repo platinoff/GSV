@@ -15,6 +15,10 @@
     {
       "name": "Telenetis",
       "path": "./telenetis"
+    },
+    {
+      "name": "llama-rs",
+      "path": "../llama-rs"
     }
   ],
   "settings": {

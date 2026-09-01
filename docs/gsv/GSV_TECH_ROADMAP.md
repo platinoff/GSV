@@ -2030,6 +2030,77 @@ every poll returned nothing → presence/flows/forwarding were silently dropped.
 |----|------|----------------------|
 | **PH-S2851** | Bus bridge + hardening | `src/gsv/poll.rs` `extract_messages` (+5 tests) + `warn!` logging; `src/config.rs` `webhook_secret` + env; `src/bot/telegram.rs` `set_webhook` secret + timeouts; `src/bot/webhook.rs` `ct_eq`/`webhook_secret_ok` 403 gate (+4 tests, hermetic); `src/ui/mod.rs` `freshness_now` server-clock (+1 test); `src/gsv/client.rs` timeouts; `.env.example` + README/ops + boot-verify secret support; clippy 0 · **177** tests (173 lib + 4 integration; was 167) · version **0.222.0** + `cargo xtask bump --band 222` · HANDOFF/NEXT/roadmap · fingerprint — **✅** |
 
+## Спринти (band 223) — keep-live health aggregation (GSV + Telenetis + llama-rs + OmniRoute)
+
+Owner pick: GSV now supervises a kit of always-on services (GSV :9999 + Telenetis :9800 + llama-rs + OmniRoute). Band 223 is **aggregation only** — probe each peer and expose the result on Galaxy + `/api/health`, without yet respawning them. Research + plan: [`GSV_RESEARCH_KEEP_LIVE.md`](./GSV_RESEARCH_KEEP_LIVE.md) + [`docs/superpowers/plans/2026-08-31-keep-live-unified.md`](../superpowers/plans/2026-08-31-keep-live-unified.md).
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2852** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2852`; `last_sprint_closed` = `PH-S2851` — **planned** |
+| **PH-S2853** | Box | `boxes/keep_live.rs` `KeepLiveReport { gsv, telenetis, llama_rs, omniroute }` each `{ alive, url, version?, lag? }`; probes 1s timeout; `ok` stays true when sub-service is down (like `disk_ok` band 181) — **planned** |
+| **PH-S2854** | Wire | `GET /api/keep-live` + `GET /api/health { keep_live }` (additive, no break); MCP `gsv_keep_live` read-only → **57** tools — **planned** |
+| **PH-S2855** | Galaxy | health rows `keep_live.*` + new studio card `keep-live` (`CARD_NAMES` 42); `GET /api/ui/card/keep-live` Rust-rendered — **planned** |
+| **PH-S2856** | Contracts | health aggregation unit + server `health keep_live shape` (sub-service down → `ok:true` + `alive:false`) — **planned** |
+| **PH-S2857** | Docs | BOXES / SERVER / MCP_OPENBOT / HANDOFF / NEXT / MEMORY / research — **planned** |
+| **PH-S2858** | Gate | fmt · clippy 0 · `cargo test` · `--stretch-96` ≥96% · vision-sync — **planned** |
+| **PH-S2859** | Band close | `--band 223` + fingerprint; recopy live; one commit + push — **planned** |
+
+## Спринти (band 224) — Telenetis keep-live (Windows parity)
+
+Owner pick: Telenetis :9800 must be as keep-live as GSV :9999 on Windows. Today only `docker-compose`/`systemd`/`telenetis-live` cover Linux; Windows = manual `cargo run`.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2860** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2860`; `last_sprint_closed` = `PH-S2859` — **planned** |
+| **PH-S2861** | Live copy | `cargo xtask live` copies `telenetis` debug → `target/live/telenetis.exe` (like `gsv-mcp` band 158); `cargo xtask telenetis-live` loop or second child in `gsv-live` — **planned** |
+| **PH-S2862** | Watchdog | `watchdog` multi-probe `debug_newer_telenetis` + `telenetis_alive`; `GET /api/watchdog { telenetis_alive, telenetis_debug_newer }`; heartbeat fields — **planned** |
+| **PH-S2863** | Galaxy | watchdog card telenetis row; health `keep_live.telenetis` drives it — **planned** |
+| **PH-S2864** | Docs | SERVER live-copy matrix + telenetis/README Windows keep-live + BOXES — **planned** |
+| **PH-S2865** | Gate | fmt · clippy 0 · `cargo test` telenetis 177 + GSV pass · `--stretch-96` ≥96% — **planned** |
+| **PH-S2866** | Band close | `--band 224` + fingerprint; recopy live; one commit + push — **planned** |
+
+## Спринти (band 225) — llama-rs keep-live + OmniRouter local provider
+
+Owner pick: llama-rs CLI (`S:/rust/llama-rs`, `llama-cpp-2 0.1.154`, `GSV_LIVE=1` progress push, `staged.rs` 99.46%) has no liveness; OmniRoute needs a local llama provider for `gsv_omni_route`.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2867** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2867`; `last_sprint_closed` = `PH-S2866` — **planned** |
+| **PH-S2868** | Heartbeat | `llama-rs` writes `target/live/llama_heartbeat.json` (pid, model, ts) when `GSV_LIVE=1` or `LLAMA_RS_HEARTBEAT=1`; GSV `keep_live.llama_rs` reads it (1s file probe, no HTTP) — **planned** |
+| **PH-S2869** | Omni provider | catalog adds local `bunke-rock` / `lama-2.8` (`models/Qwen3.8-27B-UD-IQ2_XXS.gguf`, IQ2_XXS, kind local) so `GET /api/omni/route task=rust` can pick it; closes `t-1788009924340776700` — **planned** |
+| **PH-S2870** | Products | `cargo xtask products` `llama-rs` scan enriches heartbeat path; `PRODUCTS.md` heartbeat note — **planned** |
+| **PH-S2871** | Contracts | keep-live llama file probe + catalog `bunke-rock` in `gsv_omni_contracts` — **planned** |
+| **PH-S2872** | Docs | BOXES / SERVER / OMNI_CATALOG / HANDOFF / NEXT / MEMORY — **planned** |
+| **PH-S2873** | Gate | fmt · clippy 0 · `cargo test` GSV + llama-rs pass · `--stretch-96` ≥96% — **planned** |
+| **PH-S2874** | Band close | `--band 225` + fingerprint; recopy live; one commit + push — **planned** |
+
+## Спринти (band 226) — Unified keep-live dashboard + MCP + E2E
+
+Owner pick: one Galaxy card + MCP aggregate + boot-verify + stand-smoke for the whole kit.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2875** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2875`; `last_sprint_closed` = `PH-S2874` — **planned** |
+| **PH-S2876** | Galaxy | `keep-live` card 4 rows (GSV/telenetis/llama-rs/omniroute) alive/dot, version, lag, latency; `GET /api/ui/card/keep-live` Rust-rendered — **planned** |
+| **PH-S2877** | MCP | `gsv_keep_live` + `gsv_telenetis_health` aggregate; `GET /mcp keep_live`; `gsv_drain` names keep-live; **58** tools — **planned** |
+| **PH-S2878** | Verify | `scripts/keep-live-boot-verify.sh` probes 9999 + 9800 + llama heartbeat + omniroute; 4/4 pass against live — **planned** |
+| **PH-S2879** | Stand-smoke | `keep-live` card + health `keep_live` shape in `gsv-http-stand-smoke` — **planned** |
+| **PH-S2880** | Docs | BOXES / SERVER / MCP_OPENBOT / HANDOFF / NEXT / MEMORY — **planned** |
+| **PH-S2881** | Gate | fmt · clippy 0 · `cargo test` GSV + telenetis pass · `--stretch-96` ≥96% — **planned** |
+| **PH-S2882** | Band close | `--band 226` + fingerprint; recopy live; one commit + push — **planned** |
+
+## Спринти (band 227) — OmniRoute node keep-live (optional, owner pick)
+
+Owner pick, only if `S:/rust/omniroute` runs locally (`npm run dev`). Fail-open probe to `OMNIROUTE_URL` (default `http://127.0.0.1:3000` or `20128`), never start node from Rust.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2883** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2883`; `last_sprint_closed` = `PH-S2882` — **planned** |
+| **PH-S2884** | Probe | `keep_live.omniroute` reads `OMNIROUTE_URL`/`omni.toml` upstream; timeout 1s; fail-open (like usage pull band 155) — **planned** |
+| **PH-S2885** | Docs | `docs/omniroute` env matrix + BOXES note — **planned** |
+| **PH-S2886** | Gate | fmt · clippy 0 · `cargo test` · `--stretch-96` — **planned** |
+| **PH-S2887** | Band close | `--band 227` + fingerprint; recopy live; one commit + push — **planned** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

@@ -220,6 +220,15 @@ pub fn providers() -> &'static [ProviderSpec] {
             quota: QUOTA_PAID,
         },
         ProviderSpec {
+            id: "bunke-rock",
+            name: "BunkeRock (llama-rs)",
+            region: "Local",
+            free: true,
+            default_base_url: "http://127.0.0.1:8080/v1",
+            notes: "Local llama-rs inference backend (Qwen 27B IQ2_XXS, S:/rust/llama-rs/models/Qwen3.8-27B-UD-IQ2_XXS.gguf)",
+            quota: QUOTA_PAID,
+        },
+        ProviderSpec {
             id: "qwen",
             name: "Alibaba (Qwen)",
             region: "China",
@@ -434,6 +443,19 @@ pub fn clients() -> &'static [ClientSpec] {
 pub fn models() -> &'static [ModelSpec] {
     static MODELS: &[ModelSpec] = &[
         // ── Recommended for GSV Rust + web (2026-08-18) ─────────────
+        m(
+            "lama-2.8",
+            "Lama 2.8 (BunkeRock · llama-rs)",
+            "bunke-rock",
+            Some(32_768),
+            Some(4_096),
+            true,
+            false,
+            "local",
+            true,
+            true,
+            C_ALL,
+        ),
         m(
             "grok-4.6",
             "Grok 4.6",

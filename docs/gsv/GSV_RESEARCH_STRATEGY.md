@@ -144,6 +144,18 @@ Consolidated into GSV_TECH_ROADMAP.md band 213 and
    peak-rank snapshot; keep ranks process-local in federation.
 5. Tunnel-first dev via existing `cargo xtask tunnel` for the webhook/Mini App path.
 
+## 5. Unified keep-live: GSV + Telenetis + llama-rs + OmniRoute + OpenBot MCP (bands 223-227)
+
+**Context:** GSV `:9999` + watchdog is the only keep-live on Windows. Telenetis `:9800` (Axum, `spawn_poll_loop` 5s, WS 25s keep-alive, secret `ct_eq` 403) is unsupervised on Windows (Cursor abort = offline). llama-rs (local Qwen 27B IQ2_XXS, `GSV_LIVE=1` 120ms TcpStream push, 0.031 tok/s) has no liveness file; OmniRoute (node, `npm test`, `omni.toml` + `quota.rs`) is fail-open. This section is the research basis for [`GSV_RESEARCH_KEEP_LIVE.md`](./GSV_RESEARCH_KEEP_LIVE.md) + plan [`../superpowers/plans/2026-08-31-keep-live-unified.md`](../superpowers/plans/2026-08-31-keep-live-unified.md).
+
+**Findings:**
+- `watchdog.rs:30` `probe 3s ×2 =6s grace, cooldown 10s, MAX_AGE 20s`; `successor_plan` each tick, stale hop, never POST apply from stale watchdog; `health.ok` stays true on S0 disk (band 181) — same pattern fits sub-service down.
+- Telenetis has Docker/systemd/`telenetis-boot-verify.sh` 7/7 but no `target/live/telenetis.exe` or watchdog probe on Windows; `GsvClient` 5s/3s timeouts already prevent hang.
+- llama-rs heartbeat-over-file (`target/live/llama_heartbeat.json` 30s, `age>60s→alive:false`) is cheaper than daemonizing a CLI.
+- Local OmniRouter provider `bunke-rock` / `lama-2.8` (2-bit Qwen) closes ticket `t-1788009924340776700`; wire as `kind: local` so `GET /api/omni/route task=rust` can pick it.
+
+**Next:** bands **223** aggregation (probe all 4, `GET /api/keep-live` + `keep_live` in `GET /api/health`, MCP `gsv_keep_live`, Galaxy `keep-live` card) → **224** telenetis live-copy + watchdog respawn → **225** llama heartbeat + catalog → **226** dashboard + boot-verify + stand-smoke → **227** optional omniroute probe. Sources: `src/boxes/watchdog.rs`, `S:/rust/llama-rs/src/main.rs:19`, `S:/rust/llama-rs/docs/HANDOFF.md:6`.
+
 Sources: 2026 web research — StraySpark competitive multiplayer design; GTStudios progression;
 solana.garden progression systems; ICN fair-ladder; BoostRoom ranked-climb; TeamUp rank decay;
 vibeseeker Telegram Mini App nuances; miniapps.me building Telegram products 2026;

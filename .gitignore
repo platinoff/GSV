@@ -37,6 +37,9 @@ Thumbs.db
 # Telenetis local run logs (never staged)
 /telenetis/*.log
 /telenetis/**/*.log
+/telenetis/*.pid
+/telenetis/**/*.pid
+/gsv-live.log
 
 # Obsidian vault (owner notes; never staged per obsidian-vault skill)
 /vault/
