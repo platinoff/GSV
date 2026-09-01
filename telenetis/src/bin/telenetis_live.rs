@@ -9,6 +9,13 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::Duration;
 
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+#[cfg(windows)]
+const DETACHED_PROCESS: u32 = 0x0000_0008;
+#[cfg(windows)]
+const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+
 fn main() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let live_dir = repo_root.join("target/live");
@@ -36,11 +43,16 @@ fn main() {
             continue;
         }
         println!("telenetis-live: spawning {:?}", live_exe);
-        match Command::new(&live_exe)
-            .stdin(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
-            .spawn()
+        let mut cmd = Command::new(&live_exe);
+        cmd.stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
+        }
+        match cmd.spawn()
         {
             Ok(mut child) => {
                 let _ = child.wait();

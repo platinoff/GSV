@@ -349,7 +349,19 @@ pub fn run_live(repo_root: &Path, host: &str, port: u16) -> Result<(), String> {
     loop {
         let live = watchdog::copy_debug_to_live(repo_root)?;
         let mut child = Command::new(&live);
-        crate::vision::hide_console(&mut child);
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            child.creation_flags(watchdog::SPAWN_LIVE_WINDOWS_FLAGS);
+        }
+        #[cfg(not(windows))]
+        {
+            crate::vision::hide_console(&mut child);
+        }
+        child
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
         let status = child
             .arg("--host")
             .arg(host)
@@ -360,6 +372,16 @@ pub fn run_live(repo_root: &Path, host: &str, port: u16) -> Result<(), String> {
         eprintln!("gsv-live: process exited ({status}), restarting in 1s");
         thread::sleep(Duration::from_secs(1));
     }
+}
+
+fn is_telenetis_alive() -> bool {
+    // Cheap TCP probe to :9800 — no http crate needed in xtask path.
+    // If something already answers, don't spawn another telenetis-live (prevents N flashing windows).
+    std::net::TcpStream::connect_timeout(
+        &"127.0.0.1:9800".parse().unwrap(),
+        Duration::from_millis(200),
+    )
+    .is_ok()
 }
 
 /// Spawn the Telenetis live supervisor (best-effort) alongside gsv-live so the
@@ -379,13 +401,18 @@ pub fn spawn_telenetis_live(repo_root: &Path) -> String {
     }
     let live_exe = telenetis_dir.join("target/live/telenetis-live.exe");
     let debug_exe = telenetis_dir.join("target/debug/telenetis-live.exe");
+    // Deduplicate: if telenetis already answers, don't spawn another supervisor
+    // (gsv-live loops and would otherwise create one per gsv-server restart → N windows flashing).
+    if is_telenetis_alive() {
+        return "telenetis-live: already running on :9800 — skipped".into();
+    }
     let exe = if live_exe.is_file() {
         live_exe
     } else if debug_exe.is_file() {
         debug_exe
     } else {
         eprintln!("telenetis-live: building (cargo build --bin telenetis-live)…");
-        let built = Command::new("cargo")
+        let built = crate::vision::command("cargo")
             .args(["build", "--bin", "telenetis-live"])
             .current_dir(&telenetis_dir)
             .status()
@@ -756,7 +783,7 @@ fn try_schtasks(tr: &str) -> bool {
     if !exe.is_file() {
         return false;
     }
-    Command::new(exe)
+    crate::vision::command(exe)
         .args([
             "/Create",
             "/TN",
@@ -779,7 +806,7 @@ fn try_hkcu_run(tr: &str) -> bool {
     if !exe.is_file() {
         return false;
     }
-    Command::new(exe)
+    crate::vision::command(exe)
         .args([
             "add",
             r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
