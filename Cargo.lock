@@ -324,7 +324,7 @@ dependencies = [
 
 [[package]]
 name = "gsv"
-version = "0.222.1"
+version = "0.222.2"
 dependencies = [
  "axum",
  "chrono",
