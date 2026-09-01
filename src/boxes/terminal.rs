@@ -21,6 +21,7 @@ pub const WHITELIST: &[&str] = &[
     "echo",
     "pwd",
     "df",
+    "env",
     "telenetis-live",
     "poolai-loc-audit",
     "poolai-vision-sync",
@@ -140,10 +141,32 @@ pub fn validate(command: &str) -> Result<(), String> {
 /// Execute a whitelisted command via MSYS2 bash (best effort); returns stderr
 /// when bash is unavailable.
 pub fn execute(command: &str) -> (Option<i32>, String, String) {
+    // cargo via hidden terminal must not fall back to default.bash (which flashes).
+    // Run cargo directly via absolute path with CREATE_NO_WINDOW, no bash involved.
+    let trimmed = command.trim_start();
+    if trimmed.starts_with("cargo") {
+        let cargo_exe = "C:/Users/plati/.cargo/bin/cargo.exe";
+        let args_str = trimmed.strip_prefix("cargo").unwrap_or_default().trim();
+        let mut cmd = crate::vision::command(cargo_exe);
+        if !args_str.is_empty() {
+            // Split on whitespace for simple cargo subcommands (no shell metachars per validate).
+            for a in args_str.split_whitespace() {
+                cmd.arg(a);
+            }
+        }
+        let out = cmd.output();
+        match out {
+            Ok(o) => {
+                return (
+                    o.status.code(),
+                    String::from_utf8_lossy(&o.stdout).to_string(),
+                    String::from_utf8_lossy(&o.stderr).to_string(),
+                )
+            }
+            Err(_) => return (None, String::new(), "cargo exe not available".to_string()),
+        }
+    }
     let bash = "C:/msys64/usr/bin/bash.exe";
-    // Ensure cargo is on PATH for hidden terminal (same as AGENTS.md MSYS2 export).
-    // Without this `cargo` via gsv_terminal fails with "command not found" and forces
-    // the caller to fall back to default.bash which flashes a console window.
     let wrapped = format!(
         "export PATH=\"/c/Users/plati/.cargo/bin:$HOME/.cargo/bin:/ucrt64/bin:/usr/bin:$PATH\"; {}",
         command
