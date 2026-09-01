@@ -21,6 +21,7 @@ pub const WHITELIST: &[&str] = &[
     "echo",
     "pwd",
     "df",
+    "telenetis-live",
     "poolai-loc-audit",
     "poolai-vision-sync",
     "poolai-rust-diagnostics",
@@ -140,9 +141,16 @@ pub fn validate(command: &str) -> Result<(), String> {
 /// when bash is unavailable.
 pub fn execute(command: &str) -> (Option<i32>, String, String) {
     let bash = "C:/msys64/usr/bin/bash.exe";
+    // Ensure cargo is on PATH for hidden terminal (same as AGENTS.md MSYS2 export).
+    // Without this `cargo` via gsv_terminal fails with "command not found" and forces
+    // the caller to fall back to default.bash which flashes a console window.
+    let wrapped = format!(
+        "export PATH=\"/c/Users/plati/.cargo/bin:$HOME/.cargo/bin:/ucrt64/bin:/usr/bin:$PATH\"; {}",
+        command
+    );
     let out = crate::vision::command(bash)
         .arg("-lc")
-        .arg(command)
+        .arg(wrapped)
         .output();
     match out {
         Ok(o) => (
