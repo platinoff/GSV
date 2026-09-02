@@ -44,7 +44,7 @@ fn err_json(status: StatusCode, msg: impl Into<String>) -> Response {
     (status, Json(json!({ "ok": false, "error": msg.into() }))).into_response()
 }
 
-/// `/api/health` payload.
+/// `/api/health` payload — `keep_live` is additive, never makes `ok:false` (band 181 `disk_ok` pattern).
 fn health(state: &AppState) -> Value {
     let fp = crate::boxes::fingerprint::latest(
         &crate::boxes::fingerprint::jsonl_path(&state.repo_root),
@@ -108,6 +108,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/ui/", get(api_ui_index))
         .route("/api/omni/", get(api_omni_index))
         .route("/api/health", get(api_health))
+        .route("/api/keep-live", get(api_keep_live))
         .route("/api/watchdog", get(api_watchdog))
         .route("/api/usage", get(api_usage))
         .route("/api/settings", get(api_settings).post(api_settings_post))
@@ -339,7 +340,15 @@ async fn api_vision_svg() -> Response {
 }
 
 async fn api_health(State(state): State<AppState>) -> Json<Value> {
-    Json(health(&state))
+    let mut h = health(&state);
+    // Keep-live is fail-open and async (1s total with concurrent probes) — merge here so health stays responsive.
+    let keep = crate::boxes::keep_live::wire_async().await;
+    h["keep_live"] = keep;
+    Json(h)
+}
+
+async fn api_keep_live() -> Json<Value> {
+    Json(crate::boxes::keep_live::wire_async().await)
 }
 
 async fn api_watchdog(State(state): State<AppState>) -> Json<Value> {
@@ -1214,6 +1223,7 @@ async fn card_wire(state: &AppState, name: &str, q: &CardQuery) -> Result<Value,
         "ranks" => crate::boxes::ranks::wire(&state.repo_root, &state.data_dir),
         "sw" => crate::boxes::sw::wire(),
         "watchdog" => crate::boxes::watchdog::wire(&state.repo_root),
+        "keep-live" => crate::boxes::keep_live::wire_async().await,
         "usage" => {
             crate::boxes::usage::merge_omniroute_pull(state).await;
             crate::boxes::usage::wire_state(state).await

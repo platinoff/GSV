@@ -15,7 +15,7 @@ fn ladder_bounds() {
 #[test]
 fn mcp_exposes_ranks_and_doc() {
     assert!(mcp::tool_names().contains(&"gsv_ranks"));
-    assert_eq!(mcp::tool_names().len(), 56);
+    assert_eq!(mcp::tool_names().len(), 57);
 }
 
 #[test]

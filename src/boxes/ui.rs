@@ -257,6 +257,7 @@ pub const UI_GROUPS: [UiGroup; 4] = [
             "ratio",
             "speed-index",
             "rust-diagnostics",
+            "keep-live",
         ],
     },
 ];
@@ -1865,6 +1866,54 @@ pub fn render_health(d: &Value) -> String {
                 ),
             ],
             vec![
+                "keep_live.gsv".into(),
+                format!(
+                    "<span class='{}'>{}</span>",
+                    if b(&d["keep_live"]["gsv"]["alive"]) {
+                        "ok"
+                    } else {
+                        "dim"
+                    },
+                    b(&d["keep_live"]["gsv"]["alive"])
+                ),
+            ],
+            vec![
+                "keep_live.telenetis".into(),
+                format!(
+                    "<span class='{}'>{}</span>",
+                    if b(&d["keep_live"]["telenetis"]["alive"]) {
+                        "ok"
+                    } else {
+                        "dim"
+                    },
+                    b(&d["keep_live"]["telenetis"]["alive"])
+                ),
+            ],
+            vec![
+                "keep_live.llama_rs".into(),
+                format!(
+                    "<span class='{}'>{}</span>",
+                    if b(&d["keep_live"]["llama_rs"]["alive"]) {
+                        "ok"
+                    } else {
+                        "dim"
+                    },
+                    b(&d["keep_live"]["llama_rs"]["alive"])
+                ),
+            ],
+            vec![
+                "keep_live.omniroute".into(),
+                format!(
+                    "<span class='{}'>{}</span>",
+                    if b(&d["keep_live"]["omniroute"]["alive"]) {
+                        "ok"
+                    } else {
+                        "dim"
+                    },
+                    b(&d["keep_live"]["omniroute"]["alive"])
+                ),
+            ],
+            vec![
                 "disk_ok".into(),
                 format!(
                     "<span class='{}'>{}</span>",
@@ -2252,6 +2301,42 @@ pub fn render_watchdog(d: &Value) -> String {
             }],
         ],
     ));
+    out
+}
+
+pub fn render_keep_live(d: &Value) -> String {
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    if d.get("gsv").is_none() && d.get("telenetis").is_none() {
+        return empty_html("keep-live");
+    }
+    let mut rows = Vec::new();
+    for key in ["gsv", "telenetis", "llama_rs", "omniroute"] {
+        let e = &d[key];
+        if e.is_null() {
+            continue;
+        }
+        let alive = b(&e["alive"]);
+        let url = s(&e["url"]);
+        let ver = s(&e["version"]);
+        rows.push(vec![
+            key.to_string(),
+            format!(
+                "<span class='{}'>{}</span>",
+                if alive { "ok" } else { "dim" },
+                alive
+            ),
+            esc(if url.is_empty() { "—" } else { &url }),
+            esc(if ver.is_empty() { "—" } else { &ver }),
+        ]);
+    }
+    if rows.is_empty() {
+        return empty_html("keep-live");
+    }
+    let mut out =
+        String::from("<div class='dim'>keep-live 4 peers · fail-open (ok stays true)</div>");
+    out.push_str(&tab(&["peer", "alive", "url", "version"], rows));
     out
 }
 
@@ -2724,12 +2809,13 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
         "fullscreen" => Some(render_fullscreen(d)),
         "node-search" => Some(render_node_search(d)),
         "about" => Some(crate::boxes::guide::render_about(d)),
+        "keep-live" => Some(render_keep_live(d)),
         _ => None,
     }
 }
 
 /// Server-rendered card names (stable contract for `/api/ui/card/:name`).
-pub const CARD_NAMES: [&str; 42] = [
+pub const CARD_NAMES: [&str; 43] = [
     "tracker",
     "sli",
     "toolchain",
@@ -2772,6 +2858,7 @@ pub const CARD_NAMES: [&str; 42] = [
     "fullscreen",
     "node-search",
     "about",
+    "keep-live",
 ];
 
 /// Galaxy backdrop card body (SVG-backed visual).
@@ -3173,8 +3260,9 @@ mod tests {
         assert!(render_card("products", &d).is_some());
         assert!(render_card("fingerprints", &d).is_some());
         assert!(render_card("about", &d).is_some());
+        assert!(render_card("keep-live", &d).is_some());
         assert!(render_card("nope", &d).is_none());
-        assert_eq!(CARD_NAMES.len(), 42);
+        assert_eq!(CARD_NAMES.len(), 43);
         assert!(CARD_NAMES.contains(&"about"));
         assert!(CARD_NAMES.contains(&"ranks"));
         let chrome = chrome_controls_stylesheet();

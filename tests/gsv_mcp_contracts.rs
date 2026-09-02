@@ -189,6 +189,7 @@ async fn post_initialize_and_tools_list() {
     assert!(names.contains(&"gsv_products_scan"));
     assert!(names.contains(&"gsv_products_select"));
     assert!(names.contains(&"gsv_watchdog"));
+    assert!(names.contains(&"gsv_keep_live"));
     assert!(names.contains(&"gsv_sw"));
     assert!(names.contains(&"gsv_fingerprints"));
     assert!(names.contains(&"gsv_xtask"));
@@ -1335,7 +1336,8 @@ async fn watchdog_and_sw_tools_ok() {
     let app = app();
     for (id, name, needle) in [
         (82u64, "gsv_watchdog", "alive"),
-        (83, "gsv_sw", "gsv-shell-v2"),
+        (83, "gsv_keep_live", "omniroute"),
+        (84, "gsv_sw", "gsv-shell-v2"),
     ] {
         let (status, body) = mcp_post(
             &app,

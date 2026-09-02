@@ -2036,14 +2036,14 @@ Owner pick: GSV now supervises a kit of always-on services (GSV :9999 + Teleneti
 
 | Sprint | Фокус | Acceptance (ключ) |
 |--------|-------|-------------------|
-| **PH-S2852** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2852`; `last_sprint_closed` = `PH-S2851` — **planned** |
-| **PH-S2853** | Box | `boxes/keep_live.rs` `KeepLiveReport { gsv, telenetis, llama_rs, omniroute }` each `{ alive, url, version?, lag? }`; probes 1s timeout; `ok` stays true when sub-service is down (like `disk_ok` band 181) — **planned** |
-| **PH-S2854** | Wire | `GET /api/keep-live` + `GET /api/health { keep_live }` (additive, no break); MCP `gsv_keep_live` read-only → **57** tools — **planned** |
-| **PH-S2855** | Galaxy | health rows `keep_live.*` + new studio card `keep-live` (`CARD_NAMES` 42); `GET /api/ui/card/keep-live` Rust-rendered — **planned** |
-| **PH-S2856** | Contracts | health aggregation unit + server `health keep_live shape` (sub-service down → `ok:true` + `alive:false`) — **planned** |
-| **PH-S2857** | Docs | BOXES / SERVER / MCP_OPENBOT / HANDOFF / NEXT / MEMORY / research — **planned** |
-| **PH-S2858** | Gate | fmt · clippy 0 · `cargo test` · `--stretch-96` ≥96% · vision-sync — **planned** |
-| **PH-S2859** | Band close | `--band 223` + fingerprint; recopy live; one commit + push — **planned** |
+| **PH-S2852** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2852`; `last_sprint_closed` = `PH-S2851` — **✅** |
+| **PH-S2853** | Box | `boxes/keep_live.rs` `KeepLiveReport { gsv, telenetis, llama_rs, omniroute }` each `{ alive, url, version?, lag? }`; probes 1s timeout; `ok` stays true when sub-service is down (like `disk_ok` band 181); env overrides: `GSV_KEEP_LIVE_GSV_URL` / `GSV_KEEP_LIVE_TELENETIS_URL` / `OMNIROUTE_URL` / `LLAMA_HEARTBEAT_PATH`; llama alive = fresh heartbeat file (age ≤ 60s, no HTTP) — **✅** |
+| **PH-S2854** | Wire | `GET /api/keep-live` + `GET /api/health { keep_live }` (additive, no break) `wire_async()`; MCP `gsv_keep_live` read-only → **57** tools — **✅** |
+| **PH-S2855** | Galaxy | health rows `keep_live.*` + new studio card `keep-live` (`CARD_NAMES` **43**, `keep-live 4 peers` table: peer/alive/url/version); `GET /api/ui/card/keep-live` Rust-rendered — **✅** |
+| **PH-S2856** | Contracts | `gsv_keep_live_contracts.rs`: `api_keep_live_and_health_merge_ok_stays_true` (dead ports → `ok:true` + `alive:false`, gsv/llama shape), `render_keep_live_{rows,empty_and_error}`, `card_names_include_keep_live`; health merge unit — **✅** |
+| **PH-S2857** | Docs | BOXES / SERVER / MCP_OPENBOT / HANDOFF / NEXT / MEMORY / research — **✅** |
+| **PH-S2858** | Gate | fmt · clippy 0 · `cargo test` **782** green (300 lib + bins + 475 contract; `cargo test` no longer hangs — fixed recursive `terminal_cargo_test_allowed` → `terminal_cargo_version_allowed`) · `--stretch-96` ≥96% · vision-sync — **✅** |
+| **PH-S2859** | Band close | `--band 223` → **0.223.0** (queue last `PH-S2878` next `PH-S2879`) + fingerprint; live recopy; one commit + push — **✅** |
 
 ## Спринти (band 224) — Telenetis keep-live (Windows parity)
 

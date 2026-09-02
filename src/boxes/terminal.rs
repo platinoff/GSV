@@ -239,6 +239,7 @@ mod tests {
     fn validate_accepts_echo_and_rejects_injection() {
         assert!(validate("echo hello").is_ok());
         assert!(validate("cargo --version").is_ok());
+        assert!(validate("cargo test").is_ok());
         assert!(validate("cargo fmt -- --check").is_ok());
         assert!(validate("git status").is_ok());
         assert!(validate("ls -la").is_ok());

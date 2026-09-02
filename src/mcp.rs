@@ -287,6 +287,11 @@ pub fn tools_list() -> Vec<Value> {
             }),
         ),
         tool("gsv_watchdog", "Live watchdog heartbeat (target/live/watchdog.json).", object_schema()),
+        tool(
+            "gsv_keep_live",
+            "Keep-live health for GSV + Telenetis + llama-rs + OmniRoute (aggregation only, ok stays true when peer down).",
+            object_schema(),
+        ),
         tool("gsv_sw", "Service Worker shell cache discovery (cache name + precache urls).", object_schema()),
         tool(
             "gsv_fingerprints",
@@ -732,6 +737,7 @@ const TOOL_NAMES: &[&str] = &[
     "gsv_products_scan",
     "gsv_products_select",
     "gsv_watchdog",
+    "gsv_keep_live",
     "gsv_sw",
     "gsv_fingerprints",
     "gsv_ranks",
@@ -1414,6 +1420,7 @@ async fn call_tool(state: &AppState, params: &Value, session: Option<&str>) -> V
         }
         "gsv_products_select" => tool_products_select(state, &args),
         "gsv_watchdog" => tool_ok(crate::boxes::watchdog::wire(&state.repo_root)),
+        "gsv_keep_live" => tool_ok(crate::boxes::keep_live::wire_async().await),
         "gsv_sw" => tool_ok(crate::boxes::sw::wire()),
         "gsv_fingerprints" => {
             let limit = crate::boxes::fingerprint::clamp_limit(

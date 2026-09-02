@@ -64,6 +64,14 @@ Optional: `--repo-root S:/rust/poolAI` to scan PoolAI FM / `bin/` / `scripts/` f
 
 PoolAI vision canon (after the split) lives in **PoolAI** at `docs/vision/`. This repo keeps its own `docs/vision/` snapshot.
 
+## Formats + local rules (global, session-independent)
+
+These globals hold in **every** session and **every** registered product, whatever the IDE/model:
+
+- Global scope is the GSV kit only: MCP toolchains, environment flows (terminal, `rustup`, env), IDE/Cursor/OpenCode/Grok lockstep, model life & communications with connected release apps (`gsv-server` live). Product code and its local rules stay in the product repo — GSV never absorbs them.
+- Allowed source formats: `.rs`, `.md`, `.mdc`, `.json`, `.js`, `.wasm`. Everything else is **not** allowed except production output of a registered pipeline. Ratio stays Rust-first (Rust **95–100%** / wasm 0–5%); `.wasm`/`.js`/`.json`/`.md` count toward the audited ratio per product row.
+- Local rules (`AGENTS.md` / `CLAUDE.md` / `.cursorrules` / `rules/`) live **in each registered product tree** and must not affect globals. `S:\rust\GSV\AGENTS.md` is the only global rule file; no other product's rules are placed inside the GSV tree.
+
 ## Do not
 
 - Stage `data/*` (except `.gitkeep`), `.env*`, `*.pem` / `*.key`.

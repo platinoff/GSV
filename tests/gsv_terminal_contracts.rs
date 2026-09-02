@@ -138,16 +138,20 @@ async fn terminal_empty_command() {
 }
 
 #[tokio::test]
-async fn terminal_cargo_test_allowed() {
+async fn terminal_cargo_version_allowed() {
+    // A whitelisted `cargo` subcommand must execute. We deliberately use
+    // `cargo --version` here: a nested `cargo test` from inside the harness
+    // would wait on the same target-dir build lock and deadlock the suite.
     let (app, _state) = app();
-    let body = serde_json::json!({ "command": "cargo test" });
+    let body = serde_json::json!({ "command": "cargo --version" });
     let (status, json) = post(&app, "/api/terminal", body).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(json["allowed"], true);
-    assert!(
-        json["exit_code"].is_number(),
-        "exit_code should be a number"
-    );
+    assert_eq!(json["exit_code"], 0);
+    assert!(json["stdout"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("cargo"));
 }
 
 #[tokio::test]

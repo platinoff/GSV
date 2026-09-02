@@ -33,6 +33,7 @@ pub mod gitkit;
 pub mod guide;
 pub mod hooks;
 pub mod ide;
+pub mod keep_live;
 pub mod mds;
 pub mod omni;
 pub mod preview;

@@ -361,7 +361,7 @@ async fn post_cross_site_is_forbidden() {
 #[test]
 fn card_tickets_in_registry() {
     assert!(CARD_NAMES.contains(&"tickets"));
-    assert_eq!(CARD_NAMES.len(), 42);
+    assert_eq!(CARD_NAMES.len(), 43);
     let empty = render_card("tickets", &json!({ "ok": true, "tickets": [] })).expect("empty");
     assert!(empty.contains("tickets — no data"), "{empty}");
     assert!(empty.contains("open tickets are the board"), "{empty}");
@@ -785,7 +785,7 @@ fn mcp_tools_include_tickets_not_bus() {
     assert!(mcp::tool_names().contains(&"gsv_telegram_poll"));
     assert!(mcp::tool_names().contains(&"gsv_telegram_decode"));
     assert!(!mcp::tool_names().contains(&"gsv_telegram_create_ticket"));
-    assert_eq!(mcp::tool_names().len(), 56);
+    assert_eq!(mcp::tool_names().len(), 57);
 }
 
 fn write_stale_wip(kit: &Path, id: &str, actor: &str, lease_until: u64) {
