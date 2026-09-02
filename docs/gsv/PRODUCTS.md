@@ -18,7 +18,7 @@ This file only **enriches** a pick that is already registered.
 | **linfs** | `S:/rust/LinFS` | `S:/rust/LinFS/docs/HANDOFF_NEW_SESSION.md` | `S:/rust/LinFS/docs/NEXT_SESSION_PROMPT.md` | `cargo fmt -- --check` → `cargo clippy --all-targets` → `cargo test` → `cargo run --bin linfs-loc-audit -- --stretch-96` (windows-gnu) | Rust **95–100%** (`--stretch-96` ≥96%) |
 | **telenetis** | `S:/rust/GSV/telenetis` | `S:/rust/GSV/docs/HANDOFF_NEW_SESSION.md` | `S:/rust/GSV/docs/NEXT_SESSION_PROMPT.md` | `cargo fmt -- --check` → `cargo clippy --all-targets` → `cargo test` | Rust **95–100%** |
 | **llama-rs** | `S:/rust/llama-rs` | `S:/rust/llama-rs/docs/HANDOFF.md` | `S:/rust/llama-rs/docs/ROADMAP.md` | `cargo fmt -- --check` → `cargo clippy --all-targets` → `cargo test` | Rust **95–100%** |
-| **rebook** | `S:/rust/rebook` | `S:/rust/rebook/PRODUCTION_GUIDE.md` | `S:/rust/rebook/PRODUCTION_GUIDE.md` | `cargo fmt -- --check` → `cargo clippy --all-targets` → `cargo test` | Rust **95–100%** |
+| **rebook** | `S:/rust/rebook` | `S:/rust/rebook/.cursor/rules/epub-kdp-guide.mdc` | `S:/rust/rebook/.cursor/rules/epub-kdp-guide.mdc` | `cargo fmt -- --check` → `cargo clippy --all-targets` → `cargo test` (EPUB path: `cargo run -- build-epub`) | Rust **95–100%** |
 
 Discovered but **not** in this table → S0 + git in that tree; no PH-S* drain until a row is added. OmniRoute is registered (band 149, owner-opt-in).
 
