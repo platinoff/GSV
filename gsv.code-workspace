@@ -19,6 +19,10 @@
     {
       "name": "llama-rs",
       "path": "../llama-rs"
+    },
+    {
+      "name": "rebook",
+      "path": "../rebook"
     }
   ],
   "settings": {
