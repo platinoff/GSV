@@ -3,9 +3,11 @@
 //! Same crate as `gsv-server` so HTTP + MCP call the same functions. Invocation:
 //! `cargo xtask <task>` (alias in `.cargo/config.toml`).
 
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::{Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -104,6 +106,43 @@ pub struct DiskReport {
 
 pub const MIB: u64 = 1024 * 1024;
 pub const GIB: u64 = 1024 * 1024 * 1024;
+
+/// TTL for the cached `target/` size scan (see `cached_target_bytes`). A full
+/// recursive walk of a 40+ GB cargo cache takes seconds — health / disk / mds
+/// hit this on every request, so we memoize briefly. 30s staleness is fine for
+/// S0 discipline; the watchdog (2s probe timeout) stops seeing timeouts.
+const DISK_SCAN_TTL: Duration = Duration::from_secs(30);
+
+/// Per-directory scan cache so concurrent scans (one per repo root / target dir)
+/// and parallel tests never evict each other.
+static DISK_SCAN_CACHE: OnceLock<Mutex<HashMap<PathBuf, (Instant, u64)>>> = OnceLock::new();
+
+fn disk_scan_cache() -> &'static Mutex<HashMap<PathBuf, (Instant, u64)>> {
+    DISK_SCAN_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Byte size of `dir` with a short TTL. `dir_size_bytes` is a recursive `read_dir`
+/// walk — on a big `target/` it dominates `/api/health` latency, so cache 30s.
+fn cached_target_bytes(dir: &Path) -> u64 {
+    let now = Instant::now();
+    let mut cache = disk_scan_cache().lock().unwrap_or_else(|p| p.into_inner());
+    if let Some((at, bytes)) = cache.get(dir) {
+        if now.duration_since(*at) < DISK_SCAN_TTL {
+            return *bytes;
+        }
+    }
+    let bytes = if dir.is_dir() { dir_size_bytes(dir) } else { 0 };
+    cache.insert(dir.to_path_buf(), (now, bytes));
+    bytes
+}
+
+#[cfg(test)]
+fn clear_disk_scan_cache() {
+    disk_scan_cache()
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .clear();
+}
 
 /// Relative dirs under `target/` that `--clean` may delete. Never `live/`.
 pub const DEBUG_CACHE_RELS: &[&str] = &[
@@ -246,11 +285,7 @@ pub fn disk_report(repo_root: &Path, enforce: bool) -> DiskReport {
         };
     }
     let free_bytes = volume_free_bytes(repo_root);
-    let target_bytes = if target_dir.is_dir() {
-        dir_size_bytes(&target_dir)
-    } else {
-        0
-    };
+    let target_bytes = cached_target_bytes(&target_dir);
     let space = disk_space_from_bytes(free_bytes, target_bytes, min_free_gb, max_target_gb);
     let ok = !(enforce && space.violation);
     DiskReport {
@@ -1024,6 +1059,33 @@ mod tests {
         assert!(v["disk_ok"].is_boolean(), "{v}");
         assert!(v["disk_violation"].is_boolean(), "{v}");
         assert_eq!(v["disk_ok"], !v["disk_violation"].as_bool().unwrap());
+    }
+
+    #[test]
+    fn disk_scan_cache_memoizes_within_ttl() {
+        clear_disk_scan_cache();
+        let dir = std::env::temp_dir().join(format!(
+            "gsv-disk-cache-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        fs::create_dir_all(&dir).expect("scratch dir");
+        fs::write(dir.join("a.bin"), b"scan-me").expect("scratch file");
+        let first = cached_target_bytes(&dir);
+        assert_eq!(first, "scan-me".len() as u64, "{}", first);
+        // A file added after the first scan must NOT be seen within the TTL —
+        // the point of the cache is to avoid re-walking a huge target/.
+        fs::write(dir.join("b.bin"), b"scan-me-and-more-data").expect("twice");
+        let second = cached_target_bytes(&dir);
+        assert_eq!(
+            second, first,
+            "cache must memoize within TTL: {second} != {first}"
+        );
+        let _ = fs::remove_dir_all(&dir);
+        clear_disk_scan_cache();
     }
 
     #[test]

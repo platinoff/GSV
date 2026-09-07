@@ -131,7 +131,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let my_pid = std::process::id();
     let bin_version = env!("CARGO_PKG_VERSION").to_string();
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(2))
+        .timeout(Duration::from_secs(5))
         .no_proxy()
         .build()?;
     if let Ok(exe) = std::env::current_exe() {
