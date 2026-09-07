@@ -1934,6 +1934,7 @@ mod tests {
             "gsv_products_scan",
             "gsv_products_select",
             "gsv_watchdog",
+            "gsv_keep_live",
             "gsv_sw",
             "gsv_fingerprints",
             "gsv_ranks",
