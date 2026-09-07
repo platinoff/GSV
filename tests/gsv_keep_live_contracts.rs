@@ -79,27 +79,38 @@ async fn api_keep_live_and_health_merge_ok_stays_true() {
     for key in ["gsv", "telenetis", "llama_rs", "omniroute"] {
         assert!(keep.1[key]["alive"].is_boolean(), "{key} missing alive");
     }
+    assert!(keep.1["hint"].is_string(), "missing hint");
+    assert!(keep.1["hint"].as_str().unwrap().contains("down"));
     assert_eq!(keep.1["gsv"]["url"], "http://127.0.0.1:59998/api/health");
     assert_eq!(health.0, StatusCode::OK);
     assert_eq!(health.1["ok"], true, "keep-live must not flip health ok");
     assert!(health.1["keep_live"]["llama_rs"]["alive"].is_boolean());
     assert_eq!(health.1["keep_live"]["gsv"]["alive"], false);
+    assert!(health.1["keep_live"]["hint"].is_string());
+    assert!(health.1["keep_live"]["gsv"]["uptime_secs"].is_u64());
 }
 
 #[test]
 fn render_keep_live_rows() {
     let d = json!({
         "ok": true,
-        "gsv": { "alive": true, "url": "http://127.0.0.1:9999/api/health", "version": "0.223.0" },
-        "telenetis": { "alive": false, "url": "http://127.0.0.1:9800/health" },
+        "hint": "gsv/omniroute up · telenetis/llama_rs down",
+        "gsv": { "alive": true, "url": "http://127.0.0.1:9999/api/health", "version": "0.223.0", "latency_ms": 3, "uptime_secs": 900 },
+        "telenetis": { "alive": false, "url": "http://127.0.0.1:9800/health", "latency_ms": 501 },
         "llama_rs": { "alive": false, "url": "S:/rust/llama-rs/target/live/llama_heartbeat.json" },
-        "omniroute": { "alive": true, "url": "http://127.0.0.1:3000" }
+        "omniroute": { "alive": true, "url": "http://127.0.0.1:3000", "latency_ms": 12 }
     });
     let html = render_card("keep-live", &d).expect("rows");
     assert!(html.contains("keep-live 4 peers"), "{html}");
+    assert!(html.contains("hint: gsv/omniroute up"), "{html}");
     assert!(html.contains("<th>peer</th>"), "{html}");
+    assert!(html.contains("<th>latency</th>"), "{html}");
+    assert!(html.contains("<th>uptime</th>"), "{html}");
     assert!(html.contains("0.223.0"), "{html}");
+    assert!(html.contains("3 ms"), "{html}");
+    assert!(html.contains("900 s"), "{html}");
     assert!(html.contains("<td>gsv</td>"), "{html}");
+    assert!(html.contains("501 ms"), "{html}");
 }
 
 #[test]

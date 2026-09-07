@@ -64,6 +64,8 @@ pub struct AppState {
     pub mcp_listed_tools: Arc<AtomicU32>,
     /// Ticket MCP presence (heartbeat). Isolated per process/`AppState`.
     pub ticket_presence: Arc<crate::boxes::tickets::PresenceStore>,
+    /// Cached keep-live report summary (shared writers refresh it; GET /mcp reads the cache).
+    pub keep_live_cache: Arc<std::sync::RwLock<Option<(SystemTime, Value)>>>,
     /// Monotonic sequence for new HTTP MCP session ids.
     pub mcp_session_seq: Arc<AtomicU64>,
     /// SSE event broadcast channel (string payloads, JSON).
@@ -104,6 +106,7 @@ impl AppState {
             mcp_listed_tools: Arc::new(AtomicU32::new(0)),
             mcp_session_seq: Arc::new(AtomicU64::new(1)),
             ticket_presence: Arc::new(crate::boxes::tickets::new_presence_store()),
+            keep_live_cache: Arc::new(std::sync::RwLock::new(None)),
             events,
         }
     }
@@ -232,6 +235,22 @@ impl AppState {
     /// Emit an SSE event to all connected `/events` clients.
     pub fn emit(&self, event: impl Into<String>) {
         let _ = self.events.send(event.into());
+    }
+
+    /// Store the latest keep-live report (with `hint` + gsv uptime already stubbed).
+    pub fn keep_live_store(&self, value: Value) {
+        if let Ok(mut c) = self.keep_live_cache.write() {
+            *c = Some((SystemTime::now(), value));
+        }
+    }
+
+    /// Cached keep-live summary if stored within the last 15s (`None` when stale/absent).
+    pub fn keep_live_cached(&self) -> Option<Value> {
+        self.keep_live_cache.read().ok().and_then(|c| {
+            let (at, v) = c.as_ref()?;
+            at.elapsed().ok().filter(|d| d.as_secs() <= 15)?;
+            Some(v.clone())
+        })
     }
 }
 

@@ -1105,6 +1105,11 @@ pub fn render_mcp(d: &Value) -> String {
             u(&d["session_count"])
         ));
     }
+    let keep = &d["keep_live_summary"];
+    let keep_hint = s(&keep["hint"]);
+    if !keep_hint.is_empty() {
+        out.push_str(&format!(" · keep-live <kbd>{}</kbd>", esc(&keep_hint)));
+    }
     out.push_str("</div>");
     let stdio = s(&d["stdio"]);
     let stdio_live = s(&d["stdio_live"]);
@@ -2320,6 +2325,8 @@ pub fn render_keep_live(d: &Value) -> String {
         let alive = b(&e["alive"]);
         let url = s(&e["url"]);
         let ver = s(&e["version"]);
+        let latency = e["latency_ms"].as_u64().map(|ms| format!("{ms} ms"));
+        let uptime = e["uptime_secs"].as_u64().map(|s| format!("{s} s"));
         rows.push(vec![
             key.to_string(),
             format!(
@@ -2329,14 +2336,23 @@ pub fn render_keep_live(d: &Value) -> String {
             ),
             esc(if url.is_empty() { "—" } else { &url }),
             esc(if ver.is_empty() { "—" } else { &ver }),
+            esc(latency.as_deref().unwrap_or("—")),
+            esc(uptime.as_deref().unwrap_or("—")),
         ]);
     }
     if rows.is_empty() {
         return empty_html("keep-live");
     }
+    let hint = s(&d["hint"]);
     let mut out =
         String::from("<div class='dim'>keep-live 4 peers · fail-open (ok stays true)</div>");
-    out.push_str(&tab(&["peer", "alive", "url", "version"], rows));
+    if !hint.is_empty() {
+        out.push_str(&format!("<div class='dim'>hint: {}</div>", esc(&hint)));
+    }
+    out.push_str(&tab(
+        &["peer", "alive", "url", "version", "latency", "uptime"],
+        rows,
+    ));
     out
 }
 

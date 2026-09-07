@@ -20,6 +20,13 @@ pub struct KeepLiveEntry {
     pub version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lag: Option<bool>,
+    /// Probe latency in ms (HTTP peers only; llama_rs file probe has none).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latency_ms: Option<u64>,
+    /// Peer uptime in seconds when the probe body reports it (gsv self-probe
+    /// is TCP-only, so the server injects its own `started_at` uptime).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uptime_secs: Option<u64>,
 }
 
 /// Full keep-live report (4 peers).
@@ -75,9 +82,20 @@ pub fn heartbeat_fresh(path: &Path, now: u64) -> bool {
     now.saturating_sub(hb.epoch_secs) <= 60
 }
 
-/// Probe an HTTP URL with 1s timeout, return (alive, version).
-/// Version is extracted from JSON `version` or `crate_version` if present.
-pub fn probe_http_blocking(url: &str) -> (bool, Option<String>) {
+/// Probe result: alive + version + latency + optional uptime parsed from body.
+#[derive(Debug, Clone, Default)]
+pub struct Probe {
+    pub alive: bool,
+    pub version: Option<String>,
+    pub latency_ms: u64,
+    pub uptime_secs: Option<u64>,
+}
+
+/// Probe an HTTP URL with 1s timeout.
+/// Version is extracted from JSON `version` or `crate_version` if present;
+/// uptime from `uptime_secs` when the peer body carries it.
+pub fn probe_http_blocking(url: &str) -> Probe {
+    let t0 = std::time::Instant::now();
     // Use raw TcpStream + minimal HTTP to avoid pulling tokio into the box unit tests.
     // For the wire (axum) we have an async version `probe_http` below.
     // Here we do a best-effort blocking probe with 1s timeout.
@@ -86,7 +104,7 @@ pub fn probe_http_blocking(url: &str) -> (bool, Option<String>) {
         .or_else(|| url.strip_prefix("https://"))
     {
         Some(rest) => rest,
-        None => return (false, None),
+        None => return Probe::default(),
     };
     let host_port = parsed.split('/').next().unwrap_or(parsed);
     let path = format!("/{}", parsed.split_once('/').map(|x| x.1).unwrap_or(""));
@@ -103,19 +121,19 @@ pub fn probe_http_blocking(url: &str) -> (bool, Option<String>) {
         timeout,
     ) {
         Ok(s) => s,
-        Err(_) => return (false, None),
+        Err(_) => return Probe::default(),
     };
     let _ = stream.set_read_timeout(Some(timeout));
     let _ = stream.set_write_timeout(Some(timeout));
     let req = format!("GET {path} HTTP/1.0\r\nHost: {host_port}\r\nConnection: close\r\n\r\n");
     use std::io::{Read, Write};
     if stream.write_all(req.as_bytes()).is_err() {
-        return (false, None);
+        return Probe::default();
     }
     let mut buf = [0u8; 4096];
     let n = match stream.read(&mut buf) {
         Ok(n) => n,
-        Err(_) => return (false, None),
+        Err(_) => return Probe::default(),
     };
     let text = String::from_utf8_lossy(&buf[..n]);
     let alive = text.contains("200")
@@ -125,27 +143,28 @@ pub fn probe_http_blocking(url: &str) -> (bool, Option<String>) {
             || text.contains("\"status\": \"ok\""));
     // Try to extract version from body after \r\n\r\n
     let body = text.split("\r\n\r\n").nth(1).unwrap_or("");
-    let version = serde_json::from_str::<Value>(body).ok().and_then(|v| {
-        v.get("version")
-            .or_else(|| v.get("crate_version"))
-            .and_then(|x| x.as_str())
-            .map(|s| s.to_string())
-    });
-    (alive, version)
+    let (version, uptime_secs) = parse_body(body);
+    Probe {
+        alive,
+        version,
+        latency_ms: t0.elapsed().as_millis() as u64,
+        uptime_secs,
+    }
 }
 
 /// Async probe for the axum wire (1s timeout via reqwest).
-pub async fn probe_http(url: &str) -> (bool, Option<String>) {
+pub async fn probe_http(url: &str) -> Probe {
+    let t0 = std::time::Instant::now();
     let client = match reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(1))
         .build()
     {
         Ok(c) => c,
-        Err(_) => return (false, None),
+        Err(_) => return Probe::default(),
     };
     let resp = match client.get(url).send().await {
         Ok(r) => r,
-        Err(_) => return (false, None),
+        Err(_) => return Probe::default(),
     };
     let status = resp.status().as_u16();
     let text = resp.text().await.unwrap_or_default();
@@ -154,13 +173,31 @@ pub async fn probe_http(url: &str) -> (bool, Option<String>) {
             || text.contains("\"ok\": true")
             || text.contains("\"status\":\"ok\"")
             || text.contains("\"status\": \"ok\""));
-    let version = serde_json::from_str::<Value>(&text).ok().and_then(|v| {
-        v.get("version")
-            .or_else(|| v.get("crate_version"))
-            .and_then(|x| x.as_str())
-            .map(|s| s.to_string())
-    });
-    (alive, version)
+    let (version, uptime_secs) = parse_body(&text);
+    Probe {
+        alive,
+        version,
+        latency_ms: t0.elapsed().as_millis() as u64,
+        uptime_secs,
+    }
+}
+
+/// Extract `version`/`crate_version` and optional `uptime_secs` from a JSON body.
+fn parse_body(body: &str) -> (Option<String>, Option<u64>) {
+    let v: Value = match serde_json::from_str(body) {
+        Ok(v) => v,
+        Err(_) => return (None, None),
+    };
+    let version = v
+        .get("version")
+        .or_else(|| v.get("crate_version"))
+        .and_then(|x| x.as_str())
+        .map(|s| s.to_string());
+    let uptime_secs = v
+        .get("uptime_secs")
+        .or_else(|| v.get("uptime"))
+        .and_then(|x| x.as_u64());
+    (version, uptime_secs)
 }
 
 /// Build a report by probing all 4 peers.
@@ -173,22 +210,21 @@ pub fn report() -> KeepLiveReport {
     // gsv probe is TCP to avoid recursion (health includes keep_live).
     // Respect GSV_KEEP_LIVE_GSV_URL override for tests (fail-open).
     let gsv_url_str = gsv_url();
-    let (gsv_alive, gsv_ver) = if gsv_url_str == "http://127.0.0.1:9999/api/health" {
+    let (gsv_alive, gsv_ver, gsv_lat) = if gsv_url_str == "http://127.0.0.1:9999/api/health" {
+        let t0 = std::time::Instant::now();
         let alive = std::net::TcpStream::connect_timeout(
             &"127.0.0.1:9999".parse().unwrap(),
             std::time::Duration::from_millis(500),
         )
         .is_ok();
         let ver = crate::boxes::update::crate_version(&PathBuf::from(env!("CARGO_MANIFEST_DIR")));
-        (alive, ver)
+        (alive, ver, t0.elapsed().as_millis() as u64)
     } else {
-        probe_http_blocking(&gsv_url_str)
+        let p = probe_http_blocking(&gsv_url_str);
+        (p.alive, p.version, p.latency_ms)
     };
-    let (tel_alive, tel_ver) = probe_http_blocking(&telenetis_url());
-    let omni_alive = {
-        let (alive, _) = probe_http_blocking(&omniroute_url());
-        alive
-    };
+    let tel = probe_http_blocking(&telenetis_url());
+    let omni = probe_http_blocking(&omniroute_url());
     let llama_alive = heartbeat_fresh(&llama_heartbeat_path(), now);
     KeepLiveReport {
         gsv: KeepLiveEntry {
@@ -196,24 +232,32 @@ pub fn report() -> KeepLiveReport {
             url: gsv_url_str.clone(),
             version: gsv_ver,
             lag: None,
+            latency_ms: Some(gsv_lat),
+            uptime_secs: None,
         },
         telenetis: KeepLiveEntry {
-            alive: tel_alive,
+            alive: tel.alive,
             url: telenetis_url(),
-            version: tel_ver,
+            version: tel.version,
             lag: None,
+            latency_ms: Some(tel.latency_ms),
+            uptime_secs: tel.uptime_secs,
         },
         llama_rs: KeepLiveEntry {
             alive: llama_alive,
             url: llama_heartbeat_path().to_string_lossy().to_string(),
             version: None,
             lag: None,
+            latency_ms: None,
+            uptime_secs: None,
         },
         omniroute: KeepLiveEntry {
-            alive: omni_alive,
+            alive: omni.alive,
             url: omniroute_url(),
             version: None,
             lag: None,
+            latency_ms: Some(omni.latency_ms),
+            uptime_secs: omni.uptime_secs,
         },
     }
 }
@@ -225,7 +269,8 @@ pub async fn report_async() -> KeepLiveReport {
         .map(|d| d.as_secs())
         .unwrap_or(0);
     let gsv_url_str = gsv_url();
-    let (gsv_alive, gsv_ver) = if gsv_url_str == "http://127.0.0.1:9999/api/health" {
+    let (gsv_alive, gsv_ver, gsv_lat) = if gsv_url_str == "http://127.0.0.1:9999/api/health" {
+        let t0 = std::time::Instant::now();
         let alive = tokio::time::timeout(
             std::time::Duration::from_millis(500),
             tokio::net::TcpStream::connect("127.0.0.1:9999"),
@@ -233,12 +278,13 @@ pub async fn report_async() -> KeepLiveReport {
         .await
         .is_ok_and(|r| r.is_ok());
         let ver = crate::boxes::update::crate_version(&PathBuf::from(env!("CARGO_MANIFEST_DIR")));
-        (alive, ver)
+        (alive, ver, t0.elapsed().as_millis() as u64)
     } else {
-        probe_http(&gsv_url_str).await
+        let p = probe_http(&gsv_url_str).await;
+        (p.alive, p.version, p.latency_ms)
     };
-    let (tel_alive, tel_ver) = probe_http(&telenetis_url()).await;
-    let (omni_alive, _) = probe_http(&omniroute_url()).await;
+    let tel = probe_http(&telenetis_url()).await;
+    let omni = probe_http(&omniroute_url()).await;
     let llama_alive = heartbeat_fresh(&llama_heartbeat_path(), now);
     KeepLiveReport {
         gsv: KeepLiveEntry {
@@ -246,25 +292,58 @@ pub async fn report_async() -> KeepLiveReport {
             url: gsv_url_str.clone(),
             version: gsv_ver,
             lag: None,
+            latency_ms: Some(gsv_lat),
+            uptime_secs: None,
         },
         telenetis: KeepLiveEntry {
-            alive: tel_alive,
+            alive: tel.alive,
             url: telenetis_url(),
-            version: tel_ver,
+            version: tel.version,
             lag: None,
+            latency_ms: Some(tel.latency_ms),
+            uptime_secs: tel.uptime_secs,
         },
         llama_rs: KeepLiveEntry {
             alive: llama_alive,
             url: llama_heartbeat_path().to_string_lossy().to_string(),
             version: None,
             lag: None,
+            latency_ms: None,
+            uptime_secs: None,
         },
         omniroute: KeepLiveEntry {
-            alive: omni_alive,
+            alive: omni.alive,
             url: omniroute_url(),
             version: None,
             lag: None,
+            latency_ms: Some(omni.latency_ms),
+            uptime_secs: omni.uptime_secs,
         },
+    }
+}
+
+/// One-line keep-live hint, e.g. "gsv/telenetis up · llama_rs/omniroute down".
+pub fn hint(r: &KeepLiveReport) -> String {
+    let mut up = Vec::new();
+    let mut down = Vec::new();
+    for (name, alive) in [
+        ("gsv", r.gsv.alive),
+        ("telenetis", r.telenetis.alive),
+        ("llama_rs", r.llama_rs.alive),
+        ("omniroute", r.omniroute.alive),
+    ] {
+        if alive {
+            up.push(name);
+        } else {
+            down.push(name);
+        }
+    }
+    if down.is_empty() {
+        format!("{} up", up.join("/"))
+    } else if up.is_empty() {
+        format!("{} down", down.join("/"))
+    } else {
+        format!("{} up · {} down", up.join("/"), down.join("/"))
     }
 }
 
@@ -273,6 +352,7 @@ pub fn wire() -> Value {
     let r = report();
     json!({
         "ok": true,
+        "hint": hint(&r),
         "gsv": r.gsv,
         "telenetis": r.telenetis,
         "llama_rs": r.llama_rs,
@@ -285,11 +365,17 @@ pub async fn wire_async() -> Value {
     let r = report_async().await;
     json!({
         "ok": true,
+        "hint": hint(&r),
         "gsv": r.gsv,
         "telenetis": r.telenetis,
         "llama_rs": r.llama_rs,
         "omniroute": r.omniroute,
     })
+}
+
+/// Inject the server's own uptime into the GSV entry (self-probe is TCP-only).
+pub fn stub_gsv_uptime(v: &mut Value, uptime_secs: u64) {
+    v["gsv"]["uptime_secs"] = json!(uptime_secs);
 }
 
 #[cfg(test)]
@@ -331,8 +417,8 @@ mod tests {
     #[test]
     fn probe_http_blocking_down_is_not_alive() {
         // Use a port that is not listening (fail-open).
-        let (alive, _) = probe_http_blocking("http://127.0.0.1:59999/health");
-        assert!(!alive);
+        let p = probe_http_blocking("http://127.0.0.1:59999/health");
+        assert!(!p.alive);
     }
 
     #[test]
@@ -358,5 +444,38 @@ mod tests {
         std::env::remove_var("GSV_KEEP_LIVE_TELENETIS_URL");
         std::env::remove_var("GSV_KEEP_LIVE_OMNIROUTE_URL");
         std::env::remove_var("LLAMA_HEARTBEAT_PATH");
+    }
+
+    #[test]
+    fn hint_lists_up_and_down_peers() {
+        let mk = |alive: bool| KeepLiveEntry {
+            alive,
+            url: "http://127.0.0.1:1".into(),
+            version: None,
+            lag: None,
+            latency_ms: Some(1),
+            uptime_secs: None,
+        };
+        let all_up = KeepLiveReport {
+            gsv: mk(true),
+            telenetis: mk(true),
+            llama_rs: mk(true),
+            omniroute: mk(true),
+        };
+        assert_eq!(hint(&all_up), "gsv/telenetis/llama_rs/omniroute up");
+        let mixed = KeepLiveReport {
+            gsv: mk(true),
+            telenetis: mk(false),
+            llama_rs: mk(true),
+            omniroute: mk(false),
+        };
+        assert_eq!(hint(&mixed), "gsv/llama_rs up · telenetis/omniroute down");
+    }
+
+    #[test]
+    fn stub_gsv_uptime_injects_server_uptime() {
+        let mut v = serde_json::json!({ "gsv": { "alive": true } });
+        stub_gsv_uptime(&mut v, 77);
+        assert_eq!(v["gsv"]["uptime_secs"], 77);
     }
 }

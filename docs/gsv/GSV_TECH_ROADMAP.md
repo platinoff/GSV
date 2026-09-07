@@ -2081,7 +2081,7 @@ Owner pick: one Galaxy card + MCP aggregate + boot-verify + stand-smoke for the 
 | Sprint | Фокус | Acceptance (ключ) |
 |--------|-------|-------------------|
 | **PH-S2875** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2875`; `last_sprint_closed` = `PH-S2874` — **planned** |
-| **PH-S2876** | Galaxy | `keep-live` card 4 rows (GSV/telenetis/llama-rs/omniroute) alive/dot, version, lag, latency; `GET /api/ui/card/keep-live` Rust-rendered — **planned** |
+| **PH-S2876** | Galaxy | `keep-live` card 4 rows (GSV/telenetis/llama-rs/omniroute) alive dot, version, latency ms, uptime; `GET /api/ui/card/keep-live` Rust-rendered — **✅** |
 | **PH-S2877** | MCP | `gsv_keep_live` + `gsv_telenetis_health` aggregate; `GET /mcp keep_live`; `gsv_drain` names keep-live; **58** tools — **planned** |
 | **PH-S2878** | Verify | `scripts/keep-live-boot-verify.sh` probes 9999 + 9800 + llama heartbeat + omniroute; 4/4 pass against live — **planned** |
 | **PH-S2879** | Stand-smoke | `keep-live` card + health `keep_live` shape in `gsv-http-stand-smoke` — **planned** |
