@@ -46,8 +46,8 @@
 ## 4. Phasing (next abracadabra sessions)
 - **223 ✅** aggregation only (wire + probe + MCP read + Galaxy rows) — done: no respawn, fail-open `ok`, `gsv_keep_live` MCP (57 tools).
 - **224** telenetis live-copy + watchdog multi-probe + respawn.
-- **225** llama-rs heartbeat file + local provider catalog (`bunke-rock`).
+- **225 ✅** llama-rs heartbeat file (`GSV_LIVE=1`/`LLAMA_RS_HEARTBEAT=1` → atomic `target/live/llama_heartbeat.json` 15s tick, PH-S2868) + local provider catalog (`bunke-rock`) — heartbeat written, llama_rs alive E2E.
 - **226 ✅** unified dashboard + MCP aggregate polish (probe latency/uptime columns, `hint`, `keep_live_summary` on `GET /mcp`, `gsv_drain` names bands 223-227) — done; boot-verify `gsv-keep-live-boot-verify` (Rust, 4 probes, graceful peers) + stand-smoke `health_keep_live` shape (PH-S2878/79).
 - **227** (optional) omniroute probe when owner runs it.
 
-Sources: `src/boxes/watchdog.rs`, `src/boxes/health.rs`, `docs/gsv/GSV_SERVER.md:135`, `docs/telenetis/README.md:2`, `telenetis/src/main.rs:28`, `S:/rust/llama-rs/src/main.rs:19`, `S:/rust/llama-rs/docs/HANDOFF.md:6`, `S:/rust/GSV/docs/gsv/PRODUCTS.md:15-20`.
+Sources: `src/boxes/watchdog.rs`, `src/boxes/health.rs`, `docs/gsv/GSV_SERVER.md:135`, `docs/telenetis/README.md:2`, `telenetis/src/main.rs:28`, `S:/rust/llama-rs/src/main.rs` (heartbeat ~`gsv_report_progress`), `S:/rust/llama-rs/docs/HANDOFF.md:6`, `S:/rust/GSV/docs/gsv/PRODUCTS.md:15-20`.

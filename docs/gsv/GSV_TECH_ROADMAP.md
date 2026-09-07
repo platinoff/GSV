@@ -2066,7 +2066,7 @@ Owner pick: llama-rs CLI (`S:/rust/llama-rs`, `llama-cpp-2 0.1.154`, `GSV_LIVE=1
 | Sprint | Фокус | Acceptance (ключ) |
 |--------|-------|-------------------|
 | **PH-S2867** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2867`; `last_sprint_closed` = `PH-S2866` — **planned** |
-| **PH-S2868** | Heartbeat | `llama-rs` writes `target/live/llama_heartbeat.json` (pid, model, ts) when `GSV_LIVE=1` or `LLAMA_RS_HEARTBEAT=1`; GSV `keep_live.llama_rs` reads it (1s file probe, no HTTP) — **planned** |
+| **PH-S2868** | Heartbeat | `llama-rs` writes `target/live/llama_heartbeat.json` (pid, model, ts) when `GSV_LIVE=1` or `LLAMA_RS_HEARTBEAT=1`; GSV `keep_live.llama_rs` reads it (1s file probe, no HTTP) — **✅** |
 | **PH-S2869** | Omni provider | catalog adds local `bunke-rock` / `lama-2.8` (`models/Qwen3.8-27B-UD-IQ2_XXS.gguf`, IQ2_XXS, kind local) so `GET /api/omni/route task=rust` can pick it; closes `t-1788009924340776700` — **planned** |
 | **PH-S2870** | Products | `cargo xtask products` `llama-rs` scan enriches heartbeat path; `PRODUCTS.md` heartbeat note — **planned** |
 | **PH-S2871** | Contracts | keep-live llama file probe + catalog `bunke-rock` in `gsv_omni_contracts` — **planned** |
