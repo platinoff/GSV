@@ -219,6 +219,42 @@ async fn check_card(client: &Client, base: &str, card: &str) -> Result<(), Strin
     Ok(())
 }
 
+/// `GET /api/health` carry the `keep_live` aggregate with all 4 peers and a
+/// `hint` (the keep-live aggregation wire stays merged into health, band 223).
+async fn check_health_keep_live(client: &Client, base: &str) -> Result<(), String> {
+    let url = api_url(base, "/api/health");
+    let resp = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("{url}: {e}"))?;
+    let status = resp.status();
+    if !status.is_success() {
+        return Err(format!("{url}: HTTP {}", status.as_u16()));
+    }
+    let body = resp
+        .json::<Value>()
+        .await
+        .map_err(|e| format!("{url}: invalid JSON ({e})"))?;
+    let kl = body
+        .get("keep_live")
+        .ok_or_else(|| format!("{url}: missing keep_live"))?;
+    for peer in ["gsv", "telenetis", "llama_rs", "omniroute"] {
+        let p = kl
+            .get(peer)
+            .ok_or_else(|| format!("{url}: keep_live.{peer} missing"))?;
+        let _alive = p
+            .get("alive")
+            .and_then(Value::as_bool)
+            .ok_or_else(|| format!("{url}: keep_live.{peer}.alive missing"))?;
+    }
+    let _hint = kl
+        .get("hint")
+        .and_then(Value::as_str)
+        .ok_or_else(|| format!("{url}: keep_live.hint missing"))?;
+    Ok(())
+}
+
 async fn run_smokes(cli: &Cli) -> SmokeReport {
     let client = match Client::builder().timeout(Duration::from_secs(30)).build() {
         Ok(c) => c,
@@ -263,6 +299,12 @@ async fn run_smokes(cli: &Cli) -> SmokeReport {
         &mut cases,
         "health",
         check_ok(&client, &cli.base_url, "/api/health"),
+    )
+    .await;
+    record(
+        &mut cases,
+        "health_keep_live",
+        check_health_keep_live(&client, &cli.base_url),
     )
     .await;
     record(

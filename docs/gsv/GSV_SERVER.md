@@ -115,13 +115,28 @@ cargo run --manifest-path GSV/Cargo.toml --bin gsv-http-stand-smoke
 cargo run --manifest-path GSV/Cargo.toml --bin gsv-http-stand-smoke -- --base-url http://127.0.0.1:9999 --json
 ```
 
-- Перевіряє core boxes (`/api/health`, `/api/tracker`, `/api/sli`, `/api/toolchain`, `/api/update`, `/api/ratio`, `/api/omni/status`), усі `/api/vision*` (ok-гейт), SVG-ассети та **усі 32 зареєстрованих карток** `/api/ui/card/:name` (non-empty `html`).
+- Перевіряє core boxes (`/api/health`, `/api/tracker`, `/api/sli`, `/api/toolchain`, `/api/update`, `/api/ratio`, `/api/omni/status`), усі `/api/vision*` (ok-гейт), SVG-ассети та **усі 43 зареєстрованих карток** `/api/ui/card/:name` (non-empty `html`).
+- Keep-live: `health_keep_live` кейс — `/api/health` має `keep_live.{gsv,telenetis,llama_rs,omniroute}.alive` + `hint`; спектри підтверджені контрактом `health_keep_live_shape_has_four_peers_and_hint`.
 - Layout: `GET /api/ui/layout` — 4 групи (ops / vision / sprint / studio), default `sprint`, `chrome` (8 fragments: galaxy-backdrop / starfield / rss-ticker / gpu-mode / power-menu / panel-dock / fullscreen / node-search), `html` (sidebar nav inner HTML with `data-card-jump`), `header` (GPU / Auto / Resync / Power `data-action`).
 - **Band 143 chrome:** header stacking `z-index ≥ 40`, `.power-menu` `z-index:80` (no `body>header,.workspace{z-index:2}`); collapse removes the card from the grid (dock chip restore); at most one `.fullscreen` card below sticky chrome (`--fs-top`, workspace z-index 60 while open); Esc calls `exitFullscreen()` via `data-action='card-fs'`. Type scale `--ui:14px` (A−/A+ 12–18) drives `--fs-ui/card/meta/chart`; card body `max-height:420px`; speed/rust SVG canvas height 168, `ui-monospace` stack.
 - Shell CSS: `GET /api/ui/load-palette` + `GET /api/ui/load-theme` — live `:root` stylesheets (inline `:root` in `ui/index.html` remains the offline fallback).
 - `ok`-гейт лише там, де wire має поле `ok` (vision*/ratio/health/cards); struct-wire endpoints (tracker/sli/toolchain/update/omni) — лише 200 + JSON (empty-tolerant).
 - Вихідний код: `GSV/src/bin/gsv_http_stand_smoke.rs`; контракти: `GSV/tests/gsv_stand_smoke_contracts.rs`.
 - Репорт: `{base_url, ok, passed, failed, cases[], tool}`; exit code 1 при будь-якому FAIL.
+
+## Keep-live boot verify (`gsv-keep-live-boot-verify`, band 226)
+
+Rust-веріфікатор (no `.sh` у кіті, див. PH-S2878) — проби 4 пірів з ефектом keep-live:
+
+```bash
+cargo run --bin gsv-keep-live-boot-verify
+cargo run --bin gsv-keep-live-boot-verify -- --strict --json
+```
+
+- Проби: `gsv_health` (`GET /api/health` → `keep_live.gsv.alive`), `telenetis_health` (`:9800/health`), `llama_heartbeat` (свіжість файлу `LLAMA_HEARTBEAT_PATH`, age ≤ 60s), `omniroute_fail_open` (падіння піра не валить boot — `disk_ok` стиль).
+- Exit 0 коли GSV up; `--strict` вимагає всі піри up. `--json` — machine-репорт.
+- Env: `GSV_BASE_URL` / `GSV_KEEP_LIVE_TELENETIS_URL` / `LLAMA_HEARTBEAT_PATH` / `OMNIROUTE_URL`.
+- Код: `src/bin/gsv_keep_live_boot_verify.rs`; unit-тести `omniroute_is_always_graceful` + `llama_missing_file_is_fail_graceful`.
 
 ## Update-повідомлення (Update box)
 

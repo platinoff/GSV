@@ -59,6 +59,10 @@ path = "src/bin/gsv_live.rs"
 name = "gsv-mds"
 path = "src/bin/gsv_mds.rs"
 
+[[bin]]
+name = "gsv-keep-live-boot-verify"
+path = "src/bin/gsv_keep_live_boot_verify.rs"
+
 [[bench]]
 name = "gsv_dev"
 harness = false

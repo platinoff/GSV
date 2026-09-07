@@ -26,6 +26,8 @@ JSON remains **data or host protocol** (vision snapshots, MCP client configs, `C
 | Tests | `cargo test` (`tests/*.rs`) |
 | Benches | `cargo bench --bench gsv_dev` (`benches/*.rs`) |
 | MDS app | `cargo run --bin gsv-mds` (`--json`) |
+| Keep-live boot verify | `cargo run --bin gsv-keep-live-boot-verify` (`--json`, `--strict`; probes 9999 + 9800 + llama heartbeat + omniroute, exit 0 when GSV alive — peers down graceful) |
+| HTTP stand smoke | `cargo run --bin gsv-http-stand-smoke` (`--base-url …`, `--json`) — core wires + vision + all 43 cards + `health_keep_live` shape |
 
 Alias: `.cargo/config.toml` → `xtask = "run --quiet --bin gsv-xtask --"`. Logic lives in `src/boxes/xtask.rs` so HTTP (`GET /api/xtask`, `GET /api/disk`) and MCP call the **same** functions.
 

@@ -2083,8 +2083,8 @@ Owner pick: one Galaxy card + MCP aggregate + boot-verify + stand-smoke for the 
 | **PH-S2875** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2875`; `last_sprint_closed` = `PH-S2874` — **planned** |
 | **PH-S2876** | Galaxy | `keep-live` card 4 rows (GSV/telenetis/llama-rs/omniroute) alive dot, version, latency ms, uptime; `GET /api/ui/card/keep-live` Rust-rendered — **✅** |
 | **PH-S2877** | MCP | `gsv_keep_live` + `gsv_telenetis_health` aggregate; `GET /mcp keep_live`; `gsv_drain` names keep-live; **58** tools — **planned** |
-| **PH-S2878** | Verify | `scripts/keep-live-boot-verify.sh` probes 9999 + 9800 + llama heartbeat + omniroute; 4/4 pass against live — **planned** |
-| **PH-S2879** | Stand-smoke | `keep-live` card + health `keep_live` shape in `gsv-http-stand-smoke` — **planned** |
+| **PH-S2878** | Verify | `gsv-keep-live-boot-verify` (Rust bin, no `.sh` in kit) probes 9999 + 9800 + llama heartbeat + omniroute; 4/4 pass against live, graceful when peers down — **✅** |
+| **PH-S2879** | Stand-smoke | `keep-live` card + health `keep_live` shape + `health_keep_live` case in `gsv-http-stand-smoke` — **✅** |
 | **PH-S2880** | Docs | BOXES / SERVER / MCP_OPENBOT / HANDOFF / NEXT / MEMORY — **planned** |
 | **PH-S2881** | Gate | fmt · clippy 0 · `cargo test` GSV + telenetis pass · `--stretch-96` ≥96% — **planned** |
 | **PH-S2882** | Band close | `--band 226` + fingerprint; recopy live; one commit + push — **planned** |

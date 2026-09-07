@@ -125,6 +125,31 @@ async fn struct_wire_endpoints_parse_json() {
     }
 }
 
+/// `/api/health` must always merge the `keep_live` aggregate (4 peers + hint),
+/// the shape the smoke `health_keep_live` case asserts against the live server.
+#[tokio::test]
+async fn health_keep_live_shape_has_four_peers_and_hint() {
+    let (app, _state) = app();
+    let (status, json) = get_json(&app, "/api/health").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["ok"], true, "health must be ok:true");
+    let kl = &json["keep_live"];
+    for peer in ["gsv", "telenetis", "llama_rs", "omniroute"] {
+        assert!(
+            kl[peer]["alive"].is_boolean(),
+            "keep_live.{peer}.alive must be a boolean"
+        );
+        assert!(
+            kl[peer]["url"].is_string(),
+            "keep_live.{peer}.url must be a string"
+        );
+    }
+    assert!(
+        kl["hint"].as_str().is_some(),
+        "keep_live.hint must be a string"
+    );
+}
+
 /// SVG/status-only routes — the `check_status` set.
 const STATUS_ENDPOINTS: [&str; 7] = [
     "/assets/vision.svg",
@@ -237,5 +262,29 @@ fn stand_smoke_card_list_matches_registry() {
             smoke_src.contains(&format!("\"{card}\"")),
             "card {card} missing from stand smoke bin"
         );
+    }
+}
+
+/// The keep-live boot-verify bin is declared and its four probes exist.
+#[test]
+fn boot_verify_bin_declared_with_four_probes() {
+    let manifest = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml"))
+        .expect("Cargo.toml readable");
+    assert!(
+        manifest.contains("gsv-keep-live-boot-verify"),
+        "boot-verify bin must be declared in Cargo.toml"
+    );
+    let src = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/bin/gsv_keep_live_boot_verify.rs"
+    ))
+    .expect("boot-verify src readable");
+    for probe in [
+        "check_gsv",
+        "check_telenetis",
+        "check_llama",
+        "check_omniroute",
+    ] {
+        assert!(src.contains(probe), "boot-verify must define {probe}");
     }
 }
