@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 400" width="1280" height="400" role="img">
+  <title>Telenetis — Telegram Mini App + Bot for GSV Godfather</title>
+  <desc>Telegram-native coordination layer for GSV. Rust. SMIL, no JavaScript.</desc>
+  <defs>
+    <linearGradient id="tel-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#04070f"/>
+      <stop offset="55%" stop-color="#07101f"/>
+      <stop offset="100%" stop-color="#0a1526"/>
+    </linearGradient>
+    <radialGradient id="tel-neb" cx="30%" cy="40%" r="55%">
+      <stop offset="0%" stop-color="#2aabee" stop-opacity="0.26"/>
+      <stop offset="55%" stop-color="#1d4f93" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#0a1526" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="tel-glow" cx="76%" cy="60%" r="42%">
+      <stop offset="0%" stop-color="#7aa2ff" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#07101f" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="tel-word" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#2aabee"/>
+      <stop offset="55%" stop-color="#f4f8ff"/>
+      <stop offset="100%" stop-color="#8ecbff"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="400" fill="url(#tel-sky)"/>
+  <rect width="1280" height="400" fill="url(#tel-neb)">
+    <animate attributeName="opacity" values="1;0.7;1" dur="8s" repeatCount="indefinite"/>
+  </rect>
+  <rect width="1280" height="400" fill="url(#tel-glow)">
+    <animate attributeName="opacity" values="0.85;1;0.85" dur="9s" repeatCount="indefinite"/>
+  </rect>
+  <g opacity="0.5" transform="translate(1010 214)">
+    <g>
+      <animateTransform attributeName="transform" type="rotate" from="-18 0 0" to="342 0 0" dur="48s" repeatCount="indefinite"/>
+      <ellipse cx="0" cy="0" rx="232" ry="100" fill="none" stroke="#2aabee" stroke-opacity="0.24" stroke-width="2.5"/>
+      <ellipse cx="0" cy="0" rx="152" ry="60" fill="none" stroke="#8ecbff" stroke-opacity="0.18" stroke-width="1.8"/>
+      <ellipse cx="0" cy="0" rx="78" ry="30" fill="none" stroke="#7aa2ff" stroke-opacity="0.15" stroke-width="1.3"/>
+    </g>
+  </g>
+  <g fill="#c8dcff">
+    <circle cx="92" cy="44" r="1.4"><animate attributeName="opacity" values="0.15;0.85;0.15" dur="3.4s" begin="0.1s" repeatCount="indefinite"/></circle>
+    <circle cx="172" cy="92" r="1.1"><animate attributeName="opacity" values="0.12;0.9;0.12" dur="4.1s" begin="0.4s" repeatCount="indefinite"/></circle>
+    <circle cx="248" cy="38" r="1.6"><animate attributeName="opacity" values="0.18;1;0.18" dur="2.8s" begin="0.7s" repeatCount="indefinite"/></circle>
+    <circle cx="326" cy="120" r="1.2"><animate attributeName="opacity" values="0.1;0.8;0.1" dur="3.7s" begin="0.2s" repeatCount="indefinite"/></circle>
+    <circle cx="410" cy="60" r="1.0"><animate attributeName="opacity" values="0.2;0.95;0.2" dur="4.6s" begin="1.1s" repeatCount="indefinite"/></circle>
+    <circle cx="494" cy="98" r="1.5"><animate attributeName="opacity" values="0.12;0.88;0.12" dur="3.2s" begin="0.5s" repeatCount="indefinite"/></circle>
+    <circle cx="578" cy="30" r="1.3"><animate attributeName="opacity" values="0.16;1;0.16" dur="5.0s" begin="0.9s" repeatCount="indefinite"/></circle>
+    <circle cx="664" cy="76" r="1.1"><animate attributeName="opacity" values="0.14;0.82;0.14" dur="3.9s" begin="0.3s" repeatCount="indefinite"/></circle>
+    <circle cx="750" cy="46" r="1.7"><animate attributeName="opacity" values="0.1;0.92;0.1" dur="2.6s" begin="1.4s" repeatCount="indefinite"/></circle>
+    <circle cx="836" cy="104" r="1.2"><animate attributeName="opacity" values="0.18;0.86;0.18" dur="4.3s" begin="0.6s" repeatCount="indefinite"/></circle>
+    <circle cx="922" cy="54" r="1.4"><animate attributeName="opacity" values="0.12;1;0.12" dur="3.5s" begin="0.8s" repeatCount="indefinite"/></circle>
+  </g>
+  <text x="80" y="168" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="92" font-weight="700" fill="url(#tel-word)" letter-spacing="2">Telenetis</text>
+  <text x="80" y="214" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="22" fill="#2aabee" letter-spacing="3.4">TELEGRAM MINI APP + BOT · GSV GODFATHER</text>
+  <text x="80" y="252" font-family="ui-sans-serif, Segoe UI, sans-serif" font-size="18" fill="#9aa8bd">Rust (Axum 0.8)  |  GSV bus v1 poll (5s)  |  WS/SSE live flows  |  initData HMAC</text>
+  <g transform="translate(80 286)">
+    <rect width="196" height="36" rx="18" fill="#0a1626" stroke="#2aabee" stroke-opacity="0.5"/>
+    <circle cx="22" cy="18" r="6" fill="#2aabee">
+      <animate attributeName="opacity" values="1;0.25;1" dur="6s" repeatCount="indefinite"/>
+    </circle>
+    <text x="40" y="24" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="14" fill="#e8eef8">live 127.0.0.1:9800</text>
+  </g>
+  <g transform="translate(296 286)">
+    <rect width="168" height="36" rx="18" fill="#0d1a2e" stroke="#8ecbff" stroke-opacity="0.35"/>
+    <text x="18" y="24" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="14" fill="#8ecbff">Rust 95-100%</text>
+  </g>
+  <g transform="translate(484 286)">
+    <rect width="152" height="36" rx="18" fill="#0d1a2e" stroke="#7aa2ff" stroke-opacity="0.35"/>
+    <text x="18" y="24" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="14" fill="#7aa2ff">177 tests</text>
+  </g>
+  <g transform="translate(80 350)" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="15">
+    <text fill="#5b6b82">$</text>
+    <text x="18" fill="#7c8ba3">cargo run --bin telenetis-live</text>
+    <rect x="384" y="-12" width="8" height="16" fill="#2aabee">
+      <animate attributeName="opacity" values="1;1;0;0" keyTimes="0;0.48;0.5;1" dur="1.2s" calcMode="discrete" repeatCount="indefinite"/>
+    </rect>
+    <text x="900" fill="#5b6b82">SMIL  |  no JS  |  no filter</text>
+  </g>
+</svg>

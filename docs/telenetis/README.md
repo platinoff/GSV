@@ -1,3 +1,14 @@
+<p align="center">
+  <img src="../assets/presentations/telenetis-hero.svg" alt="Telenetis — Telegram Mini App + Bot for GSV Godfather, Rust." width="100%">
+</p>
+
+<p align="center">
+  <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-MIT-yellow.svg" alt="MIT"></a>
+  <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/rust-95%E2%80%93100%25-orange?logo=rust" alt="Rust 95–100%"></a>
+  <a href="https://github.com/sponsors/platinoff"><img src="https://img.shields.io/badge/sponsor-GitHub-ea4aaa?logo=github-sponsors" alt="Sponsor"></a>
+  <img src="https://img.shields.io/badge/live_UI-127.0.0.1%3A9800-22d3ee" alt="Live UI port 9800">
+</p>
+
 # Telenetis — Telegram Mini App + Bot for GSV Godfather
 
 Standalone Rust (Axum 0.8, Tokio) server on **port 9800** that bridges the GSV Godfather channel to a Telegram Mini App.
@@ -78,3 +89,14 @@ cargo test
 ```
 
 **173** unit tests + **4** integration tests (`tests/integration_test.rs`) = **177** total.
+
+## Support / Donate
+
+Telenetis is developed by the GSV kit family and lives inside the GSV repository. If it helps keep your Godfather channel coordinated, consider supporting the owner:
+
+- 🐙 **GitHub Sponsors** — one-off or monthly: [github.com/sponsors/platinoff](https://github.com/sponsors/platinoff)
+- ⭐ **Star:** <a href="https://github.com/platinoff/GSV/stargazers"><img src="https://img.shields.io/badge/⭐_Star_the_repo-black?style=for-the-badge" alt="Star"></a>
+- 🐛 **Issues / ideas:** [github.com/platinoff/GSV/issues](https://github.com/platinoff/GSV/issues)
+- ☀️ **Solana (SOL):** `GcdgNtdE8NEk3z9sQ5jXv2tqguZjSYqPqNAtjsjPNJx8`
+
+Sponsorship helps keep GSV + Telenetis + the registered ecosystem always-on.
