@@ -47,6 +47,17 @@ Cursor ↔ OpenCode ↔ Grok: Cursor `AskQuestion` = OpenCode `question`; Grok a
 
 Grok Build: reads `AGENTS.md` + root `.mcp.json` natively; stdio MCP + skills paths live in `.grok/config.toml`; verify discovery with `grok inspect`. Same MSYS2 bash rule — never PowerShell.
 
+## MCP (`gsv_mcp_openbot`)
+
+One MCP server serves Cursor / OpenCode / Grok — same tools, one surface. Canon: [`docs/gsv/GSV_MCP_OPENBOT.md`](docs/gsv/GSV_MCP_OPENBOT.md); live server state: `GET /mcp` (if `version_lag` > 0, recopy: `cargo xtask live`).
+
+- **Transport per client:** Cursor = Streamable HTTP `http://127.0.0.1:9999/mcp` (folder-scoped `.cursor/mcp.json`, never User MCP); OpenCode = stdio `opencode.json → mcp.gsv_mcp_openbot`; Grok = stdio `.grok/config.toml` (live copy `target/live/gsv-mcp.exe`). Do **not** `cargo run --bin gsv-mcp` (slow, cargo lock, second AppState).
+- **Sandbox = this GSV repo:** preview/terminal/vision/xtask stay inside it; `gsv_products_*` is VDT-product allowlist only — no `products/open`, no tunnel, no User-scope Cursor MCP.
+- **Resources:** `gsv://vision/{manifest,feed,extensions}` + `gsv://docs/{mcp-openbot,handoff,next,fingerprints,post-always-on,rust-dev,omni-catalog,settings-telegram,solo-squad-jail,ranks}` (allowlist; `..` / `file://` → `-32602`). `gsv_vision_sync` notifies every subscribed `gsv://` URI.
+- **Prompts:** `gsv_status` · `gsv_vision_brief` · `gsv_drain`.
+- **Read rules:** `gsv_xtask {task:sync}` is `--check`-only drift; terminal = HTTP SLI allowlist; `gsv_settings`/`gsv_telegram*` redact `token_set`/`bot_token` — never echo secrets.
+- `абракадабра` / `abrakadabra` in OpenCode/Cursor: product discovery via `cargo xtask products` **or** `gsv_products` → `question`/AskQuestion.
+
 ## Speeds + Rust panel (GSV drain)
 
 After tests: `cargo xtask record-speed` (or `--skip-run`) and `cargo xtask record-rust`. Writers: `gsv-speed-index` / `gsv-rust-diagnostics` → `docs/vision/*.json`. Then `cargo xtask sync`.
