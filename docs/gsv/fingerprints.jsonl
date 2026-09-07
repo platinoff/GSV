@@ -1,10 +1,10 @@
-{"ts":"2026-08-18T03:33:51Z","actor":"agent","ide":"cursor","model":"grok-4.6","agent":"orchestrator","version":"0.1.1","git_head":"0a3f823","band":"146","summary":"PH-S2099-S2108 version bump + fingerprints"}
-{"ts":"2026-08-18T14:01:01Z","actor":"agent","ide":"cursor","model":"grok-4.6","agent":"orchestrator","version":"0.1.2","git_head":"d1205b1","band":"147","summary":"band147-readme-polish"}
-{"ts":"2026-08-18T14:43:40Z","actor":"agent","ide":"cursor","model":"grok-4.6","agent":"orchestrator","version":"0.1.3","git_head":"091330d","band":"148","summary":"sw-shell-cache"}
-{"ts":"2026-08-18T15:06:27Z","actor":"agent","ide":"cursor","model":"grok-4.6","agent":"orchestrator","version":"0.149.0","git_head":"6ef8cd1","band":"149","summary":"omniroute PRODUCTS.md + semver minor=band"}
-{"ts":"2026-08-18T15:39:57Z","actor":"agent","ide":"cursor","model":"grok-4.6","agent":"orchestrator","version":"0.150.0","git_head":"0a2387c","band":"150","summary":"live watchdog respawns :9999"}
-{"ts":"2026-08-18T16:59:25Z","actor":"agent","ide":"cursor","model":"grok-4.6","agent":"orchestrator","version":"0.151.0","git_head":"dc314ef","band":"151","summary":"MCP catch-up 31 tools + 8 resources"}
-{"ts":"2026-08-18T17:45:10Z","actor":"agent","ide":"cursor","model":"grok-4.6","agent":"orchestrator","version":"0.152.0","git_head":"905b824","band":"152","summary":"MCP products_select + scan-without-id (32 tools)"}
+{"ts":"2026-08-18T03:33:51Z","actor":"agent","ide":"cursor","model":"grok-4.6","agent":"orchestrator","version":"0.1.1","git_head":"0a3f823","band":"146","summary":"PH-S2099-S2108 version bump + fingerprints","product":"gsv"}
+{"ts":"2026-08-18T14:01:01Z","actor":"agent","ide":"cursor","model":"grok-4.6","agent":"orchestrator","version":"0.1.2","git_head":"d1205b1","band":"147","summary":"band147-readme-polish","product":"gsv"}
+{"ts":"2026-08-18T14:43:40Z","actor":"agent","ide":"cursor","model":"grok-4.6","agent":"orchestrator","version":"0.1.3","git_head":"091330d","band":"148","summary":"sw-shell-cache","product":"gsv"}
+{"ts":"2026-08-18T15:06:27Z","actor":"agent","ide":"cursor","model":"grok-4.6","agent":"orchestrator","version":"0.149.0","git_head":"6ef8cd1","band":"149","summary":"omniroute PRODUCTS.md + semver minor=band","product":"gsv"}
+{"ts":"2026-08-18T15:39:57Z","actor":"agent","ide":"cursor","model":"grok-4.6","agent":"orchestrator","version":"0.150.0","git_head":"0a2387c","band":"150","summary":"live watchdog respawns :9999","product":"gsv"}
+{"ts":"2026-08-18T16:59:25Z","actor":"agent","ide":"cursor","model":"grok-4.6","agent":"orchestrator","version":"0.151.0","git_head":"dc314ef","band":"151","summary":"MCP catch-up 31 tools + 8 resources","product":"gsv"}
+{"ts":"2026-08-18T17:45:10Z","actor":"agent","ide":"cursor","model":"grok-4.6","agent":"orchestrator","version":"0.152.0","git_head":"905b824","band":"152","summary":"MCP products_select + scan-without-id (32 tools)","product":"gsv"}
 {"ts":"2026-08-18T19:17:00Z","actor":"agent","ide":"cursor","model":"grok-4.6","agent":"orchestrator","version":"0.153.0","git_head":"794a430","band":"153","summary":"rust-first cargo xtask (34 tools, 9 resources)","product":"gsv"}
 {"ts":"2026-08-18T19:44:35Z","actor":"agent","ide":"cursor","model":"grok-4.6","agent":"orchestrator","version":"0.154.0","git_head":"600abe0","band":"154","summary":"watchdog ops card + fingerprint model","product":"gsv"}
 {"ts":"2026-08-18T20:18:42Z","actor":"agent","ide":"cursor","model":"grok-4.6","agent":"orchestrator","version":"0.155.0","git_head":"c2cb520","band":"155","summary":"session token usage MCP OmniRoute sync","product":"gsv"}
@@ -47,7 +47,6 @@
 {"ts":"2026-08-20T19:50:10Z","actor":"agent","ide":"cursor","model":"grok-4.6","agent":"orchestrator","version":"0.191.0","git_head":"f1b6e7b","summary":"drain close","product":"gsv"}
 {"ts":"2026-08-20T20:29:55Z","actor":"agent","ide":"cursor","model":"grok-4.6","agent":"orchestrator","version":"0.192.0","git_head":"e4c46d4","summary":"drain close","product":"gsv"}
 {"ts":"2026-08-20T20:50:50Z","actor":"agent","ide":"cursor","model":"grok-4.6","agent":"orchestrator","version":"0.193.0","git_head":"df03833","summary":"drain close","product":"gsv"}
-{"ts":"2026-08-20T21:49:22Z","actor":"agent","ide":"cursor","model":"grok-4.6","agent":"orchestrator","version":"0.194.0","git_head":"f40a622","summary":"drain close","product":"gsv"}
 {"ts":"2026-08-21T15:41:28Z","actor":"agent","ide":"cursor","model":"big-pickle","agent":"orchestrator","version":"0.194.0","git_head":"f40a622","summary":"drain close","product":"gsv"}
 {"ts":"2026-08-21T17:06:44Z","actor":"agent","ide":"cursor","model":"unknown","agent":"orchestrator","version":"0.195.0","git_head":"4c1a9b4","summary":"drain close","product":"gsv"}
 {"ts":"2026-08-21T18:35:00Z","actor":"agent","ide":"cursor","model":"unknown","agent":"orchestrator","version":"0.196.0","git_head":"235652f","summary":"drain close","product":"gsv"}
@@ -61,9 +60,7 @@
 {"ts":"2026-08-25T00:07:15Z","actor":"agent","ide":"cursor","model":"unknown","agent":"orchestrator","version":"0.204.0","git_head":"2222c10","summary":"drain close","product":"gsv"}
 {"ts":"2026-08-25T01:12:50Z","actor":"ox-alpha","ide":"opencode","model":"opencode/big-pickle","agent":"orchestrator","version":"0.205.0","git_head":"ec9b7f0","band":"205","summary":"drain close","product":"gsv"}
 {"ts":"2026-08-25T01:55:10Z","actor":"ox-alpha","ide":"opencode","model":"opencode/big-pickle","agent":"orchestrator","version":"0.206.0","git_head":"50b30c8","band":"206","summary":"drain close","product":"gsv"}
-{"ts":"2026-08-25T02:48:55Z","actor":"agent","ide":"cursor","model":"unknown","agent":"orchestrator","version":"0.207.0","git_head":"8c511c3","summary":"drain close","product":"gsv"}
 {"ts":"2026-08-25T02:49:27Z","actor":"agent","ide":"cursor","model":"big-pickle","agent":"orchestrator","version":"0.207.0","git_head":"8c511c3","summary":"drain close","product":"gsv"}
-{"ts":"2026-08-26T01:12:11Z","actor":"agent","ide":"cursor","model":"unknown","agent":"orchestrator","version":"0.208.0","git_head":"b57601d","summary":"drain close","product":"gsv"}
 {"ts":"2026-08-26T01:12:56Z","actor":"agent","ide":"cursor","model":"big-pickle","agent":"orchestrator","version":"0.208.0","git_head":"b57601d","summary":"drain close","product":"gsv"}
 {"ts":"2026-08-26T02:37:45Z","actor":"agent","ide":"opencode","model":"unknown","agent":"orchestrator","version":"0.209.0","git_head":"449d5a1","summary":"drain close","product":"gsv"}
 {"ts":"2026-08-26T21:54:58Z","actor":"agent","ide":"opencode","model":"unknown","agent":"orchestrator","version":"0.209.1","git_head":"904c824","summary":"drain close","product":"gsv"}
@@ -77,7 +74,6 @@
 {"ts":"2026-08-28T05:06:37Z","actor":"agent","ide":"opencode","model":"big-pickle","agent":"orchestrator","version":"0.1.0","git_head":"a8c376e","band":"219","summary":"band 219: telenetis Mini App ticket lifecycle UX","product":"telenetis"}
 {"ts":"2026-08-29T00:32:44Z","actor":"agent","ide":"opencode","model":"big-pickle","agent":"orchestrator","version":"0.220.0","git_head":"551f61e","band":"220","summary":"band 220: GSV ranks + messaging polish","product":"gsv"}
 {"ts":"2026-08-29T00:57:29Z","actor":"agent","ide":"opencode","model":"big-pickle","agent":"orchestrator","version":"0.1.0","git_head":"5accead","band":"221","summary":"band 221: telenetis prod ops/deploy + boot verify","product":"telenetis"}
-{"ts":"2026-08-29T12:45:07Z","actor":"agent","ide":"opencode","model":"unknown","agent":"orchestrator","version":"0.222.0","git_head":"1e12be2","summary":"drain close","product":"gsv"}
 {"ts":"2026-08-29T15:14:06Z","actor":"agent","ide":"opencode","model":"unknown","agent":"orchestrator","version":"0.222.0","git_head":"1e12be2","summary":"drain close","product":"gsv"}
 {"ts":"2026-08-29T19:47:03Z","actor":"agent","ide":"opencode","model":"unknown","agent":"orchestrator","version":"0.196.0","git_head":"1e12be2","summary":"drain close","product":"gsv"}
 {"ts":"2026-09-02T01:20:41Z","actor":"agent","ide":"opencode","model":"unknown","agent":"orchestrator","version":"0.223.0","git_head":"e5ab955","summary":"drain close","product":"gsv"}
