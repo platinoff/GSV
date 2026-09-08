@@ -2091,15 +2091,15 @@ Owner pick: one Galaxy card + MCP aggregate + boot-verify + stand-smoke for the 
 
 ## Спринти (band 227) — OmniRoute node keep-live (optional, owner pick)
 
-Owner pick, only if `S:/rust/omniroute` runs locally (`npm run dev`). Fail-open probe to `OMNIROUTE_URL` (default `http://127.0.0.1:3000` or `20128`), never start node from Rust.
+Owner pick, only if `S:/rust/omniroute` runs locally (`npm run dev`). Fail-open probe to `OMNIROUTE_URL`; URL chain `OMNIROUTE_URL` → `GSV_KEEP_LIVE_OMNIROUTE_URL` → `GSV_OMNIROUTE_URL` → default `http://127.0.0.1:20128` (real omniroute `.env PORT=20128`; usage-box parity, band 227), never start node from Rust.
 
 | Sprint | Фокус | Acceptance (ключ) |
 |--------|-------|-------------------|
-| **PH-S2883** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2883`; `last_sprint_closed` = `PH-S2882` — **planned** |
-| **PH-S2884** | Probe | `keep_live.omniroute` reads `OMNIROUTE_URL`/`omni.toml` upstream; timeout 1s; fail-open (like usage pull band 155) — **planned** |
-| **PH-S2885** | Docs | `docs/omniroute` env matrix + BOXES note — **planned** |
-| **PH-S2886** | Gate | fmt · clippy 0 · `cargo test` · `--stretch-96` — **planned** |
-| **PH-S2887** | Band close | `--band 227` + fingerprint; recopy live; one commit + push — **planned** |
+| **PH-S2883** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2883`; `last_sprint_closed` = `PH-S2882` — **✅** |
+| **PH-S2884** | Probe | `keep_live.omniroute` reads `OMNIROUTE_URL`/`GSV_OMNIROUTE_URL`/`GSV_KEEP_LIVE_OMNIROUTE_URL` chain; default `http://127.0.0.1:20128` (was dead `:3000`); timeout 1s; fail-open (like usage pull band 155); unit `omniroute_url_prefers_omni_then_override_then_gsv_then_20128`; lib **310** — **✅** |
+| **PH-S2885** | Docs | BOXES keep-live row + SERVER `/api/keep-live` + env list (chain) — **✅** |
+| **PH-S2886** | Gate | fmt · clippy 0 · full `cargo test` green (lib **310**) · `--stretch-96` **99.48%** (rust 44949 / 45186) — **✅** |
+| **PH-S2887** | Band close | `--band 227` (`0.227.0`); fingerprint (product gsv v0.227.0); recopy live; one commit + push — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

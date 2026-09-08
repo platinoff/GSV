@@ -50,7 +50,8 @@ pub fn telenetis_url() -> String {
 pub fn omniroute_url() -> String {
     std::env::var("OMNIROUTE_URL")
         .or_else(|_| std::env::var("GSV_KEEP_LIVE_OMNIROUTE_URL"))
-        .unwrap_or_else(|_| "http://127.0.0.1:3000".into())
+        .or_else(|_| std::env::var("GSV_OMNIROUTE_URL"))
+        .unwrap_or_else(|_| "http://127.0.0.1:20128".into())
 }
 pub fn llama_heartbeat_path() -> PathBuf {
     std::env::var("LLAMA_HEARTBEAT_PATH")
@@ -440,6 +441,32 @@ mod tests {
         // Use a port that is not listening (fail-open).
         let p = probe_http_blocking("http://127.0.0.1:59999/health");
         assert!(!p.alive);
+    }
+
+    #[test]
+    fn omniroute_url_prefers_omni_then_override_then_gsv_then_20128() {
+        let _guard = crate::boxes::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        std::env::remove_var("OMNIROUTE_URL");
+        std::env::remove_var("GSV_OMNIROUTE_URL");
+        std::env::remove_var("GSV_KEEP_LIVE_OMNIROUTE_URL");
+        // Default = real omniroute port (usage-box parity).
+        assert_eq!(omniroute_url(), "http://127.0.0.1:20128");
+        // OMNIROUTE_URL wins.
+        std::env::set_var("OMNIROUTE_URL", "http://127.0.0.1:3000");
+        assert_eq!(omniroute_url(), "http://127.0.0.1:3000");
+        // GSV_OMNIROUTE_URL (usage box) second.
+        std::env::remove_var("OMNIROUTE_URL");
+        std::env::set_var("GSV_OMNIROUTE_URL", "http://127.0.0.1:20128");
+        assert_eq!(omniroute_url(), "http://127.0.0.1:20128");
+        // per-probe override (tests) third/specific.
+        std::env::set_var("GSV_KEEP_LIVE_OMNIROUTE_URL", "http://127.0.0.1:59996");
+        assert_eq!(omniroute_url(), "http://127.0.0.1:59996");
+        std::env::remove_var("OMNIROUTE_URL");
+        std::env::remove_var("GSV_OMNIROUTE_URL");
+        std::env::remove_var("GSV_KEEP_LIVE_OMNIROUTE_URL");
+        assert_eq!(omniroute_url(), "http://127.0.0.1:20128");
     }
 
     #[test]

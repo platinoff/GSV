@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-09-07 · band 227)
+
+- **Band 227:** OmniRoute node keep-live probe (owner pick, optional) — align `keep_live.omniroute` URL chain with real omniroute + usage box. `src/boxes/keep_live.rs` `omniroute_url()` reads `OMNIROUTE_URL` → `GSV_KEEP_LIVE_OMNIROUTE_URL` → `GSV_OMNIROUTE_URL` → default `http://127.0.0.1:20128` (real `S:/rust/omniroute` `.env PORT=20128`; usage-box parity; was dead `:3000` default); unit `omniroute_url_prefers_omni_then_override_then_gsv_then_20128`. Probe TCP 1s fail-open, never starts node from Rust. Docs: BOXES keep-live row / SERVER `/api/keep-live` + env list. Gate: fmt clean · clippy 0 · lib **310** (keep_live 8/8 incl. new) · stretch-96 pending. Version **0.227.0** (`cargo xtask bump --band 227`).
+- **Canon:** [`gsv/GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) (band 227 table, PH-S2883…S2887).
+- **Next drain:** **owner pick** after a warnings-first scan.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → pending (was **99.48%** band 226) · full `cargo test` green · clippy 0
+
 ## Стан (2026-09-07 · band 226)
 
 - **Band 226:** MCP tool 58 — `gsv_telenetis_health` (owner pick, band-223 plan PH-S2877). `src/boxes/keep_live.rs`: `telenetis_wire()` (blocking; reuses keep-live report, 1s probe, fail-open `ok:true`) + `telenetis_wire_async()` (tokio `spawn_blocking` twin for the MCP path) → `{ ok, hint, telenetis: KeepLiveEntry }`, hint `up`/`down`/`conn-refused`. `src/mcp.rs`: `gsv_telenetis_health` in `tools_list()` (after `gsv_keep_live`), `TOOL_NAMES`, dispatch, contract list `tools_list_covers_box_wraps`, `gsv_drain` prompt names it. Contracts: `tests/gsv_mcp_contracts.rs` tool-name assert; `gsv_ranks/_tickets/_telegram` hardcoded 57→**58**; unit `telenetis_wire_stays_ok_when_down` (sync, ENV_LOCK). Docs: BOXES/SERVER/ARCHITECTURE/MCP_OPENBOT/HANDOFF/NEXT counts 57→58. Gate: fmt clean · clippy 0 · lib **309** · full `cargo test` green (leftover `target/debug/gsv-xtask.exe` lock killed PID 16664). Version **0.226.0** (`cargo xtask bump --band 226`). Queue: band 227 PH-S2883+ (OmniRoute node keep-live, optional).
