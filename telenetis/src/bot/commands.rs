@@ -323,23 +323,46 @@ async fn handle_flows(state: &AppState) -> String {
 
 async fn handle_roles(state: &AppState) -> String {
     let presence = state.presence_map().await;
+    let assigned = state.list_roles().await;
+
+    let mut lines: Vec<String> = Vec::new();
+    let mut sections: Vec<String> = Vec::new();
+
+    if !assigned.is_empty() {
+        sections.push("*Assigned Roles*".to_string());
+        sections.push("".to_string());
+        for r in &assigned {
+            sections.push(format!("`{}` — {}", r.jail_id, r.role.as_str()));
+        }
+        sections.push("".to_string());
+    } else {
+        sections.push("No roles assigned yet.".to_string());
+        sections.push("".to_string());
+    }
+
+    sections.push("*Workers (Roles)*".to_string());
     if presence.is_empty() {
-        return "No workers online.".to_string();
+        sections.push("".to_string());
+        sections.push("No workers online.".to_string());
+    } else {
+        sections.push("".to_string());
+        for w in presence.values() {
+            let status_str = match w.status {
+                crate::state::WorkerStatus::Ready => "Ready",
+                crate::state::WorkerStatus::Busy => "Busy",
+                crate::state::WorkerStatus::Offline => "Offline",
+            };
+            sections.push(format!(
+                "*{}* — {} | {} | rank={} | {}",
+                w.jail_id, w.agent, w.ide, w.rank, status_str
+            ));
+        }
     }
 
-    let mut lines: Vec<String> = vec!["*Workers (Roles)*".to_string(), "".to_string()];
-    for w in presence.values() {
-        let status_str = match w.status {
-            crate::state::WorkerStatus::Ready => "Ready",
-            crate::state::WorkerStatus::Busy => "Busy",
-            crate::state::WorkerStatus::Offline => "Offline",
-        };
-        lines.push(format!(
-            "*{}* — {} | {} | rank={} | {}",
-            w.jail_id, w.agent, w.ide, w.rank, status_str
-        ));
-    }
-
+    lines.push("*Roles*".to_string());
+    lines.push("".to_string());
+    lines.extend(sections);
+    lines.retain(|l| !l.is_empty());
     lines.join("\n")
 }
 

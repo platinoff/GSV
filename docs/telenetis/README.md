@@ -26,7 +26,7 @@ GSV (9999)  <--HTTP-->  Telenetis (9800)  <--HTTPS-->  Telegram Bot API
 ```
 
 - **Config** (`src/config.rs`): `TELENETIS_BOT_TOKEN`, `TELENETIS_GSV_URL` (default 9999), `TELENETIS_PORT` (9800), `TELENETIS_JAIL_ID`, `TELENETIS_GODFATHER_CHANNEL_ID`, `TELENETIS_WEBHOOK_URL`, `TELENETIS_WEBHOOK_SECRET` (optional webhook `secret_token`; inbound `/webhook` must echo it or is rejected 403).
-- **AppState** (`src/state.rs`): `bus_queue`, `presence`, `tickets`, `flows` (cap 1000) + `broadcast::Sender<FlowEvent>` for WS/SSE.
+- **AppState** (`src/state.rs`): `bus_queue`, `presence`, `tickets`, `flows` (cap 1000) + `broadcast::Sender<FlowEvent>` for WS/SSE. Role directory is wired in and persisted to `data/roles.jsonl` (`TELENETIS_ROLES_FILE` overrides the path).
 - **GSV client** (`src/gsv/client.rs`): `/api/health`, `/api/tickets/list`, `/api/tickets/presence`, `/api/telegram/status`, `/api/telegram/bus`.
 - **Bus** (`src/gsv/bus.rs`): v1 envelope `{v,kind,body,from,ts,data}` parse/format.
 - **Poll loop** (`src/gsv/poll.rs`): `spawn_poll_loop` every 5s → `handle_bus_value` → `push_bus` + broadcast `FlowEvent`.
@@ -34,11 +34,11 @@ GSV (9999)  <--HTTP-->  Telenetis (9800)  <--HTTPS-->  Telegram Bot API
 - **Commands** (`src/bot/commands.rs`): `/start /status /board /flows /roles /help`.
 - **Webhook** (`src/bot/webhook.rs`): `POST /webhook` classifies `message | callback_query | my_chat_member`, pushes `FlowEvent`.
 - **Streams** (`src/stream/ws.rs` + `sse.rs`): `GET /ws` (WebSocket) + `GET /events` (SSE) from `flows_tx`.
-- **Roles** (`src/roles/store.rs`): `Host|Mate|Guest|Observer` + **Timezone** (`tz.rs`) via `chrono-tz`.
+- **Roles** (`src/roles/store.rs`): `Host|Mate|Guest|Observer` — `RoleStore` (assign/list/remove/get, persist/load JSONL). Wired into `AppState` (`roles`), served at `GET /api/roles` + `POST /api/roles` (assign) + `POST /api/roles/remove` (revoke, initData-checked), included in `/api/snapshot` as `roles`, and surfaced by the bot `/roles` command. Mutations persist to `data/roles.jsonl` (default; `TELENETIS_ROLES_FILE` overrides). + **Timezone** (`tz.rs`) via `chrono-tz`.
 - **Security** (`src/security/auth.rs`): `MAX_BODY_BYTES 64 KiB`, `csrf_check`, `security_headers` (nosniff/no-store/CSP).
 - **Security** (`src/security/initdata.rs`): Telegram Mini App `initData` HMAC-SHA256 verification (secret key HMAC `WebAppData`, `auth_date` freshness, constant-time compare) — guards `/api/verify` + all `/api/board/*` actions.
 - **Actions** (`src/actions.rs`): `BoardAction` (Claim/Done/Error/Reclaim) + `available_actions(status)` + body parsing + GSV forward; `/api/board/claim|done|error|reclaim` POST routes forward on behalf of the verified Mini App user to GSV `/api/tickets/*`.
-- **UI** (`src/ui/mod.rs`): `GET /`, `/app`, `/board`, `/flows`, `/roles`, `/health`, `/api/status`, `/api/tickets`, `/api/flows`, `/api/snapshot?lang=`, `/api/mini-app/i18n`, `/api/live/config`, `/api/verify`, `/api/board/*`, `/static/app.css|js` (Askama templates in `src/ui/templates`).
+- **UI** (`src/ui/mod.rs`): `GET /`, `/app`, `/board`, `/flows`, `/roles`, `/health`, `/api/status`, `/api/tickets`, `/api/roles`, `/api/flows`, `/api/snapshot?lang=`, `/api/mini-app/i18n`, `/api/live/config`, `/api/verify`, `/api/board/*`, `/static/app.css|js` (Askama templates in `src/ui/templates`).
 - **Main** (`src/main.rs`): merges `ui + webhook + ws + sse` routers, spawns poll loop, binds `0.0.0.0:{port}`.
 
 ## Setup
@@ -69,7 +69,10 @@ cargo run
 - `GET /health` → `{status, service, version}`
 - `GET /api/status` → `{online, jail_id, tickets_count, workers_online, recent_flows}`
 - `GET /api/tickets` → `{tickets: [{id,title,status,product,claimed_by}]}`
-- `GET /api/snapshot?lang=` → consolidated bundle (status + tickets + flows + workers + i18n + live config); tickets carry server-authoritative `actions` + `body`
+- `GET /api/roles` → `{ok, roles: [{jail_id, role, assigned_at}]}` (role directory, sorted by jail_id; read is public like `/api/status`)
+- `POST /api/roles` → assign/overwrite a role; `ActionQuery {initData, authDate}` + JSON `{jail_id, role: "host|mate|guest|observer"}`; initData HMAC-checked (403 on forged handshake, 400 on bad role)
+- `POST /api/roles/remove` → revoke a role; `ActionQuery` + JSON `{jail_id}`; `{ok, removed, jail_id}`
+- `GET /api/snapshot?lang=` → consolidated bundle (status + tickets + flows + workers + roles + i18n + live config); tickets carry server-authoritative `actions` + `body`
 - `GET /api/mini-app/i18n?lang=` → `{lang, strings}` (en/uk/ru)
 - `GET /api/live/config` → server-authoritative reconnect + keep-alive schedule
 - `GET /api/verify?initData=&authDate=` → initData HMAC validation `{ok, error?}`
@@ -88,7 +91,7 @@ cargo clippy --all-targets
 cargo test
 ```
 
-**173** unit tests + **4** integration tests (`tests/integration_test.rs`) = **177** total.
+**180** unit tests + **4** integration tests (`tests/integration_test.rs`) = **184** total.
 
 ## Support / Donate
 

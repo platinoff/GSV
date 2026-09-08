@@ -21,6 +21,8 @@ pub fn router(state: AppState) -> Router {
         .route("/health", get(health))
         .route("/api/status", get(status))
         .route("/api/tickets", get(api_tickets))
+        .route("/api/roles", get(api_roles).post(api_roles_assign))
+        .route("/api/roles/remove", post(api_roles_remove))
         .route("/api/flows", get(api_flows))
         .route("/static/app.css", get(serve_css))
         .route("/static/app.js", get(serve_js))
@@ -89,6 +91,7 @@ async fn api_snapshot(
     let presence = state.presence_map().await;
     let flows = state.recent_flows(50).await;
     let backoff = state.live_reconnect();
+    let roles = state.list_roles().await;
 
     let mut strings = serde_json::Map::new();
     for key in miniapp::I18N_KEYS {
@@ -107,6 +110,7 @@ async fn api_snapshot(
         },
         "tickets": wire_tickets(&tickets),
         "workers": wire_workers(&presence),
+        "roles": wire_roles(&roles),
         "flows": wire_flows(&flows),
         "i18n": {"lang": lang.as_str(), "strings": serde_json::Value::Object(strings)},
         "live": {
@@ -167,6 +171,21 @@ fn wire_workers(
                 "rank": w.rank,
                 "status": status_str,
                 "timezone": w.timezone,
+            })
+        })
+        .collect();
+    rows.sort_by(|a, b| a["jail_id"].as_str().cmp(&b["jail_id"].as_str()));
+    rows
+}
+
+fn wire_roles(roles: &[crate::roles::store::RoleEntry]) -> Vec<serde_json::Value> {
+    let mut rows: Vec<serde_json::Value> = roles
+        .iter()
+        .map(|r| {
+            json!({
+                "jail_id": r.jail_id,
+                "role": r.role.as_str(),
+                "assigned_at": r.assigned_at,
             })
         })
         .collect();
@@ -339,6 +358,129 @@ async fn api_board_action(
     }
 }
 
+/// GET /api/roles — read-only role directory (same shape as the snapshot
+/// `roles` region, sorted by jail_id). No auth: reading the directory is not
+/// a mutation, mirroring `/api/status`.
+async fn api_roles(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let roles = state.list_roles().await;
+    Json(json!({ "ok": true, "roles": wire_roles(&roles) }))
+}
+
+/// POST /api/roles — assign (or overwrite) a role for a jail. Mutating, so it
+/// verifies the Telegram `initData` handshake exactly like the board actions.
+/// Body: `{"jail_id": "...", "role": "host|mate|guest|observer"}`.
+async fn api_roles_assign(
+    State(state): State<AppState>,
+    Query(q): Query<ActionQuery>,
+    Json(body): Json<serde_json::Value>,
+) -> Response {
+    let token = &state.config().bot_token;
+    if token.is_empty() {
+        return (
+            StatusCode::BAD_GATEWAY,
+            Json(crate::actions::err_json("bot token not configured")),
+        )
+            .into_response();
+    }
+    let now = freshness_now(q.auth_date);
+    if let Err(e) = crate::security::verify_init_data(
+        &q.init_data,
+        token,
+        now,
+        crate::security::initdata::DEFAULT_MAX_AGE_SECS,
+    ) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(crate::actions::err_json(&format!("initData: {e}"))),
+        )
+            .into_response();
+    }
+    let jail_id = match body.get("jail_id").and_then(serde_json::Value::as_str) {
+        Some(s) if !s.trim().is_empty() => s.trim().to_string(),
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(crate::actions::err_json("missing jail_id")),
+            )
+                .into_response()
+        }
+    };
+    let role = match body.get("role").and_then(serde_json::Value::as_str) {
+        Some(s) => match crate::roles::store::Role::parse(s) {
+            Some(r) => r,
+            None => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(crate::actions::err_json(
+                        "invalid role: expected host|mate|guest|observer",
+                    )),
+                )
+                    .into_response();
+            }
+        },
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(crate::actions::err_json("missing role")),
+            )
+                .into_response();
+        }
+    };
+    let entry = state.assign_role(&jail_id, role).await;
+    Json(json!({
+        "ok": true,
+        "role": {
+            "jail_id": entry.jail_id,
+            "role": entry.role.as_str(),
+            "assigned_at": entry.assigned_at,
+        },
+    }))
+    .into_response()
+}
+
+/// POST /api/roles/remove — revoke a jail's role. Mutating, initData-checked.
+/// Body: `{"jail_id": "..."}`.
+async fn api_roles_remove(
+    State(state): State<AppState>,
+    Query(q): Query<ActionQuery>,
+    Json(body): Json<serde_json::Value>,
+) -> Response {
+    let token = &state.config().bot_token;
+    if token.is_empty() {
+        return (
+            StatusCode::BAD_GATEWAY,
+            Json(crate::actions::err_json("bot token not configured")),
+        )
+            .into_response();
+    }
+    let now = freshness_now(q.auth_date);
+    if let Err(e) = crate::security::verify_init_data(
+        &q.init_data,
+        token,
+        now,
+        crate::security::initdata::DEFAULT_MAX_AGE_SECS,
+    ) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(crate::actions::err_json(&format!("initData: {e}"))),
+        )
+            .into_response();
+    }
+    let jail_id = match body.get("jail_id").and_then(serde_json::Value::as_str) {
+        Some(s) if !s.trim().is_empty() => s.trim().to_string(),
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(crate::actions::err_json("missing jail_id")),
+            )
+                .into_response();
+        }
+    };
+    let had = state.get_role(&jail_id).await.is_some();
+    state.remove_role(&jail_id).await;
+    Json(json!({ "ok": true, "removed": had, "jail_id": jail_id })).into_response()
+}
+
 async fn dashboard() -> Html<String> {
     Html(include_str!("templates/dashboard.html").to_string())
 }
@@ -433,6 +575,29 @@ mod tests {
             ngrok_bin: None,
         };
         AppState::new(cfg)
+    }
+
+    // Isolated AppState whose roles persistence goes to a per-test temp file,
+    // so role-store tests never read/write the shared default data file.
+    fn isolated_state(tag: &str) -> AppState {
+        let cfg = Config {
+            bot_token: "test".to_string(),
+            gsv_url: "http://127.0.0.1:9999".to_string(),
+            port: 9800,
+            jail_id: "test-jail".to_string(),
+            godfather_channel_id: 0,
+            webhook_url: None,
+            webhook_secret: None,
+            public_url: None,
+            tunnel_enabled: false,
+            ngrok_bin: None,
+        };
+        let file = std::env::temp_dir().join(format!(
+            "telenetis_roles_ui_{tag}_{}.jsonl",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&file);
+        AppState::new_with_roles_file(cfg, file)
     }
 
     #[tokio::test]
@@ -751,6 +916,191 @@ mod tests {
         )
         .await;
         assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
+
+    // ---- role-store HTTP surface (band 230) ----
+
+    #[tokio::test]
+    async fn roles_get_lists_empty_directory() {
+        let app = router(isolated_state("list_empty"));
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/roles")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 8192).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["ok"], true);
+        assert_eq!(json["roles"].as_array().unwrap().len(), 0);
+    }
+
+    #[tokio::test]
+    async fn roles_assign_requires_valid_init_data() {
+        let mut cfg = Config {
+            bot_token: "test".to_string(),
+            gsv_url: "http://127.0.0.1:9999".to_string(),
+            port: 9800,
+            jail_id: "test-jail".to_string(),
+            godfather_channel_id: 0,
+            webhook_url: None,
+            webhook_secret: None,
+            public_url: None,
+            tunnel_enabled: false,
+            ngrok_bin: None,
+        };
+        cfg.bot_token = "test".to_string();
+        let file = std::env::temp_dir().join(format!(
+            "telenetis_roles_ui_assign_{}.jsonl",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&file);
+        let app = router(AppState::new_with_roles_file(cfg, file));
+        let init_q = percent_encode_query(&test_init_data(TEST_USER_RAW));
+
+        // Tampered handshake -> 403, nothing stored.
+        let tampered = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(format!(
+                        "/api/roles?initData={}&authDate=1750000010",
+                        percent_encode_query(&test_init_data(TEST_TAMPERED_USER_RAW))
+                    ))
+                    .method("POST")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"jail_id":"j1","role":"host"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(tampered.status(), StatusCode::FORBIDDEN);
+
+        // Missing initData -> 403 (query param absent entirely).
+        let missing = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/roles")
+                    .method("POST")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"jail_id":"j1","role":"host"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(missing.status(), StatusCode::FORBIDDEN);
+
+        // Valid handshake with a readable role -> 200 ok, role listed.
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri(format!(
+                        "/api/roles?initData={}&authDate=1750000010",
+                        init_q
+                    ))
+                    .method("POST")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"jail_id":"j1","role":"host"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 8192).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["ok"], true);
+        assert_eq!(json["role"]["jail_id"], "j1");
+        assert_eq!(json["role"]["role"], "host");
+    }
+
+    #[tokio::test]
+    async fn roles_assign_rejects_invalid_role() {
+        let app = router(isolated_state("invalid_role"));
+        let init_q = percent_encode_query(&test_init_data(TEST_USER_RAW));
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri(format!(
+                        "/api/roles?initData={}&authDate=1750000010",
+                        init_q
+                    ))
+                    .method("POST")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"jail_id":"j1","role":"admin"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["ok"], false);
+    }
+
+    #[tokio::test]
+    async fn roles_remove_revokes_role() {
+        let state = isolated_state("remove_j9");
+        state
+            .assign_role("j9", crate::roles::store::Role::Guest)
+            .await;
+        let app = router(state.clone());
+        let init_q = percent_encode_query(&test_init_data(TEST_USER_RAW));
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri(format!(
+                        "/api/roles/remove?initData={}&authDate=1750000010",
+                        init_q
+                    ))
+                    .method("POST")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"jail_id":"j9"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 8192).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["ok"], true);
+        assert_eq!(json["removed"], true);
+        assert!(state.get_role("j9").await.is_none());
+    }
+
+    #[tokio::test]
+    async fn roles_persist_jsonl_and_reload() {
+        let file = std::env::temp_dir().join(format!(
+            "telenetis_roles_ui_persist_{}.jsonl",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&file);
+        let cfg = Config {
+            bot_token: "test".to_string(),
+            gsv_url: "http://127.0.0.1:9999".to_string(),
+            port: 9800,
+            jail_id: "test-jail".to_string(),
+            godfather_channel_id: 0,
+            webhook_url: None,
+            webhook_secret: None,
+            public_url: None,
+            tunnel_enabled: false,
+            ngrok_bin: None,
+        };
+        let state = AppState::new_with_roles_file(cfg.clone(), file.clone());
+        state
+            .assign_role("j-persist", crate::roles::store::Role::Host)
+            .await;
+        // A fresh AppState wiring reads the same roles JSONL file.
+        let reloaded = AppState::new_with_roles_file(cfg, file);
+        assert_eq!(
+            reloaded.get_role("j-persist").await,
+            Some(crate::roles::store::Role::Host)
+        );
     }
 
     #[tokio::test]

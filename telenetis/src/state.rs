@@ -1,6 +1,8 @@
 use crate::config::Config;
+use crate::roles::store::{Role, RoleStore};
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
 
@@ -63,10 +65,27 @@ pub struct AppState {
     flows_tx: broadcast::Sender<FlowEvent>,
     online: Arc<std::sync::atomic::AtomicBool>,
     tunnel_url: Arc<RwLock<Option<String>>>,
+    roles: Arc<RwLock<RoleStore>>,
+    roles_file: PathBuf,
 }
 
 impl AppState {
+    /// Default roles JSONL path: `{crate}/data/roles.jsonl`, overridable with
+    /// `TELENETIS_ROLES_FILE`. The `data/` dir is gitignored (runtime data).
+    pub fn default_roles_file() -> PathBuf {
+        std::env::var_os("TELENETIS_ROLES_FILE")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/roles.jsonl"))
+    }
+
     pub fn new(config: Config) -> Self {
+        Self::new_with_roles_file(config, Self::default_roles_file())
+    }
+
+    /// Variant with an explicit roles JSONL path (used by tests to isolate
+    /// the persisted role directory per test).
+    pub fn new_with_roles_file(config: Config, roles_file: PathBuf) -> Self {
+        let roles = RoleStore::load_jsonl(&roles_file);
         let (flows_tx, _) = broadcast::channel(256);
         Self {
             config,
@@ -77,6 +96,8 @@ impl AppState {
             flows_tx,
             online: Arc::new(std::sync::atomic::AtomicBool::new(true)),
             tunnel_url: Arc::new(RwLock::new(None)),
+            roles: Arc::new(RwLock::new(roles)),
+            roles_file,
         }
     }
 
@@ -153,6 +174,36 @@ impl AppState {
     pub async fn recent_flows(&self, limit: usize) -> Vec<FlowEvent> {
         let flows = self.flows.read().await;
         flows.iter().rev().take(limit).cloned().collect()
+    }
+
+    pub async fn list_roles(&self) -> Vec<crate::roles::store::RoleEntry> {
+        let mut roles = self.roles.read().await.list_roles();
+        roles.sort_by(|a, b| a.jail_id.cmp(&b.jail_id));
+        roles
+    }
+
+    pub async fn get_role(&self, jail_id: &str) -> Option<Role> {
+        self.roles.read().await.get_role(jail_id)
+    }
+
+    /// Assign (or overwrite) a role and persist it to the roles JSONL file.
+    pub async fn assign_role(&self, jail_id: &str, role: Role) -> crate::roles::store::RoleEntry {
+        let entry = {
+            let mut store = self.roles.write().await;
+            store.assign_role(jail_id, role);
+            store.get_entry(jail_id)
+        };
+        let _ = self.roles.read().await.save_jsonl(&self.roles_file);
+        entry
+    }
+
+    /// Remove a role (no-op if absent) and persist the change.
+    pub async fn remove_role(&self, jail_id: &str) {
+        {
+            let mut store = self.roles.write().await;
+            store.remove_role(jail_id);
+        }
+        let _ = self.roles.read().await.save_jsonl(&self.roles_file);
     }
 }
 
@@ -285,5 +336,49 @@ mod tests {
             .await;
         let tickets = state.tickets().await;
         assert_eq!(tickets.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn roles_assign_and_persist_roundtrip() {
+        let file = std::env::temp_dir().join(format!(
+            "telenetis_roles_state_{}.jsonl",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&file);
+        let cfg = Config {
+            bot_token: "test".to_string(),
+            gsv_url: "http://127.0.0.1:9999".to_string(),
+            port: 9800,
+            jail_id: "test-jail".to_string(),
+            godfather_channel_id: 0,
+            webhook_url: None,
+            webhook_secret: None,
+            public_url: None,
+            tunnel_enabled: false,
+            ngrok_bin: None,
+        };
+        let state = AppState::new_with_roles_file(cfg.clone(), file.clone());
+        assert!(state.list_roles().await.is_empty());
+        state.assign_role("worker-a", Role::Host).await;
+        state.assign_role("worker-b", Role::Mate).await;
+        let roles = state.list_roles().await;
+        assert_eq!(roles.len(), 2);
+        assert!(roles
+            .iter()
+            .any(|r| r.jail_id == "worker-a" && r.role == Role::Host));
+        assert!(roles
+            .iter()
+            .any(|r| r.jail_id == "worker-b" && r.role == Role::Mate));
+
+        // A fresh AppState wiring loads the persisted JSONL file.
+        let reloaded = AppState::new_with_roles_file(cfg.clone(), file.clone());
+        assert_eq!(reloaded.get_role("worker-a").await, Some(Role::Host));
+        assert_eq!(reloaded.get_role("worker-b").await, Some(Role::Mate));
+
+        state.remove_role("worker-a").await;
+        assert!(state.get_role("worker-a").await.is_none());
+        let reloaded_again = AppState::new_with_roles_file(cfg, file);
+        assert!(reloaded_again.get_role("worker-a").await.is_none());
+        assert!(reloaded_again.get_role("worker-b").await.is_some());
     }
 }

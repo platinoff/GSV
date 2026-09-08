@@ -52,8 +52,7 @@ fn main() {
             use std::os::windows::process::CommandExt;
             cmd.creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
         }
-        match cmd.spawn()
-        {
+        match cmd.spawn() {
             Ok(mut child) => {
                 let _ = child.wait();
             }

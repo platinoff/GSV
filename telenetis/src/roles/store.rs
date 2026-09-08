@@ -9,6 +9,29 @@ pub enum Role {
     Observer,
 }
 
+impl Role {
+    /// Canonical lowercase wire name, used by the HTTP surface and the bot.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Role::Host => "host",
+            Role::Mate => "mate",
+            Role::Guest => "guest",
+            Role::Observer => "observer",
+        }
+    }
+
+    /// Reverse of [`Role::as_str`]; unknown/blank -> `None`.
+    pub fn parse(raw: &str) -> Option<Role> {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "host" => Some(Role::Host),
+            "mate" => Some(Role::Mate),
+            "guest" => Some(Role::Guest),
+            "observer" => Some(Role::Observer),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RoleEntry {
     pub jail_id: String,
@@ -49,6 +72,13 @@ impl RoleStore {
         self.entries.get(jail_id).map(|e| e.role.clone())
     }
 
+    pub fn get_entry(&self, jail_id: &str) -> RoleEntry {
+        self.entries
+            .get(jail_id)
+            .cloned()
+            .expect("role entry present after assign")
+    }
+
     pub fn save_jsonl(&self, path: &std::path::Path) -> std::io::Result<()> {
         let jsonl = self
             .entries
@@ -81,6 +111,17 @@ mod tests {
         let mut store = RoleStore::new();
         store.assign_role("jail-01", Role::Host);
         assert_eq!(store.get_role("jail-01"), Some(Role::Host));
+    }
+
+    #[test]
+    fn role_str_and_parse_roundtrip() {
+        for role in [Role::Host, Role::Mate, Role::Guest, Role::Observer] {
+            assert_eq!(Role::parse(role.as_str()), Some(role));
+        }
+        assert_eq!(Role::parse("HOST"), Some(Role::Host));
+        assert_eq!(Role::parse(" mate "), Some(Role::Mate));
+        assert_eq!(Role::parse("admin"), None);
+        assert_eq!(Role::parse(""), None);
     }
 
     #[test]

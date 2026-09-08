@@ -138,5 +138,6 @@ async fn snapshot_endpoint_served() {
     assert!(json["tickets"].is_array());
     assert!(json["flows"].is_array());
     assert!(json["workers"].is_array());
+    assert!(json["roles"].is_array());
     assert_eq!(json["live"]["keepalive_secs"], 25);
 }

@@ -1759,7 +1759,7 @@ Owner pick: extend the audit series to a surface only inventoried before (band 2
 | **PH-S2726** | SSE Fallback | GET /events — SSE endpoint. Same FlowEvent stream. Content-Type: text/event-stream — **✅** |
 | **PH-S2727** | Ticket Sync Loop | spawn_ticket_sync(): every 30s poll GSV, update AppState, broadcast changed tickets — **✅** |
 | **PH-S2728** | Federation Flows | Bus envelopes (presence/claim/done/sync) → FlowEvent → WS/SSE broadcast — **✅** |
-| **PH-S2729** | Role Store | RoleStore: assign/list/remove. Roles: Host, Mate, Guest, Observer. Persist JSONL — **✅** |
+| **PH-S2729** | Role Store | RoleStore: assign/list/remove. Roles: Host, Mate, Guest, Observer. Persist JSONL — **✅** (data wiring complete: `AppState.roles` Arc<RwLock<RoleStore>> + load/persist `data/roles.jsonl` (`TELENETIS_ROLES_FILE` override), `GET/POST /api/roles` + `POST /api/roles/remove` (initData-checked), snapshot `roles`, bot `/roles`, integration test + README → telenetis **184** tests) |
 | **PH-S2730** | Timezone Manager | TimezoneStore: user_tz map, convert_event_time, format_for_user. Default UTC — **✅** |
 | **PH-S2731** | Security | CSRF token from Telegram initData. Body cap 64 KiB. CSP headers. tower-http middleware — **✅** |
 | **PH-S2732** | Mini App UI | HTMX templates: dashboard.html, board.html, flows.html, roles.html. static/app.css + app.js — **✅** |
