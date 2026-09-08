@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-09-08 · band 228)
+
+- **Band 228:** Telenetis keep-live (Windows parity) — **band 224 scope landed late** (`PH-S2860`/`PH-S2862` open; 224 skipped in git). Watchdog multi-probe: `src/boxes/watchdog.rs` `telenetis_alive_tcp()` (TCP `127.0.0.1:9800`, 200 ms) + `debug_newer_telenetis()` (mtime parity `telenetis/target/{debug,live}/telenetis-live{,.exe}`) on `GET /api/watchdog` as `telenetis_alive`/`telenetis_debug_newer` (both live/heartbeat-present and empty-heartbeat branches). Galaxy watchdog card `render_watchdog` rows `telenetis_alive` + `telenetis_debug_newer`. Contracts `gsv_watchdog_contracts.rs`: `telenetis_live_exe_name_is_platform`, `debug_newer_telenetis_compares_telenetis_crate`, `debug_newer_telenetis_false_without_crate`, `telenetis_alive_tcp_is_boolean_probe`; `api_watchdog_and_health_expose_alive` + `render_watchdog_lists_heartbeat` extended. Watchdog contracts **40** green (was 36). PH-S2861 (`telenetis-live` supervisor + `cargo xtask telenetis-live`) already done band 225. Docs: SERVER `/api/watchdog` + live-copy matrix row 6, BOXES watchdog row, `docs/telenetis/README.md` "Windows keep-live (band 228)", roadmap band 224 → "landed as band 228" ✅, HANDOFF band 228. Gate: fmt clean · clippy 0 · full `cargo test` green · watchdog/ui/stand-smoke contracts green · stretch-96 (post-bump). Version **0.228.0** (`cargo xtask bump --band 228`).
+- **Canon:** [`gsv/GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) (band 224 table now "landed as band 228", PH-S2860…S2866 ✅).
+- **Next drain:** **owner pick** after a warnings-first scan.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → post-bump · full `cargo test` green · clippy 0
+
 ## Стан (2026-09-07 · band 227)
 
 - **Band 227:** OmniRoute node keep-live probe (owner pick, optional) — align `keep_live.omniroute` URL chain with real omniroute + usage box. `src/boxes/keep_live.rs` `omniroute_url()` reads `OMNIROUTE_URL` → `GSV_KEEP_LIVE_OMNIROUTE_URL` → `GSV_OMNIROUTE_URL` → default `http://127.0.0.1:20128` (real `S:/rust/omniroute` `.env PORT=20128`; usage-box parity; was dead `:3000` default); unit `omniroute_url_prefers_omni_then_override_then_gsv_then_20128`. Probe TCP 1s fail-open, never starts node from Rust. Docs: BOXES keep-live row / SERVER `/api/keep-live` + env list. Gate: fmt clean · clippy 0 · lib **310** (keep_live 8/8 incl. new) · stretch-96 pending. Version **0.227.0** (`cargo xtask bump --band 227`).

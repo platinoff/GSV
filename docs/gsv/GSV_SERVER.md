@@ -27,7 +27,7 @@
 | GET | `/api/ranks` | merit ladder (IT+army; Telegram redacted to `telegram_tail`) |
 | POST | `/api/ranks` | `{action:list\|award\|demote\|review}` |
 | GET | `/sw.js` | Rust-rendered Service Worker (shell Cache API; `Service-Worker-Allowed: /`) |
-| GET | `/api/watchdog` | live watchdog heartbeat (`ok`, `alive`, `path`, `last_action`, `debug_newer`, `server_debug_newer`, `watchdog_debug_newer`, `bin_version`, `crate_version`, `version_lag`) |
+| GET | `/api/watchdog` | live watchdog heartbeat (`ok`, `alive`, `path`, `last_action`, `debug_newer`, `server_debug_newer`, `watchdog_debug_newer`, `telenetis_alive`, `telenetis_debug_newer`, `bin_version`, `crate_version`, `version_lag`) |
 | GET | `/api/xtask` | cargo xtask catalog (`?task=catalog\|products\|disk`; mutating names → 400) |
 | GET | `/api/disk` | S0 disk guard (`ok`, `free_gb`, `target_gb`; `?enforce=true`) |
 | GET | `/api/update` | статус оновлення (Update box; `live_copy`; `crate_version` / `version_lag`; **band 191** `github_ahead` / `github_latest` / `can_apply`) |
@@ -176,6 +176,7 @@ cargo xtask watchdog-install     # ONLOGON scheduled task (survives Cursor)
 | 3 | UI **Update** → `POST /api/update/apply` → SSE `event: offline` + `{ok:true, applying:true}` |
 | 4 | Process exits unless `GSV_UPDATE_APPLY_EXIT=0` (tests / harness under `target/debug/deps/` skip exit) |
 | 5 | Supervisor recopies debug → live, rebinds `:9999`; page SSE `onopen` → `resync()` → online |
+| 6 | **band 228 (Telenetis parity):** `cargo xtask telenetis-live` / `gsv-live` also spawns the Telenetis live supervisor (`telenetis/target/live/telenetis-live.exe` copies debug → `telenetis-live` loop on `:9800`, dedup via TCP probe). Watchdog `/api/watchdog` surfaces `telenetis_alive` (TCP `:9800`) + `telenetis_debug_newer` (Telenetis supervisor debug→live parity) |
 
 Do **not** kill `target/live/gsv-server.exe` before `cargo test`. Only stop `target/debug/gsv-server.exe` if *that* file is still the listener.
 

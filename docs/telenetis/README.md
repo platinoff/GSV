@@ -82,6 +82,20 @@ cargo run
 - `GET /ws` → WebSocket JSON `FlowEvent` stream
 - `GET /events` → SSE `text/event-stream`
 
+## Windows keep-live (band 228)
+
+On Windows, `:9800` is kept alive by the **Telenetis live supervisor** exactly like GSV `:9999` — no manual `cargo run` needed:
+
+```bash
+cargo xtask telenetis-live   # builds/spawns telenetis-live (dedup if :9800 already answers)
+```
+
+- `telenetis/src/bin/telenetis_live.rs` copies `target/debug/telenetis.exe` → `target/live/telenetis.exe` (so `cargo test` / `cargo build` may overwrite debug without Windows file locks) and respawns the bot on exit.
+- `cargo xtask live` / `gsv-live` also spawns it as a second child, so the GSV always-on supervisor carries Telenetis along.
+- GSV's watchdog now **multi-probes** Telenetis on `GET /api/watchdog`: `telenetis_alive` (TCP `:9800`, 200 ms) + `telenetis_debug_newer` (supervisor debug→live parity). The Galaxy watchdog card shows both.
+
+Docker / systemd / bare-metal Linux deploy stays in [`ops.md`](ops.md).
+
 ## Tests
 
 ```bash

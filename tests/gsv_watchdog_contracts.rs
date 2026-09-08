@@ -292,6 +292,54 @@ fn debug_newer_server_ignores_stale_watchdog_only() {
 }
 
 #[test]
+fn telenetis_live_exe_name_is_platform() {
+    let name = watchdog::telenetis_live_exe_name();
+    #[cfg(windows)]
+    assert_eq!(name, "telenetis-live.exe");
+    #[cfg(not(windows))]
+    assert_eq!(name, "telenetis-live");
+}
+
+#[test]
+fn debug_newer_telenetis_compares_telenetis_crate() {
+    let dir = std::env::temp_dir().join(format!("gsv-wd-tel-{}", std::process::id()));
+    let debug_dir = dir.join("telenetis/target/debug");
+    let live_dir = dir.join("telenetis/target/live");
+    std::fs::create_dir_all(&debug_dir).expect("debug dir");
+    std::fs::create_dir_all(&live_dir).expect("live dir");
+    let name = watchdog::telenetis_live_exe_name();
+    let debug = debug_dir.join(name);
+    let live = live_dir.join(name);
+
+    std::fs::write(&live, b"old").expect("live");
+    std::thread::sleep(std::time::Duration::from_millis(1100));
+    std::fs::write(&debug, b"new").expect("debug");
+    assert!(
+        watchdog::debug_newer_telenetis(&dir),
+        "newer debug telenetis-live must flag parity"
+    );
+
+    std::fs::write(&live, b"same").expect("live refresh");
+    std::thread::sleep(std::time::Duration::from_millis(1100));
+    std::fs::write(&debug, b"same-new").expect("debug refresh");
+    std::fs::write(&live, b"newer-live").expect("live newest");
+    assert!(
+        !watchdog::debug_newer_telenetis(&dir),
+        "live newer than debug must not flag parity"
+    );
+}
+
+#[test]
+fn debug_newer_telenetis_false_without_crate() {
+    let dir = std::env::temp_dir().join(format!("gsv-wd-telmiss-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("tmpdir");
+    assert!(
+        !watchdog::debug_newer_telenetis(&dir),
+        "missing telenetis crate must not flag parity"
+    );
+}
+
+#[test]
 fn should_recheck_successor_each_tick() {
     assert!(
         watchdog::should_recheck_successor(false),
@@ -462,6 +510,8 @@ async fn api_watchdog_and_health_expose_alive() {
     assert!(json["debug_newer"].is_boolean(), "{json}");
     assert!(json["server_debug_newer"].is_boolean(), "{json}");
     assert!(json["watchdog_debug_newer"].is_boolean(), "{json}");
+    assert!(json["telenetis_alive"].is_boolean(), "{json}");
+    assert!(json["telenetis_debug_newer"].is_boolean(), "{json}");
     assert!(
         json["crate_version"].is_string() || json["crate_version"].is_null(),
         "{json}"
@@ -529,6 +579,8 @@ fn render_watchdog_lists_heartbeat() {
             "debug_newer": true,
             "server_debug_newer": false,
             "watchdog_debug_newer": true,
+            "telenetis_alive": true,
+            "telenetis_debug_newer": false,
             "last_apply_status": 403,
             "lockstep_note": "cross-site POST rejected",
             "last_action": "lockstep-fail",
@@ -544,6 +596,8 @@ fn render_watchdog_lists_heartbeat() {
     assert!(html.contains("debug_newer"), "{html}");
     assert!(html.contains("server_debug_newer"), "{html}");
     assert!(html.contains("watchdog_debug_newer"), "{html}");
+    assert!(html.contains("telenetis_alive"), "{html}");
+    assert!(html.contains("telenetis_debug_newer"), "{html}");
     assert!(html.contains("last_apply_status"), "{html}");
     assert!(html.contains("403"), "{html}");
     assert!(html.contains("cross-site POST rejected"), "{html}");

@@ -2045,19 +2045,19 @@ Owner pick: GSV now supervises a kit of always-on services (GSV :9999 + Teleneti
 | **PH-S2858** | Gate | fmt · clippy 0 · `cargo test` **782** green (300 lib + bins + 475 contract; `cargo test` no longer hangs — fixed recursive `terminal_cargo_test_allowed` → `terminal_cargo_version_allowed`) · `--stretch-96` ≥96% · vision-sync — **✅** |
 | **PH-S2859** | Band close | `--band 223` → **0.223.0** (queue last `PH-S2878` next `PH-S2879`) + fingerprint; live recopy; one commit + push — **✅** |
 
-## Спринти (band 224) — Telenetis keep-live (Windows parity)
+## Спринти (band 224 = landed as band 228) — Telenetis keep-live (Windows parity)
 
-Owner pick: Telenetis :9800 must be as keep-live as GSV :9999 on Windows. Today only `docker-compose`/`systemd`/`telenetis-live` cover Linux; Windows = manual `cargo run`.
+**Loaded-late scope:** band 224 was planned (`active_sprint` PH-S2860, queue next PH-S2879) but the work was deferred — the keep-live kit landed on bands 223 then 225–227 first. This scope is **executed as band 228** (version `0.228.0`), closing the open `PH-S2860`/`PH-S2862` tickets and the `band 224` roadmap rows.
 
 | Sprint | Фокус | Acceptance (ключ) |
 |--------|-------|-------------------|
-| **PH-S2860** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2860`; `last_sprint_closed` = `PH-S2859` — **planned** |
-| **PH-S2861** | Live copy | `cargo xtask live` copies `telenetis` debug → `target/live/telenetis.exe` (like `gsv-mcp` band 158); `cargo xtask telenetis-live` loop or second child in `gsv-live` — **planned** |
-| **PH-S2862** | Watchdog | `watchdog` multi-probe `debug_newer_telenetis` + `telenetis_alive`; `GET /api/watchdog { telenetis_alive, telenetis_debug_newer }`; heartbeat fields — **planned** |
-| **PH-S2863** | Galaxy | watchdog card telenetis row; health `keep_live.telenetis` drives it — **planned** |
-| **PH-S2864** | Docs | SERVER live-copy matrix + telenetis/README Windows keep-live + BOXES — **planned** |
-| **PH-S2865** | Gate | fmt · clippy 0 · `cargo test` telenetis 177 + GSV pass · `--stretch-96` ≥96% — **planned** |
-| **PH-S2866** | Band close | `--band 224` + fingerprint; recopy live; one commit + push — **planned** |
+| **PH-S2860** | Scope | this band (landed as **band 228**); `active_sprint` / `next_sprint` = `PH-S2860`; `last_sprint_closed` = `PH-S2859` — **✅ landed via band 228** |
+| **PH-S2861** | Live copy | `telenetis-live` supervisor bin (`telenetis/src/bin/telenetis_live.rs`) copies debug → `target/live/telenetis.exe`; `cargo xtask telenetis-live` (best-effort build + spawn, dedup on `:9800`) + inner child in `gsv-live` — **✅ (band 225, done)** |
+| **PH-S2862** | Watchdog | `watchdog` multi-probe `debug_newer_telenetis` + `telenetis_alive` (TCP `:9800`, 200 ms); `GET /api/watchdog { telenetis_alive, telenetis_debug_newer }` — **✅ (band 228)** |
+| **PH-S2863** | Galaxy | watchdog card telenetis rows (`telenetis_alive` + `telenetis_debug_newer`); health `keep_live.telenetis` drives the card — **✅ (band 228)** |
+| **PH-S2864** | Docs | SERVER live-copy matrix + telenetis/README Windows keep-live + BOXES watchdog row — **✅ (band 228)** |
+| **PH-S2865** | Gate | fmt · clippy 0 · `cargo test` GSV green · `--stretch-96` ≥96% — **✅ (band 228)** |
+| **PH-S2866** | Band close | `--band 228` (`0.228.0`); fingerprint; recopy live; one commit + push — **✅ (band 228)** |
 
 ## Спринти (band 225) — llama-rs keep-live + OmniRouter local provider
 

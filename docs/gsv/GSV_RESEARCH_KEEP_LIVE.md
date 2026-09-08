@@ -1,6 +1,6 @@
 # GSV keep-live research — GSV + Telenetis + llama-rs + OmniRoute + OpenBot MCP
 
-**Status:** Band **223 ✅** (aggregation live); next **224** (telenetis live-copy + watchdog multi-probe). **Date:** 2026-09-01. **Owner pick.**
+**Status:** Band **224 ✅ landed as band 228** (telenetis live-copy + watchdog multi-probe: `telenetis_alive`/`telenetis_debug_newer` on `/api/watchdog`). **Date:** 2026-09-08. **Owner pick.**
 **Context:** GSV is the VDT entry workspace (`S:\rust\GSV`) and always-on supervisor (`:9999` + watchdog). Telenetis (`S:\rust\GSV/telenetis` `:9800`) bridges Godfather to Mini App; llama-rs (`S:/rust/llama-rs`) runs Qwen 27B IQ2_XXS 0.031 tok/s; OmniRoute (`S:/rust/omniroute`, node) proxies AI. All must stay live with one MCP surface.
 
 ## 1. Current keep-live (audit 2026-08-31)

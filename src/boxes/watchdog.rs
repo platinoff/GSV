@@ -474,6 +474,34 @@ pub fn debug_newer_bin(repo_root: &Path, exe_name: &str) -> bool {
     !live.is_file() || file_mtime_secs(&debug) > file_mtime_secs(&live)
 }
 
+/// Telenetis live supervisor (`target/live/telenetis-live`) vs its debug twin.
+/// `true` when the debug copy is newer (or live missing) — same parity logic
+/// as `debug_newer_server` but for the Telenetis crate (band 228).
+pub fn debug_newer_telenetis(repo_root: &Path) -> bool {
+    debug_newer_bin(&repo_root.join("telenetis"), telenetis_live_exe_name())
+}
+
+/// Telenetis live-supervisor file name (`telenetis-live.exe` / `telenetis-live`).
+pub fn telenetis_live_exe_name() -> &'static str {
+    if cfg!(windows) {
+        "telenetis-live.exe"
+    } else {
+        "telenetis-live"
+    }
+}
+
+/// Cheap TCP liveness probe to `:9800` (200 ms). No HTTP crate needed in the
+/// watchdog wire path. Band 228 multi-probe — surfaces `telenetis_alive` on
+/// `GET /api/watchdog` so Galaxy sees the Telegram bot's peer state.
+pub fn telenetis_alive_tcp() -> bool {
+    use std::net::TcpStream;
+    TcpStream::connect_timeout(
+        &"127.0.0.1:9800".parse().expect("static 127.0.0.1:9800"),
+        std::time::Duration::from_millis(200),
+    )
+    .is_ok()
+}
+
 /// Server lockstep driver — ignore MCP/watchdog mtimes (locked stale watchdog ≠ apply).
 pub fn debug_newer_server(repo_root: &Path) -> bool {
     debug_newer_bin(repo_root, server_exe_name())
@@ -596,6 +624,8 @@ pub fn wire(repo_root: &Path) -> Value {
                 "debug_newer": debug_newer_than_live(repo_root),
                 "server_debug_newer": debug_newer_server(repo_root),
                 "watchdog_debug_newer": debug_newer_watchdog(repo_root),
+                "telenetis_alive": telenetis_alive_tcp(),
+                "telenetis_debug_newer": debug_newer_telenetis(repo_root),
                 "last_apply_status": hb.last_apply_status,
                 "lockstep_note": hb.lockstep_note,
                 "bin_version": hb.bin_version,
@@ -613,6 +643,8 @@ pub fn wire(repo_root: &Path) -> Value {
                 "debug_newer": debug_newer_than_live(repo_root),
                 "server_debug_newer": debug_newer_server(repo_root),
                 "watchdog_debug_newer": debug_newer_watchdog(repo_root),
+                "telenetis_alive": telenetis_alive_tcp(),
+                "telenetis_debug_newer": debug_newer_telenetis(repo_root),
                 "last_apply_status": 0,
                 "lockstep_note": "",
                 "bin_version": "",
