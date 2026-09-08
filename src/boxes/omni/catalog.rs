@@ -13,6 +13,10 @@
 /// Shared research stamp (MCP + Galaxy card).
 pub const RESEARCHED_AT: &str = "2026-08-18";
 
+/// Local llama-rs model the `bunke-rock` provider serves (kind `local`).
+/// The provider is host-ready only while this file exists on disk.
+pub const BUNKE_ROCK_MODEL_FILE: &str = "S:/rust/llama-rs/models/Qwen3.8-27B-UD-IQ2_XXS.gguf";
+
 /// Rate-limit window used for MCP auto-switch after 429 / RPM exhaustion.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct QuotaSpec {
@@ -1017,6 +1021,34 @@ pub fn provider(id: &str) -> Option<&'static ProviderSpec> {
     providers().iter().find(|p| p.id == id)
 }
 
+/// Provider kind: `"local"` for on-disk llama-rs backends, `"remote"` for
+/// API vendors / aggregators.
+pub fn provider_kind(id: &str) -> &'static str {
+    if id == "bunke-rock" {
+        "local"
+    } else {
+        "remote"
+    }
+}
+
+/// Local model file backing a `local` provider (None for remote hosts).
+pub fn local_model_file(id: &str) -> Option<&'static str> {
+    if id == "bunke-rock" {
+        Some(BUNKE_ROCK_MODEL_FILE)
+    } else {
+        None
+    }
+}
+
+/// A `local` backend is ready only when its model file exists; remote
+/// providers are always ready (subject to quota timers elsewhere).
+pub fn host_ready(id: &str) -> bool {
+    match local_model_file(id) {
+        Some(file) => std::path::Path::new(file).exists(),
+        None => true,
+    }
+}
+
 pub fn client(id: &str) -> Option<&'static ClientSpec> {
     clients().iter().find(|c| c.id == id)
 }
@@ -1039,6 +1071,32 @@ pub fn recommended_models() -> Vec<&'static ModelSpec> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bunke_rock_is_local_with_model_file() {
+        let p = provider("bunke-rock").expect("bunke-rock provider");
+        assert!(p.free, "local llama is free tier");
+        assert_eq!(provider_kind("bunke-rock"), "local");
+        assert_eq!(local_model_file("bunke-rock"), Some(BUNKE_ROCK_MODEL_FILE));
+        let lama = find_models("lama-2.8");
+        assert!(!lama.is_empty(), "lama-2.8 in catalog");
+        for spec in &lama {
+            assert_eq!(spec.provider, "bunke-rock");
+            assert_eq!(spec.context_window, Some(32_768));
+            assert!(spec.free && spec.rust, "{} free+rust lane", spec.id);
+        }
+    }
+
+    #[test]
+    fn host_ready_reflects_local_model_file() {
+        assert!(host_ready("openrouter"), "remote hosts always ready");
+        let file = local_model_file("bunke-rock").expect("local file");
+        assert_eq!(
+            std::path::Path::new(file).exists(),
+            host_ready("bunke-rock"),
+            "host_ready must mirror {file} presence"
+        );
+    }
 
     #[test]
     fn providers_are_unique_and_cover_models() {

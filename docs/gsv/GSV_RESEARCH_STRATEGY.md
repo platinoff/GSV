@@ -152,7 +152,7 @@ Consolidated into GSV_TECH_ROADMAP.md band 213 and
 - `watchdog.rs:30` `probe 3s ×2 =6s grace, cooldown 10s, MAX_AGE 20s`; `successor_plan` each tick, stale hop, never POST apply from stale watchdog; `health.ok` stays true on S0 disk (band 181) — same pattern fits sub-service down.
 - Telenetis has Docker/systemd/`telenetis-boot-verify.sh` 7/7 but no `target/live/telenetis.exe` or watchdog probe on Windows; `GsvClient` 5s/3s timeouts already prevent hang.
 - llama-rs heartbeat-over-file (`target/live/llama_heartbeat.json` 30s, `age>60s→alive:false`) is cheaper than daemonizing a CLI.
-- Local OmniRouter provider `bunke-rock` / `lama-2.8` (2-bit Qwen) closes ticket `t-1788009924340776700`; wire as `kind: local` so `GET /api/omni/route task=rust` can pick it.
+- Local OmniRouter provider `bunke-rock` / `lama-2.8` (2-bit Qwen) — wired (`kind: local`, gated on model-file exists); `GET /api/omni/route task=rust` picks it when prefer_free.
 
 **Next:** bands **223** aggregation (probe all 4, `GET /api/keep-live` + `keep_live` in `GET /api/health`, MCP `gsv_keep_live`, Galaxy `keep-live` card) → **224** telenetis live-copy + watchdog respawn → **225** llama heartbeat + catalog → **226** dashboard + boot-verify + stand-smoke → **227** optional omniroute probe. Sources: `src/boxes/watchdog.rs`, `S:/rust/llama-rs/src/main.rs:19`, `S:/rust/llama-rs/docs/HANDOFF.md:6`.
 

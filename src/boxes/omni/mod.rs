@@ -94,6 +94,7 @@ impl OmniRouter {
 pub struct ProviderWire {
     pub id: String,
     pub name: String,
+    pub kind: String,
     pub region: String,
     pub free: bool,
     pub base_url: String,
@@ -151,10 +152,11 @@ pub async fn wire(omni: &OmniRouter, selected: Option<&str>) -> OmniWire {
             ProviderWire {
                 id: p.id.to_string(),
                 name: p.name.to_string(),
+                kind: catalog::provider_kind(p.id).to_string(),
                 region: p.region.to_string(),
                 free: p.free,
                 base_url: cfg.effective_base_url(p.id).unwrap_or_default(),
-                enabled: pc.enabled,
+                enabled: pc.enabled && catalog::host_ready(p.id),
                 priority: pc.priority,
                 key_set: cfg.effective_api_key(p.id).is_some(),
                 notes: p.notes.to_string(),

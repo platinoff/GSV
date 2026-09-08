@@ -204,7 +204,10 @@ fn resolve_host(
     now: DateTime<Utc>,
 ) -> Result<String, String> {
     let available = |id: &str| {
-        cfg.enabled(id) && cfg.effective_base_url(id).is_some() && !store.is_cooling(id, now)
+        cfg.enabled(id)
+            && catalog::host_ready(id)
+            && cfg.effective_base_url(id).is_some()
+            && !store.is_cooling(id, now)
     };
     let mut owners: Vec<&str> = catalog::find_models(model.id)
         .iter()
@@ -298,6 +301,46 @@ mod tests {
             store.record("groq", 200, None, t0);
         }
         assert!(store.is_cooling("groq", t0), "rpm {rpm} should cool");
+    }
+
+    #[test]
+    fn pick_route_prefer_free_picks_local_lama() {
+        let mut cfg = OmniConfig::default();
+        // Only the local llama backend stays available: every other host is
+        // disabled so neither the owners nor the fallback chains can win.
+        let mut providers = serde_json::Map::new();
+        for p in catalog::providers() {
+            if p.id != "bunke-rock" {
+                providers.insert(p.id.to_string(), json!({ "enabled": false }));
+            }
+        }
+        cfg.apply(&json!({
+            "provider": providers,
+            "routing": {
+                "fallback_order": [],
+                "free_fallback_order": [],
+            },
+        }))
+        .expect("apply");
+        let store = QuotaStore::default();
+        let now = DateTime::parse_from_rfc3339("2026-08-18T12:00:00Z")
+            .expect("now")
+            .with_timezone(&Utc);
+        match pick_route(&cfg, &store, "rust", true, now) {
+            Ok(pick) => {
+                if catalog::host_ready("bunke-rock") {
+                    assert_eq!(pick.provider, "bunke-rock");
+                    assert_eq!(pick.model, "lama-2.8");
+                    assert!(pick.free);
+                } else {
+                    assert_ne!(pick.provider, "bunke-rock", "gated host must not be picked");
+                }
+            }
+            Err(e) => assert!(
+                !catalog::host_ready("bunke-rock"),
+                "expected a pick while host ready: {e}"
+            ),
+        }
     }
 
     #[test]

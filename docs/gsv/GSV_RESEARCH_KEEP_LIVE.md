@@ -19,7 +19,7 @@
 
 ### llama-rs
 - `S:/rust/llama-rs` 99.46% Rust (`cargo xtask check/loc`), `llama-cpp-2 0.1.154` (vendored, 4 Windows-GNU build.rs patches), CLI `llama_rs <model> --mmap/--no-mmap --mlock --progress --seed --max-tokens`, `src/safe/staged.rs` StagedLoadOptions (use_mmap/mlock/with_progress), `src/main.rs:19 gsv_report_progress` thin TcpStream to `127.0.0.1:9999` (120ms, no dep), `docs/BENCHMARKS.md` 0.031 tok/s TTF 248s (5500U mmap), E2E `LLAMA_RS_TEST_MODEL=... cargo test generate_with_model_if_env_set` 156s pass.
-- No daemon/heartbeat endpoint; GSV `cargo xtask products` discovers it (`registered: true`, `kind: rust`) but health is file-less; OmniRouter catalog has 19 providers but no local llama (ticket `t-1788009924340776700` BunkeRock lama 2.8 open).
+- No daemon/heartbeat endpoint; GSV `cargo xtask products` discovers it (`registered: true`, `kind: rust`) but health is file-less; OmniRouter catalog `bunke-rock` / `lama-2.8` local llama gated on `models/Qwen3.8-27B-UD-IQ2_XXS.gguf` exists (ticket `t-1788009924340776700` linked).
 
 ### OmniRoute
 - Node, `PRODUCTS.md` `kind: node` `npm test`, `AGENTS.md` strict `rg -n` docs check, `v3.8.x` rail → LTS 3.9 → 4.0 modular. GSV has `boxes/omni` (`GET /api/omni`, proxy `POST /api/omni/v1/chat/completions` with `X-Omni-Dry-Run`, `GET /api/omni/route task=rust|web` timer-aware, `quota.rs` `data/omni_quota.json`, `omni.toml`). Fail-open `GET {base}/api/usage/history` (band 155) shows precedent: probe but never treat upstream as `ok=false`.
