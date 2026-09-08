@@ -379,7 +379,9 @@ mod tests {
 
     #[test]
     fn heartbeat_of_only_enriches_llama_rs() {
-        let _guard = crate::boxes::ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        let _guard = crate::boxes::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
         let root = Path::new("S:/rust/llama-rs");
         assert_eq!(heartbeat_of("gsv", root), (None, None));
         let (path, alive) = heartbeat_of("llama-rs", root);
@@ -391,7 +393,9 @@ mod tests {
 
     #[test]
     fn heartbeat_of_respects_env_override_and_freshness() {
-        let _guard = crate::boxes::ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        let _guard = crate::boxes::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
         let dir = std::env::temp_dir().join(format!("gsv-products-hb-{}", std::process::id()));
         let _ = fs::create_dir_all(&dir);
         let file = dir.join("heartbeat.json");

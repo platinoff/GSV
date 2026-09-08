@@ -26,7 +26,7 @@
 - Not supervised by Rust watchdog; no boot-verify for omniroute.
 
 ### MCP
-- `gsv_mcp_openbot` 57 tools, 13 resources, `GET /mcp` catalog_notify/listed_tool_count/catalog_stale; Cursor `type: http` `http://127.0.0.1:9999/mcp`, stdio `target/live/gsv-mcp.exe`. Band 223 added **`gsv_keep_live`** aggregate (read-only); legacy `gsv_health`/`gsv_watchdog` kept for compat. No telenetis/llama/omniroute health tools; no aggregate — done (single aggregate covers all four).
+- `gsv_mcp_openbot` **58** tools, 13 resources, `GET /mcp` catalog_notify/listed_tool_count/catalog_stale; Cursor `type: http` `http://127.0.0.1:9999/mcp`, stdio `target/live/gsv-mcp.exe`. Band 223 added **`gsv_keep_live`** aggregate (read-only); band 226 added **`gsv_telenetis_health`** (per-peer telenetis keep-live); legacy `gsv_health`/`gsv_watchdog` kept for compat. Per-peer health tools for llama/omniroute not added — keep the single aggregate + per-peer tool for the actionable peer only (telenetis).
 
 ## 2. Optimization levers
 
@@ -36,7 +36,7 @@
 4. **OmniRoute as OmniRouter local provider** — add `catalog.rs` entry `id: "bunke-rock", kind: local, models: [{id:"lama-2.8", ctx 32768}]` pointing at `models/Qwen3.8-27B-UD-IQ2_XXS.gguf`; wire so `select_provider(task=rust, prefer_free)` skips cooling and picks it; persist in `omni.toml` routing. (**band 225**)
 5. **Galaxy single card > N cards** — one `keep-live` studio card with 4 rows (alive dot, version/lag, latency, uptime) replaces 4 separate health rows; `GET /api/ui/card/keep-live` Rust-rendered, `CARD_NAMES` 43 (**done band 223**), latency ms + uptime columns (**band 226**), `health` card stays minimal (disk/watchdog only).
 
-6. **MCP uniform surface** — add `gsv_keep_live` aggregate (read-only) + keep `gsv_health`/`gsv_watchdog` for compat; `GET /mcp keep_live` summary; `gsv_drain` prompt names keep-live so `абракадабра` steers next session. (**`gsv_keep_live` done band 223 → 57 tools; `GET /mcp` `keep_live_summary` 15s cache + prompt names bands 223-227 → band 226**)
+6. **MCP uniform surface** — add `gsv_keep_live` aggregate (read-only) + keep `gsv_health`/`gsv_watchdog` for compat; `GET /mcp keep_live` summary; `gsv_drain` prompt names keep-live so `абракадабра` steers next session. (**`gsv_keep_live` done band 223 → 57 tools; `gsv_telenetis_health` band 226 → 58 tools; `GET /mcp` `keep_live_summary` 15s cache + prompt names bands 223-227 → band 226**)
 ## 3. Risks & non-goals
 - Do not public-tunnel `/mcp` (owner opt-in `cargo xtask tunnel` only).
 - Do not add MCP `products/open`, `update/apply`, or tunnel starters.
@@ -47,7 +47,7 @@
 - **223 ✅** aggregation only (wire + probe + MCP read + Galaxy rows) — done: no respawn, fail-open `ok`, `gsv_keep_live` MCP (57 tools).
 - **224** telenetis live-copy + watchdog multi-probe + respawn.
 - **225 ✅** llama-rs heartbeat file (`GSV_LIVE=1`/`LLAMA_RS_HEARTBEAT=1` → atomic `target/live/llama_heartbeat.json` 15s tick, PH-S2868) + local provider catalog (`bunke-rock`) — heartbeat written, llama_rs alive E2E.
-- **226 ✅** unified dashboard + MCP aggregate polish (probe latency/uptime columns, `hint`, `keep_live_summary` on `GET /mcp`, `gsv_drain` names bands 223-227) — done; boot-verify `gsv-keep-live-boot-verify` (Rust, 4 probes, graceful peers) + stand-smoke `health_keep_live` shape (PH-S2878/79).
+- **226 ✅** unified dashboard + MCP aggregate polish (probe latency/uptime columns, `hint`, `keep_live_summary` on `GET /mcp`, `gsv_drain` names bands 223-227, `gsv_telenetis_health` MCP tool → **58**) — done; boot-verify `gsv-keep-live-boot-verify` (Rust, 4 probes, graceful peers) + stand-smoke `health_keep_live` shape (PH-S2878/79).
 - **227** (optional) omniroute probe when owner runs it.
 
 Sources: `src/boxes/watchdog.rs`, `src/boxes/health.rs`, `docs/gsv/GSV_SERVER.md:135`, `docs/telenetis/README.md:2`, `telenetis/src/main.rs:28`, `S:/rust/llama-rs/src/main.rs` (heartbeat ~`gsv_report_progress`), `S:/rust/llama-rs/docs/HANDOFF.md:6`, `S:/rust/GSV/docs/gsv/PRODUCTS.md:15-20`.

@@ -378,6 +378,27 @@ pub fn stub_gsv_uptime(v: &mut Value, uptime_secs: u64) {
     v["gsv"]["uptime_secs"] = json!(uptime_secs);
 }
 
+/// Telenetis-only health for MCP `gsv_telenetis_health` (derived from the
+/// keep-live report, so `ok` mirrors the aggregate's fail-open contract).
+pub fn telenetis_wire() -> Value {
+    let entry = report().telenetis;
+    json!({
+        "ok": true,
+        "hint": if entry.alive { "telenetis up" } else { "telenetis down" },
+        "telenetis": entry,
+    })
+}
+
+/// Async twin for the axum wire.
+pub async fn telenetis_wire_async() -> Value {
+    let entry = report_async().await.telenetis;
+    json!({
+        "ok": true,
+        "hint": if entry.alive { "telenetis up" } else { "telenetis down" },
+        "telenetis": entry,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -423,7 +444,9 @@ mod tests {
 
     #[test]
     fn report_ok_stays_true_when_peers_down() {
-        let _guard = crate::boxes::ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        let _guard = crate::boxes::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
         // Point all peers to a non-listening port, report should still be ok:true via wire().
         std::env::set_var("GSV_KEEP_LIVE_GSV_URL", "http://127.0.0.1:59998/api/health");
         std::env::set_var(
@@ -478,5 +501,26 @@ mod tests {
         let mut v = serde_json::json!({ "gsv": { "alive": true } });
         stub_gsv_uptime(&mut v, 77);
         assert_eq!(v["gsv"]["uptime_secs"], 77);
+    }
+
+    #[test]
+    fn telenetis_wire_stays_ok_when_down() {
+        let _guard = crate::boxes::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        std::env::set_var(
+            "GSV_KEEP_LIVE_TELENETIS_URL",
+            "http://127.0.0.1:59995/health",
+        );
+        std::env::set_var(
+            "LLAMA_HEARTBEAT_PATH",
+            "/tmp/gsv-keep-live-missing-59995.json",
+        );
+        let v = telenetis_wire();
+        assert_eq!(v["ok"], true);
+        assert_eq!(v["hint"], "telenetis down");
+        assert_eq!(v["telenetis"]["alive"], false);
+        std::env::remove_var("GSV_KEEP_LIVE_TELENETIS_URL");
+        std::env::remove_var("LLAMA_HEARTBEAT_PATH");
     }
 }

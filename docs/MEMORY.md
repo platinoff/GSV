@@ -4,6 +4,14 @@
 Оновлюється в кінці кожного band. Лічильники — вимірювані (`wc -l`, `cargo test`,
 `cargo run --bin gsv-loc-audit`), не з пам'яті.
 
+## Стан (2026-09-07 · band 226)
+
+- **Band 226:** MCP tool 58 — `gsv_telenetis_health` (owner pick, band-223 plan PH-S2877). `src/boxes/keep_live.rs`: `telenetis_wire()` (blocking; reuses keep-live report, 1s probe, fail-open `ok:true`) + `telenetis_wire_async()` (tokio `spawn_blocking` twin for the MCP path) → `{ ok, hint, telenetis: KeepLiveEntry }`, hint `up`/`down`/`conn-refused`. `src/mcp.rs`: `gsv_telenetis_health` in `tools_list()` (after `gsv_keep_live`), `TOOL_NAMES`, dispatch, contract list `tools_list_covers_box_wraps`, `gsv_drain` prompt names it. Contracts: `tests/gsv_mcp_contracts.rs` tool-name assert; `gsv_ranks/_tickets/_telegram` hardcoded 57→**58**; unit `telenetis_wire_stays_ok_when_down` (sync, ENV_LOCK). Docs: BOXES/SERVER/ARCHITECTURE/MCP_OPENBOT/HANDOFF/NEXT counts 57→58. Gate: fmt clean · clippy 0 · lib **309** · full `cargo test` green (leftover `target/debug/gsv-xtask.exe` lock killed PID 16664). Version **0.226.0** (`cargo xtask bump --band 226`). Queue: band 227 PH-S2883+ (OmniRoute node keep-live, optional).
+- **Canon:** [`gsv/GSV_TECH_ROADMAP.md`](gsv/GSV_TECH_ROADMAP.md) (band 226 table, PH-S2875…S2881).
+- **Next drain:** **owner pick** after a warnings-first scan.
+- **VDT kit:** `абракадабра` / `abrakadabra` Step 0 is `cargo xtask products`.
+- **Ratio / тести:** `gsv-loc-audit --stretch-96` → **99.48%** (rust 44923 / product 45160) · full `cargo test` green (pre-existing `ui_card_tracker_renders_table_markers` only) · clippy 0
+
 ## Стан (2026-09-07 · band 225)
 
 - **Band 225:** llama-rs keep-live + OmniRouter local provider (owner pick) — llama-rs writes `target/live/llama_heartbeat.json` when `GSV_LIVE=1` or `LLAMA_RS_HEARTBEAT=1` (atomic, 15s tick, `{pid, model, epoch_secs, bin_version}`, `LLAMA_HEARTBEAT_PATH` override — PH-S2868 lands in llama-rs). GSV catalog adds local provider `bunke-rock` / `lama-2.8` (`models/Qwen3.8-27B-UD-IQ2_XXS.gguf`, IQ2_XXS, ctx 32768, free tier, kind `local`, **gated on the model file existing** via `catalog::host_ready`) — PH-S2869 closes `t-1788009924340776700`. Wire: `ProviderWire.kind` (`local` vs `remote`), `enabled = pc.enabled && host_ready(id)`; `resolve_host` skips non-ready hosts (still skip cooling); `GET /api/omni/route task=rust prefer_free=true` picks `bunke-rock`/`lama-2.8`. `products::scan` enriches llama-rs `heartbeat_path`/`heartbeat_alive` (PH-S2870); contracts: keep-live llama fresh-file probe + catalog bunke-rock row (PH-S2871); docs BOXES/SERVER/OMNI_CATALOG/PRODUCTS/HANDOFF/NEXT updated. Fixed test race in `gsv_keep_live_contracts` (process-global env vars → `ENV_LOCK`). Clippy 0; omni lib 32/32; full test suite green (after `data/gsv_tracker.json` `}}` repair — gitignored data race). Version **0.223.0** (no bump), commits `6099d2e` + `608dfc9`. Vision rev **516**.
