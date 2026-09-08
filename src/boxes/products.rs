@@ -37,6 +37,11 @@ pub struct ProductScan {
     pub next_exists: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cargo_name: Option<String>,
+    /// Keep-live heartbeat file (llama-rs only); `heartbeat_alive` mirrors age ≤ 60s.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub heartbeat_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub heartbeat_alive: Option<bool>,
 }
 
 /// Display path as `S:/rust/...` (`/` not `\`).
@@ -236,6 +241,7 @@ pub fn scan(kit_root: &Path, id: &str) -> Result<ProductScan, String> {
     } else {
         None
     };
+    let (heartbeat_path, heartbeat_alive) = heartbeat_of(&row.id, &path);
     Ok(ProductScan {
         ok: true,
         id: row.id.clone(),
@@ -246,7 +252,31 @@ pub fn scan(kit_root: &Path, id: &str) -> Result<ProductScan, String> {
         handoff_exists,
         next_exists,
         cargo_name,
+        heartbeat_path,
+        heartbeat_alive,
     })
+}
+
+/// Heartbeat enrichment for keep-live products (llama-rs today). Resolves the
+/// `LLAMA_HEARTBEAT_PATH` override else `<root>/target/live/llama_heartbeat.json`
+/// — the file `keep_live` reads — and mirrors its freshness (age ≤ 60s) using the
+/// same [`keep_live::heartbeat_fresh`] helper so the scan and the box agree.
+fn heartbeat_of(id: &str, root: &Path) -> (Option<String>, Option<bool>) {
+    if id != "llama-rs" {
+        return (None, None);
+    }
+    let path = std::env::var_os("LLAMA_HEARTBEAT_PATH")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| root.join("target/live/llama_heartbeat.json"));
+    let alive = crate::boxes::keep_live::heartbeat_fresh(&path, now_unix());
+    (Some(display_path(&path)), Some(alive))
+}
+
+fn now_unix() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }
 
 fn cmd_on_path(name: &str) -> bool {
@@ -344,6 +374,42 @@ mod tests {
         assert_eq!(parse_cargo_name(&toml).as_deref(), Some("gsv"));
         fs::write(&toml, "[package]\nname=\"quoted\"\n").expect("write toml");
         assert_eq!(parse_cargo_name(&toml).as_deref(), Some("quoted"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn heartbeat_of_only_enriches_llama_rs() {
+        let _guard = crate::boxes::ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        let root = Path::new("S:/rust/llama-rs");
+        assert_eq!(heartbeat_of("gsv", root), (None, None));
+        let (path, alive) = heartbeat_of("llama-rs", root);
+        let (path, alive) = (path.expect("path"), alive.expect("alive"));
+        assert!(path.ends_with("target/live/llama_heartbeat.json"), "{path}");
+        // With no file the freshness mirrors keep_live (false), not a panic.
+        assert!(!alive);
+    }
+
+    #[test]
+    fn heartbeat_of_respects_env_override_and_freshness() {
+        let _guard = crate::boxes::ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        let dir = std::env::temp_dir().join(format!("gsv-products-hb-{}", std::process::id()));
+        let _ = fs::create_dir_all(&dir);
+        let file = dir.join("heartbeat.json");
+        std::env::set_var("LLAMA_HEARTBEAT_PATH", &file);
+        fs::write(
+            &file,
+            format!(
+                r#"{{"pid":1,"model":"m","epoch_secs":{},"bin_version":"0.0.0"}}"#,
+                now_unix() - 10
+            ),
+        )
+        .expect("write hb");
+        let root = Path::new("S:/rust/llama-rs");
+        let (path, alive) = heartbeat_of("llama-rs", root);
+        let expected = file.to_string_lossy().replace('\\', "/");
+        assert_eq!(path.as_deref(), Some(expected.as_str()));
+        assert_eq!(alive, Some(true));
+        std::env::remove_var("LLAMA_HEARTBEAT_PATH");
         let _ = fs::remove_dir_all(&dir);
     }
 }

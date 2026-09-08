@@ -2068,11 +2068,11 @@ Owner pick: llama-rs CLI (`S:/rust/llama-rs`, `llama-cpp-2 0.1.154`, `GSV_LIVE=1
 | **PH-S2867** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2867`; `last_sprint_closed` = `PH-S2866` — **planned** |
 | **PH-S2868** | Heartbeat | `llama-rs` writes `target/live/llama_heartbeat.json` (pid, model, ts) when `GSV_LIVE=1` or `LLAMA_RS_HEARTBEAT=1`; GSV `keep_live.llama_rs` reads it (1s file probe, no HTTP) — **✅** |
 | **PH-S2869** | Omni provider | catalog adds local `bunke-rock` / `lama-2.8` (`models/Qwen3.8-27B-UD-IQ2_XXS.gguf`, IQ2_XXS, kind local, gated on file exists) so `GET /api/omni` lists it (kind local) and `GET /api/omni/route task=rust` can pick it; closes `t-1788009924340776700` — **✅** |
-| **PH-S2870** | Products | `cargo xtask products` `llama-rs` scan enriches heartbeat path; `PRODUCTS.md` heartbeat note — **planned** |
-| **PH-S2871** | Contracts | keep-live llama file probe + catalog `bunke-rock` in `gsv_omni_contracts` — **planned** |
-| **PH-S2872** | Docs | BOXES / SERVER / OMNI_CATALOG / HANDOFF / NEXT / MEMORY — **planned** |
-| **PH-S2873** | Gate | fmt · clippy 0 · `cargo test` GSV + llama-rs pass · `--stretch-96` ≥96% — **planned** |
-| **PH-S2874** | Band close | `--band 225` + fingerprint; recopy live; one commit + push — **planned** |
+| **PH-S2870** | Products | `cargo xtask products` `llama-rs` scan enriches heartbeat path + freshness (`heartbeat_path` / `heartbeat_alive`); `PRODUCTS.md` heartbeat note — **✅** |
+| **PH-S2871** | Contracts | keep-live llama file probe (`llama_rs_file_probe_flips_alive_on_fresh_heartbeat` in `gsv_keep_live_contracts`) + catalog `bunke-rock` in `gsv_omni_contracts` — **✅** |
+| **PH-S2872** | Docs | BOXES / SERVER / OMNI_CATALOG / HANDOFF / NEXT / MEMORY — **✅** |
+| **PH-S2873** | Gate | fmt · clippy 0 · `cargo test` GSV + llama-rs pass · `--stretch-96` ≥96% — **✅** |
+| **PH-S2874** | Band close | `--band 225` + fingerprint; recopy live; one commit + push — **✅** |
 
 ## Спринти (band 226) — Unified keep-live dashboard + MCP + E2E
 

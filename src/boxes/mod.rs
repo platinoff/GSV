@@ -54,6 +54,11 @@ pub mod vision;
 pub mod watchdog;
 pub mod xtask;
 
+/// Serialise env-var-mutating lib tests (probe/override vars are
+/// process-global and the lib test binary runs those tests in parallel).
+#[cfg(test)]
+pub(crate) static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 pub use fingerprint::Fingerprint;
 pub use ide::{IdeSelection, IdeSession, IdeWire};
 pub use omni::{OmniConfig, OmniRouter, OmniWire, ProviderConfig, ProviderWire, RoutingConfig};

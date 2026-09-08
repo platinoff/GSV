@@ -423,6 +423,7 @@ mod tests {
 
     #[test]
     fn report_ok_stays_true_when_peers_down() {
+        let _guard = crate::boxes::ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         // Point all peers to a non-listening port, report should still be ok:true via wire().
         std::env::set_var("GSV_KEEP_LIVE_GSV_URL", "http://127.0.0.1:59998/api/health");
         std::env::set_var(

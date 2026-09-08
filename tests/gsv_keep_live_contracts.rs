@@ -16,6 +16,9 @@ use serde_json::{json, Value};
 use tokio::sync::broadcast;
 use tower::ServiceExt;
 
+/// Serialize env-mutating peer-probe tests (probe vars are process-global).
+static ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 fn kit_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
@@ -70,6 +73,7 @@ async fn get_json(app: &axum::Router, path: &str) -> (StatusCode, Value) {
 
 #[tokio::test]
 async fn api_keep_live_and_health_merge_ok_stays_true() {
+    let _guard = ENV_LOCK.lock().await;
     dead_peers();
     let keep = get_json(&app(), "/api/keep-live").await;
     let health = get_json(&app(), "/api/health").await;
@@ -88,6 +92,52 @@ async fn api_keep_live_and_health_merge_ok_stays_true() {
     assert_eq!(health.1["keep_live"]["gsv"]["alive"], false);
     assert!(health.1["keep_live"]["hint"].is_string());
     assert!(health.1["keep_live"]["gsv"]["uptime_secs"].is_u64());
+}
+
+#[tokio::test]
+async fn llama_rs_file_probe_flips_alive_on_fresh_heartbeat() {
+    let _guard = ENV_LOCK.lock().await;
+    // Point the llama probe at a real, fresh heartbeat file (band 225 file probe).
+    let dir = std::env::temp_dir().join(format!("gsv-keep-live-fresh-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("dir");
+    let file = dir.join("llama_heartbeat.json");
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("epoch")
+        .as_secs();
+    std::fs::write(
+        &file,
+        format!("{{\"pid\":1,\"model\":\"m\",\"epoch_secs\":{now},\"bin_version\":\"0.1.154\"}}"),
+    )
+    .expect("heartbeat");
+    std::env::set_var("LLAMA_HEARTBEAT_PATH", &file);
+    std::env::set_var("GSV_KEEP_LIVE_GSV_URL", "http://127.0.0.1:59998/api/health");
+    std::env::set_var(
+        "GSV_KEEP_LIVE_TELENETIS_URL",
+        "http://127.0.0.1:59997/health",
+    );
+    std::env::set_var("GSV_KEEP_LIVE_OMNIROUTE_URL", "http://127.0.0.1:59996");
+    let keep = get_json(&app(), "/api/keep-live").await;
+    std::env::remove_var("LLAMA_HEARTBEAT_PATH");
+    std::env::remove_var("GSV_KEEP_LIVE_GSV_URL");
+    std::env::remove_var("GSV_KEEP_LIVE_TELENETIS_URL");
+    std::env::remove_var("GSV_KEEP_LIVE_OMNIROUTE_URL");
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(keep.0, StatusCode::OK);
+    assert_eq!(keep.1["ok"], true);
+    assert_eq!(
+        keep.1["llama_rs"]["alive"], true,
+        "{:?}",
+        keep.1["llama_rs"]
+    );
+    assert!(
+        keep.1["llama_rs"]["url"]
+            .as_str()
+            .unwrap_or_default()
+            .ends_with("llama_heartbeat.json"),
+        "{:?}",
+        keep.1["llama_rs"]
+    );
 }
 
 #[test]

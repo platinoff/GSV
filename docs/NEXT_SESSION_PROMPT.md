@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-08-28 (**band 221 · next gsv drain = owner pick**)
+**Оновлено:** 2026-09-07 (**band 225 · next gsv drain = owner pick**)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -378,7 +378,8 @@ band 207 ✅ (logic-audit XI — MCP protocol surface: re-initialize session reu
 band 221 ✅ (telenetis prod ops/deploy — Dockerfile/compose/.env.example/systemd/boot-verify/ops.md; clippy 0 · 167 tests · 0.221.0; closes PH-S2745/2746) ·
 band 222 ✅ (telenetis↔GSV bus wire-contract fix — reads GSV `messages` key, `warn!` reject, 5s post timeout, 5 contract tests · webhook secret-token 403 auth `ct_eq` · server-clock initData freshness · outbound timeouts; clippy 0 · 177 tests · 0.222.0) ·
 band 223 ✅ (keep-live health aggregation — `boxes/keep_live.rs` 4 peers GSV/Telenetis/llama-rs/OmniRoute aggregation-only fail-open `ok:true`; `/api/keep-live` + `/api/health {keep_live}` wire_async; MCP `gsv_keep_live` → 57 tools; Galaxy `keep-live` card `CARD_NAMES` 43; env overrides; fixed recursive `cargo test` hang (`terminal_cargo_version_allowed`); AGENTS.md `Formats + local rules` section; clippy 0 · 782 tests · 0.223.0) ·
-наступний drain = **owner pick (L:\qwen4lama_rs\Qwen3.8-27B-UD-IQ2_XXS.gguf integration with OpenBot, OpenCode, Cursor, Telenetis)** ·
+band 225 ✅ (llama-rs keep-live + OmniRouter local provider — llama-rs writes `target/live/llama_heartbeat.json` (`GSV_LIVE=1`/`LLAMA_RS_HEARTBEAT=1`, 15s tick, PH-S2868); catalog `bunke-rock`/`lama-2.8` kind `local` gated on model file exists (`host_ready`, closes `t-1788009924340776700`, PH-S2869); route task=rust picks it when prefer_free; `products::scan` heartbeat enrichment (PH-S2870); keep-live llama file probe + bunke-rock in contracts (PH-S2871); clippy 0 · full tests green · 0.223.0, commits `6099d2e`+`608dfc9`) ·
+наступний drain = **owner pick** ·
 не комітити `data/gsv_settings.json` / bot token ·
 не комітити kit-only в PoolAI як «замість» GSV drain ·
 staging `GSV/data/*` / `certs/*.pem` /

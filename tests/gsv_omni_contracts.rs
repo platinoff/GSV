@@ -120,6 +120,33 @@ async fn omni_overview_returns_catalog_and_recommended() {
 }
 
 #[tokio::test]
+async fn omni_lists_bunke_rock_local_provider() {
+    let (app, dir) = {
+        let d = temp_data_dir("bunke");
+        (app(d.clone()), d)
+    };
+    let (status, json) = get(&app, "/api/omni").await;
+    assert_eq!(status, StatusCode::OK);
+    let providers = json["providers"].as_array().expect("providers");
+    let bunke = providers
+        .iter()
+        .find(|p| p["id"] == "bunke-rock")
+        .expect("bunke-rock row");
+    assert_eq!(bunke["kind"], "local");
+    assert_eq!(bunke["free"], true);
+    assert_eq!(bunke["base_url"], "http://127.0.0.1:8080/v1");
+    assert_eq!(
+        bunke["enabled"],
+        gsv::boxes::omni::catalog::host_ready("bunke-rock")
+    );
+    // Preferred free routing for task=rust must be able to pick the local backend.
+    let (route_status, route) = get(&app, "/api/omni/route?task=rust&prefer_free=true").await;
+    assert_eq!(route_status, StatusCode::OK);
+    assert_eq!(route["ok"], true);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
 async fn omni_config_read_is_redacted() {
     let (app, dir) = {
         let d = temp_data_dir("config-read");

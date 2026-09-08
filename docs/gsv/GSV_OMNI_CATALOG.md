@@ -30,6 +30,14 @@ Owner explicit `X-Omni-Provider` still wins (bypass cooldown).
 
 Cursor-only speed lane: **Composer 2.5** (Cursor Models monthly pool). Not an Omni upstream unless you configure a base URL.
 
+## Local llama provider `bunke-rock` (band 225)
+
+Local **llama-rs** backend (`S:/rust/llama-rs`, llama.cpp) registered as catalog `bunke-rock` / `lama-2.8` — the 2-bit `models/Qwen3.8-27B-UD-IQ2_XXS.gguf` (IQ2_XXS, ctx 32768, free tier).
+
+- **Kind** `local` (vs `remote` API vendors): `GET /api/omni` lists it with `kind: local`; `enabled` is **gated on the model file existing** (`catalog::host_ready`, same file Great Galaxy keep-live reads).
+- **Routing:** `GET /api/omni/route?task=rust&prefer_free=true` can pick it as the free lane (skips cooling); no base_url/token needed (defaults to `http://127.0.0.1:8080/v1` if it ever proxies).
+- In path of a running llama-rs: works offline, no quota timers.
+
 ## Nemotron 3.5 Lightning (addendum 2026-08-21)
 
 Released **2026-08-11**: open 30B MoE / **3B active** execution-layer model (Mamba+Transformer hybrid, MTP + speculative decoding, OpenMDW license). Trained for high-volume agentic loops — multi-step tool use incl. **search tool-calls**, structured output, terminal/coding RL. Context: **1M on NIM**, **300K on OpenRouter** (`nvidia/nemotron-3.5-lightning`, 16K reasoning budget). Free NIM tier ~40 RPM/model — already covered by the catalog cooldown (`reset_secs=60`).
