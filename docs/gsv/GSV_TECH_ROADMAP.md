@@ -2101,6 +2101,25 @@ Owner pick, only if `S:/rust/omniroute` runs locally (`npm run dev`). Fail-open 
 | **PH-S2886** | Gate | fmt · clippy 0 · full `cargo test` green (lib **310**) · `--stretch-96` **99.48%** (rust 44949 / 45186) — **✅** |
 | **PH-S2887** | Band close | `--band 227` (`0.227.0`); fingerprint (product gsv v0.227.0); recopy live; one commit + push — **✅** |
 
+## Спринти (band 229) — rules-drift check (Gravity harness)
+
+Owner pick. One `cargo xtask rules-check` that confirms the kit rulebases still
+describe shipped truth (drift report on each drain), reusing existing gates
+instead of adding new sub-harnesses; doc lists every harness + its source.
+Ticket `t-1788222249185454201` (Gravity harness: check rules-vs-live drift
+across GSV + apps). Queue slot: after band 228 close `last PH-S2928` → `next
+PH-S2929`.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2888** | Scope | this band; `active_sprint` / `next_sprint` = `PH-S2888` (manifest queue slot `PH-S2929`); `last_sprint_closed` = `PH-S2887`; closes `t-1788222249185454201` — **✅** |
+| **PH-S2889** | Box | `src/boxes/rules.rs` `collect(repo_root, data_dir, live_url)` → `RulesCheck { ok, at, git_head, doc, checks[] }` (`id`/`ok`/`gate`/`detail`); hard gates: `git` HEAD, `fingerprint` (version recorded for product gsv), `vision` (`collect_drift`), `ratio` (≥95% formal; stretch-96 advisory); soft: `registry` (PRODUCTS.md rows → HANDOFF/NEXT via `products::scan`), `sli` (unused new-SLI pool), `bench` (speed-index ≤31 d), `live` (lockstep, advisory) — **✅** |
+| **PH-S2890** | CLI | `cargo xtask rules-check` (render + exit `0` unless a hard gate fails; `--no-live`; `GSV_LIVE_URL`); MCP read-only task `rules` (`MCP_TASKS` 5: catalog/products/disk/sync/rules) — **✅** |
+| **PH-S2891** | Contracts | rules box tests: `empty_tree_reports_hard_drift`, `ok_follows_hard_gates_only`, `render_lists_checks`, `registry_flags_row_without_docs`; `mcp_readonly_tasks_include_sync_check` → 5 tasks + `rules` wire shape (`gk` + `checks[]`) — **✅** |
+| **PH-S2892** | Docs | `docs/gsv/GSV_RULES_CHECK.md` (checks table + harness map + sources + when to run); BOXES rules-drift row; MCP_OPENBOT `gsv_xtask` tasks; GSV_RUST_DEV + PRODUCTS.md command lists; HANDOFF / NEXT / MEMORY — **✅** |
+| **PH-S2893** | Gate | fmt · clippy 0 · full `cargo test` green (lib 310 + contracts) · `--stretch-96` ≥96% · `cargo xtask rules-check` runs clean in-tree — **✅** |
+| **PH-S2894** | Band close | `--band 229` (`0.229.0`); fingerprint (product gsv v0.229.0); recopy live; one commit + push — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

@@ -136,7 +136,7 @@ Do **not** `cargo run --bin gsv-mcp` from the client: it is slow, takes the carg
 | `gsv_tickets_bench` | Read or run Instant `abrakadabra-session` create+walk; persist `docs/gsv/scenario_bench.json` |
 | `gsv_tickets_next` | Standardized inbox: `hint` → next MCP tool (`gsv_tickets_claim` / `done` / `walk` / `bench`) |
 | `gsv_mds` | Light memory / disk / speed report (`gsv-mds`) |
-| `gsv_xtask` | Read-only `catalog` / `products` / `disk` / `sync` (`--check` drift). Remirror is `gsv_vision_sync`. |
+| `gsv_xtask` | Read-only `catalog` / `products` / `disk` / `sync` (`--check` drift) / `rules` (drift report; doc `GSV_RULES_CHECK.md`). Remirror is `gsv_vision_sync`. |
 | `gsv_ide_sessions` | IDE box (OpenCode + Cursor sessions, read) |
 | `gsv_terminal` | SLI terminal **same allowlist** as HTTP (no extra shell) |
 

@@ -28,7 +28,7 @@
 | POST | `/api/ranks` | `{action:list\|award\|demote\|review}` |
 | GET | `/sw.js` | Rust-rendered Service Worker (shell Cache API; `Service-Worker-Allowed: /`) |
 | GET | `/api/watchdog` | live watchdog heartbeat (`ok`, `alive`, `path`, `last_action`, `debug_newer`, `server_debug_newer`, `watchdog_debug_newer`, `telenetis_alive`, `telenetis_debug_newer`, `bin_version`, `crate_version`, `version_lag`) |
-| GET | `/api/xtask` | cargo xtask catalog (`?task=catalog\|products\|disk`; mutating names → 400) |
+| GET | `/api/xtask` | cargo xtask catalog (`?task=catalog\|products\|disk\|sync\|rules`; mutating names → 400; `rules` = drift report) |
 | GET | `/api/disk` | S0 disk guard (`ok`, `free_gb`, `target_gb`; `?enforce=true`) |
 | GET | `/api/update` | статус оновлення (Update box; `live_copy`; `crate_version` / `version_lag`; **band 191** `github_ahead` / `github_latest` / `can_apply`) |
 | POST | `/api/update/notify` | виставити `update_available` + SSE |

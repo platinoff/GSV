@@ -569,6 +569,7 @@ const RESOURCE_URIS: &[&str] = &[
     "gsv://docs/settings-telegram",
     "gsv://docs/solo-squad-jail",
     "gsv://docs/ranks",
+    "gsv://docs/rules-check",
 ];
 
 const PROMPT_NAMES: &[&str] = &["gsv_status", "gsv_vision_brief", "gsv_drain"];
@@ -673,6 +674,13 @@ const RESOURCES: &[ResourceSpec] = &[
         description: "Band 192: IT+army merit ladder. Jun-nub L0. Channel host displays marshal-orchestrator. Failed tests after commit demote once per git_head.",
         mime: "text/markdown",
         rel: "docs/gsv/GSV_RANKS.md",
+    },
+    ResourceSpec {
+        uri: "gsv://docs/rules-check",
+        name: "Rules drift check",
+        description: "Band 229: cargo xtask rules-check harness — gates, sources, harness map.",
+        mime: "text/markdown",
+        rel: "docs/gsv/GSV_RULES_CHECK.md",
     },
 ];
 
@@ -2464,6 +2472,7 @@ mod tests {
         assert!(RESOURCE_URIS.contains(&"gsv://docs/settings-telegram"));
         assert!(RESOURCE_URIS.contains(&"gsv://docs/solo-squad-jail"));
         assert!(RESOURCE_URIS.contains(&"gsv://docs/ranks"));
+        assert!(RESOURCE_URIS.contains(&"gsv://docs/rules-check"));
         assert_eq!(listed.len(), RESOURCE_URIS.len());
         for (item, expected) in listed.iter().zip(RESOURCE_URIS.iter()) {
             assert_eq!(item["uri"], *expected);

@@ -18,7 +18,7 @@ use crate::boxes::{products, tickets, vision, watchdog};
 
 /// Read-only MCP / HTTP tasks. Mutating work stays on `cargo xtask`.
 /// `sync` here is `--check` only (drift gate); remirror is `gsv_vision_sync`.
-pub const MCP_TASKS: &[&str] = &["catalog", "products", "disk", "sync"];
+pub const MCP_TASKS: &[&str] = &["catalog", "products", "disk", "sync", "rules"];
 
 /// CLI tasks (`cargo xtask <name>`).
 pub const TASKS: &[(&str, &str)] = &[
@@ -26,6 +26,10 @@ pub const TASKS: &[(&str, &str)] = &[
     (
         "products",
         "Discover VDT products (TSV; abracadabra Step 0)",
+    ),
+    (
+        "rules-check",
+        "Rules-vs-live drift report (git/fingerprint/vision/registry/ratio; hard gates fail exit)",
     ),
     (
         "disk",
@@ -350,8 +354,9 @@ pub fn mcp_run(repo_root: &Path, task: &str) -> Result<Value, String> {
             Ok(message) => Ok(json!({"ok": true, "check": true, "message": message})),
             Err(e) => Err(e),
         },
+        "rules" => Ok(json!(rules_wire(repo_root))),
         other => Err(format!(
-            "unknown or mutating xtask '{other}' — use `cargo xtask {other}` (MCP is catalog/products/disk/sync --check only)"
+            "unknown or mutating xtask '{other}' — use `cargo xtask {other}` (MCP is catalog/products/disk/sync/rules --check only)"
         )),
     }
 }
@@ -671,6 +676,19 @@ pub fn vision_sync(repo_root: &Path, check_only: bool) -> Result<String, String>
         report.git_head,
         report.next_sprint
     ))
+}
+
+/// Rules-vs-live drift report (read-only, no live probe — advisory only).
+pub fn rules_wire(repo_root: &Path) -> Value {
+    let data = repo_root.join("data");
+    let r = crate::boxes::rules::collect(repo_root, &data, None);
+    json!({
+        "ok": r.ok,
+        "at": r.at,
+        "git_head": r.git_head,
+        "doc": r.doc,
+        "checks": r.checks,
+    })
 }
 
 /// Obsidian vault root inside the kit repo (`vault/`, gitignored — never staged).

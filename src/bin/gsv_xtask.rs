@@ -37,6 +37,23 @@ fn main() -> ExitCode {
             );
             ExitCode::SUCCESS
         }
+        "rules-check" | "rules" => {
+            let no_live = args.iter().any(|a| a == "--no-live");
+            let live_url = if no_live {
+                None
+            } else {
+                Some(env::var("GSV_LIVE_URL").unwrap_or_else(|_| {
+                    format!("http://{DEFAULT_HOST}:{DEFAULT_PORT}/api/watchdog")
+                }))
+            };
+            let r = gsv::boxes::rules::collect(&root, &root.join("data"), live_url.as_deref());
+            print!("{}", gsv::boxes::rules::render(&r));
+            if r.ok {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::FAILURE
+            }
+        }
         "products" => {
             print!("{}", xtask::products_tsv(&root));
             ExitCode::SUCCESS

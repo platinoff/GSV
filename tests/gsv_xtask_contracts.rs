@@ -96,7 +96,10 @@ fn cargo_alias_xtask() {
 
 #[test]
 fn mcp_readonly_tasks_include_sync_check() {
-    assert_eq!(xtask::MCP_TASKS, &["catalog", "products", "disk", "sync"]);
+    assert_eq!(
+        xtask::MCP_TASKS,
+        &["catalog", "products", "disk", "sync", "rules"]
+    );
     let ok = xtask::mcp_run(&kit_root(), "sync");
     match ok {
         Ok(v) => {
@@ -108,6 +111,10 @@ fn mcp_readonly_tasks_include_sync_check() {
         }
     }
     assert!(xtask::mcp_run(&kit_root(), "bump").is_err());
+    let rules = xtask::mcp_run(&kit_root(), "rules").expect("rules readonly");
+    assert_eq!(rules["ok"], true, "{rules}");
+    assert!(rules["checks"].is_array(), "{rules}");
+    assert!(rules.get("git_head").is_some(), "{rules}");
     let disk = xtask::mcp_run(&kit_root(), "disk").expect("disk readonly");
     assert!(disk.get("free_mb").is_some(), "{disk}");
     assert!(
