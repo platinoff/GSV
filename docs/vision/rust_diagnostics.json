@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generated_at": "2026-09-11",
   "host_label": "PLATINOV",
-  "git_head": "383e15a",
+  "git_head": "326491d",
   "source": "local",
   "notes": [
     "Machine-readable Rust/Clippy warning+error index for vision Rust panel.",
@@ -12,35 +12,11 @@
     "warnings": 0,
     "errors": 0,
     "ok": true,
-    "recorded_at": "2026-09-11T15:27:26Z",
+    "recorded_at": "2026-09-11T17:03:46Z",
     "command": "cargo clippy --message-format=json --all-targets",
-    "wall_secs": 29.2082404
+    "wall_secs": 6.8614241
   },
   "history": [
-    {
-      "kind": "rust_diagnostics",
-      "command": "cargo clippy --message-format=json --all-targets",
-      "warnings": 0,
-      "errors": 0,
-      "ok": true,
-      "recorded_at": "2026-08-24T19:30:12Z",
-      "wall_secs": 7.1121439,
-      "host_label": "PLATINOV",
-      "git_head": "4992cc8",
-      "source": "local"
-    },
-    {
-      "kind": "rust_diagnostics",
-      "command": "cargo clippy --message-format=json --all-targets",
-      "warnings": 0,
-      "errors": 0,
-      "ok": true,
-      "recorded_at": "2026-08-25T00:03:18Z",
-      "wall_secs": 5.9918034,
-      "host_label": "PLATINOV",
-      "git_head": "2222c10",
-      "source": "local"
-    },
     {
       "kind": "rust_diagnostics",
       "command": "cargo clippy --message-format=json --all-targets",
@@ -402,6 +378,30 @@
       "wall_secs": 29.2082404,
       "host_label": "PLATINOV",
       "git_head": "383e15a",
+      "source": "local"
+    },
+    {
+      "kind": "rust_diagnostics",
+      "command": "cargo clippy --message-format=json --all-targets",
+      "warnings": 0,
+      "errors": 0,
+      "ok": true,
+      "recorded_at": "2026-09-11T16:31:37Z",
+      "wall_secs": 6.7071955,
+      "host_label": "PLATINOV",
+      "git_head": "326491d",
+      "source": "local"
+    },
+    {
+      "kind": "rust_diagnostics",
+      "command": "cargo clippy --message-format=json --all-targets",
+      "warnings": 0,
+      "errors": 0,
+      "ok": true,
+      "recorded_at": "2026-09-11T17:03:46Z",
+      "wall_secs": 6.8614241,
+      "host_label": "PLATINOV",
+      "git_head": "326491d",
       "source": "local"
     }
   ]

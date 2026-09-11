@@ -84,11 +84,15 @@ impl TrackerStore {
         Some(store)
     }
 
-    /// Persist the store to `{data_dir}/gsv_tracker.json`.
+    /// Persist the store to `{data_dir}/gsv_tracker.json` (atomic: tmp + rename,
+    /// so a concurrent `load` never sees a half-written file — band 231 fix).
     pub fn save(&self, data_dir: &Path) -> Result<(), String> {
         fs::create_dir_all(data_dir).map_err(|e| format!("create data dir: {e}"))?;
         let raw = serde_json::to_string_pretty(self).map_err(|e| format!("serialize: {e}"))?;
-        fs::write(data_dir.join("gsv_tracker.json"), raw).map_err(|e| format!("write: {e}"))
+        let path = data_dir.join("gsv_tracker.json");
+        let tmp = data_dir.join("gsv_tracker.json.tmp");
+        fs::write(&tmp, raw).map_err(|e| format!("write: {e}"))?;
+        fs::rename(&tmp, &path).map_err(|e| format!("rename: {e}"))
     }
 
     /// Append a record (and persist).

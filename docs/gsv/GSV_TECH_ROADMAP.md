@@ -2138,6 +2138,24 @@ Plan canon: [`GSV_UI_INTERACTIVITY_PLAN.md`](./GSV_UI_INTERACTIVITY_PLAN.md).
 | **PH-S2945** | Contracts | 7 new tests (`gsv_ui_contracts`): beacon/busy/notify/fullscreen/ring roundtrip + health count + single select; ui_errors unit 5; probe bin unit 3; full suite green, clippy 0, stretch-96 ≥96% — **✅** |
 | **PH-S2946** | Band close | `--band 230` (`0.230.0`); fingerprint; rebuild + `/api/update/apply` live take-over; re-probe `js_errs=0`, ring `count=0`; record-speed/record-rust; sync; one commit + push — **✅** |
 
+## Спринти (band 231) — Framework refresh (inventory → research → GSV+telenetis bumps)
+
+Owner pick (tickets `t-1789142746161269100`…`t-1789142759458461200`). Full dep
+inventory across Rust products × crates.io, perf-framework web research, and the
+first refresh wave (GSV + telenetis) with queue tickets per product. Canon:
+[`GSV_FRAMEWORK_REFRESH_PLAN.md`](./GSV_FRAMEWORK_REFRESH_PLAN.md).
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2947** | Inventory | Cargo.toml × crates.io matrix for gsv/telenetis/poolai/linfs/rebook/orr_desktop/llama-rs; drift leaders flagged (zip 0.5→8.6, axum 0.7, reqwest 0.12→0.13) — **✅** |
+| **PH-S2948** | Research | Rust 1.98.1 (format_into, ranges, vtable-miscompile fix), reqwest 0.13 rustls/aws-lc NASM trap → native-tls=schannel path, query/form feature split; perf shortlist: mimalloc-now, rayon-232+, divan rejected (bench history), PGO backlog — **✅** |
+| **PH-S2949** | GSV bump | reqwest 0.13 (default-features=false + json/stream/query/charset/http2/native-tls), toml 1.1, tokio 1.53, axum 0.8.9, full lock refresh; zero API drift — **✅** |
+| **PH-S2950** | mimalloc | `#[global_allocator]` in gsv-server + gsv-mcp (band 231 shortlist item 1) — **✅** |
+| **PH-S2951** | telenetis | reqwest 0.13 native-tls + lock refresh; 2 `unnecessary_sort_by` fixed (`sort_by_key`+`Reverse`); tests 184×3 green — **✅** |
+| **PH-S2952** | Queue tickets | per-product refresh tickets: rebook → LinFS → ORR_DESKTOP → llama-rs (patch-reverify) → poolAI (test-ci) — **✅** |
+| **PH-S2953** | Gate + close | clippy 0 · cargo test 820/0 · stretch-96 99.48% · record-speed 80s · record-rust 0/0 · sync clean · **gsv-ui-probe re-run on refreshed live: js_errs=0** · `--band 231` (0.231.0, queue last PH-S2958/next PH-S2959) · fingerprint · live take-over applied (0.231.0) · one commit + push — **✅** |
+| **PH-S2954** | Test stabilize | tracker flaky root-cause: `TrackerStore::save` was non-atomic `fs::write` (live server half-wrote `gsv_tracker.json` while tests loaded → empty store → no `<table>`) → **atomic tmp+rename**; `ui_card_tracker_renders_table_markers` isolated into seeded temp data-dir — race class gone — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

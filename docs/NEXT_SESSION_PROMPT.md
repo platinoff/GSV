@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-09-11 (**band 230 · next gsv drain = owner pick**)
+**Оновлено:** 2026-09-11 (**band 231 · next gsv drain = owner pick**; refresh queue: rebook → LinFS → ORR_DESKTOP → llama-rs → poolAI)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).

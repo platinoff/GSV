@@ -293,7 +293,7 @@ async fn handle_scenarios(state: &AppState) -> String {
 
     let mut lines: Vec<String> = vec!["*Scenarios*".to_string(), "".to_string()];
     let mut sorted: Vec<_> = scenario_map.into_iter().collect();
-    sorted.sort_by(|a, b| b.1.len().cmp(&a.1.len()));
+    sorted.sort_by_key(|entry| std::cmp::Reverse(entry.1.len()));
     for (name, ids) in &sorted {
         lines.push(format!(
             "*{}* — {} tickets: {}",
@@ -373,7 +373,7 @@ async fn handle_ranks(state: &AppState) -> String {
     }
 
     let mut workers: Vec<_> = presence.values().collect();
-    workers.sort_by(|a, b| b.rank.cmp(&a.rank));
+    workers.sort_by_key(|w| std::cmp::Reverse(w.rank));
 
     let mut lines: Vec<String> = vec!["*Worker Ranks*".to_string(), "".to_string()];
     for (i, w) in workers.iter().enumerate() {

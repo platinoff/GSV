@@ -4,7 +4,7 @@ members = ["."]
 
 [package]
 name = "gsv"
-version = "0.230.0"
+version = "0.231.0"
 edition = "2021"
 authors = ["PoolAI Team"]
 description = "GSV (Galaxy StarWalker Vision) - Rust-first vision server with boxes (Tracker, SLI, Toolchain, IDE, Update, Preview, Terminal, Hooks)"
@@ -76,13 +76,13 @@ path = "benches/gsv_dev.rs"
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-toml = "0.9"
+toml = "1.1"
 
 # Timestamps (RFC3339)
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 
 # Async runtime
-tokio = { version = "1.49", features = ["rt-multi-thread", "io-util", "io-std", "net", "time", "fs", "macros", "sync"] }
+tokio = { version = "1.53", features = ["rt-multi-thread", "io-util", "io-std", "net", "time", "fs", "macros", "sync"] }
 
 # Web framework
 axum = { version = "0.8" }
@@ -91,8 +91,13 @@ axum = { version = "0.8" }
 futures-util = "0.3"
 tokio-stream = { version = "0.1", features = ["sync"] }
 
-# HTTP client for the OmniRouter proxy (default-tls = native-tls → schannel on Windows)
-reqwest = { version = "0.12", features = ["json", "stream"] }
+# HTTP client for the OmniRouter proxy (band 231: reqwest 0.13 default TLS is
+# rustls+aws-lc which needs NASM on windows-gnu → keep native-tls = schannel,
+# same behavior as the old 0.12 default-tls; `query` split into its own feature)
+reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "query", "charset", "http2", "native-tls"] }
+
+# Allocator (band 231 perf shortlist: mimalloc global allocator in the server bins)
+mimalloc = "0.1"
 
 # Logging and tracing
 tracing = "0.1"

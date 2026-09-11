@@ -73,8 +73,34 @@ async fn ui_card_unknown_name_is_404() {
 
 #[tokio::test]
 async fn ui_card_tracker_renders_table_markers() {
-    let (app, _state) = app();
+    // Isolated temp data dir with a seeded tracker store — the shared
+    // repo `data/` is live-written by the running server (band 231 race).
+    let dir = std::env::temp_dir().join(format!("gsv-ui-tracker-test-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("mkdir");
+    std::fs::write(
+        dir.join("gsv_tracker.json"),
+        serde_json::json!({
+            "records": [{
+                "id": "seed-1", "kind": "command", "label": "echo hello",
+                "detail": "exit=Some(0) ms=1", "status": "closed",
+                "at": "2026-09-11T16:00:00Z"
+            }],
+            "sprints": {"open": [], "closed": [], "next": null, "total": 0},
+            "last_saved": "2026-09-11T16:00:00Z"
+        })
+        .to_string(),
+    )
+    .expect("seed");
+    let (tx, _rx) = broadcast::channel(64);
+    let state = AppState::new(
+        Some(PathBuf::from(env!("CARGO_MANIFEST_DIR"))),
+        Some(dir.clone()),
+        tx,
+    );
+    let app = router(state);
     let (status, json) = get_card(&app, "tracker").await;
+    let _ = std::fs::remove_dir_all(&dir);
     assert_eq!(status, StatusCode::OK);
     assert_eq!(json["ok"], true);
     assert_eq!(json["card"], "tracker");

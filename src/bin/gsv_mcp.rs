@@ -16,6 +16,10 @@ use tracing_subscriber::EnvFilter;
 
 use gsv::{mcp, AppState};
 
+/// Band 231: mimalloc global allocator for the long-lived stdio MCP server.
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 /// `--repo-root P`, `--data-dir P`, `--help`.
 fn parse_args() -> (Option<PathBuf>, Option<PathBuf>) {
     let mut repo_root = None;

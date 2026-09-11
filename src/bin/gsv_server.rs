@@ -17,6 +17,11 @@ use tracing_subscriber::EnvFilter;
 
 use gsv::{AppState, DEFAULT_HOST, DEFAULT_PORT, GSV_SERVER_NAME};
 
+/// Band 231: mimalloc global allocator (JSON-heavy box wiring; see
+/// `docs/gsv/GSV_FRAMEWORK_REFRESH_PLAN.md` perf shortlist).
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 /// Simple CLI parser (no external deps): `--port N`, `--host H`, `--repo-root P`,
 /// `--data-dir P`, `--allow-lan`, `--help`.
 fn parse_args() -> (String, u16, Option<PathBuf>, Option<PathBuf>) {
