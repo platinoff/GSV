@@ -86,7 +86,7 @@ impl Default for AuditConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CategoryLoc {
     pub files: u64,
     pub loc: u64,
@@ -195,27 +195,42 @@ fn count_loc(text: &str) -> u64 {
     text.lines().filter(|line| !line.trim().is_empty()).count() as u64
 }
 
+/// Count one tracked file; `Ok(None)` when the category is ignored/missing.
+fn count_one(path: &Path, rel: &str) -> Result<Option<(String, u64)>, String> {
+    let category = classify_product_path(rel);
+    if category == ProductCategory::Ignored || !path.is_file() {
+        return Ok(None);
+    }
+    let text =
+        std::fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
+    Ok(Some((category.label().to_string(), count_loc(&text))))
+}
+
+/// Per-file category sums over tracked files (band 232): rayon parallel
+/// read/count, ordered collect so the **first read error in input order** is
+/// the one returned — byte-identical to the old sequential walk. Reduction
+/// walks the ordered results, so the BTreeMap is deterministic.
+fn aggregate(files: &[(PathBuf, String)]) -> Result<BTreeMap<String, CategoryLoc>, String> {
+    use rayon::prelude::*;
+    let counted: Vec<Result<Option<(String, u64)>, String>> =
+        files.par_iter().map(|(p, rel)| count_one(p, rel)).collect();
+    let mut by_category: BTreeMap<String, CategoryLoc> = BTreeMap::new();
+    for item in counted {
+        if let Some((label, loc)) = item? {
+            let entry = by_category
+                .entry(label)
+                .or_insert(CategoryLoc { files: 0, loc: 0 });
+            entry.files += 1;
+            entry.loc += loc;
+        }
+    }
+    Ok(by_category)
+}
+
 /// Run the LOC audit over the GSV git workspace.
 pub fn audit(root: &Path) -> Result<RustRatioReport, String> {
     let files = git_tracked_gsv_files(root)?;
-    let mut by_category: BTreeMap<String, CategoryLoc> = BTreeMap::new();
-    for (path, rel) in &files {
-        let category = classify_product_path(rel);
-        if category == ProductCategory::Ignored {
-            continue;
-        }
-        if !path.is_file() {
-            continue;
-        }
-        let text =
-            std::fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
-        let loc = count_loc(&text);
-        let entry = by_category
-            .entry(category.label().to_string())
-            .or_insert(CategoryLoc { files: 0, loc: 0 });
-        entry.files += 1;
-        entry.loc += loc;
-    }
+    let by_category = aggregate(&files)?;
 
     let rust_loc: u64 = by_category
         .iter()
@@ -294,6 +309,81 @@ pub fn wire(data_dir: &Path) -> serde_json::Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn aggregate_matches_sequential_walk() {
+        // Synthetic tree covering every product category + an ignored file.
+        let dir = std::env::temp_dir().join(format!("gsv-ratio-aggr-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        for sub in ["src", "tests", "benches", "ui", "scripts", "data"] {
+            std::fs::create_dir_all(dir.join(sub)).expect("mkdir");
+        }
+        std::fs::write(dir.join("src/a.rs"), "fn a() {}\n\n// x\n").unwrap();
+        std::fs::write(dir.join("src/b.rs"), "let b = 1;\n").unwrap();
+        std::fs::write(dir.join("tests/t.rs"), "#[test]\nfn t() {}\n").unwrap();
+        std::fs::write(dir.join("benches/g.rs"), "fn g() {}\n").unwrap();
+        std::fs::write(dir.join("ui/index.html"), "<html>\n<body>\n</body>\n").unwrap();
+        std::fs::write(dir.join("ui/app.js"), "const x = 1;\n").unwrap();
+        std::fs::write(dir.join("ui/s.css"), "a{}\n").unwrap();
+        std::fs::write(dir.join("scripts/y.sh"), "echo y\n").unwrap();
+        std::fs::write(dir.join("data/x.json"), "ignored\n").unwrap();
+        let files: Vec<(PathBuf, String)> = [
+            ("src/a.rs", 3u64),
+            ("src/b.rs", 1),
+            ("tests/t.rs", 2),
+            ("benches/g.rs", 1),
+            ("ui/index.html", 3),
+            ("ui/app.js", 1),
+            ("ui/s.css", 1),
+            ("scripts/y.sh", 1),
+            ("data/x.json", 0),
+        ]
+        .iter()
+        .map(|(rel, _)| (dir.join(rel), (*rel).to_string()))
+        .collect();
+        let got = aggregate(&files).expect("aggregate");
+        // Reference sequential walk over the same list.
+        let mut want: BTreeMap<String, CategoryLoc> = BTreeMap::new();
+        for (p, rel) in &files {
+            if let Some((label, loc)) = count_one(p, rel).expect("count_one") {
+                let e = want
+                    .entry(label)
+                    .or_insert(CategoryLoc { files: 0, loc: 0 });
+                e.files += 1;
+                e.loc += loc;
+            }
+        }
+        assert_eq!(got, want, "rayon aggregate must equal the sequential walk");
+        assert_eq!(got["rust_src"], CategoryLoc { files: 2, loc: 3 });
+        assert_eq!(got["ui_html"], CategoryLoc { files: 1, loc: 3 });
+        assert_eq!(got.get("ops_shell").map(|c| c.loc), Some(1));
+        assert!(
+            !got.contains_key("ignored"),
+            "ignored files never aggregated"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn aggregate_reports_first_read_error_in_input_order() {
+        // A non-UTF8 .rs forces a read error; rayon must not scramble which
+        // error surfaces first — the EARLIEST input file's error wins.
+        let dir = std::env::temp_dir().join(format!("gsv-ratio-err-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("src")).expect("mkdir");
+        std::fs::write(dir.join("src/first.rs"), b"\xff\xfe not utf8").unwrap();
+        std::fs::write(dir.join("src/second.rs"), b"\xfe\xff also bad").unwrap();
+        let files = vec![
+            (dir.join("src/first.rs"), "src/first.rs".to_string()),
+            (dir.join("src/second.rs"), "src/second.rs".to_string()),
+        ];
+        let err = aggregate(&files).expect_err("must fail");
+        assert!(
+            err.contains("first.rs"),
+            "earliest failing file wins: {err}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn classify_gsv_paths() {

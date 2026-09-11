@@ -4,7 +4,7 @@ members = ["."]
 
 [package]
 name = "gsv"
-version = "0.231.0"
+version = "0.232.0"
 edition = "2021"
 authors = ["PoolAI Team"]
 description = "GSV (Galaxy StarWalker Vision) - Rust-first vision server with boxes (Tracker, SLI, Toolchain, IDE, Update, Preview, Terminal, Hooks)"
@@ -98,6 +98,9 @@ reqwest = { version = "0.13", default-features = false, features = ["json", "str
 
 # Allocator (band 231 perf shortlist: mimalloc global allocator in the server bins)
 mimalloc = "0.1"
+
+# Parallel file scans (band 232: rayon map-reduce in the ratio/LOC audit)
+rayon = "1.10"
 
 # Logging and tracing
 tracing = "0.1"

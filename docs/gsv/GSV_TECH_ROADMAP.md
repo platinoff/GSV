@@ -2156,6 +2156,20 @@ first refresh wave (GSV + telenetis) with queue tickets per product. Canon:
 | **PH-S2953** | Gate + close | clippy 0 · cargo test 820/0 · stretch-96 99.48% · record-speed 80s · record-rust 0/0 · sync clean · **gsv-ui-probe re-run on refreshed live: js_errs=0** · `--band 231` (0.231.0, queue last PH-S2958/next PH-S2959) · fingerprint · live take-over applied (0.231.0) · one commit + push — **✅** |
 | **PH-S2954** | Test stabilize | tracker flaky root-cause: `TrackerStore::save` was non-atomic `fs::write` (live server half-wrote `gsv_tracker.json` while tests loaded → empty store → no `<table>`) → **atomic tmp+rename**; `ui_card_tracker_renders_table_markers` isolated into seeded temp data-dir — race class gone — **✅** |
 
+## Спринти (band 232) — perf wave 2: rayon loc/ratio scan
+
+Owner pick (`t-1789151326992008400`, shortlist #2 із
+[`GSV_FRAMEWORK_REFRESH_PLAN.md`](./GSV_FRAMEWORK_REFRESH_PLAN.md)). Parallel
+file read/count in the ratio audit; determinism proven by unit test.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2955** | Baseline | `gsv-loc-audit --print` ×5 warm debug: 294/230/222/222/217 ms (median **222**) — **✅** | 
+| **PH-S2956** | rayon adoption | `rayon = "1.10"` dep; `ratio::audit` walk → `aggregate(files)` par_iter map(`count_one`) + **ordered** collect/reduce: first read error in input order still wins; BTreeMap identical — **✅** | 
+| **PH-S2957** | Determinism | unit tests: `aggregate_matches_sequential_walk` (full-category fixture, byte-equal map) + `aggregate_reports_first_read_error_in_input_order` (two bad files → earliest path in error); `CategoryLoc` += PartialEq/Eq — **✅** | 
+| **PH-S2958** | Measure | AFTER ×5: 242/194/196/193/188 ms (median **194**, −13%; IO-bound audit, modest but real); record-speed 88s exit 0; record-rust 0w/0e — **✅** | 
+| **PH-S2959** | Gate + close | full `cargo test` **822/0** · clippy 0 · stretch-96 99.48% · sync clean · `--band 232` (0.232.0) · fingerprint · live take-over · one commit + push — **✅** | 
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

@@ -2,30 +2,21 @@
   "schema_version": 1,
   "generated_at": "2026-09-11",
   "host_label": "PLATINOV",
-  "git_head": "326491d",
+  "git_head": "135a7f5",
   "notes": [
     "Machine-readable wall-clock index for cargo test-ci + Criterion medians.",
     "Record via poolai-speed-index or bin/record-test-ci-speed.sh (abrakadabra drain)."
   ],
   "latest": {
-    "test_ci_wall_secs": 86.0,
+    "test_ci_wall_secs": 88.0,
     "test_ci_ok": true,
-    "test_ci_recorded_at": "2026-09-11T17:03:32Z",
+    "test_ci_recorded_at": "2026-09-11T19:00:27Z",
     "test_ci_command": "cargo test",
     "last_bench_label": "gsv_dev::pick_assignee_squad",
     "last_bench_median_ns": 4,
     "last_bench_recorded_at": "2026-08-19T07:36:49Z"
   },
   "test_ci_history": [
-    {
-      "kind": "test_ci",
-      "command": "cargo test",
-      "wall_secs": 47.0,
-      "ok": true,
-      "recorded_at": "2026-08-25T00:51:10Z",
-      "host_label": "PLATINOV",
-      "git_head": "ec9b7f0"
-    },
     {
       "kind": "test_ci",
       "command": "cargo test",
@@ -232,6 +223,15 @@
       "recorded_at": "2026-09-11T17:03:32Z",
       "host_label": "PLATINOV",
       "git_head": "326491d"
+    },
+    {
+      "kind": "test_ci",
+      "command": "cargo test",
+      "wall_secs": 88.0,
+      "ok": true,
+      "recorded_at": "2026-09-11T19:00:27Z",
+      "host_label": "PLATINOV",
+      "git_head": "135a7f5"
     }
   ],
   "bench_history": [
