@@ -67,7 +67,7 @@ No `git add -A`; Cargo.lock комітиться лише разом із мей
 | Продукт | Результат | Коміт |
 |---------|-----------|-------|
 | GSV + telenetis | ✅ reqwest 0.13 / toml 1.1 / tokio 1.53 / axum 0.8.9 + mimalloc + tracker-race fix | `cebea81` |
-| rebook | ⛔ blocked — owner WIP у `src/{epub,main,viewer}.rs` + `en/` збігається з парою zip 0.5→8.6; requeue після приземлення WIP (поверхня мала: 3 start_file + читання) | — |
+| rebook | ✅ zip 0.5→**8.6.0** — API-rewrite: `FileOptions<'_, ()>` ×3 у `src/epub.rs` (writer), читач без змін; tokio 1.53; `en/` (live-книга) у .gitignore; 26 тестів + build-epub/check green (WIP приземлився: `932fca6`) | `8002b24` |
 | LinFS | ✅ windows 0.58→0.62 + axum 0.7→0.8 — нуль дрейфу коду; + clippy fix (checked_div) | `c965a34` |
 | ORR_DESKTOP | ✅ dirs 6→7 + rfd 0.15→0.17; решта вже свіжа. 6 `chunks_exact_to_as_chunks` → окремий тікет (panic-семантика as_chunks у encode-циклах) | `b75103f` |
 | llama-rs | ✅ sysinfo 0.38→0.39 + clap 4.6 + **pin `=0.1.154`** (берігає 5 регістрових патчів); 0.1.156 — owner-gated тікет | `0f05ffa` |
