@@ -50,6 +50,7 @@ pub mod terminal;
 pub mod tickets;
 pub mod toolchain;
 pub mod ui;
+pub mod ui_errors;
 pub mod update;
 pub mod usage;
 pub mod vision;

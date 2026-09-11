@@ -79,6 +79,7 @@ fn health(state: &AppState) -> Value {
             "fingerprint_model": latest.map(|f| f.model.as_str()),
             "fingerprint_product": latest.map(|f| f.product.as_str()),
             "fingerprint_version": latest.map(|f| f.version.as_str()),
+            "client_errors": crate::boxes::ui_errors::count(&state.data_dir),
         }),
         &state.repo_root,
     )
@@ -161,6 +162,8 @@ pub fn router(state: AppState) -> Router {
         .route("/api/ratio/trend", get(api_ratio_trend))
         .route("/api/ui/card/{name}", get(api_ui_card))
         .route("/api/ui/layout", get(api_ui_layout))
+        .route("/api/ui/error", post(api_ui_error))
+        .route("/api/ui/errors", get(api_ui_errors))
         .route("/api/ui/icons.svg", get(api_ui_icons))
         .route("/api/ui/icon/{name}", get(api_ui_icon))
         .route("/ui/{*path}", get(api_ui_path))
@@ -1138,6 +1141,15 @@ async fn api_ui_visual_toggle() -> Json<Value> {
 
 async fn api_ui_layout() -> Json<Value> {
     Json(crate::boxes::ui::layout_wire())
+}
+
+async fn api_ui_errors(State(state): State<AppState>) -> Json<Value> {
+    Json(crate::boxes::ui_errors::wire(&state.data_dir))
+}
+
+async fn api_ui_error(State(state): State<AppState>, Json(body): Json<Value>) -> Json<Value> {
+    let e = crate::boxes::ui_errors::record(&state.data_dir, &body);
+    Json(serde_json::to_value(e).unwrap_or_else(|_| json!({"ok": true})))
 }
 
 async fn api_ui_icons() -> Response {

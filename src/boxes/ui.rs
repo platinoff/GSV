@@ -1749,31 +1749,39 @@ pub fn render_tickets(d: &Value) -> String {
     }
     if !scenarios.is_empty() {
         out.push_str("<div class='dim'>scenarios</div>");
-        let rows: Vec<Vec<String>> = scenarios
+        let options: String = scenarios
             .iter()
             .map(|sc| {
                 let sid = s(&sc["id"]);
                 let title = s(&sc["title"]);
-                let wf = s(&sc["workflow"]);
-                let btn = if sid.is_empty() {
-                    "—".into()
-                } else {
-                    format!(
-                        "<button type='button' data-action='tickets-from-scenario' data-scenario-id='{}'{}>add</button> \
-<button type='button' data-action='tickets-walk' data-scenario-id='{}'{}>walk</button> \
-<button type='button' data-action='tickets-hook' data-scenario-id='{}'{}>hook</button>",
-                        esc(&sid),
-                        crate::boxes::guide::tip_attrs("Create the tickets in this scenario on the board."),
-                        esc(&sid),
-                        crate::boxes::guide::tip_attrs("Create missing rows, then claim and close them in order."),
-                        esc(&sid),
-                        crate::boxes::guide::tip_attrs("Parse this scenario into tickets from the catalog.")
-                    )
-                };
-                vec![esc(&sid), esc(&title), esc(&wf), btn]
+                format!(
+                    "<option value='{}'>{}</option>",
+                    esc(&sid),
+                    esc(&if title.is_empty() { sid.clone() } else { title })
+                )
             })
             .collect();
-        out.push_str(&tab(&["id", "title", "workflow", "add"], rows));
+        out.push_str(&format!(
+            "<select id='tixScenario' aria-label='scenario id'{}>{options}</select> \
+             <button type='button' data-action='tickets-from-scenario' data-scenario-from='select'{}>add</button> \
+             <button type='button' data-action='tickets-walk' data-scenario-from='select'{}>walk</button> \
+             <button type='button' data-action='tickets-hook' data-scenario-from='select'{}>hook</button>",
+            crate::boxes::guide::tip_attrs("Scenario from ticket_scenarios.json."),
+            crate::boxes::guide::tip_attrs("Create the selected scenario's tickets on the board."),
+            crate::boxes::guide::tip_attrs("Create missing rows, then claim and close them in order."),
+            crate::boxes::guide::tip_attrs("Parse the selected scenario into tickets from the catalog."),
+        ));
+        let rows: Vec<Vec<String>> = scenarios
+            .iter()
+            .map(|sc| {
+                vec![
+                    esc(&s(&sc["id"])),
+                    esc(&s(&sc["title"])),
+                    esc(&s(&sc["workflow"])),
+                ]
+            })
+            .collect();
+        out.push_str(&tab(&["id", "title", "workflow"], rows));
     }
     out.push_str(&format!(
         "<div class='dim'>create</div>\
@@ -1870,6 +1878,14 @@ pub fn render_health(d: &Value) -> String {
                     b(&d["watchdog_alive"])
                 ),
             ],
+            vec!["client_errors".into(), {
+                let n = d["client_errors"].as_u64().unwrap_or(0);
+                format!(
+                    "<span class='{}'>{}</span>",
+                    if n > 0 { "warn" } else { "ok" },
+                    n
+                )
+            }],
             vec![
                 "keep_live.gsv".into(),
                 format!(

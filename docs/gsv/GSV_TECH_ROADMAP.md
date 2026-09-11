@@ -2120,6 +2120,24 @@ PH-S2929`.
 | **PH-S2893** | Gate | fmt · clippy 0 · full `cargo test` green (lib 310 + contracts) · `--stretch-96` ≥96% · `cargo xtask rules-check` runs clean in-tree — **✅** |
 | **PH-S2894** | Band close | `--band 229` (`0.229.0`); fingerprint (product gsv v0.229.0); recopy live; one commit + push — **✅** |
 
+## Спринти (band 230) — Firefox UI interactivity (gsv-ui-probe)
+
+Owner pick (`t-1789137287561154000`). Headless Firefox (geckodriver v0.37.1 in
+`target/live/`) clicks through the live Galaxy page, counts console/JS/network
+errors, then the findings are fixed in the thin UI glue + a new server box.
+Plan canon: [`GSV_UI_INTERACTIVITY_PLAN.md`](./GSV_UI_INTERACTIVITY_PLAN.md).
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2939** | Scope | this band; plan doc landed; probe baseline: 34 cards, 0 JS errors, 116 destructive-skips; `bump --band 230` queue slot — **✅** |
+| **PH-S2940** | Probe bin | `src/bin/gsv_ui_probe.rs`: geckodriver session, error/fetch/console observer inject, per-group click-through (`aria-busy` safe set, destructive never clicked), JSON report + PNG screenshots; honest `js_errors_total` — **✅** |
+| **PH-S2941** | UI errors box | `src/boxes/ui_errors.rs` ring (≤50, clamp 400/300, newest-first wire); `POST /api/ui/error` + `GET /api/ui/errors`; health gains `client_errors` count; render_health row — **✅** |
+| **PH-S2942** | Busy feedback | delegated click wraps every async action with `aria-busy` + CSS (opacity/progress/pointer-events); toggles click twice to restore — **✅** |
+| **PH-S2943** | Targeted notify | `notifyUpdate` = `refreshMeta + getText("update")` (39 fetch → 2, probe-verified); fullscreen button un-collapses card first — **✅** |
+| **PH-S2944** | Scenario select | tickets card: `<select id='tixScenario'>` + one add/walk/hook trio (`data-scenario-from='select'`) replaces 3×24 per-scenario buttons (skipped-noise 116 → 35); board-level solo-walk/hook-phrase keep no-select semantics — **✅** |
+| **PH-S2945** | Contracts | 7 new tests (`gsv_ui_contracts`): beacon/busy/notify/fullscreen/ring roundtrip + health count + single select; ui_errors unit 5; probe bin unit 3; full suite green, clippy 0, stretch-96 ≥96% — **✅** |
+| **PH-S2946** | Band close | `--band 230` (`0.230.0`); fingerprint; rebuild + `/api/update/apply` live take-over; re-probe `js_errs=0`, ring `count=0`; record-speed/record-rust; sync; one commit + push — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

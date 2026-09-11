@@ -723,3 +723,166 @@ async fn ui_icon_svg_is_distinct_and_known() {
         .expect("response");
     assert_eq!(unknown.status(), StatusCode::NOT_FOUND);
 }
+
+// ---------------------------------------------------------------------------
+// band 230 · UI interactivity (Firefox probe findings → fixes)
+// ---------------------------------------------------------------------------
+
+async fn post_json(app: &axum::Router, uri: &str, body: &Value) -> (StatusCode, Value) {
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(uri)
+                .method(Method::POST)
+                .header("Content-Type", "application/json")
+                .body(Body::from(body.to_string()))
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    let status = res.status();
+    let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .expect("body");
+    (
+        status,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
+}
+
+#[tokio::test]
+async fn ui_index_reports_client_errors_to_server() {
+    let (app, _state) = app();
+    let html = get_index_html(&app).await;
+    assert!(
+        html.contains("api/ui/error"),
+        "index must beacon JS errors to the server"
+    );
+    assert!(html.contains("sendBeacon"), "beacon fast path");
+    assert!(
+        html.contains("unhandledrejection"),
+        "promise rejections must reach the ring"
+    );
+}
+
+#[tokio::test]
+async fn ui_index_action_busy_feedback() {
+    let (app, _state) = app();
+    let html = get_index_html(&app).await;
+    assert!(
+        html.contains("button[aria-busy=\"true\"]"),
+        "busy CSS must exist: {html}"
+    );
+    assert!(
+        html.contains("act.setAttribute(\"aria-busy\",\"true\")"),
+        "async clicks must set aria-busy"
+    );
+}
+
+#[tokio::test]
+async fn ui_index_notify_update_is_targeted() {
+    let (app, _state) = app();
+    let html = get_index_html(&app).await;
+    let start = html
+        .find("async function notifyUpdate")
+        .expect("notifyUpdate");
+    let body = &html[start..start + 320];
+    assert!(
+        body.contains("getText(\"update\")") && !body.contains("await resync("),
+        "notify-update must refresh only update surfaces: {body}"
+    );
+}
+
+#[tokio::test]
+async fn ui_index_fullscreen_restores_collapsed() {
+    let (app, _state) = app();
+    let html = get_index_html(&app).await;
+    assert!(
+        html.contains(
+            "card.classList.remove(\"collapsed\");syncDock();card.classList.add(\"fullscreen\")"
+        ),
+        "fullscreen on a collapsed card must un-collapse first"
+    );
+}
+
+#[tokio::test]
+async fn ui_error_ring_roundtrip_and_health_count() {
+    let dir = std::env::temp_dir().join(format!("gsv-ui-err-test-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("mkdir");
+    let (tx, _rx) = broadcast::channel(64);
+    let state = AppState::new(
+        Some(PathBuf::from(env!("CARGO_MANIFEST_DIR"))),
+        Some(dir.clone()),
+        tx,
+    );
+    let app = router(state);
+    let (status, _) = post_json(
+        &app,
+        "/api/ui/error",
+        &serde_json::json!({"message": "probe boom", "source": "probe.js", "line": 7}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/ui/errors")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    let json: Value = serde_json::from_slice(
+        &axum::body::to_bytes(res.into_body(), usize::MAX)
+            .await
+            .expect("body"),
+    )
+    .expect("json");
+    assert_eq!(json["ok"], true);
+    assert_eq!(json["count"], 1);
+    assert_eq!(json["latest"][0]["message"], "probe boom");
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/health")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    let health: Value = serde_json::from_slice(
+        &axum::body::to_bytes(res.into_body(), usize::MAX)
+            .await
+            .expect("body"),
+    )
+    .expect("json");
+    assert_eq!(health["client_errors"], 1);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
+async fn tickets_card_uses_single_scenario_select() {
+    let (app, _state) = app();
+    let (_status, json) = get_card(&app, "tickets").await;
+    let html = json["html"].as_str().unwrap_or("");
+    if !html.contains("scenarios") {
+        return; // no scenarios on this board — nothing to collapse
+    }
+    assert!(
+        html.contains("id='tixScenario'"),
+        "scenario select must exist: {html}"
+    );
+    assert_eq!(
+        html.matches("data-scenario-from='select'").count(),
+        3,
+        "exactly one add/walk/hook trio reads the select"
+    );
+    assert!(
+        !html.contains("data-scenario-id="),
+        "per-scenario buttons must be gone (DOM noise)"
+    );
+}
