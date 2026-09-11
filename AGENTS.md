@@ -82,6 +82,7 @@ These globals hold in **every** session and **every** registered product, whatev
 - Global scope is the GSV kit only: MCP toolchains, environment flows (terminal, `rustup`, env), IDE/Cursor/OpenCode/Grok lockstep, model life & communications with connected release apps (`gsv-server` live). Product code and its local rules stay in the product repo — GSV never absorbs them.
 - Allowed source formats: `.rs`, `.md`, `.mdc`, `.json`, `.js`, `.wasm`. Everything else is **not** allowed except production output of a registered pipeline. Ratio stays Rust-first (Rust **95–100%** / wasm 0–5%); `.wasm`/`.js`/`.json`/`.md` count toward the audited ratio per product row.
 - Rust toolchain only for what is needed in this kit. **npm / Node is not installed and not used here** — anything needed is done with Rust (`.rs`, `cargo`, `cargo xtask`, `cargo run --bin …`) and MSYS2 bash. npm-based product hooks/gates belong to the product repo, not to the global kit.
+- **Work stays inside the Rust environment (the repo tree + `target/`).** No roaming to Windows temp/tmp (`C:\...\temp`, `C:\tmp`, `/tmp`, `%TEMP%`, `%TMP%`) for scratch files, downloads, or intermediate tooling. Anything extra needed (docs, references, drafts) lives inside the open repo or under `target/live/` — never outside the workspace.
 - Local rules (`AGENTS.md` / `CLAUDE.md` / `.cursorrules` / `rules/`) live **in each registered product tree** and must not affect globals. `S:\rust\GSV\AGENTS.md` is the only global rule file; no other product's rules are placed inside the GSV tree.
 
 ## Do not

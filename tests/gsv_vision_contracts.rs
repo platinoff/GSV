@@ -596,14 +596,12 @@ fn vision_sprint_board_progress_pct_range() {
     let dir = temp_data_dir("sprint-board-pct");
     let r = vision::sprint_board_report(&repo_root(), &dir).expect("board");
     assert!(r.progress_pct <= 100, "progress pct must be in [0,100]");
-    if r.total > 0 {
-        assert_eq!(
-            r.progress_pct,
-            (r.closed_count * 100) / r.total,
+    match (r.closed_count * 100).checked_div(r.total) {
+        Some(expected) => assert_eq!(
+            r.progress_pct, expected,
             "progress pct must be closed/total"
-        );
-    } else {
-        assert_eq!(r.progress_pct, 0);
+        ),
+        None => assert_eq!(r.progress_pct, 0),
     }
 }
 

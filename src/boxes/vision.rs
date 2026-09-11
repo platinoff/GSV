@@ -1710,11 +1710,7 @@ pub fn sprint_board_report(repo_root: &Path, data_dir: &Path) -> Result<SprintBo
     let open_count = columns[0].count;
     let closed_count = columns[1].count;
     let total = q.planned.len() as u64;
-    let progress_pct = if total > 0 {
-        (closed_count * 100) / total
-    } else {
-        0
-    };
+    let progress_pct = (closed_count * 100).checked_div(total).unwrap_or(0);
     Ok(SprintBoardReport {
         revision: q.revision,
         git_head: q.git_head,
@@ -1806,11 +1802,7 @@ pub fn sprint_progress_report(
         .filter(|e| e.status == "open" || e.id == q.active_sprint)
         .count() as u64;
     let planned_count = total.saturating_sub(closed_count + open_count);
-    let progress_pct = if total > 0 {
-        (closed_count * 100) / total
-    } else {
-        0
-    };
+    let progress_pct = (closed_count * 100).checked_div(total).unwrap_or(0);
     Ok(SprintProgressReport {
         revision: m.revision,
         total,

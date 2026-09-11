@@ -16,11 +16,11 @@ This file only **enriches** a pick that is already registered.
 | **omniroute** | `S:/rust/omniroute` | `S:/rust/omniroute/AGENTS.md` | `S:/rust/omniroute/docs/ROADMAP.md` | `npm test` (focused: `node --import tsx/esm --test tests/unit/<file>.test.ts`) | n/a (node; GSV loc-audit does not apply) |
 | **orr_desktop** | `S:/rust/ORR_DESKTOP` | `S:/rust/ORR_DESKTOP/docs/HANDOFF_NEW_SESSION.md` | `S:/rust/ORR_DESKTOP/docs/NEXT_SESSION_PROMPT.md` | `cargo fmt -- --check` → `cargo clippy --all-targets` → `cargo test` (windows-gnu; ffmpeg via `ORR_FFMPEG` or `%PATH%`) | Rust **95–100%** |
 | **linfs** | `S:/rust/LinFS` | `S:/rust/LinFS/docs/HANDOFF_NEW_SESSION.md` | `S:/rust/LinFS/docs/NEXT_SESSION_PROMPT.md` | `cargo fmt -- --check` → `cargo clippy --all-targets` → `cargo test` → `cargo run --bin linfs-loc-audit -- --stretch-96` (windows-gnu) | Rust **95–100%** (`--stretch-96` ≥96%) |
-| **telenetis** | `S:/rust/GSV/telenetis` | `S:/rust/GSV/docs/HANDOFF_NEW_SESSION.md` | `S:/rust/GSV/docs/NEXT_SESSION_PROMPT.md` | `cargo fmt -- --check` → `cargo clippy --all-targets` → `cargo test` | Rust **95–100%** |
-| **llama-rs** | `S:/rust/llama-rs` | `S:/rust/llama-rs/docs/HANDOFF.md` | `S:/rust/llama-rs/docs/ROADMAP.md` | `cargo fmt -- --check` → `cargo clippy --all-targets` → `cargo test` | Rust **95–100%** |
+| **telenetis** | `S:/rust/GSV/telenetis` | `S:/rust/GSV/telenetis/docs/HANDOFF_NEW_SESSION.md` | `S:/rust/GSV/telenetis/docs/NEXT_SESSION_PROMPT.md` | `cargo fmt -- --check` → `cargo clippy --all-targets` → `cargo test` | Rust **95–100%** |
+| **llama-rs** | `S:/rust/llama-rs` | `S:/rust/llama-rs/docs/HANDOFF_NEW_SESSION.md` (journal: `docs/HANDOFF.md`) | `S:/rust/llama-rs/docs/ROADMAP.md` | `cargo fmt -- --check` → `cargo clippy --all-targets` → `cargo test` | Rust **95–100%** |
+| **rebook** | `S:/rust/rebook` | `S:/rust/rebook/docs/HANDOFF_NEW_SESSION.md` | `S:/rust/rebook/docs/NEXT_SESSION_PROMPT.md` | `cargo fmt -- --check` → `cargo clippy --all-targets` → `cargo test` (EPUB path: `cargo run -- build-epub`) | Rust **95–100%** |
 
 Keep-live (band 225): llama-rs writes `target/live/llama_heartbeat.json` when run with `GSV_LIVE=1` or `LLAMA_RS_HEARTBEAT=1` (PID, model, epoch, bin_version, 15s tick); GSV reads it via `keep_live.llama_rs` (fresh = age ≤ 60s). `gsv_products_scan` / `cargo xtask products` enrich this heartbeat path + freshness for llama-rs.
-| **rebook** | `S:/rust/rebook` | `S:/rust/rebook/.cursor/rules/epub-kdp-guide.mdc` | `S:/rust/rebook/.cursor/rules/epub-kdp-guide.mdc` | `cargo fmt -- --check` → `cargo clippy --all-targets` → `cargo test` (EPUB path: `cargo run -- build-epub`) | Rust **95–100%** |
 
 Discovered but **not** in this table → S0 + git in that tree; no PH-S* drain until a row is added. OmniRoute is registered (band 149, owner-opt-in).
 
