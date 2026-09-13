@@ -8,6 +8,7 @@ fn test_state() -> AppState {
     let cfg = Config {
         bot_token: "test_token".to_string(),
         gsv_url: "http://127.0.0.1:9999".to_string(),
+        poolai_url: "http://127.0.0.1:8091".to_string(),
         port: 9800,
         jail_id: "integration-jail".to_string(),
         godfather_channel_id: 0,
@@ -102,7 +103,14 @@ async fn webhook_accepts_telegram_update() {
 async fn static_assets_served() {
     let state = test_state();
     let app = telenetis::ui::router(state);
-    for uri in ["/static/app.css", "/static/app.js", "/", "/flows", "/roles"] {
+    for uri in [
+        "/static/app.css",
+        "/static/app.js",
+        "/",
+        "/flows",
+        "/roles",
+        "/workers",
+    ] {
         let resp = app
             .clone()
             .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
@@ -140,4 +148,21 @@ async fn snapshot_endpoint_served() {
     assert!(json["workers"].is_array());
     assert!(json["roles"].is_array());
     assert_eq!(json["live"]["keepalive_secs"], 25);
+
+    // Edge workers endpoint: fail-open shape with or without live poolAI.
+    let resp = telenetis::ui::router(state)
+        .oneshot(
+            Request::builder()
+                .uri("/api/edge/workers")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+        .await
+        .unwrap();
+    let edge: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert!(edge.get("ok").is_some());
 }

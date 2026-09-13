@@ -164,6 +164,7 @@ pub(crate) mod tests {
         Config {
             bot_token: "test".to_string(),
             gsv_url: "http://127.0.0.1:9999".to_string(),
+            poolai_url: "http://127.0.0.1:8091".to_string(),
             port: 9800,
             jail_id: "test-jail".to_string(),
             godfather_channel_id: 0,

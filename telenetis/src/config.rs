@@ -4,6 +4,9 @@ use std::env;
 pub struct Config {
     pub bot_token: String,
     pub gsv_url: String,
+    /// poolAI coordinator base URL (edge workers register here; default
+    /// :8091 because :8080 is llama_serve on this box).
+    pub poolai_url: String,
     pub port: u16,
     pub jail_id: String,
     pub godfather_channel_id: i64,
@@ -33,6 +36,8 @@ impl Config {
             bot_token: env::var("TELENETIS_BOT_TOKEN").unwrap_or_default(),
             gsv_url: env::var("TELENETIS_GSV_URL")
                 .unwrap_or_else(|_| "http://127.0.0.1:9999".to_string()),
+            poolai_url: env::var("TELENETIS_POOLAI_URL")
+                .unwrap_or_else(|_| "http://127.0.0.1:8091".to_string()),
             port: env::var("TELENETIS_PORT")
                 .unwrap_or_else(|_| "9800".to_string())
                 .parse()
@@ -69,11 +74,13 @@ mod tests {
     fn config_from_env_reads_vars() {
         std::env::set_var("TELENETIS_BOT_TOKEN", "test_token_123");
         std::env::set_var("TELENETIS_GSV_URL", "http://127.0.0.1:9999");
+        std::env::set_var("TELENETIS_POOLAI_URL", "http://127.0.0.1:8091");
         std::env::set_var("TELENETIS_PORT", "9800");
         std::env::set_var("TELENETIS_JAIL_ID", "test-jail");
         let cfg = Config::from_env();
         assert_eq!(cfg.bot_token, "test_token_123");
         assert_eq!(cfg.gsv_url, "http://127.0.0.1:9999");
+        assert_eq!(cfg.poolai_url, "http://127.0.0.1:8091");
         assert_eq!(cfg.port, 9800);
         assert_eq!(cfg.jail_id, "test-jail");
     }
@@ -82,9 +89,11 @@ mod tests {
     fn config_defaults_when_optional_missing() {
         std::env::set_var("TELENETIS_BOT_TOKEN", "tok");
         std::env::remove_var("TELENETIS_GSV_URL");
+        std::env::remove_var("TELENETIS_POOLAI_URL");
         std::env::remove_var("TELENETIS_WEBHOOK_URL");
         let cfg = Config::from_env();
         assert_eq!(cfg.gsv_url, "http://127.0.0.1:9999");
+        assert_eq!(cfg.poolai_url, "http://127.0.0.1:8091");
         assert!(cfg.webhook_url.is_none());
     }
 }

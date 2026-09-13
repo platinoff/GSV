@@ -18,6 +18,8 @@ pub fn router(state: AppState) -> Router {
         .route("/board", get(board_page))
         .route("/flows", get(flows_page))
         .route("/roles", get(roles_page))
+        .route("/workers", get(workers_page))
+        .route("/api/edge/workers", get(api_edge_workers))
         .route("/health", get(health))
         .route("/api/status", get(status))
         .route("/api/tickets", get(api_tickets))
@@ -501,6 +503,44 @@ async fn roles_page() -> Html<String> {
     Html(include_str!("templates/roles.html").to_string())
 }
 
+async fn workers_page() -> Html<String> {
+    Html(include_str!("templates/workers.html").to_string())
+}
+
+/// Edge workers JSON for the Mini App workers screen: poolAI telegram
+/// bindings enriched with per-peer task counters, plus seat state.
+/// Fail-open: poolAI down returns the error shape, never a 500 page.
+async fn api_edge_workers(State(state): State<AppState>) -> Json<serde_json::Value> {
+    use crate::edge::{apply_task_status, assemble_views, PoolClient};
+
+    let pool = PoolClient::new(state.config());
+    let bindings = match pool.bindings().await {
+        Ok(b) => b,
+        Err(e) => return Json(json!({"ok": false, "error": e.to_string()})),
+    };
+    let mut views = assemble_views(&bindings);
+    for v in &mut views {
+        if let Ok(st) = pool.task_status(&v.peer_id).await {
+            apply_task_status(v, &st);
+        }
+    }
+    let seats = pool.seats().await.ok();
+    let workers: Vec<serde_json::Value> = views
+        .iter()
+        .map(|v| {
+            json!({
+                "telegram_user_id": v.telegram_user_id,
+                "peer_id": v.peer_id,
+                "bound_at": v.bound_at,
+                "pending": v.pending,
+                "completed": v.completed,
+                "tasks_ok": v.tasks_ok,
+            })
+        })
+        .collect();
+    Json(json!({"ok": true, "workers": workers, "seats": seats}))
+}
+
 async fn health() -> Json<serde_json::Value> {
     Json(json!({
         "status": "ok",
@@ -565,6 +605,7 @@ mod tests {
         let cfg = Config {
             bot_token: "test".to_string(),
             gsv_url: "http://127.0.0.1:9999".to_string(),
+            poolai_url: "http://127.0.0.1:8091".to_string(),
             port: 9800,
             jail_id: "test-jail".to_string(),
             godfather_channel_id: 0,
@@ -583,6 +624,7 @@ mod tests {
         let cfg = Config {
             bot_token: "test".to_string(),
             gsv_url: "http://127.0.0.1:9999".to_string(),
+            poolai_url: "http://127.0.0.1:8091".to_string(),
             port: 9800,
             jail_id: "test-jail".to_string(),
             godfather_channel_id: 0,
@@ -860,6 +902,7 @@ mod tests {
         let mut cfg = Config {
             bot_token: "test".to_string(),
             gsv_url: "http://127.0.0.1:1".to_string(),
+            poolai_url: "http://127.0.0.1:9".to_string(),
             port: 9800,
             jail_id: "test-jail".to_string(),
             godfather_channel_id: 0,
@@ -944,6 +987,7 @@ mod tests {
         let mut cfg = Config {
             bot_token: "test".to_string(),
             gsv_url: "http://127.0.0.1:9999".to_string(),
+            poolai_url: "http://127.0.0.1:8091".to_string(),
             port: 9800,
             jail_id: "test-jail".to_string(),
             godfather_channel_id: 0,
@@ -1082,6 +1126,7 @@ mod tests {
         let cfg = Config {
             bot_token: "test".to_string(),
             gsv_url: "http://127.0.0.1:9999".to_string(),
+            poolai_url: "http://127.0.0.1:8091".to_string(),
             port: 9800,
             jail_id: "test-jail".to_string(),
             godfather_channel_id: 0,
@@ -1596,6 +1641,7 @@ mod tests {
         let cfg = Config {
             bot_token: "test".to_string(),
             gsv_url: "http://127.0.0.1:1".to_string(),
+            poolai_url: "http://127.0.0.1:9".to_string(),
             port: 9800,
             jail_id: "test-jail".to_string(),
             godfather_channel_id: 0,

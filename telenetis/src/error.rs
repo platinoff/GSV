@@ -6,6 +6,7 @@ use std::fmt;
 pub enum TelenetisError {
     Telegram(String),
     Gsv(String),
+    Pool(String),
     Config(String),
     Serialization(String),
     Tunnel(String),
@@ -18,6 +19,7 @@ impl fmt::Display for TelenetisError {
         match self {
             Self::Telegram(msg) => write!(f, "Telegram: {msg}"),
             Self::Gsv(msg) => write!(f, "GSV: {msg}"),
+            Self::Pool(msg) => write!(f, "poolAI: {msg}"),
             Self::Config(msg) => write!(f, "Config: {msg}"),
             Self::Serialization(msg) => write!(f, "Serialization: {msg}"),
             Self::Tunnel(msg) => write!(f, "Tunnel: {msg}"),
@@ -32,6 +34,7 @@ impl IntoResponse for TelenetisError {
         let (status, message) = match &self {
             Self::Telegram(msg) => (StatusCode::BAD_GATEWAY, msg.clone()),
             Self::Gsv(msg) => (StatusCode::BAD_GATEWAY, msg.clone()),
+            Self::Pool(msg) => (StatusCode::BAD_GATEWAY, msg.clone()),
             Self::Config(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
             Self::Serialization(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
             Self::Tunnel(msg) => (StatusCode::BAD_GATEWAY, msg.clone()),

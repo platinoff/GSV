@@ -31,6 +31,7 @@ pub enum Command {
     Start,
     Status,
     Board,
+    Worker(Option<String>),
     BoardScenario(String),
     Flows,
     Roles,
@@ -54,6 +55,7 @@ impl Command {
             "start" => Self::Start,
             "status" => Self::Status,
             "board" => Self::Board,
+            "worker" => Self::Worker(None),
             "flows" => Self::Flows,
             "roles" => Self::Roles,
             "ranks" => Self::Ranks,
@@ -82,6 +84,8 @@ impl Command {
             "ticket" => Self::Ticket(args),
             "claim" => Self::Claim(args),
             "done" => Self::Done(args),
+            "worker" if !args.is_empty() => Self::Worker(Some(args)),
+            "worker" => Self::Worker(None),
             "sync" => Self::Sync,
             "app" => Self::App,
             "tunnel" => Self::Tunnel,
@@ -104,9 +108,11 @@ pub fn command_response(cmd: &Command) -> String {
              /flows — Recent bot flows\n\
              /roles — Role management\n\
              /ranks — Worker ranks\n\
-             /ticket <id> — View ticket details\n\
-             /claim <id> — Claim a ticket\n\
-             /done <id> — Mark ticket done\n\
+              /ticket <id> — View ticket details\n\
+              /claim <id> — Claim a ticket\n\
+              /done <id> — Mark ticket done\n\
+              /worker — Edge workers (poolAI telegram bindings)\n\
+              /worker <user|peer> — One worker detail\n\
              /sync — Force sync from GSV\n\
              /app — Open Mini App\n\
              /tunnel — Show / refresh public tunnel URL\n\
@@ -123,6 +129,8 @@ pub fn command_response(cmd: &Command) -> String {
         Command::Ticket(id) => format!("Looking up ticket `{id}`..."),
         Command::Claim(id) => format!("Claiming ticket `{id}`..."),
         Command::Done(id) => format!("Marking ticket `{id}` done..."),
+        Command::Worker(None) => "Fetching edge workers...".to_string(),
+        Command::Worker(Some(id)) => format!("Looking up edge worker `{id}`..."),
         Command::Sync => "Syncing from GSV...".to_string(),
         Command::App => "Opening Mini App...".to_string(),
         Command::Tunnel => "Tunnel".to_string(),
@@ -144,6 +152,7 @@ pub async fn handle_command(cmd: &Command, state: &AppState) -> String {
         Command::Ticket(id) => handle_ticket_detail(id, state).await,
         Command::Claim(id) => handle_claim(id, state).await,
         Command::Done(id) => handle_done(id, state).await,
+        Command::Worker(id) => handle_worker(id.as_deref(), state).await,
         Command::Sync => handle_sync(state).await,
         Command::App => command_response(cmd),
         Command::Tunnel => handle_tunnel(state).await,
@@ -274,6 +283,32 @@ async fn handle_board(state: &AppState, scenario_filter: Option<&str>) -> String
     }
 
     format!("{}\n\nUse /ticket <id> for details.", lines.join("\n"))
+}
+
+/// Edge workers: poolAI telegram bindings + seats + per-peer task status.
+/// `/worker` lists, `/worker <telegram_user_id|peer_id>` shows one.
+async fn handle_worker(id: Option<&str>, state: &AppState) -> String {
+    use crate::edge::{apply_task_status, assemble_views, find_worker, render_workers, PoolClient};
+
+    let pool = PoolClient::new(state.config());
+    let bindings = match pool.bindings().await {
+        Ok(b) => b,
+        Err(e) => return format!("⚠️ *Edge workers unavailable:* `{e}`"),
+    };
+    let mut views = assemble_views(&bindings);
+    for v in &mut views {
+        if let Ok(st) = pool.task_status(&v.peer_id).await {
+            apply_task_status(v, &st);
+        }
+    }
+    let seats = pool.seats().await.ok();
+    match id {
+        None => render_workers(&views, seats.as_ref()),
+        Some(want) => match find_worker(&views, want) {
+            Some(v) => render_workers(std::slice::from_ref(v), seats.as_ref()),
+            None => format!("No edge worker `{want}`. Use /worker to list."),
+        },
+    }
 }
 
 async fn handle_scenarios(state: &AppState) -> String {
@@ -498,6 +533,7 @@ mod tests {
         Config {
             bot_token: "test".to_string(),
             gsv_url: "http://127.0.0.1:9999".to_string(),
+            poolai_url: "http://127.0.0.1:8091".to_string(),
             port: 9800,
             jail_id: "test-jail".to_string(),
             godfather_channel_id: 0,
@@ -588,6 +624,35 @@ mod tests {
     fn command_response_ticket_shows_id() {
         let r = command_response(&Command::Ticket("T-5".to_string()));
         assert!(r.contains("T-5"));
+    }
+
+    #[test]
+    fn command_worker_parses() {
+        assert!(matches!(Command::from_str("worker"), Command::Worker(None)));
+        assert!(matches!(
+            Command::from_text("/worker"),
+            Command::Worker(None)
+        ));
+        match Command::from_text("/worker 999001") {
+            Command::Worker(Some(id)) => assert_eq!(id, "999001"),
+            _ => panic!("expected worker with id"),
+        }
+    }
+
+    #[test]
+    fn command_response_help_lists_worker() {
+        let r = command_response(&Command::Help);
+        assert!(r.contains("/worker"));
+    }
+
+    #[tokio::test]
+    async fn handle_worker_unreachable_pool() {
+        // Nothing listens on :9 — fail-fast reply, no hang.
+        let mut cfg = test_config();
+        cfg.poolai_url = "http://127.0.0.1:9".to_string();
+        let state = crate::state::AppState::new(cfg);
+        let resp = handle_command(&Command::Worker(None), &state).await;
+        assert!(resp.contains("unavailable"));
     }
 
     #[tokio::test]

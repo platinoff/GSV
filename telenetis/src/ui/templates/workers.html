@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title data-i18n="app.title">Telenetis - Edge Workers</title>
+    <link rel="stylesheet" href="/static/app.css">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body class="platform-unknown">
+    <div id="app">
+        <h1 data-i18n="nav.workers">Edge Workers</h1>
+        <p class="dim">poolAI telegram bindings + shard task counters. Control plane only — tensors stay on ggml-rpc-server.</p>
+        <table id="workers">
+            <thead>
+                <tr>
+                    <th>Telegram</th>
+                    <th>Peer</th>
+                    <th>Bound</th>
+                    <th>Pending</th>
+                    <th>Done</th>
+                </tr>
+            </thead>
+            <tbody id="workers-body" aria-busy="true">
+                <tr data-skeleton="workers" aria-hidden="true">
+                    <td colspan="5"><div class="skeleton skeleton-row"></div></td>
+                </tr>
+            </tbody>
+        </table>
+        <p id="workers-seats" class="dim"></p>
+    </div>
+    <script>
+    (function () {
+        function esc(s) {
+            return String(s == null ? "" : s)
+                .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+        fetch("/api/edge/workers", { headers: { "Accept": "application/json" } })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                var body = document.getElementById("workers-body");
+                var seats = document.getElementById("workers-seats");
+                if (!data || data.ok === false) {
+                    body.innerHTML = "<tr><td colspan=\"5\">poolAI unreachable</td></tr>";
+                    return;
+                }
+                var rows = (data.workers || []).map(function (w) {
+                    return "<tr><td>" + esc(w.telegram_user_id) + "</td><td>" + esc(w.peer_id) +
+                        "</td><td>" + esc(w.bound_at) + "</td><td>" + esc(w.pending) +
+                        "</td><td>" + esc(w.completed) + "</td></tr>";
+                });
+                body.innerHTML = rows.length ? rows.join("") : "<tr><td colspan=\"5\">(none bound)</td></tr>";
+                body.setAttribute("aria-busy", "false");
+                if (data.seats) {
+                    seats.textContent = "Seats: " + (data.seats.seat_policy || "?") +
+                        ", " + (data.seats.active_telegram_edge_workers || 0) + " active";
+                }
+            })
+            .catch(function () {
+                document.getElementById("workers-body").innerHTML =
+                    "<tr><td colspan=\"5\">poolAI unreachable</td></tr>";
+            });
+    })();
+    </script>
+</body>
+</html>

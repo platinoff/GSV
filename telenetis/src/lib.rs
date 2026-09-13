@@ -1,6 +1,7 @@
 pub mod actions;
 pub mod bot;
 pub mod config;
+pub mod edge;
 pub mod error;
 pub mod gsv;
 pub mod roles;
