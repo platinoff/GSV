@@ -108,6 +108,46 @@ pub fn heartbeat_fresh(path: &Path, now: u64) -> bool {
     now.saturating_sub(hb.epoch_secs) <= 60
 }
 
+/// Omniroute probe chain (band 233): the LAN base first, then the loopback
+/// twin — external proxies on this box often bind `127.0.0.1` only, and a
+/// LAN-addressed probe would wrongly call them dead.
+pub fn omniroute_probe_urls() -> Vec<String> {
+    let base = omniroute_url();
+    let mut urls = vec![base.clone()];
+    let local = crate::net::local_addr();
+    if let Some(rest) = base.strip_prefix(&format!("http://{local}:")) {
+        let twin = format!("http://127.0.0.1:{rest}");
+        if twin != base {
+            urls.push(twin);
+        }
+    }
+    urls
+}
+
+/// Result of the omniroute candidate chain: `(url, alive, latency_ms,
+/// version, uptime_secs)`.
+type OmniProbe = (String, bool, u64, Option<String>, Option<u64>);
+
+/// LAN base used for display when no candidate answers.
+fn pick_omniroute<F: Fn(&str) -> (bool, u64, Option<String>, Option<u64>)>(
+    urls: &[String],
+    probe: F,
+) -> OmniProbe {
+    for u in urls {
+        let (alive, latency_ms, version, uptime_secs) = probe(u);
+        if alive {
+            return (u.clone(), true, latency_ms, version, uptime_secs);
+        }
+    }
+    (
+        urls.first().cloned().unwrap_or_default(),
+        false,
+        0,
+        None,
+        None,
+    )
+}
+
 /// Probe result: alive + version + latency + optional uptime parsed from body.
 #[derive(Debug, Clone, Default)]
 pub struct Probe {
@@ -251,7 +291,11 @@ pub fn report() -> KeepLiveReport {
         (p.alive, p.version, p.latency_ms)
     };
     let tel = probe_http_blocking(&telenetis_url());
-    let omni = probe_http_blocking(&omniroute_url());
+    let (omni_url, omni_alive, omni_lat, omni_ver, omni_up) =
+        pick_omniroute(&omniroute_probe_urls(), |u| {
+            let p = probe_http_blocking(u);
+            (p.alive, p.latency_ms, p.version, p.uptime_secs)
+        });
     let llama_alive = heartbeat_fresh(&llama_heartbeat_path(), now);
     KeepLiveReport {
         gsv: KeepLiveEntry {
@@ -279,12 +323,12 @@ pub fn report() -> KeepLiveReport {
             uptime_secs: None,
         },
         omniroute: KeepLiveEntry {
-            alive: omni.alive,
-            url: omniroute_url(),
-            version: None,
+            alive: omni_alive,
+            url: omni_url,
+            version: omni_ver,
             lag: None,
-            latency_ms: Some(omni.latency_ms),
-            uptime_secs: omni.uptime_secs,
+            latency_ms: Some(omni_lat),
+            uptime_secs: omni_up,
         },
     }
 }
@@ -311,7 +355,26 @@ pub async fn report_async() -> KeepLiveReport {
         (p.alive, p.version, p.latency_ms)
     };
     let tel = probe_http(&telenetis_url()).await;
-    let omni = probe_http(&omniroute_url()).await;
+    let (omni_url, omni_alive, omni_lat, omni_ver, omni_up) = {
+        let urls = omniroute_probe_urls();
+        let mut out: Option<OmniProbe> = None;
+        for u in urls.iter() {
+            let p = probe_http(u).await;
+            if p.alive {
+                out = Some((u.clone(), true, p.latency_ms, p.version, p.uptime_secs));
+                break;
+            }
+        }
+        out.unwrap_or_else(|| {
+            (
+                urls.first().cloned().unwrap_or_default(),
+                false,
+                0,
+                None,
+                None,
+            )
+        })
+    };
     let llama_alive = heartbeat_fresh(&llama_heartbeat_path(), now);
     KeepLiveReport {
         gsv: KeepLiveEntry {
@@ -339,12 +402,12 @@ pub async fn report_async() -> KeepLiveReport {
             uptime_secs: None,
         },
         omniroute: KeepLiveEntry {
-            alive: omni.alive,
-            url: omniroute_url(),
-            version: None,
+            alive: omni_alive,
+            url: omni_url,
+            version: omni_ver,
             lag: None,
-            latency_ms: Some(omni.latency_ms),
-            uptime_secs: omni.uptime_secs,
+            latency_ms: Some(omni_lat),
+            uptime_secs: omni_up,
         },
     }
 }
@@ -477,6 +540,58 @@ pub async fn telenetis_wire_async() -> Value {
 mod tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn pick_omniroute_prefers_first_alive_else_reports_base() {
+        let urls = vec![
+            "http://192.168.56.99:20128".to_string(),
+            "http://127.0.0.1:20128".to_string(),
+        ];
+        let (u, alive, lat, ver, up) = pick_omniroute(&urls, |url| {
+            if url.starts_with("http://127.0.0.1") {
+                (true, 7, Some("0.0.1".to_string()), Some(42))
+            } else {
+                (false, 800, None, None)
+            }
+        });
+        assert_eq!(u, "http://127.0.0.1:20128");
+        assert!(alive);
+        assert_eq!(lat, 7);
+        assert_eq!(ver.as_deref(), Some("0.0.1"));
+        assert_eq!(up, Some(42));
+        let (u, alive, _, _, _) = pick_omniroute(&urls, |_| (false, 1, None, None));
+        assert_eq!(u, "http://192.168.56.99:20128");
+        assert!(!alive);
+    }
+
+    #[test]
+    fn probe_urls_first_is_the_configured_base_and_never_duplicated() {
+        let _guard = crate::boxes::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        std::env::remove_var("OMNIROUTE_URL");
+        std::env::remove_var("GSV_KEEP_LIVE_OMNIROUTE_URL");
+        std::env::remove_var("GSV_OMNIROUTE_URL");
+        let urls = omniroute_probe_urls();
+        assert_eq!(urls[0], omniroute_url());
+        urls.windows(2).for_each(|w| assert_ne!(w[0], w[1]));
+        std::env::set_var("GSV_OMNIROUTE_URL", "http://127.0.0.1:59996/");
+        let urls = omniroute_probe_urls();
+        assert_eq!(urls.len(), 1, "loopback base has no distinct twin");
+        std::env::remove_var("GSV_OMNIROUTE_URL");
+        std::env::set_var("GSV_LOCAL_ADDR", "192.168.56.99");
+        std::env::set_var("GSV_OMNIROUTE_URL", "http://192.168.56.99:20128");
+        let urls = omniroute_probe_urls();
+        assert_eq!(
+            urls,
+            vec![
+                "http://192.168.56.99:20128".to_string(),
+                "http://127.0.0.1:20128".to_string()
+            ]
+        );
+        std::env::remove_var("GSV_OMNIROUTE_URL");
+        std::env::remove_var("GSV_LOCAL_ADDR");
+    }
 
     #[test]
     fn offline_mode_gates_on_relay_and_fresh_offset() {

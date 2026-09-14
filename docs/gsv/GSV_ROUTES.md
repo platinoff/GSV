@@ -54,3 +54,10 @@ curl -s -X POST "http://<lan>:9999/api/omni/v1/chat/completions" \
 | `OMNIROUTE_URL` / `GSV_OMNIROUTE_URL` | base OmniRoute (keep_live + usage) |
 | `TELENETIS_GSV_URL` / `TELENETIS_POOLAI_URL` | перекривають LAN-дефолти telenetis |
 | `LLAMA_SERVE_URL` / `LLAMA_SERVE_FAST_URL` | перекривають llama-rs тієри |
+| `POOLAI_HTTP_PORT` | порт координатора (this box: **8091**; default 8080 конфліктує з llama_serve) |
+| `POOLAI_GALAXY_CAPABILITY_VERIFY_PK_HEX` | **pub-ключ** оператора (не сид! `221c2252…8235` = pub від сида `c254…0e3e` з edge-вbs); без нього `register-remote` → 403 `capability_signature_invalid` |
+| `POOLAI_SERVICE_USER` / `POOLAI_SERVICE_PASS` | env-сіяний сервісний акаунт Telenetis (Viewer; poolAI band 233) |
+| `LLAMA_EDGE_SIGNING_KEY` | сид підпису capability-doc у edge (збігається з vbs) |
+
+Keep-live omniroute-проба: LAN-base → **loopback-twin fallback** (зовнішні
+проксі часто біндять лише `127.0.0.1`; entry.url = той, що відповів).

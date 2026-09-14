@@ -2185,6 +2185,9 @@ deterministic). Tickets `t-1789413085201472600`…`t-1789413091194317900`.
 | **PH-S2962** | Telenetis | standalone `net.rs` mirror; `gsv_url`/`poolai_url` defaults on local addr; boot-verify default LAN — **✅** |
 | **PH-S2963** | llama-rs flow | `llama_rs::net`; `llama_serve` bind default `0.0.0.0`; `llama_edge` coordinator/rpc/register-address on local addr; `GSV_LIVE` ingest → `GSV_LIVE_URL`/local; xtask edge-install default LAN — **✅** (llama-rs repo) |
 | **PH-S2964** | Routes + close | `docs/gsv/GSV_ROUTES.md` port/caller map live-verified; AGENTS/README LAN notes; full `cargo test` · clippy · record-speed · record-rust · sync · live take-over on LAN bind — **✅** | 
+| **PH-S2979** | Service account | poolAI `UserManager::initialize` env-seed `POOLAI_SERVICE_USER/PASS` (Viewer, дефолт `telenetis`; без env — без акаунта) + 3 unit tests; telenetis `.env` pin; live: Viewer login + vm/instances+bindings+seats+tasks = 200 — **✅** (poolAI `8f32f9f34`) | 
+| **PH-S2980** | Omni-route twin | `keep_live::omniroute_probe_urls` LAN-base → loopback-twin fallback + `pick_omniroute` version plumbing; lib + contract (fake loopback listener) — **✅** | 
+| **PH-S2981** | Launcher continuity | HKCU Run координатора: `POOLAI_HTTP_PORT/…VERIFY_PK_HEX` (pub-ключ від оператора, не сид) setx; `edge_start.vbs` duplicate-spawn fix; llama-rs `--bins` refresh; grid mirror показує `192.168.2.238` для обох edge — **✅** | 
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

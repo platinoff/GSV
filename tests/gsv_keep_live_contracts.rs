@@ -140,6 +140,56 @@ async fn llama_rs_file_probe_flips_alive_on_fresh_heartbeat() {
     );
 }
 
+#[tokio::test]
+async fn omniroute_loopback_twin_rescues_a_lan_only_probe_base() {
+    // Band 233: the LAN base (GSV_LOCAL_ADDR host) stays dead while a
+    // loopback-only proxy on :59996 answers the twin probe.
+    let _guard = ENV_LOCK.lock().await;
+    let listener = std::net::TcpListener::bind("127.0.0.1:59996").expect("twin listener");
+    let handle = std::thread::spawn(move || {
+        for stream in listener.incoming().take(4) {
+            use std::io::{Read, Write};
+            if let Ok(mut s) = stream {
+                let mut buf = [0u8; 256];
+                let _ = s.read(&mut buf);
+                // Content-Length framing; NO shutdown(Both) — on Windows that
+                // can discard the buffered tail before the client drains it.
+                let _ = s.write_all(
+                    b"HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: 29\r\n\r\n{\"ok\":true,\"version\":\"0.0.1\"}",
+                );
+                let _ = s.flush();
+            }
+        }
+    });
+    std::env::set_var("GSV_LOCAL_ADDR", "192.168.56.99");
+    std::env::set_var("GSV_KEEP_LIVE_GSV_URL", "http://127.0.0.1:59998/api/health");
+    std::env::set_var(
+        "GSV_KEEP_LIVE_TELENETIS_URL",
+        "http://127.0.0.1:59997/health",
+    );
+    std::env::set_var("GSV_KEEP_LIVE_OMNIROUTE_URL", "http://192.168.56.99:59996");
+    std::env::set_var(
+        "LLAMA_HEARTBEAT_PATH",
+        "C:/tmp/gsv-keep-live-missing-233.json",
+    );
+    let keep = get_json(&app(), "/api/keep-live").await;
+    std::env::remove_var("GSV_LOCAL_ADDR");
+    restore_peers();
+    let _ = handle;
+    assert_eq!(keep.0, StatusCode::OK);
+    assert_eq!(
+        keep.1["omniroute"]["alive"], true,
+        "{:?}",
+        keep.1["omniroute"]
+    );
+    assert_eq!(keep.1["omniroute"]["url"], "http://127.0.0.1:59996");
+    assert_eq!(
+        keep.1["omniroute"]["version"], "0.0.1",
+        "full wire: {:?}",
+        keep.1["omniroute"]
+    );
+}
+
 #[test]
 fn render_keep_live_rows() {
     let d = json!({
