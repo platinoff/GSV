@@ -1,4 +1,4 @@
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 
 type HmacSha256 = Hmac<Sha256>;
@@ -150,13 +150,14 @@ fn hex_val(b: u8) -> Option<u8> {
 
 fn compute_hash(data_check_string: &str, bot_token: &str) -> Vec<u8> {
     let secret_key = secret_key(bot_token);
-    let mut mac = <HmacSha256 as Mac>::new_from_slice(&secret_key).unwrap();
+    // hmac 0.13: constructor moved from `Mac` to `KeyInit` (RustCrypto wave).
+    let mut mac = HmacSha256::new_from_slice(&secret_key).unwrap();
     mac.update(data_check_string.as_bytes());
     mac.finalize().into_bytes().to_vec()
 }
 
 fn secret_key(bot_token: &str) -> Vec<u8> {
-    let mut mac = <HmacSha256 as Mac>::new_from_slice(b"WebAppData").unwrap();
+    let mut mac = HmacSha256::new_from_slice(b"WebAppData").unwrap();
     mac.update(bot_token.as_bytes());
     mac.finalize().into_bytes().to_vec()
 }
