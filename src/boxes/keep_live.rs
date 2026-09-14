@@ -323,6 +323,48 @@ pub async fn report_async() -> KeepLiveReport {
     }
 }
 
+/// Window (s) in which the gsv-server Telegram poller must have written its
+/// offset for the hub to claim the internet path is live (loop ticks 1s;
+/// 90s tolerates a few cold getUpdates timeouts / backoff).
+pub const TELEGRAM_ONLINE_WINDOW_SECS: u64 = 90;
+
+/// Age (s) of the durable `telegram_offset.json` mtime (written by every
+/// successful live `getUpdates` pass), `None` when the file is missing.
+pub fn telegram_offset_age(data_dir: &Path, now: u64) -> Option<u64> {
+    fs::metadata(data_dir.join("telegram_offset.json"))
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| now.saturating_sub(d.as_secs()))
+}
+
+/// Pure offline-mode gate: `online` only while the relay workflow is enabled
+/// AND the inbound poller succeeded within [`TELEGRAM_ONLINE_WINDOW_SECS`];
+/// otherwise the hub declares `lan-only` (phones on Wi-Fi + local models still
+/// serve — a cut cable must never mean "no AI", see GSV_VDC.md §8).
+pub fn offline_mode(telegram_relay_enabled: bool, offset_age_secs: Option<u64>) -> &'static str {
+    let fresh = offset_age_secs
+        .map(|a| a <= TELEGRAM_ONLINE_WINDOW_SECS)
+        .unwrap_or(false);
+    if telegram_relay_enabled && fresh {
+        "online"
+    } else {
+        "lan-only"
+    }
+}
+
+/// Compute the mode from durable state (settings + poller offset mtime).
+pub fn mode_for(data_dir: &Path) -> &'static str {
+    let relay = crate::boxes::settings::load_result(data_dir)
+        .map(|f| crate::boxes::settings::telegram_relay_enabled(&f))
+        .unwrap_or(false);
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    offline_mode(relay, telegram_offset_age(data_dir, now))
+}
+
 /// One-line keep-live hint, e.g. "gsv/telenetis up · llama_rs/omniroute down".
 pub fn hint(r: &KeepLiveReport) -> String {
     let mut up = Vec::new();
@@ -348,12 +390,15 @@ pub fn hint(r: &KeepLiveReport) -> String {
     }
 }
 
-/// Wire for GET /api/keep-live (ok always true).
-pub fn wire() -> Value {
+/// Wire for GET /api/keep-live (ok always true). `mode` carries the offline
+/// signal: `online` while the Telegram relay polls, `lan-only` otherwise.
+pub fn wire(data_dir: &Path) -> Value {
     let r = report();
+    let mode = mode_for(data_dir);
     json!({
         "ok": true,
-        "hint": hint(&r),
+        "mode": mode,
+        "hint": format!("{} · {mode}", hint(&r)),
         "gsv": r.gsv,
         "telenetis": r.telenetis,
         "llama_rs": r.llama_rs,
@@ -362,11 +407,13 @@ pub fn wire() -> Value {
 }
 
 /// Async wire for axum.
-pub async fn wire_async() -> Value {
+pub async fn wire_async(data_dir: &Path) -> Value {
     let r = report_async().await;
+    let mode = mode_for(data_dir);
     json!({
         "ok": true,
-        "hint": hint(&r),
+        "mode": mode,
+        "hint": format!("{} · {mode}", hint(&r)),
         "gsv": r.gsv,
         "telenetis": r.telenetis,
         "llama_rs": r.llama_rs,
@@ -404,6 +451,51 @@ pub async fn telenetis_wire_async() -> Value {
 mod tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn offline_mode_gates_on_relay_and_fresh_offset() {
+        assert_eq!(offline_mode(true, Some(10)), "online");
+        assert_eq!(
+            offline_mode(true, Some(TELEGRAM_ONLINE_WINDOW_SECS)),
+            "online"
+        );
+        assert_eq!(
+            offline_mode(true, Some(TELEGRAM_ONLINE_WINDOW_SECS + 1)),
+            "lan-only"
+        );
+        assert_eq!(
+            offline_mode(true, None),
+            "lan-only",
+            "never polled → LAN-only"
+        );
+        assert_eq!(
+            offline_mode(false, Some(0)),
+            "lan-only",
+            "relay off → LAN-only"
+        );
+    }
+
+    #[test]
+    fn telegram_offset_age_reads_mtime_none_missing() {
+        let dir =
+            std::env::temp_dir().join(format!("gsv-keep-live-offline-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        assert_eq!(telegram_offset_age(&dir, now), None);
+        fs::write(dir.join("telegram_offset.json"), r#"{"offset":1}"#).unwrap();
+        let age = telegram_offset_age(&dir, now).expect("fresh file");
+        assert!(age <= 5, "mtime must be ~now, got {age}s");
+        assert_eq!(
+            mode_for(&dir),
+            "lan-only",
+            "relay settings absent → lan-only"
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn heartbeat_fresh_true_and_false() {
@@ -485,12 +577,21 @@ mod tests {
             "LLAMA_HEARTBEAT_PATH",
             "/tmp/gsv-keep-live-missing-99999.json",
         );
-        let v = wire();
+        let tmp = std::env::temp_dir().join(format!("gsv-keep-live-wire-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        let v = wire(&tmp);
         assert_eq!(v["ok"], true);
         assert_eq!(v["gsv"]["alive"], false);
         assert_eq!(v["telenetis"]["alive"], false);
         assert_eq!(v["llama_rs"]["alive"], false);
         assert_eq!(v["omniroute"]["alive"], false);
+        assert_eq!(v["mode"], "lan-only", "no relay settings → lan-only");
+        assert!(
+            v["hint"].as_str().unwrap_or_default().contains("lan-only"),
+            "{v}"
+        );
+        let _ = fs::remove_dir_all(&tmp);
         std::env::remove_var("GSV_KEEP_LIVE_GSV_URL");
         std::env::remove_var("GSV_KEEP_LIVE_TELENETIS_URL");
         std::env::remove_var("GSV_KEEP_LIVE_OMNIROUTE_URL");

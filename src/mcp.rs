@@ -1461,7 +1461,7 @@ async fn call_tool(state: &AppState, params: &Value, session: Option<&str>) -> V
             tool_ok(state.grid.wire().await)
         }
         "gsv_keep_live" => {
-            let mut v = crate::boxes::keep_live::wire_async().await;
+            let mut v = crate::boxes::keep_live::wire_async(&state.data_dir).await;
             let uptime = state.started_at.elapsed().map(|d| d.as_secs()).unwrap_or(0);
             crate::boxes::keep_live::stub_gsv_uptime(&mut v, uptime);
             state.keep_live_store(v.clone());

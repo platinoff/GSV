@@ -32,7 +32,7 @@ landed 2026-09-14), and **OpenCode ⇄ hub never drops on ticket drains** (watch
 - [ ] security: hub single-entry proxy for poolAI edge plane (token auth + rate limit where poolAI has none)
 - [ ] security: service account for Telenetis edge calls replacing admin/admin123 (see ticket t-1789360414663375700)
 - [ ] ui: VDC dashboard card — topology graph + seats + tiers + health history in Galaxy
-- [ ] ops: offline mode signal — telegram-relay auto-degrade to LAN-only surfaced in keep-live + health hint
+- [x] ops: offline mode signal — telegram-relay auto-degrade to LAN-only surfaced in keep-live + health hint — landed 2026-09-14: wire mode online|lan-only (relay ∧ offset-mtime ≤90s) + hint suffix, durable cross-process signal
 - [ ] docs: GSV_VDC.md canon — this table as the hub-side must-have list + EDGE_PLAN matrix rows
 
 ## Non-goals

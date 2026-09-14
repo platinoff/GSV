@@ -91,9 +91,13 @@ point-to-point.
 - Apply is operator-driven: `cargo xtask live` / dashboard **Apply** at a calm
   moment, never implied by a background timer.
 
-### 8. Offline mode — P1
-- Signal in health/keep-live: `telegram=down → LAN-only` (telenetis already
-  degrades; hub must surface it, not hide it).
+### 8. Offline mode — LANDED 2026-09-14
+- Signal in health/keep-live wire: `mode: online | lan-only` (+ hint suffix).
+  Fresh = relay workflow enabled AND `data/telegram_offset.json` mtime ≤ 90 s
+  (written by every live `getUpdates` pass — durable across processes, so MCP
+  clients read the same truth). telenetis already degrades silently; the hub
+  now names it. Cut cable ⇒ `mode:"lan-only"`, omni falls through to local
+  tiers, chat keeps answering.
 - Phones reach telenetis via LAN `lan_url()` rewrite; tunnel is an upgrade,
   not a dependency.
 

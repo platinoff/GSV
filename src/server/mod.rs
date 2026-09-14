@@ -348,7 +348,7 @@ async fn api_vision_svg() -> Response {
 async fn api_health(State(state): State<AppState>) -> Json<Value> {
     let mut h = health(&state);
     // Keep-live is fail-open and async (1s total with concurrent probes) — merge here so health stays responsive.
-    let mut keep = crate::boxes::keep_live::wire_async().await;
+    let mut keep = crate::boxes::keep_live::wire_async(&state.data_dir).await;
     let uptime = state.started_at.elapsed().map(|d| d.as_secs()).unwrap_or(0);
     crate::boxes::keep_live::stub_gsv_uptime(&mut keep, uptime);
     state.keep_live_store(keep.clone());
@@ -357,7 +357,7 @@ async fn api_health(State(state): State<AppState>) -> Json<Value> {
 }
 
 async fn api_keep_live(State(state): State<AppState>) -> Json<Value> {
-    let mut keep = crate::boxes::keep_live::wire_async().await;
+    let mut keep = crate::boxes::keep_live::wire_async(&state.data_dir).await;
     let uptime = state.started_at.elapsed().map(|d| d.as_secs()).unwrap_or(0);
     crate::boxes::keep_live::stub_gsv_uptime(&mut keep, uptime);
     state.keep_live_store(keep.clone());
@@ -1294,7 +1294,7 @@ async fn card_wire(state: &AppState, name: &str, q: &CardQuery) -> Result<Value,
         "sw" => crate::boxes::sw::wire(),
         "watchdog" => crate::boxes::watchdog::wire(&state.repo_root),
         "keep-live" => {
-            let mut v = crate::boxes::keep_live::wire_async().await;
+            let mut v = crate::boxes::keep_live::wire_async(&state.data_dir).await;
             let uptime = state.started_at.elapsed().map(|d| d.as_secs()).unwrap_or(0);
             crate::boxes::keep_live::stub_gsv_uptime(&mut v, uptime);
             v
