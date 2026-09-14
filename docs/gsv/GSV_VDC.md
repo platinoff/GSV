@@ -26,11 +26,15 @@ point-to-point.
 
 ## Hub-side must-haves
 
-### 1. Topology (ALLBGP) — P0
+### 1. Topology (ALLBGP) — LANDED 2026-09-14 (`boxes/grid.rs`)
+- `GET /api/grid` + MCP `gsv_grid` mirror poolAI `/topology/nodes`,
+  `/workers`, `/discovery/virtual-nodes`, `/grid/telegram-seats`, `/status`
+  into a durable ring `data/gsv_grid.json` (cap 64); 10 s `gsv-server` loop
+  emits SSE `event: grid` on change; poolAI down ⇒ last-known kept +
+  `poolai_alive:false`/`stale` (never an empty view). UI card = separate open
+  ticket below.
 - One durable GSV table: devices, capacity (VRAM/RAM/class), model→shard
   placement, rpc endpoints, seats, tiers, health edges + history ring.
-- Mirror poolAI (`/topology/*`, `/workers`, `/virtual-nodes`, `/grid/*`) +
-  `llama_serve /v1/models` (`rpc_workers`); emit SSE on change; MCP read tool.
 - Why: poolAI graph is point-in-time and memory-only; OpenCode/Cursor need a
   stable table that survives a poolAI restart.
 

@@ -95,6 +95,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         (*state.data_dir).clone(),
         state.ticket_presence.clone(),
     );
+    gsv::boxes::grid::spawn_grid_loop(std::sync::Arc::clone(&state.grid), state.events.clone());
 
     let addr: SocketAddr = format!("{host}:{port}").parse()?;
     let app = gsv::server::router(state.clone());

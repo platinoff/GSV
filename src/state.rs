@@ -66,6 +66,8 @@ pub struct AppState {
     pub ticket_presence: Arc<crate::boxes::tickets::PresenceStore>,
     /// Cached keep-live report summary (shared writers refresh it; GET /mcp reads the cache).
     pub keep_live_cache: Arc<std::sync::RwLock<Option<(SystemTime, Value)>>>,
+    /// Grid box (ALLBGP): durable mirror of the poolAI fleet view + history ring.
+    pub grid: Arc<crate::boxes::grid::GridBox>,
     /// Monotonic sequence for new HTTP MCP session ids.
     pub mcp_session_seq: Arc<AtomicU64>,
     /// SSE event broadcast channel (string payloads, JSON).
@@ -88,6 +90,7 @@ impl AppState {
         let tracker = TrackerStore::load(&root, &data).unwrap_or_default();
         let omni = OmniRouter::new(&data);
         let usage = crate::boxes::usage::load(&data);
+        let grid = Arc::new(crate::boxes::grid::GridBox::new(&data));
         Self {
             repo_root: Arc::new(root),
             data_dir: Arc::new(data),
@@ -107,6 +110,7 @@ impl AppState {
             mcp_session_seq: Arc::new(AtomicU64::new(1)),
             ticket_presence: Arc::new(crate::boxes::tickets::new_presence_store()),
             keep_live_cache: Arc::new(std::sync::RwLock::new(None)),
+            grid,
             events,
         }
     }

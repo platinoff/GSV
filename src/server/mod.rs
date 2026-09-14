@@ -110,6 +110,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/omni/", get(api_omni_index))
         .route("/api/health", get(api_health))
         .route("/api/keep-live", get(api_keep_live))
+        .route("/api/grid", get(api_grid))
         .route("/api/watchdog", get(api_watchdog))
         .route("/api/usage", get(api_usage))
         .route("/api/settings", get(api_settings).post(api_settings_post))
@@ -359,6 +360,12 @@ async fn api_keep_live(State(state): State<AppState>) -> Json<Value> {
     crate::boxes::keep_live::stub_gsv_uptime(&mut keep, uptime);
     state.keep_live_store(keep.clone());
     Json(keep)
+}
+
+/// ALLBGP grid mirror (poolAI fleet view + durable history ring).
+async fn api_grid(State(state): State<AppState>) -> Json<Value> {
+    state.grid.refresh().await;
+    Json(state.grid.wire().await)
 }
 
 async fn api_watchdog(State(state): State<AppState>) -> Json<Value> {
@@ -795,7 +802,7 @@ async fn api_index() -> Json<Value> {
         "categories": [
             "/api/vision/", "/api/ui/", "/api/ratio/", "/api/toolchain/",
             "/api/ide/", "/api/omni/", "/api/sli", "/api/tracker", "/api/products",
-            "/api/fingerprints", "/api/ranks", "/api/sw", "/api/watchdog", "/api/usage", "/api/settings", "/api/telegram", "/api/telegram/bus", "/api/telegram/ticket", "/api/telegram/poll", "/api/telegram/decode", "/api/tickets", "/api/mds", "/api/xtask", "/api/disk", "/sw.js",
+            "/api/fingerprints", "/api/ranks", "/api/sw", "/api/watchdog", "/api/usage", "/api/settings", "/api/telegram", "/api/telegram/bus", "/api/telegram/ticket", "/api/telegram/poll", "/api/telegram/decode", "/api/tickets", "/api/mds", "/api/xtask", "/api/disk", "/api/grid", "/sw.js",
             "/api/hooks/", "/api/preview", "/api/terminal", "/data/", "/mcp"
         ],
         "example": "/api/vision",

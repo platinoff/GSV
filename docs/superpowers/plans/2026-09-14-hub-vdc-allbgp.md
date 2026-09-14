@@ -24,7 +24,7 @@ landed 2026-09-14), and **OpenCode ⇄ hub never drops on ticket drains** (watch
 
 ## Checklist (open = on the board)
 
-- [ ] grid: ALLBGP topology box in GSV hub (mirror poolAI topology/workers/virtual-nodes + history ring, GET /api/grid, MCP gsv_grid, SSE events)
+- [x] grid: ALLBGP topology box in GSV hub (mirror poolAI topology/workers/virtual-nodes + history ring, GET /api/grid, MCP gsv_grid, SSE events) — landed 2026-09-14: boxes/grid.rs, fail-open stale-keep, durable ring data/gsv_grid.json, 10 s loop + event:grid
 - [ ] grid: per-device capacity profiles (VRAM/RAM/class) in hub, feed poolAI placement hints instead of boolean has_gpu
 - [ ] omni: tier routing — add bunke-rock-fast provider (:8082, lama-1.5) to catalog + X-Omni-Tier fast|deep header in proxy
 - [ ] grid: Qwen-27B layer-map planner — compute shard ranges, render llama_serve --rpc list, re-issue on worker loss (rebalance)

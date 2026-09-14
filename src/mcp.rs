@@ -288,6 +288,16 @@ pub fn tools_list() -> Vec<Value> {
         ),
         tool("gsv_watchdog", "Live watchdog heartbeat (target/live/watchdog.json).", object_schema()),
         tool(
+            "gsv_grid",
+            "ALLBGP grid mirror of the poolAI fleet (topology nodes, workers, virtual-nodes, telegram seats + durable history ring). fresh=true re-pulls now.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "fresh": { "type": "boolean", "description": "Re-fetch poolAI before answering (default false; the hub loop refreshes every 10 s)." }
+                }
+            }),
+        ),
+        tool(
             "gsv_keep_live",
             "Keep-live health for GSV + Telenetis + llama-rs + OmniRoute (aggregation only, ok stays true when peer down).",
             object_schema(),
@@ -758,6 +768,7 @@ const TOOL_NAMES: &[&str] = &[
     "gsv_products_scan",
     "gsv_products_select",
     "gsv_watchdog",
+    "gsv_grid",
     "gsv_keep_live",
     "gsv_telenetis_health",
     "gsv_sw",
@@ -1443,6 +1454,12 @@ async fn call_tool(state: &AppState, params: &Value, session: Option<&str>) -> V
         }
         "gsv_products_select" => tool_products_select(state, &args),
         "gsv_watchdog" => tool_ok(crate::boxes::watchdog::wire(&state.repo_root)),
+        "gsv_grid" => {
+            if args.get("fresh").and_then(Value::as_bool).unwrap_or(false) {
+                state.grid.refresh().await;
+            }
+            tool_ok(state.grid.wire().await)
+        }
         "gsv_keep_live" => {
             let mut v = crate::boxes::keep_live::wire_async().await;
             let uptime = state.started_at.elapsed().map(|d| d.as_secs()).unwrap_or(0);
