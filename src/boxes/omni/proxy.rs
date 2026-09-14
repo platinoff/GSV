@@ -174,14 +174,29 @@ pub async fn chat_completions(
         map.remove("provider");
     }
     usage::ensure_stream_include_usage(&mut forwarded);
-    let mut req = omni.client.post(&upstream_url).json(&forwarded);
+    // Local backends need minutes for the first token; clouds get 120 s.
+    let http = if catalog::provider_kind(&provider_id) == "local" {
+        &omni.local_client
+    } else {
+        &omni.client
+    };
+    let mut req = http.post(&upstream_url).json(&forwarded);
     if let Some(key) = cfg.effective_api_key(&provider_id) {
         req = req.header(header::AUTHORIZATION, format!("Bearer {key}"));
     }
-    let upstream = req
-        .send()
-        .await
-        .map_err(|e| AppError::new(format!("upstream request failed: {e}")))?;
+    let upstream = match req.send().await {
+        Ok(r) => r,
+        Err(e) => {
+            // No HTTP status here: cool the dead host briefly so the next
+            // route skips it instead of burning another full timeout.
+            {
+                let mut cooling = omni.quota.write().await;
+                cooling.record_unreachable(&provider_id, None, quota::now_utc());
+            }
+            omni.persist_quota();
+            return Err(AppError::new(format!("upstream request failed: {e}")));
+        }
+    };
 
     let streaming = body.get("stream").and_then(Value::as_bool).unwrap_or(false);
     if streaming {

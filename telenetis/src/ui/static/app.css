@@ -339,3 +339,5 @@ button.error, .btn.error {
     word-break: break-word;
 }
 
+.nav { display: flex; gap: 12px; overflow-x: auto; padding: 8px 0; margin-bottom: 12px; border-bottom: 1px solid var(--tg-theme-hint-color, #ccc); } .nav a { white-space: nowrap; }
+.tab.active { border-color: var(--accent); color: var(--accent); }

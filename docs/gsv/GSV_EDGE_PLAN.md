@@ -13,7 +13,7 @@ Single source of truth for ports, autostart entries, env, and gaps.
 | edge executor | — | `llama-rs/target/debug/llama_edge.exe` as `edge-pc-01` (+ `a54-01`) | HKCU `llama-edge` → `target/edge_start.vbs` (with signing key) | `llama-rs/target/live/llama_edge.log` |
 | Telenetis edge | `:9800` | `telenetis/target/live/` + `telenetis-live.exe` supervisor | HKCU `telenetis-edge` → `target/telenetis_start.vbs` | roles jsonl (gitignored) |
 | ngrok tunnel | `:4040` api | Temp `ngrok.exe` v3.39.11 | HKCU `ngrok-tunnel` | reserved domain `atonable-alibi-unwilling` |
-| OmniRoute gate | `:20128` | — | DOWN (gap) | — |
+| OmniRoute gate | `:20128` | node (no runtime, policy: Rust only) | DOWN by decision — role served by the hub itself (OmniRouter box) | keep-live probe stays as down-signal |
 
 ## 2. Settings inventory
 

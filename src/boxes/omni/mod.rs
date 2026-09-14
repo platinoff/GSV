@@ -37,13 +37,19 @@ pub use quota::{pick_route, QuotaStore, RoutePick};
 /// Canonical box name.
 pub const OMNI_ROUTER_NAME: &str = "OmniRouter";
 
-/// Shared OmniRouter runtime: durable config + HTTP client.
+/// Request timeout for local providers (seconds). A 27B mmap needs minutes
+/// for the first token; the shared 120 s client would always give up first.
+pub const LOCAL_UPSTREAM_TIMEOUT_SECS: u64 = 900;
+
+/// Shared OmniRouter runtime: durable config + HTTP clients.
 #[derive(Clone)]
 pub struct OmniRouter {
     /// Durable data dir (`GSV/data/`).
     pub data_dir: Arc<PathBuf>,
     /// Outbound HTTP client for upstream requests.
     pub client: reqwest::Client,
+    /// Long-timeout client for `local` providers (slow first token).
+    pub local_client: reqwest::Client,
     /// Tuned config (toml-backed, lock-guarded).
     pub config: Arc<RwLock<OmniConfig>>,
     /// Live cooldown windows (toml-adjacent JSON, no secrets).
@@ -59,9 +65,14 @@ impl OmniRouter {
             .timeout(Duration::from_secs(120))
             .build()
             .unwrap_or_else(|_| reqwest::Client::new());
+        let local_client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(LOCAL_UPSTREAM_TIMEOUT_SECS))
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new());
         Self {
             data_dir: Arc::new(data_dir.to_path_buf()),
             client,
+            local_client,
             config: Arc::new(RwLock::new(config)),
             quota: Arc::new(RwLock::new(quota)),
         }

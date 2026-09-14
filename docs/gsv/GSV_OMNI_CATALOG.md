@@ -38,6 +38,20 @@ Local **llama-rs** backend (`S:/rust/llama-rs`, llama.cpp) registered as catalog
 - **Routing:** `GET /api/omni/route?task=rust&prefer_free=true` can pick it as the free lane (skips cooling); no base_url/token needed (defaults to `http://127.0.0.1:8080/v1` if it ever proxies).
 - In path of a running llama-rs: works offline, no quota timers.
 
+## Offline-first routing policy (2026-09-14, verified in code)
+
+- Connection/send failures (no HTTP status) now cool the host briefly
+  (`record_unreachable`, catalog `reset_secs`), so the next route skips a
+  dead cloud instead of burning another full client timeout on it.
+- `local` providers ride a 900 s client (`LOCAL_UPSTREAM_TIMEOUT_SECS`);
+  clouds stay at 120 s. A 27B mmap needs minutes for the first token —
+  through the hub it now survives; direct `:8080` is still fastest.
+- Explicit `provider`/`X-Omni-Provider` targets ignore cooldown (manual
+  override); `bunke-rock` with no model routes the free lane when its
+  model file exists (`host_ready`).
+- Quota store stays in `data/omni_quota.json` (gitignored); `last_status`
+  0 marks a network failure (vs HTTP codes).
+
 ## Nemotron 3.5 Lightning (addendum 2026-08-21)
 
 Released **2026-08-11**: open 30B MoE / **3B active** execution-layer model (Mamba+Transformer hybrid, MTP + speculative decoding, OpenMDW license). Trained for high-volume agentic loops — multi-step tool use incl. **search tool-calls**, structured output, terminal/coding RL. Context: **1M on NIM**, **300K on OpenRouter** (`nvidia/nemotron-3.5-lightning`, 16K reasoning budget). Free NIM tier ~40 RPM/model — already covered by the catalog cooldown (`reset_secs=60`).
@@ -48,6 +62,62 @@ Released **2026-08-11**: open 30B MoE / **3B active** execution-layer model (Mam
 - Auto-pick will **not** choose it for rust/web lanes (`rust`/`web` flags are off in canon). Select explicitly: `gsv_omni_chat` with `model="nemotron-3.5-lightning"` or owner header `X-Omni-Provider: nvidia`.
 - Local lane: runs on RTX 5090 / DGX Spark via Ollama / LM Studio / llama.cpp (NVFP4 + BF16 checkpoints) — no quota timers, but not an Omni upstream without a base URL.
 - Zen's free Nemotron row is still **Nemotron 3 Ultra**; 3.5 Lightning is not on Zen yet.
+
+## IDE onboarding via the hub (verified 2026-09-14)
+
+Hub base: `http://127.0.0.1:9999/api/omni/v1` (`GET /v1/models` lists 43 rows
+incl. `lama-2.8`/`bunke-rock`; dry-run route 200). SSE is piped through,
+so streaming clients work.
+
+### OpenCode — custom provider (confirmed pattern, cf. Atomic Chat docs)
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "gsv-hub": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "GSV Hub (OmniRouter)",
+      "options": { "baseURL": "http://127.0.0.1:9999/api/omni/v1" },
+      "models": {
+        "lama-2.8": { "name": "Lama 2.8 (BunkeRock, local 27B)" },
+        "grok-4.6": { "name": "Grok 4.6 (via hub)" }
+      }
+    },
+    "llama-fast": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Llama fast tier (direct)",
+      "options": { "baseURL": "http://127.0.0.1:8082/v1" },
+      "models": {
+        "lama-1.5": { "name": "Lama 1.5 (local 1.5B, ~2 tok/s)" }
+      }
+    }
+  }
+}
+```
+
+`lama-1.5` is NOT in the hub catalog (single `bunke-rock` row) — use it
+direct on `:8082`, not through the hub. Paid providers flow through the
+hub with their keys in `GSV/data/omni.toml` (or `OMNI_*_API_KEY` env).
+
+### Cursor — Override OpenAI Base URL
+
+Settings → Models → OpenAI API Key (any non-empty value works against the
+hub — it ignores keys) → enable **Override OpenAI Base URL** →
+`http://127.0.0.1:9999/api/omni/v1` → Add custom model `lama-2.8` (id from
+`GET /v1/models`). Same pattern as OpenRouter (`…/api/v1/cursor`) / Z.AI
+docs; model ids are hub-catalog ids.
+
+⚠️ Reachability caveat (LiteLLM reverse-engineering): Cursor may send
+requests from **its own servers**, not your machine — then loopback is
+unreachable from Cursor's side (symptom: minute-long hang, then a bogus
+rate-limit error). If that happens, expose the hub on the ngrok public URL
+(Telenetis tunnel, same box) and use the `https://…` base instead.
+
+⚠️ Slow-local caveat (measured): hub upstream timeout is 120 s; the 27B
+needs ~4 min TTF. Cloud models through the hub are fine; `lama-2.8`
+through the hub times out — point long generations at `:8080` directly
+or keep `max_tokens` tiny.
 
 ## Clients
 

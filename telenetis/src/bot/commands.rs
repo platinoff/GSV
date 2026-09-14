@@ -122,7 +122,7 @@ pub fn command_response(cmd: &Command) -> String {
               /worker <user|peer> — One worker detail\n\
               /vm — My VMs (poolAI instances behind edge peers)\n\
               /vm <user|peer> — One VM detail\n\
-              /chat <text> — Ask llama (answer lands in Mini App chat)\n\
+              /chat [fast|deep] <text> — Ask llama (answer lands in Mini App chat)\n\
              /sync — Force sync from GSV\n\
              /app — Open Mini App\n\
              /tunnel — Show / refresh public tunnel URL\n\
@@ -400,7 +400,19 @@ async fn handle_chat(prompt: &str, sender_id: Option<&str>, state: &AppState) ->
         }
         Err(e) => return format!("⚠️ *Chat unavailable:* `{e}`"),
     };
-    match pool.enqueue_chat(&peer, prompt, 64).await {
+    // Optional leading tier: `/chat fast ...` (else deep).
+    let (tier, text) = match prompt
+        .split_once(char::is_whitespace)
+        .map(|(a, b)| (a.trim().to_ascii_lowercase(), b.trim()))
+    {
+        Some((t, rest)) if t == "fast" || t == "deep" => (t, rest.to_string()),
+        _ => ("deep".to_string(), prompt.to_string()),
+    };
+    if text.is_empty() {
+        return "Usage: /chat [fast|deep] <text> — asks llama, answer in Mini App chat."
+            .to_string();
+    }
+    match pool.enqueue_chat(&peer, &text, 64, &tier).await {
         Ok(id) => {
             format!("Queued for `{peer}` (task `{id}`).\nThe answer appears in Mini App chat.")
         }

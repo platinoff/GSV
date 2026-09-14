@@ -22,6 +22,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/edge/workers", get(api_edge_workers))
         .route("/vm", get(vm_page))
         .route("/api/edge/vm", get(api_edge_vm))
+        .route("/api/edge/vm/ensure", post(api_edge_vm_ensure))
         .route("/api/edge/shards", get(api_edge_shards))
         .route("/chat", get(chat_page))
         .route(
@@ -496,36 +497,182 @@ async fn api_roles_remove(
     Json(json!({ "ok": true, "removed": had, "jail_id": jail_id })).into_response()
 }
 
-async fn dashboard() -> Html<String> {
-    Html(include_str!("templates/dashboard.html").to_string())
+/// HTML page with `Cache-Control: no-store` — Telegram WebView caches
+/// aggressively; without it phones keep showing stale pages (old JS that
+/// hangs on skeleton forever) after a redeploy.
+fn page(html: String) -> ([(axum::http::HeaderName, &'static str); 1], Html<String>) {
+    ([(header::CACHE_CONTROL, "no-store")], Html(html))
 }
 
-async fn app_page() -> Html<String> {
-    Html(include_str!("templates/base.html").to_string())
+async fn dashboard() -> impl IntoResponse {
+    page(include_str!("templates/dashboard.html").to_string())
 }
 
-async fn board_page() -> Html<String> {
-    Html(include_str!("templates/board.html").to_string())
+async fn app_page() -> impl IntoResponse {
+    page(include_str!("templates/base.html").to_string())
 }
 
-async fn flows_page() -> Html<String> {
-    Html(include_str!("templates/flows.html").to_string())
+async fn board_page() -> impl IntoResponse {
+    page(include_str!("templates/board.html").to_string())
 }
 
-async fn roles_page() -> Html<String> {
-    Html(include_str!("templates/roles.html").to_string())
+async fn flows_page() -> impl IntoResponse {
+    page(include_str!("templates/flows.html").to_string())
 }
 
-async fn workers_page() -> Html<String> {
-    Html(include_str!("templates/workers.html").to_string())
+async fn roles_page() -> impl IntoResponse {
+    page(include_str!("templates/roles.html").to_string())
 }
 
-async fn vm_page() -> Html<String> {
-    Html(include_str!("templates/vm.html").to_string())
+/// Minimal HTML escaping for server-rendered rows.
+fn esc_html(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
-async fn chat_page() -> Html<String> {
-    Html(include_str!("templates/chat.html").to_string())
+/// Server-rendered edge-workers rows so the table has data even when the
+/// phone's JS never runs. Client JS overwrites on successful fetch.
+async fn workers_rows(state: &AppState) -> String {
+    use crate::edge::{apply_task_status, assemble_views, PoolClient};
+
+    let pool = PoolClient::new(state.config());
+    let bindings = match pool.bindings().await {
+        Ok(b) => b,
+        Err(e) => {
+            return format!(
+                "<tr><td colspan=\"5\">poolAI unreachable: {}</td></tr>",
+                esc_html(&e.to_string())
+            )
+        }
+    };
+    let mut views = assemble_views(&bindings);
+    for v in &mut views {
+        if let Ok(st) = pool.task_status(&v.peer_id).await {
+            apply_task_status(v, &st);
+        }
+    }
+    if views.is_empty() {
+        return "<tr><td colspan=\"5\">(none bound)</td></tr>".to_string();
+    }
+    views
+        .iter()
+        .map(|v| {
+            format!(
+                "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                esc_html(&v.telegram_user_id),
+                esc_html(&v.peer_id),
+                esc_html(&v.bound_at),
+                v.pending,
+                v.completed
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("")
+}
+
+async fn workers_page(State(state): State<AppState>) -> impl IntoResponse {
+    let rows = workers_rows(&state).await;
+    page(
+        include_str!("templates/workers.html")
+            .to_string()
+            .replace("<!--WORKERS_ROWS-->", &rows),
+    )
+}
+
+/// Server-rendered VM + shard rows (same no-JS guarantee as workers).
+async fn vm_rows(state: &AppState) -> (String, String) {
+    use crate::edge::{assemble_views, find_vm, shard_map, PoolClient};
+
+    let pool = PoolClient::new(state.config());
+    let bindings = match pool.bindings().await {
+        Ok(b) => b,
+        Err(e) => {
+            let row = format!(
+                "<tr><td colspan=\"4\">poolAI unreachable: {}</td></tr>",
+                esc_html(&e.to_string())
+            );
+            return (row.clone(), row);
+        }
+    };
+    let views = assemble_views(&bindings);
+    let peers: Vec<String> = views.iter().map(|v| v.peer_id.clone()).collect();
+    let shards = shard_map(&pool, &peers).await;
+    let vms = pool.vm_list().await.ok();
+    let shard_rows = if shards.is_empty() {
+        "<tr><td colspan=\"4\">(no assignments yet)</td></tr>".to_string()
+    } else {
+        shards
+            .iter()
+            .map(|s| {
+                format!(
+                    "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                    esc_html(&s.peer_id),
+                    esc_html(&s.model),
+                    esc_html(&s.layers),
+                    if s.rpc_reachable { "yes" } else { "no" }
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("")
+    };
+    let mut vm_rows = String::new();
+    if views.is_empty() {
+        vm_rows = "<tr><td colspan=\"4\">(none bound — /start, then bind)</td></tr>".to_string();
+    }
+    for v in &views {
+        let vm = vms
+            .as_ref()
+            .and_then(|l| find_vm(l, &crate::edge::vm_name_for_peer(&v.peer_id)));
+        match vm {
+            Some(m) => {
+                let id = m
+                    .get("id")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("?")
+                    .to_string();
+                let status = m
+                    .get("status")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("?")
+                    .to_string();
+                let mut health = "n/a".to_string();
+                if let Ok(h) = pool.vm_health(&id).await {
+                    if let Some(s) = h.get("status").and_then(|x| x.as_str()) {
+                        health = s.to_string();
+                    }
+                }
+                let short: String = id.chars().take(8).collect();
+                vm_rows.push_str(&format!(
+                    "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                    esc_html(&v.peer_id),
+                    esc_html(&short),
+                    esc_html(&status),
+                    esc_html(&health)
+                ));
+            }
+            None => vm_rows.push_str(&format!(
+                "<tr><td>{}</td><td>(no VM)</td><td>—</td><td>—</td></tr>",
+                esc_html(&v.peer_id)
+            )),
+        }
+    }
+    (shard_rows, vm_rows)
+}
+
+async fn vm_page(State(state): State<AppState>) -> impl IntoResponse {
+    let (shards, vms) = vm_rows(&state).await;
+    page(
+        include_str!("templates/vm.html")
+            .to_string()
+            .replace("<!--SHARDS_ROWS-->", &shards)
+            .replace("<!--VMS_ROWS-->", &vms),
+    )
+}
+
+async fn chat_page() -> impl IntoResponse {
+    page(include_str!("templates/chat.html").to_string())
 }
 
 /// Layer map: latest `llama_shard` assignment per bound peer.
@@ -663,26 +810,145 @@ async fn proxy_upstream(
 /// bound peer. Body: `{user, prompt, max_tokens?}`.
 async fn api_edge_chat_send(
     State(state): State<AppState>,
+    Query(q): Query<ActionQuery>,
     Json(body): Json<serde_json::Value>,
-) -> Json<serde_json::Value> {
+) -> Response {
     use crate::edge::PoolClient;
 
+    // Mutating (enqueues minutes of 27B inference): same initData handshake
+    // as board actions, or anyone on the LAN/tunnel could burn GPU time.
+    let token = &state.config().bot_token;
+    if token.is_empty() {
+        return (
+            StatusCode::BAD_GATEWAY,
+            Json(crate::actions::err_json("bot token not configured")),
+        )
+            .into_response();
+    }
+    let now = freshness_now(q.auth_date);
+    if let Err(e) = crate::security::verify_init_data(
+        &q.init_data,
+        token,
+        now,
+        crate::security::initdata::DEFAULT_MAX_AGE_SECS,
+    ) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(crate::actions::err_json(&format!("initData: {e}"))),
+        )
+            .into_response();
+    }
     let user = body.get("user").and_then(Value::as_str).unwrap_or("");
     let prompt = body.get("prompt").and_then(Value::as_str).unwrap_or("");
     if user.trim().is_empty() || prompt.trim().is_empty() {
-        return Json(json!({"ok": false, "error": "user + prompt required"}));
+        return Json(json!({"ok": false, "error": "user + prompt required"})).into_response();
     }
     let pool = PoolClient::new(state.config());
     let peer = match pool.peer_for_user(user).await {
         Ok(Some(p)) => p,
-        Ok(None) => return Json(json!({"ok": false, "error": "no bound peer"})),
-        Err(e) => return Json(json!({"ok": false, "error": e.to_string()})),
+        Ok(None) => return Json(json!({"ok": false, "error": "no bound peer"})).into_response(),
+        Err(e) => return Json(json!({"ok": false, "error": e.to_string()})).into_response(),
     };
     let max_tokens = body.get("max_tokens").and_then(Value::as_u64).unwrap_or(64);
-    match pool.enqueue_chat(&peer, prompt, max_tokens).await {
-        Ok(id) => Json(json!({"ok": true, "peer": peer, "task_id": id})),
-        Err(e) => Json(json!({"ok": false, "error": e.to_string()})),
+    // Tier routing: "fast" (default, interactive) or "deep" (27B).
+    let model = body
+        .get("model")
+        .and_then(Value::as_str)
+        .map(|m| {
+            if m.trim().eq_ignore_ascii_case("deep") {
+                "deep"
+            } else {
+                "fast"
+            }
+        })
+        .unwrap_or("fast");
+    match pool.enqueue_chat(&peer, prompt, max_tokens, model).await {
+        Ok(id) => {
+            Json(json!({"ok": true, "peer": peer, "task_id": id, "model": model})).into_response()
+        }
+        Err(e) => Json(json!({"ok": false, "error": e.to_string()})).into_response(),
     }
+}
+
+/// Ensure the caller's VM exists and runs: find `{peer}-vm`, create it
+/// (2 cpu / 1024 MB) when missing, start it when not Running. Mutating,
+/// so the initData handshake is required like the other POSTs.
+/// Body: `{user}` (Telegram id, resolved to the bound peer).
+async fn api_edge_vm_ensure(
+    State(state): State<AppState>,
+    Query(q): Query<ActionQuery>,
+    Json(body): Json<serde_json::Value>,
+) -> Response {
+    use crate::edge::PoolClient;
+
+    let token = &state.config().bot_token;
+    if token.is_empty() {
+        return (
+            StatusCode::BAD_GATEWAY,
+            Json(crate::actions::err_json("bot token not configured")),
+        )
+            .into_response();
+    }
+    let now = freshness_now(q.auth_date);
+    if let Err(e) = crate::security::verify_init_data(
+        &q.init_data,
+        token,
+        now,
+        crate::security::initdata::DEFAULT_MAX_AGE_SECS,
+    ) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(crate::actions::err_json(&format!("initData: {e}"))),
+        )
+            .into_response();
+    }
+    let user = body.get("user").and_then(Value::as_str).unwrap_or("");
+    if user.trim().is_empty() {
+        return Json(json!({"ok": false, "error": "user required"})).into_response();
+    }
+    let pool = PoolClient::new(state.config());
+    let peer = match pool.peer_for_user(user).await {
+        Ok(Some(p)) => p,
+        Ok(None) => return Json(json!({"ok": false, "error": "no bound peer"})).into_response(),
+        Err(e) => return Json(json!({"ok": false, "error": e.to_string()})).into_response(),
+    };
+    let name = crate::edge::vm_name_for_peer(&peer);
+    let list = match pool.vm_list().await {
+        Ok(v) => v,
+        Err(e) => return Json(json!({"ok": false, "error": e.to_string()})).into_response(),
+    };
+    let id = match crate::edge::find_vm(&list, &name)
+        .and_then(|v| v.get("id"))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+    {
+        Some(id) => id,
+        None => match pool.vm_create(&name, 2, 1024).await {
+            Ok(v) => match v.get("id").and_then(Value::as_str) {
+                Some(id) => id.to_string(),
+                None => {
+                    return Json(json!({"ok": false, "error": "create: no id"})).into_response()
+                }
+            },
+            Err(e) => return Json(json!({"ok": false, "error": e.to_string()})).into_response(),
+        },
+    };
+    // Start when not Running (start is idempotent on this build).
+    let status = pool
+        .vm_list()
+        .await
+        .ok()
+        .and_then(|l| {
+            crate::edge::find_vm(&l, &name)?
+                .get("status")?
+                .as_str()
+                .map(str::to_string)
+        })
+        .unwrap_or_default();
+    if status != "Running" {
+        let _ = pool.vm_start(&id).await;
+    }
+    Json(json!({"ok": true, "peer": peer, "vm": name, "id": id})).into_response()
 }
 
 /// Poll a chat answer: `?peer=&task_id=` → `{ok, done, answer?}`.

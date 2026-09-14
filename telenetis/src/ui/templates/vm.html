@@ -5,12 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title data-i18n="app.title">Telenetis - My Virtual Workers</title>
     <link rel="stylesheet" href="/static/app.css">
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script defer src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body class="platform-unknown">
     <div id="app">
+        <nav class="nav">
+            <a href="/" data-i18n="nav.home">Home</a>
+            <a href="/board" data-i18n="nav.board">Board</a>
+            <a href="/flows" data-i18n="nav.flows">Flows</a>
+            <a href="/roles" data-i18n="nav.roles">Roles</a>
+            <a href="/workers" data-i18n="nav.workers">Workers</a>
+            <a href="/vm" data-i18n="nav.vm">My VM</a>
+            <a href="/chat" data-i18n="nav.chat">Chat</a>
+        </nav>
         <h1 data-i18n="nav.vm">My Virtual Workers</h1>
+        <p class="dim">build 2026-09-14d</p>
         <p class="dim">poolAI VM instances behind your edge peers — no Termux needed, tensors stay on real workers.</p>
+        <button id="vm-ensure" type="button">Ensure my VM</button>
+        <p id="vm-ensure-msg" class="dim"></p>
         <h2 data-i18n="nav.shards">Shard map</h2>
         <p class="dim">Latest <code>llama_shard</code> assignment per peer — who holds which layers.</p>
         <table id="shards">
@@ -23,9 +35,7 @@
                 </tr>
             </thead>
             <tbody id="shards-body" aria-busy="true">
-                <tr data-skeleton="shards" aria-hidden="true">
-                    <td colspan="4"><div class="skeleton skeleton-row"></div></td>
-                </tr>
+                <!--SHARDS_ROWS-->
             </tbody>
         </table>
         <table id="vms">
@@ -38,15 +48,38 @@
                 </tr>
             </thead>
             <tbody id="vms-body" aria-busy="true">
-                <tr data-skeleton="vms" aria-hidden="true">
-                    <td colspan="4"><div class="skeleton skeleton-row"></div></td>
-                </tr>
+                <!--VMS_ROWS-->
             </tbody>
         </table>
     </div>
     <script>
     (function () {
-        fetch("/api/edge/shards", { headers: { "Accept": "application/json" } })
+        function timed(url, opts) {
+            if (typeof AbortController === "undefined" || typeof fetch === "undefined") {
+                return fetch(url, opts);
+            }
+            var ctrl = new AbortController();
+            var timer = setTimeout(function () { ctrl.abort(); }, 15000);
+            return fetch(url, Object.assign({}, opts, { signal: ctrl.signal }))
+                .then(function (r) { clearTimeout(timer); return r; },
+                      function (e) { clearTimeout(timer); throw e; });
+        }
+        function showShardsError(e) {
+            document.getElementById("shards-body").innerHTML =
+                "<tr><td colspan=\"4\">fetch failed: " +
+                String((e && e.name) || e) + "</td></tr>";
+        }
+        // Reload on return from background so shards/VM tables refresh.
+        document.addEventListener("visibilitychange", function () {
+            if (!document.hidden) { location.reload(); }
+        });
+        document.getElementById("shards-body").innerHTML =
+            "<tr><td colspan=\"4\"><div class=\"skeleton skeleton-row\"></div></td></tr>";
+        var shardsCall;
+        try {
+            shardsCall = timed("/api/edge/shards", { headers: { "Accept": "application/json" } });
+        } catch (e) { showShardsError(e); return; }
+        shardsCall
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 var body = document.getElementById("shards-body");
@@ -64,11 +97,70 @@
                 body.innerHTML = rows.length ? rows.join("") : "<tr><td colspan=\"4\">(no assignments yet)</td></tr>";
                 body.setAttribute("aria-busy", "false");
             })
-            .catch(function () { /* fail-open: table keeps skeleton */ });
+            .catch(function (e) {
+                document.getElementById("shards-body").innerHTML =
+                    "<tr><td colspan=\"4\">fetch failed: " +
+                    esc((e && e.name) || e) + " @ " + esc(location.origin) + "</td></tr>";
+            });
     })();
     </script>
     <script>
     (function () {
+        function tgUser() {
+            try {
+                var tg = window.Telegram && window.Telegram.WebApp;
+                if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id) {
+                    return String(tg.initDataUnsafe.user.id);
+                }
+            } catch (e) { /* not in Telegram */ }
+            return "";
+        }
+        function tgInit() {
+            try {
+                var tg = window.Telegram && window.Telegram.WebApp;
+                var initData = (tg && tg.initData) ? tg.initData : "";
+                return "?initData=" + encodeURIComponent(initData) +
+                    "&authDate=" + Math.floor(Date.now() / 1000);
+            } catch (e) { return "?initData=&authDate=0"; }
+        }
+        document.getElementById("vm-ensure").addEventListener("click", function () {
+            var msg = document.getElementById("vm-ensure-msg");
+            var user = tgUser();
+            if (!user) { msg.textContent = "Open from Telegram to identify."; return; }
+            msg.textContent = "Ensuring…";
+            fetch("/api/edge/vm/ensure" + tgInit(), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ user: user })
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    msg.textContent = (data && data.ok)
+                        ? ("VM " + data.vm + " ensured.")
+                        : ("error: " + ((data && data.error) || "unreachable"));
+                    if (data && data.ok) { location.reload(); }
+                })
+                .catch(function () { msg.textContent = "poolAI unreachable"; });
+        });
+    })();
+    </script>
+    <script>
+    (function () {
+        function timed(url, opts) {
+            if (typeof AbortController === "undefined" || typeof fetch === "undefined") {
+                return fetch(url, opts);
+            }
+            var ctrl = new AbortController();
+            var timer = setTimeout(function () { ctrl.abort(); }, 15000);
+            return fetch(url, Object.assign({}, opts, { signal: ctrl.signal }))
+                .then(function (r) { clearTimeout(timer); return r; },
+                      function (e) { clearTimeout(timer); throw e; });
+        }
+        function showVmsError(e) {
+            document.getElementById("vms-body").innerHTML =
+                "<tr><td colspan=\"4\">fetch failed: " +
+                String((e && e.name) || e) + "</td></tr>";
+        }
         function esc(s) {
             return String(s == null ? "" : s)
                 .replace(/&/g, "&amp;").replace(/</g, "&lt;")
@@ -82,7 +174,13 @@
             }
         } catch (e) { user = ""; }
         var url = "/api/edge/vm" + (user ? ("?user=" + encodeURIComponent(user)) : "");
-        fetch(url, { headers: { "Accept": "application/json" } })
+        document.getElementById("vms-body").innerHTML =
+            "<tr><td colspan=\"4\"><div class=\"skeleton skeleton-row\"></div></td></tr>";
+        var call;
+        try {
+            call = timed(url, { headers: { "Accept": "application/json" } });
+        } catch (e) { showVmsError(e); return; }
+        call
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 var body = document.getElementById("vms-body");

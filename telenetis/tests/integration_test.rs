@@ -167,6 +167,34 @@ async fn snapshot_endpoint_served() {
     let edge: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert!(edge.get("ok").is_some());
 
+    // Chat POST without initData is rejected (expensive llama jobs).
+    let resp = telenetis::ui::router(state.clone())
+        .oneshot(
+            Request::builder()
+                .uri("/api/edge/chat")
+                .method("POST")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"user":"1","prompt":"hi"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+
+    // VM ensure without initData is rejected (mutating).
+    let resp = telenetis::ui::router(state.clone())
+        .oneshot(
+            Request::builder()
+                .uri("/api/edge/vm/ensure")
+                .method("POST")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"user":"1"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+
     // VM endpoint: same fail-open contract.
     let resp = telenetis::ui::router(state.clone())
         .oneshot(

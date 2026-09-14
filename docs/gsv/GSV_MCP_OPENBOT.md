@@ -109,7 +109,7 @@ Do **not** `cargo run --bin gsv-mcp` from the client: it is slow, takes the carg
 | `gsv_sli` | SLI catalog |
 | `gsv_toolchain` | Toolchain inventory |
 | `gsv_ratio` | Ratio / `gsv-loc-audit` |
-| `gsv_ranks` | Merit ranks (IT + army mix): award on ticket done, demote on ticket error or tests_ok=false; redacted Telegram tails; store `data/gsv_ranks.json` (gitignored) |
+| `gsv_ranks` | Merit ranks (IT + army mix), earned only: +1 on ticket done / −1 on ticket error (both to the claimer); `review` + `tests_ok: false` demotes the fingerprint owner behind `git_head` once. Direct award/demote removed. Redacted Telegram tails; store `data/gsv_ranks.json` (gitignored) |
 | `gsv_vision_*` | summary / manifest / feed / sprint-queue / map / board / progress / speeds / rust-diagnostics / sprint-map / doc-preview / node-search / sync / extensions |
 | `gsv_preview` | Box preview (`file` repo-relative; same confine as `GET /api/preview`) |
 | `gsv_hooks_*` | tests + bench hooks (read `target/`, no rebuild) |
@@ -119,7 +119,7 @@ Do **not** `cargo run --bin gsv-mcp` from the client: it is slow, takes the carg
 | `gsv_usage` | Session token totals (`GET /api/usage`) — OmniRouter + MCP session + OmniRoute pull |
 | `gsv_settings` | Godfather settings (redacted `token_set`; never `bot_token`; no MCP write) |
 | `gsv_telegram` | Godfather bind status (redacted; never `bot_token`) |
-| `gsv_telegram_bus_send` | Bus envelope send (`from`,`to?`,`ticket_id?`,`body`; `kind` = bus/sync/presence/claim/done/reclaim — claim/done/reclaim need `ticket_id`; requires `telegram-relay`; cap 2 KiB; never `bot_token`) |
+| `gsv_telegram_bus_send` | Bus envelope send (`from`,`to?`,`ticket_id?`,`body`; `kind` = bus/sync/presence/claim/done/reclaim — claim/done/reclaim need `ticket_id`; requires `telegram-relay`; cap 2 KiB; never `bot_token`). Identity: `from` must be your presence identity (`solo`/`squad`/local jail/online name) or a numeric Telegram id, else an exact `allowed_user_ids` match — unknown names are rejected |
 | `gsv_telegram_bus_poll` | Bus envelope poll (`limit?`; dry-run in-memory queue; no webhook) |
 | `gsv_telegram_ticket` | Ingest `/ticket` or `{kind:ticket}` as a board row; solo MCP auto-claims |
 | `gsv_telegram_poll` | One inbound `getUpdates` pass (`/ticket` / hook / bus JSON incl. presence/claim/done/reclaim, dual session+envelope) |
@@ -129,7 +129,7 @@ Do **not** `cargo run --bin gsv-mcp` from the client: it is slow, takes the carg
 | `gsv_tickets_create` | Create `{title,body?,product?}` or `{scenario_id}` (a scenario with `tickets[]` places a band; single-ticket scenarios still auto-assign) |
 | `gsv_tickets_done` | `in_progress` → `done` + event `kind:done` |
 | `gsv_tickets_error` | `in_progress` → `blocked` + event `kind:error` |
-| `gsv_tickets_presence` | Heartbeat this MCP as online (TTL 120s) |
+| `gsv_tickets_presence` | Heartbeat this MCP as online (TTL 120s); renews your leases. Flow: presence → claim → done/error, heartbeat at least every 5 min or leases auto-reclaim to open. New workers refused when online ≥ squad_cap |
 | `gsv_tickets_reclaim` | Stale/explicit `in_progress` → `open` + `kind:reclaimed` |
 | `gsv_tickets_walk` | Walk open tickets (optional `scenario_id` creates the band); Godfather dual line+JSON envelopes (`hint`/`next`); live sendMessage 1/s |
 | `gsv_tickets_hook` | Parse `run mcp bot hook up scenario <id|band N|plan stem> [walk]` and place ≤10 tickets from catalog / roadmap / plan |
@@ -215,6 +215,16 @@ No secrets in tool output (`omni.toml` keys stay redacted). POST body cap and CS
 - POST `/mcp` skips the browser Origin / `Sec-Fetch-Site` CSRF gate (bots are not the Galaxy UI). Body cap still applies. Other POSTs stay gated.
 - Grok Bot cloud: `cargo xtask tunnel` is the **owner-opt-in** public hop (`cloudflared tunnel --url http://127.0.0.1:9999`). Not on by default. `/mcp` on that URL is world-reachable until you Ctrl+C. Do not add an MCP tool that starts the tunnel.
 - MCP auth tokens never land in `data/` git.
+
+## Solo/squad messaging + identity rules (teach)
+
+How workers talk, and what the bot enforces:
+
+1. **Heartbeat first.** `gsv_tickets_presence` puts you online (TTL 120 s) and renews your leases. Claim and act only as the identity you beat with — never somebody else's `from`.
+2. **Leases, not locks.** Claimed rows carry 5-min leases; stop beating and the row auto-reclaims to open (+ federated `kind:reclaim`). One worker per ticket; reclaim stale rows instead of waiting.
+3. **Bus identity is checked.** `gsv_telegram_bus_send` accepts `solo` / `squad` / the local jail id / an online presence name / a numeric Telegram id — or an exact `godfather.allowed_user_ids` match. Unknown sender names are rejected (spoofing). Guests are muted on live send.
+4. **Ranks are earned.** +1 lands on `done`, −1 on `error`, always to the claimer. No direct grants (removed). `review` + `tests_ok: false` demotes whoever owns the `git_head` fingerprint — report truthfully, it lands on a real identity, not on the reporter's pick.
+5. **Redact always.** `bot_token` never appears in tool I/O; Telegram ids show as tails; `gsv_settings` is read-only (tokens via owner `POST /api/settings`).
 
 ## Non-goals (band 135)
 

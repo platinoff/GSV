@@ -5,11 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title data-i18n="app.title">Telenetis - Edge Workers</title>
     <link rel="stylesheet" href="/static/app.css">
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script defer src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body class="platform-unknown">
     <div id="app">
+        <nav class="nav">
+            <a href="/" data-i18n="nav.home">Home</a>
+            <a href="/board" data-i18n="nav.board">Board</a>
+            <a href="/flows" data-i18n="nav.flows">Flows</a>
+            <a href="/roles" data-i18n="nav.roles">Roles</a>
+            <a href="/workers" data-i18n="nav.workers">Workers</a>
+            <a href="/vm" data-i18n="nav.vm">My VM</a>
+            <a href="/chat" data-i18n="nav.chat">Chat</a>
+        </nav>
         <h1 data-i18n="nav.workers">Edge Workers</h1>
+        <p class="dim">build 2026-09-14d</p>
         <p class="dim">poolAI telegram bindings + shard task counters. Control plane only — tensors stay on ggml-rpc-server.</p>
         <table id="workers">
             <thead>
@@ -22,12 +32,11 @@
                 </tr>
             </thead>
             <tbody id="workers-body" aria-busy="true">
-                <tr data-skeleton="workers" aria-hidden="true">
-                    <td colspan="5"><div class="skeleton skeleton-row"></div></td>
-                </tr>
+                <!--WORKERS_ROWS-->
             </tbody>
         </table>
         <p id="workers-seats" class="dim"></p>
+        <p id="workers-dbg" class="dim"></p>
     </div>
     <script>
     (function () {
@@ -36,13 +45,47 @@
                 .replace(/&/g, "&amp;").replace(/</g, "&lt;")
                 .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
         }
-        fetch("/api/edge/workers", { headers: { "Accept": "application/json" } })
-            .then(function (r) { return r.json(); })
+        function fetchTimeout(url, opts, ms) {
+            // Ancient WebViews may lack AbortController: fall back to plain
+            // fetch rather than dying silently (skeleton forever).
+            if (typeof AbortController === "undefined" || typeof fetch === "undefined") {
+                return fetch(url, opts);
+            }
+            var ctrl = new AbortController();
+            var timer = setTimeout(function () { ctrl.abort(); }, ms || 15000);
+            var p = fetch(url, Object.assign({}, opts, { signal: ctrl.signal }));
+            return p.then(function (r) { clearTimeout(timer); return r; },
+                          function (e) { clearTimeout(timer); throw e; });
+        }
+        function showError(e) {
+            document.getElementById("workers-body").innerHTML =
+                "<tr><td colspan=\"5\">fetch failed: " + esc((e && e.name) || e) +
+                " @ " + esc(location.origin) + " " + retryBtn() + "</td></tr>";
+        }
+        function dbg(msg) {
+            try { document.getElementById("workers-dbg").textContent = msg; } catch (e) {}
+        }
+        function skeleton() {
+            document.getElementById("workers-body").innerHTML =
+                "<tr><td colspan=\"5\"><div class=\"skeleton skeleton-row\"></div></td></tr>";
+        }
+        function load(attempt) {
+            skeleton();
+            var t0 = Date.now();
+            var p;
+            try {
+                p = fetchTimeout("/api/edge/workers", { headers: { "Accept": "application/json" } }, 15000);
+            } catch (e) { showError(e); dbg("sync-throw " + String(e)); return; }
+            p
+            .then(function (r) { dbg("http " + r.status + " " + (Date.now() - t0) + "ms"); return r.json(); })
             .then(function (data) {
+                dbg("json ok rows=" + ((data && data.workers) ? data.workers.length : "?")); 
                 var body = document.getElementById("workers-body");
                 var seats = document.getElementById("workers-seats");
                 if (!data || data.ok === false) {
-                    body.innerHTML = "<tr><td colspan=\"5\">poolAI unreachable</td></tr>";
+                    body.innerHTML = "<tr><td colspan=\"5\">backend: " +
+                        esc((data && data.error) || "unreachable") +
+                        " @ " + esc(location.origin) + " " + retryBtn() + "</td></tr>";
                     return;
                 }
                 var rows = (data.workers || []).map(function (w) {
@@ -57,10 +100,20 @@
                         ", " + (data.seats.active_telegram_edge_workers || 0) + " active";
                 }
             })
-            .catch(function () {
-                document.getElementById("workers-body").innerHTML =
-                    "<tr><td colspan=\"5\">poolAI unreachable</td></tr>";
+            .catch(function (e) {
+                if (attempt < 2) { load(attempt + 1); return; }
+                showError(e);
             });
+        }
+        function retryBtn() {
+            return "<button onclick=\"location.reload()\">retry</button>";
+        }
+        load(0);
+        // Backgrounded WebViews keep stale DOM (no-store applies on load
+        // only): refetch when the user returns.
+        document.addEventListener("visibilitychange", function () {
+            if (!document.hidden) { load(0); }
+        });
     })();
     </script>
 </body>

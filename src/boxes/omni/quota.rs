@@ -84,6 +84,20 @@ impl QuotaStore {
         self.remaining_secs(id, now) > 0
     }
 
+    /// Record an unreachable upstream (connect/send failure, no HTTP status).
+    /// Starts a short cooldown of `secs` (or the catalog `reset_secs`) so
+    /// the next route skips the dead host instead of burning a full client
+    /// timeout on it again. `last_status` 0 marks a network failure.
+    pub fn record_unreachable(&mut self, id: &str, secs: Option<u32>, now: DateTime<Utc>) {
+        let reset = catalog::provider(id)
+            .map(|p| p.quota.reset_secs)
+            .unwrap_or(60)
+            .max(1);
+        let entry = self.providers.entry(id.to_string()).or_default();
+        entry.last_status = 0;
+        entry.cooldown_until = rfc_plus(now, secs.unwrap_or(reset).max(1));
+    }
+
     /// Record an upstream status. 429 starts a cooldown of `retry_after` (or
     /// the catalog `reset_secs`). A successful call increments the minute window
     /// and cools the host if RPM is exhausted.
@@ -341,6 +355,40 @@ mod tests {
                 "expected a pick while host ready: {e}"
             ),
         }
+    }
+
+    #[test]
+    fn unreachable_cools_and_recovers() {
+        let mut store = QuotaStore::default();
+        let t0 = DateTime::parse_from_rfc3339("2026-08-18T12:00:00Z")
+            .expect("t0")
+            .with_timezone(&Utc);
+        assert!(!store.is_cooling("groq", t0));
+        store.record_unreachable("groq", Some(60), t0);
+        assert!(store.is_cooling("groq", t0), "dead host must cool");
+        let row = &store.providers["groq"];
+        assert_eq!(row.last_status, 0);
+        let later = t0 + chrono::Duration::seconds(61);
+        assert!(!store.is_cooling("groq", later), "cooldown must lapse");
+    }
+
+    #[test]
+    fn pick_route_skips_unreachable_host() {
+        let mut cfg = OmniConfig::default();
+        cfg.apply(&json!({
+            "provider": {
+                "groq": { "base_url": "http://127.0.0.1:9/v1", "priority": 100 },
+                "openrouter": { "base_url": "http://127.0.0.1:8/v1", "priority": 50 },
+            }
+        }))
+        .expect("apply");
+        let mut store = QuotaStore::default();
+        let now = DateTime::parse_from_rfc3339("2026-08-18T12:00:00Z")
+            .expect("now")
+            .with_timezone(&Utc);
+        store.record_unreachable("groq", Some(60), now);
+        let pick = pick_route(&cfg, &store, "rust", true, now).expect("pick");
+        assert_ne!(pick.provider, "groq");
     }
 
     #[test]

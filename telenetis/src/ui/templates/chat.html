@@ -5,13 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title data-i18n="app.title">Telenetis - Chat</title>
     <link rel="stylesheet" href="/static/app.css">
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script defer src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body class="platform-unknown">
     <div id="app">
+        <nav class="nav">
+            <a href="/" data-i18n="nav.home">Home</a>
+            <a href="/board" data-i18n="nav.board">Board</a>
+            <a href="/flows" data-i18n="nav.flows">Flows</a>
+            <a href="/roles" data-i18n="nav.roles">Roles</a>
+            <a href="/workers" data-i18n="nav.workers">Workers</a>
+            <a href="/vm" data-i18n="nav.vm">My VM</a>
+            <a href="/chat" data-i18n="nav.chat">Chat</a>
+        </nav>
         <h1 data-i18n="nav.chat">Chat with llama</h1>
+        <p class="dim">build 2026-09-14d</p>
         <p class="dim">Routed only through poolAI services — no Termux, answers take minutes.</p>
         <div id="chat-log" aria-live="polite"></div>
+        <div class="tabs" role="group" aria-label="tier">
+            <button type="button" id="tier-fast" class="tab">Fast</button>
+            <button type="button" id="tier-deep" class="tab">Deep</button>
+        </div>
         <form id="chat-form">
             <input id="chat-input" type="text" autocomplete="off"
                    placeholder="Ask llama..." aria-label="prompt">
@@ -34,6 +48,25 @@
         } catch (e) { user = ""; }
         var log = document.getElementById("chat-log");
         var input = document.getElementById("chat-input");
+        // Backgrounded WebViews keep stale DOM: refresh on return, unless
+        // the user is typing (never wipe their input).
+        document.addEventListener("visibilitychange", function () {
+            if (!document.hidden && !input.value) { location.reload(); }
+        });
+        var tier = "fast";
+        function paintTier() {
+            document.getElementById("tier-fast").className =
+                "tab" + (tier === "fast" ? " active" : "");
+            document.getElementById("tier-deep").className =
+                "tab" + (tier === "deep" ? " active" : "");
+        }
+        document.getElementById("tier-fast").addEventListener("click", function () {
+            tier = "fast"; paintTier();
+        });
+        document.getElementById("tier-deep").addEventListener("click", function () {
+            tier = "deep"; paintTier();
+        });
+        paintTier();
         function addMsg(who, text) {
             var div = document.createElement("div");
             div.className = "chat-msg chat-" + who;
@@ -41,12 +74,30 @@
             log.appendChild(div);
             return div;
         }
+        function timed(url, opts, ms) {
+            if (typeof AbortController === "undefined" || typeof fetch === "undefined") {
+                return fetch(url, opts);
+            }
+            var ctrl = new AbortController();
+            var timer = setTimeout(function () { ctrl.abort(); }, ms || 20000);
+            return fetch(url, Object.assign({}, opts, { signal: ctrl.signal }))
+                .then(function (r) { clearTimeout(timer); return r; },
+                      function (e) { clearTimeout(timer); throw e; });
+        }
         function poll(peer, taskId, bubble) {
             var left = 60; // ~10 min at 10s cadence
             var timer = setInterval(function () {
-                fetch("/api/edge/chat?peer=" + encodeURIComponent(peer) +
-                      "&task_id=" + encodeURIComponent(taskId),
-                      { headers: { "Accept": "application/json" } })
+                var call;
+                try {
+                    call = timed("/api/edge/chat?peer=" + encodeURIComponent(peer) +
+                          "&task_id=" + encodeURIComponent(taskId),
+                          { headers: { "Accept": "application/json" } }, 20000);
+                } catch (e) {
+                    clearInterval(timer);
+                    bubble.textContent = "fetch failed: " + String((e && e.name) || e);
+                    return;
+                }
+                call
                     .then(function (r) { return r.json(); })
                     .then(function (data) {
                         if (data && data.ok && data.done) {
@@ -78,11 +129,25 @@
             input.value = "";
             addMsg("user", prompt);
             var bubble = addMsg("llama", "\u2026");
-            fetch("/api/edge/chat", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ user: user, prompt: prompt, max_tokens: 64 })
-            })
+            var initData = "";
+            try {
+                var t2 = window.Telegram && window.Telegram.WebApp;
+                if (t2 && t2.initData) { initData = t2.initData; }
+            } catch (e2) { initData = ""; }
+            var authDate = Math.floor(Date.now() / 1000);
+            var call;
+            try {
+                call = timed("/api/edge/chat?initData=" + encodeURIComponent(initData) +
+                      "&authDate=" + authDate, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ user: user, prompt: prompt, max_tokens: 64, model: tier })
+                }, 20000);
+            } catch (e) {
+                bubble.textContent = "fetch failed: " + String((e && e.name) || e);
+                return;
+            }
+            call
                 .then(function (r) { return r.json(); })
                 .then(function (data) {
                     if (data && data.ok) {

@@ -308,18 +308,20 @@ impl PoolClient {
     }
 
     /// Enqueue a `llama_chat` task for a peer. Returns the task id.
+    /// `model` is `"fast"` (interactive) or `"deep"` (27B).
     pub async fn enqueue_chat(
         &self,
         peer_id: &str,
         prompt: &str,
         max_tokens: u64,
+        model: &str,
     ) -> Result<String, TelenetisError> {
         let body = self
             .post_json(
                 &format!("/api/v1/virtual-nodes/{peer_id}/tasks"),
                 &serde_json::json!({
                     "task_type": "llama_chat",
-                    "payload": {"prompt": prompt, "max_tokens": max_tokens},
+                    "payload": {"prompt": prompt, "max_tokens": max_tokens, "model": model},
                 }),
             )
             .await?;
