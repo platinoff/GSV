@@ -75,6 +75,9 @@ pub struct DeviceProfile {
     pub vram_mb: u64,
     pub ram_mb: u64,
     pub note: String,
+    /// `host:port` of a `ggml-rpc-server` on this device (Linux boxes only —
+    /// owner policy: no Termux, so phones never appear here as tensor hosts).
+    pub rpc_endpoint: String,
 }
 
 fn profiles_path(data_dir: &Path) -> PathBuf {
@@ -117,7 +120,11 @@ pub fn upsert_profile(data_dir: &Path, id: &str, patch: &Value) -> Result<Value,
         return Ok(json!({"id": id, "deleted": true}));
     }
     let mut p = map.get(id).cloned().unwrap_or_default();
-    for (k, slot) in [("class", &mut p.class), ("note", &mut p.note)] {
+    for (k, slot) in [
+        ("class", &mut p.class),
+        ("note", &mut p.note),
+        ("rpc_endpoint", &mut p.rpc_endpoint),
+    ] {
         if let Some(v) = patch.get(k).and_then(Value::as_str) {
             *slot = v.trim().to_ascii_lowercase();
         }
@@ -133,7 +140,7 @@ pub fn upsert_profile(data_dir: &Path, id: &str, patch: &Value) -> Result<Value,
     let row = map.get(id).expect("just inserted");
     Ok(
         json!({ "id": id, "class": row.class, "vram_mb": row.vram_mb,
-               "ram_mb": row.ram_mb, "note": row.note }),
+               "ram_mb": row.ram_mb, "note": row.note, "rpc_endpoint": row.rpc_endpoint }),
     )
 }
 
@@ -141,6 +148,103 @@ pub fn upsert_profile(data_dir: &Path, id: &str, patch: &Value) -> Result<Value,
 fn poolai_nums(node: &Value) -> (u64, u64) {
     let g = |k: &str| node.get(k).and_then(Value::as_u64).unwrap_or(0);
     (g("total_gpu_memory_mb"), g("total_memory_mb"))
+}
+
+/// Default shape of Qwen3.8-27B IQ2_XXS (override per query).
+pub const DEFAULT_PLAN_LAYERS: u32 = 64;
+/// IQ2_XXS 27B ≈ 7.4 GiB / 64 layers ≈ 110 MB per layer (weights share).
+pub const DEFAULT_MB_PER_LAYER: u32 = 110;
+/// Percent of device RAM the planner may claim (rest = OS + KV + apps).
+pub const PLAN_BUDGET_PCT: u64 = 60;
+
+/// Tensor classes: allowed to hold ggml layers. `edge` (phones) and unknown
+/// classes never get shards — owner policy: **no Termux**, phones are task
+/// workers only.
+pub fn tensor_class(class: &str) -> bool {
+    matches!(class, "cpu" | "gpu" | "server")
+}
+
+/// ALLBGP layer-map planner: contiguous shard ranges over hub-profiled,
+/// tensor-capable devices (largest budget first), rendered `llama_serve`
+/// `--rpc` args for remote hosts, honest `advice` when the model cannot fit.
+/// Recomputed from the live mirror ⇒ worker loss auto-rebalances on next call.
+pub fn plan_layers(
+    profiles: &std::collections::BTreeMap<String, DeviceProfile>,
+    layers: u32,
+    mb_per_layer: u32,
+) -> Value {
+    let mb = mb_per_layer.max(1) as u64;
+    let mut cands: Vec<(&String, &DeviceProfile, u64)> = profiles
+        .iter()
+        .filter(|(_, p)| tensor_class(&p.class) && p.ram_mb > 0)
+        .map(|(id, p)| (id, p, p.ram_mb * PLAN_BUDGET_PCT / 100 / mb))
+        .collect();
+    cands.sort_by(|a, b| b.2.cmp(&a.2).then(a.0.cmp(b.0)));
+    let total_cap: u64 = cands.iter().map(|(_, _, c)| *c).sum();
+    let mut rows = Vec::new();
+    let mut args = Vec::new();
+    let mut start = 0u32;
+    let mut remaining = layers;
+    let local = cands.first().map(|(id, _, _)| (*id).clone());
+    // Pass 1: proportional to budget; pass 2 (below): greedy top-up of any
+    // rounding remainder on devices that still have spare capacity.
+    let mut takes: Vec<u32> = cands
+        .iter()
+        .map(|(_, _, cap)| {
+            if total_cap == 0 || *cap == 0 {
+                0
+            } else {
+                ((layers as u64 * *cap) / total_cap).min(*cap) as u32
+            }
+        })
+        .collect();
+    let spent: u32 = takes.iter().sum();
+    if spent < layers {
+        let mut extra = layers - spent;
+        for (i, (_, _, cap)) in cands.iter().enumerate() {
+            if extra == 0 {
+                break;
+            }
+            let spare = (*cap).saturating_sub(takes[i] as u64);
+            let add = spare.min(extra as u64) as u32;
+            takes[i] += add;
+            extra -= add;
+        }
+    }
+    for ((id, p, cap), take) in cands.iter().zip(takes.iter()) {
+        if *take == 0 {
+            continue;
+        }
+        let end = start + take - 1;
+        rows.push(json!({
+            "id": id, "layers": format!("{start}-{end}"), "take": take,
+            "capacity_layers": cap, "share_mb": *take as u64 * mb,
+            "local": local.as_deref() == Some(id.as_str()),
+            "rpc_endpoint": p.rpc_endpoint,
+        }));
+        if !p.rpc_endpoint.is_empty() && local.as_deref() != Some(id.as_str()) {
+            args.extend(["--rpc".to_string(), p.rpc_endpoint.clone()]);
+        }
+        start += take;
+        remaining = remaining.saturating_sub(*take);
+    }
+    let feasible = start >= layers;
+    json!({
+        "model_layers": layers,
+        "mb_per_layer": mb,
+        "budget_pct": PLAN_BUDGET_PCT,
+        "feasible": feasible,
+        "uncovered_layers": remaining,
+        "rows": rows,
+        "llama_serve_args": args,
+        "advice": if feasible {
+            ""
+        } else if rows.is_empty() {
+            "no tensor-capable devices profiled yet — POST /api/grid/profile {id, class: cpu|gpu|server, ram_mb[, rpc_endpoint]} (Linux ggml-rpc hosts only; phones stay edge workers)"
+        } else {
+            "profile more ggml-rpc hosts (Pi4 / spare PC) or run the deep tier mmap-only; interactive chat uses the fast tier (:8082)"
+        },
+    })
 }
 
 /// Merge hub profiles with the poolAI topology view: effective capacity per
@@ -256,6 +360,15 @@ fn counts(store: &GridStore) -> (usize, usize, usize, u64) {
     )
 }
 
+/// Append one snapshot to the ring, trimming oldest beyond [`HISTORY_CAP`].
+pub fn push_history(ring: &mut Vec<Value>, entry: Value) {
+    ring.push(entry);
+    if ring.len() > HISTORY_CAP {
+        let excess = ring.len() - HISTORY_CAP;
+        ring.drain(0..excess);
+    }
+}
+
 impl GridBox {
     /// Build from env + the durable snapshot on disk (survives restarts).
     pub fn new(data_dir: &Path) -> Self {
@@ -347,11 +460,7 @@ impl GridBox {
         drop(prev);
         let changed = (p_nodes, p_workers, p_vnodes, p_used) != (nodes, workers, vnodes, used)
             || alive != prev_alive;
-        next.history.push(entry);
-        if next.history.len() > HISTORY_CAP {
-            let excess = next.history.len() - HISTORY_CAP;
-            next.history.drain(0..excess);
-        }
+        push_history(&mut next.history, entry);
         *self.store.write().await = next.clone();
         save_store(&self.data_dir, &next);
         changed.then(|| {
@@ -373,6 +482,7 @@ impl GridBox {
             "stale": !store.poolai_alive,
             "last_error": store.last_error,
             "capacity": capacity_view(&store, &profiles),
+            "plan": plan_layers(&profiles, DEFAULT_PLAN_LAYERS, DEFAULT_MB_PER_LAYER),
             "counts": {
                 "nodes": nodes,
                 "workers": workers,
@@ -409,6 +519,99 @@ pub fn spawn_grid_loop(grid: Arc<GridBox>, events: broadcast::Sender<String>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn plan_layers_assigns_contiguous_ranges_and_renders_rpc_args() {
+        use std::collections::BTreeMap;
+        let mut profiles = BTreeMap::new();
+        // coordinator (largest budget) is local; pi4 is a remote rpc host.
+        profiles.insert(
+            "edge-pc-01".to_string(),
+            DeviceProfile {
+                class: "cpu".into(),
+                ram_mb: 16_384,
+                ..Default::default()
+            },
+        );
+        profiles.insert(
+            "pi4-01".to_string(),
+            DeviceProfile {
+                class: "server".into(),
+                ram_mb: 8_192,
+                rpc_endpoint: "192.168.1.20:50052".into(),
+                ..Default::default()
+            },
+        );
+        // A phone must never get tensor layers.
+        profiles.insert(
+            "a54-01".to_string(),
+            DeviceProfile {
+                class: "edge".into(),
+                ram_mb: 7_560,
+                ..Default::default()
+            },
+        );
+        let plan = plan_layers(&profiles, 64, 110);
+        assert_eq!(plan["feasible"], true, "{plan}");
+        assert_eq!(plan["uncovered_layers"], 0);
+        let rows = plan["rows"].as_array().unwrap();
+        assert_eq!(rows.len(), 2, "phone excluded: {rows:?}");
+        assert_eq!(rows[0]["id"], "edge-pc-01");
+        assert_eq!(rows[0]["local"], true);
+        // Contiguous: edge-pc-01 cap=89, pi4-01 cap=44 → proportional 43/21
+        // of the 64 layers, one after the other.
+        assert_eq!(rows[0]["layers"], "0-42");
+        assert_eq!(rows[1]["layers"], "43-63");
+        assert_eq!(plan["llama_serve_args"][0], "--rpc");
+        assert_eq!(plan["llama_serve_args"][1], "192.168.1.20:50052");
+    }
+
+    #[test]
+    fn plan_layers_reports_infeasible_with_advice() {
+        use std::collections::BTreeMap;
+        let mut profiles = BTreeMap::new();
+        profiles.insert(
+            "tiny".to_string(),
+            DeviceProfile {
+                class: "cpu".into(),
+                ram_mb: 2_048,
+                ..Default::default()
+            },
+        );
+        // 2048*0.60/110 = 11 layers < 64 → not feasible, must advise.
+        let plan = plan_layers(&profiles, 64, 110);
+        assert_eq!(plan["feasible"], false);
+        assert_eq!(plan["uncovered_layers"], 53);
+        assert!(plan["advice"]
+            .as_str()
+            .unwrap()
+            .contains("profile more ggml-rpc hosts"));
+        let empty = plan_layers(&BTreeMap::new(), 64, 110);
+        assert_eq!(empty["feasible"], false);
+        assert!(empty["advice"]
+            .as_str()
+            .unwrap()
+            .contains("no tensor-capable"));
+    }
+
+    #[test]
+    fn tensor_class_gates_phones_out() {
+        assert!(tensor_class("cpu") && tensor_class("gpu") && tensor_class("server"));
+        assert!(
+            !tensor_class("edge"),
+            "phones never hold tensors (no Termux)"
+        );
+        assert!(!tensor_class(""));
+    }
+
+    /// Bind+drop a loopback listener: the port is guaranteed to RST (instant
+    /// refusal) instead of black-holing SYNs like discarded port 9 can.
+    fn dead_base() -> String {
+        let l = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+        let port = l.local_addr().expect("addr").port();
+        drop(l);
+        format!("http://127.0.0.1:{port}/api/v1")
+    }
 
     #[test]
     fn poolai_base_default_and_override() {
@@ -484,28 +687,35 @@ mod tests {
 
     #[test]
     fn history_ring_caps() {
+        // Trim logic is pure: no HTTP needed for the cap itself.
+        let mut ring: Vec<Value> = Vec::new();
+        for i in 0..(HISTORY_CAP + 10) {
+            push_history(&mut ring, json!({ "i": i }));
+        }
+        assert_eq!(ring.len(), HISTORY_CAP);
+        assert_eq!(ring[0]["i"], 10, "oldest evicted first");
+        assert_eq!(ring[HISTORY_CAP - 1]["i"], (HISTORY_CAP + 9) as u64);
+
         let dir = std::env::temp_dir().join(format!("gsv-grid-ring-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         // Dead base: refresh must never touch a live coordinator in tests.
-        let grid = GridBox::with_base(&dir, "http://127.0.0.1:9/api/v1");
+        let grid = GridBox::with_base(&dir, &dead_base());
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .unwrap();
         rt.block_on(async {
-            for _ in 0..(HISTORY_CAP + 10) {
-                grid.refresh().await;
-            }
+            grid.refresh().await;
             let store = grid.store.read().await;
-            assert_eq!(store.history.len(), HISTORY_CAP);
+            assert_eq!(store.history.len(), 1);
             assert!(!store.poolai_alive, "dead base must flip poolai_alive");
             assert!(store.last_error.contains("poolai unreachable"));
         });
         // Persisted across a fresh load (durable mirror, not process memory).
         let reloaded = load_store(&dir);
         assert!(!reloaded.poolai_alive);
-        assert_eq!(reloaded.history.len(), HISTORY_CAP);
+        assert_eq!(reloaded.history.len(), 1);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

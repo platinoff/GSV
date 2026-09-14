@@ -111,6 +111,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/health", get(api_health))
         .route("/api/keep-live", get(api_keep_live))
         .route("/api/grid", get(api_grid))
+        .route("/api/grid/plan", get(api_grid_plan))
         .route("/api/grid/profile", post(api_grid_profile_post))
         .route("/api/watchdog", get(api_watchdog))
         .route("/api/usage", get(api_usage))
@@ -367,6 +368,24 @@ async fn api_keep_live(State(state): State<AppState>) -> Json<Value> {
 async fn api_grid(State(state): State<AppState>) -> Json<Value> {
     state.grid.refresh().await;
     Json(state.grid.wire().await)
+}
+
+/// ALLBGP layer-map planner: shard ranges + `llama_serve --rpc` args from hub
+/// profiles. `?layers=&mb_per_layer=` override the 27B defaults. Read-only.
+async fn api_grid_plan(
+    State(state): State<AppState>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> Json<Value> {
+    let layers = q
+        .get("layers")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(crate::boxes::grid::DEFAULT_PLAN_LAYERS);
+    let mb = q
+        .get("mb_per_layer")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(crate::boxes::grid::DEFAULT_MB_PER_LAYER);
+    let profiles = crate::boxes::grid::load_profiles(&state.data_dir);
+    Json(crate::boxes::grid::plan_layers(&profiles, layers, mb))
 }
 
 /// Upsert/delete one hub-side capacity profile (`{id, class?, vram_mb?,

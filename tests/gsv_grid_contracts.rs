@@ -24,6 +24,15 @@ fn temp_data(tag: &str) -> PathBuf {
     dir
 }
 
+/// Bind+drop a loopback listener ? port guaranteed to RST instantly (a
+/// discarded port like 9 can black-hole SYNs and burn the request timeout).
+fn dead_base() -> String {
+    let l = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+    let port = l.local_addr().expect("addr").port();
+    drop(l);
+    format!("http://127.0.0.1:{port}/api/v1")
+}
+
 async fn get_json(app: &axum::Router, path: &str) -> (StatusCode, Value) {
     let res = app
         .clone()
@@ -86,7 +95,7 @@ async fn grid_profile_post_feeds_capacity_view() {
         Some(dir.clone()),
         tx,
     );
-    app_state.grid = std::sync::Arc::new(GridBox::with_base(&dir, "http://127.0.0.1:9/api/v1"));
+    app_state.grid = std::sync::Arc::new(GridBox::with_base(&dir, &dead_base()));
     let app = router(app_state);
 
     let before = get_json(&app, "/api/grid").await.1;
@@ -139,7 +148,7 @@ async fn grid_box_keeps_last_topology_when_poolai_down() {
     )
     .unwrap();
 
-    let box_ = GridBox::with_base(&dir, "http://127.0.0.1:9/api/v1");
+    let box_ = GridBox::with_base(&dir, &dead_base());
     let before = box_.wire().await;
     assert_eq!(before["counts"]["nodes"], 2);
     assert_eq!(before["counts"]["seats_used"], 2);
@@ -159,7 +168,7 @@ async fn grid_box_keeps_last_topology_when_poolai_down() {
     assert_eq!(after["counts"]["workers"], 2);
     assert_eq!(after["history_len"].as_u64().unwrap(), 1);
     // Durable: a fresh box reloads the on-disk mirror (survives restarts).
-    let reloaded = GridBox::with_base(&dir, "http://127.0.0.1:9/api/v1");
+    let reloaded = GridBox::with_base(&dir, &dead_base());
     let w = reloaded.wire().await;
     assert_eq!(w["counts"]["nodes"], 2);
     assert_eq!(w["poolai_alive"], false);
@@ -169,7 +178,7 @@ async fn grid_box_keeps_last_topology_when_poolai_down() {
 #[tokio::test]
 async fn grid_history_ring_and_change_key() {
     let dir = temp_data("ring");
-    let box_ = GridBox::with_base(&dir, "http://127.0.0.1:9/api/v1");
+    let box_ = GridBox::with_base(&dir, &dead_base());
     for _ in 0..(HISTORY_CAP + 8) {
         box_.refresh().await;
     }
@@ -182,7 +191,7 @@ async fn grid_history_ring_and_change_key() {
 async fn api_grid_endpoint_and_mcp_tool() {
     let dir = temp_data("wire");
     let saved = {
-        let b = GridBox::with_base(&dir, "http://127.0.0.1:9/api/v1");
+        let b = GridBox::with_base(&dir, &dead_base());
         b.refresh().await;
         true
     };
@@ -194,7 +203,7 @@ async fn api_grid_endpoint_and_mcp_tool() {
         tx,
     );
     // Point this AppState's grid at the same dead base deterministically.
-    state.grid = std::sync::Arc::new(GridBox::with_base(&dir, "http://127.0.0.1:9/api/v1"));
+    state.grid = std::sync::Arc::new(GridBox::with_base(&dir, &dead_base()));
     let app = router(state.clone());
 
     let (status, json) = get_json(&app, "/api/grid").await;
