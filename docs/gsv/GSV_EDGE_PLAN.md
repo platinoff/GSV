@@ -45,7 +45,28 @@ Single source of truth for ports, autostart entries, env, and gaps.
 7. MTP draft decision (llama-rs, open).
 8. Teach prompt + initData audit (gsv/telenetis, open).
 
-## 4. GSV ↔ poolAI concept map (keep in sync; poolAI is ahead in places)
+## 4. Cross-project settings matrix (research 2026-09-14)
+
+| Var | Where | Value here | Notes |
+|---|---|---|---|
+| Ports | — | GSV 9999 · llama 8080/8082 · poolAI 8091 · telenetis 9800 · omniroute 20128 · ngrok API 4040 | poolAI default 8080 collides with llama — always override |
+| `GSV_TELEGRAM_BOT_TOKEN` | GSV env | set (secret) | wins over file, never written back |
+| `TELENETIS_BOT_TOKEN` / `NGROK_AUTHTOKEN` / webhook secret | telenetis `.env` (gitignored) | set (secrets) | never stage, never echo |
+| poolAI admin | compiled default | `admin/admin123` | CHANGE for anything beyond LAN |
+| capability keys | poolAI env + edge env | operator `221c…8235` | dev `[7;32]` retired everywhere except poolAI unit tests |
+| `POOLAI_TELEGRAM_SEAT_LIMIT` | poolAI env | `5`, flat | raise when workers grow |
+| `POOLAI_VIRTUAL_NODE_DATA_DIR` | poolAI env | `target/live/edge_data` | binds+tasks survive restarts; jobs default JSON, leases in-memory |
+| `LLAMA_EDGE_SIGNING_KEY` | edge env (HKCU TR/vbs) | operator privkey | never echo, never commit |
+| `LLAMA_SERVE_URL` / `LLAMA_SERVE_FAST_URL` | edge env | `:8080` / `:8082` | tier routing |
+| `OMNI_*_API_KEY` | GSV env | out of `omni.toml` | keys never in toml |
+| `GSV_ACTOR`/`GSV_IDE`/`GSV_MODEL`/`GSV_AGENT` | GSV env | session identity | feeds claims + fingerprints |
+| Jail/allowed list | GSV `data/gsv_settings.json` | `["5035500793","solo","squad","local","telenetis-01"]` | owner edits via dashboard only |
+
+Secrets hygiene: real secrets live in env or gitignored `.env`/data files only.
+Known gaps: poolAI admin password, job/lease stores memory-only, omniroute
+has no runtime at all.
+
+## 5. GSV ↔ poolAI concept map (keep in sync; poolAI is ahead in places)
 
 | GSV hub | poolAI grid | Note |
 |---|---|---|
@@ -57,7 +78,7 @@ Single source of truth for ports, autostart entries, env, and gaps.
 | squad_cap / jail | pools + virtual nodes + worker health | — |
 | fingerprints.jsonl | completion records + virtual_node_store | both git-tracked JSONL-ish audit |
 
-## 5. Rules carried over
+## 6. Rules carried over
 
 No Termux (owner). Everything through poolAI services; phones see Telenetis
 only (no 127.0.0.1 leaks; LAN `192.168.2.238`, remote via tunnel with free-tier
