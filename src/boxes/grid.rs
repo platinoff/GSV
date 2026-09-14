@@ -23,6 +23,8 @@ use crate::vision::rfc3339_now;
 
 /// Env override for the poolAI API root (tests + alt ports).
 pub const POOLAI_ENV: &str = "GSV_POOLAI_URL";
+/// Durable per-device capacity profiles (hub truth over poolAI stubs).
+pub const PROFILES_FILE: &str = "gsv_grid_profiles.json";
 /// Default poolAI base on this box (`:8080` is llama, never assume 8080 here).
 pub const DEFAULT_POOLAI_BASE: &str = "http://127.0.0.1:8091/api/v1";
 /// History ring capacity (10 s ticks ≈ one minute of churn, cheap JSON).
@@ -61,6 +63,137 @@ pub struct GridStore {
     pub status: Value,
     /// Ring of `{ts, alive, nodes, workers, virtual_nodes, seats_used}`.
     pub history: Vec<Value>,
+}
+
+/// Hub-owned truth for one device: real VRAM/RAM + role class. poolAI today
+/// mirrors the coordinator's own machine onto every node (stub), so placement
+/// weights come from here (`class`: `cpu` | `gpu` | `edge` | `draft-holder`).
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct DeviceProfile {
+    pub class: String,
+    pub vram_mb: u64,
+    pub ram_mb: u64,
+    pub note: String,
+}
+
+fn profiles_path(data_dir: &Path) -> PathBuf {
+    data_dir.join(PROFILES_FILE)
+}
+
+/// Load durable profiles (empty map when absent/corrupt — never fails the grid).
+pub fn load_profiles(data_dir: &Path) -> std::collections::BTreeMap<String, DeviceProfile> {
+    std::fs::read_to_string(profiles_path(data_dir))
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+fn save_profiles(
+    data_dir: &Path,
+    map: &std::collections::BTreeMap<String, DeviceProfile>,
+) -> Result<(), String> {
+    let raw = serde_json::to_string_pretty(map).map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(data_dir).map_err(|e| e.to_string())?;
+    let tmp = profiles_path(data_dir).with_extension("json.tmp");
+    std::fs::write(&tmp, raw).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, profiles_path(data_dir)).map_err(|e| e.to_string())
+}
+
+/// Upsert (`delete:true` removes) one profile; returns its wire row.
+pub fn upsert_profile(data_dir: &Path, id: &str, patch: &Value) -> Result<Value, String> {
+    let id = id.trim();
+    if id.is_empty() || id.contains('/') || id.contains('\\') || id == "." || id == ".." {
+        return Err("bad profile id".into());
+    }
+    let mut map = load_profiles(data_dir);
+    if patch
+        .get("delete")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        map.remove(id);
+        save_profiles(data_dir, &map)?;
+        return Ok(json!({"id": id, "deleted": true}));
+    }
+    let mut p = map.get(id).cloned().unwrap_or_default();
+    for (k, slot) in [("class", &mut p.class), ("note", &mut p.note)] {
+        if let Some(v) = patch.get(k).and_then(Value::as_str) {
+            *slot = v.trim().to_ascii_lowercase();
+        }
+    }
+    if let Some(v) = patch.get("vram_mb").and_then(Value::as_u64) {
+        p.vram_mb = v;
+    }
+    if let Some(v) = patch.get("ram_mb").and_then(Value::as_u64) {
+        p.ram_mb = v;
+    }
+    map.insert(id.to_string(), p);
+    save_profiles(data_dir, &map)?;
+    let row = map.get(id).expect("just inserted");
+    Ok(
+        json!({ "id": id, "class": row.class, "vram_mb": row.vram_mb,
+               "ram_mb": row.ram_mb, "note": row.note }),
+    )
+}
+
+/// poolAI topology node record → the numbers it advertises.
+fn poolai_nums(node: &Value) -> (u64, u64) {
+    let g = |k: &str| node.get(k).and_then(Value::as_u64).unwrap_or(0);
+    (g("total_gpu_memory_mb"), g("total_memory_mb"))
+}
+
+/// Merge hub profiles with the poolAI topology view: effective capacity per
+/// device + the honest `poolai_capacity_stub` flag (≥2 un-profiled nodes
+/// advertising identical gpu+ram totals = coordinator echo, not device truth).
+pub fn capacity_view(
+    store: &GridStore,
+    profiles: &std::collections::BTreeMap<String, DeviceProfile>,
+) -> Value {
+    let nodes = store.nodes.get("nodes").cloned().unwrap_or(json!({}));
+    let mut ids: Vec<String> = nodes
+        .as_object()
+        .map(|m| m.keys().cloned().collect())
+        .unwrap_or_default();
+    for k in profiles.keys() {
+        if !ids.iter().any(|i| i == k) {
+            ids.push(k.clone());
+        }
+    }
+    ids.sort();
+    let mut rows = Vec::new();
+    let mut unprofiled: Vec<(u64, u64)> = Vec::new();
+    for id in ids {
+        let node = nodes.get(&id).cloned().unwrap_or(Value::Null);
+        let (gpu, ram) = poolai_nums(&node);
+        let prof = profiles.get(&id);
+        if prof.is_none() && (gpu > 0 || ram > 0) {
+            unprofiled.push((gpu, ram));
+        }
+        rows.push(json!({
+            "id": id,
+            "poolai": { "gpu_mb": gpu, "ram_mb": ram },
+            "hub": prof.map(|p| json!({"class": p.class, "vram_mb": p.vram_mb,
+                                        "ram_mb": p.ram_mb, "note": p.note})),
+            "effective": {
+                "gpu_mb": prof.filter(|p| p.vram_mb > 0).map(|p| p.vram_mb).unwrap_or(gpu),
+                "ram_mb": prof.filter(|p| p.ram_mb > 0).map(|p| p.ram_mb).unwrap_or(ram),
+                "class": prof.and_then(|p| (!p.class.is_empty()).then(|| p.class.clone()))
+                             .unwrap_or_else(|| "unknown".into()),
+            },
+            "source": if prof.is_some() { "hub" } else { "poolai" },
+        }));
+    }
+    let mut stub = false;
+    if unprofiled.len() >= 2 {
+        let first = unprofiled[0];
+        stub = unprofiled[1..].iter().all(|v| *v == first);
+    }
+    json!({
+        "rows": rows,
+        "poolai_capacity_stub": stub,
+        "stub_note": if stub { "poolAI advertises identical totals on >=2 un-profiled nodes (coordinator echo); add hub profiles via POST /api/grid/profile" } else { "" },
+    })
 }
 
 /// Shared grid box held by `AppState`.
@@ -230,6 +363,7 @@ impl GridBox {
     /// Redacted-safe wire (no auth headers/keys ever cross from poolAI anyway).
     pub async fn wire(&self) -> Value {
         let store = self.store.read().await;
+        let profiles = load_profiles(&self.data_dir);
         let (nodes, workers, vnodes, used) = counts(&store);
         json!({
             "ok": true,
@@ -238,6 +372,7 @@ impl GridBox {
             "poolai_alive": store.poolai_alive,
             "stale": !store.poolai_alive,
             "last_error": store.last_error,
+            "capacity": capacity_view(&store, &profiles),
             "counts": {
                 "nodes": nodes,
                 "workers": workers,
@@ -299,6 +434,52 @@ mod tests {
     fn counts_read_poolai_shapes() {
         let (n, w, v, used) = counts(&store_stub());
         assert_eq!((n, w, v, used), (2, 2, 1, 2));
+    }
+
+    #[test]
+    fn capacity_flags_poolai_echo_stub_and_hub_overrides() {
+        let dir = std::env::temp_dir().join(format!("gsv-grid-cap-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        // Two nodes advertising identical totals = coordinator echo (7560/7560
+        // is exactly what live poolAI reports for edge-pc-01 AND a54-01).
+        let echo = json!({"nodes": {
+            "edge-pc-01": {"total_gpu_memory_mb": 7560, "total_memory_mb": 7560},
+            "a54-01": { "total_gpu_memory_mb": 7560, "total_memory_mb": 7560 }
+        }});
+        let store = GridStore {
+            nodes: echo,
+            ..Default::default()
+        };
+        let view = capacity_view(&store, &Default::default());
+        assert_eq!(view["poolai_capacity_stub"], true, "{view}");
+        assert_eq!(view["rows"].as_array().unwrap().len(), 2);
+
+        // Hub profile for one device: effective flips to hub truth, and with
+        // <2 un-profiled nodes the echo can no longer be asserted as stub.
+        upsert_profile(
+            &dir,
+            "edge-pc-01",
+            &json!({"class": "CPU", "vram_mb": 0, "ram_mb": 16384, "note": "5500U"}),
+        )
+        .expect("upsert");
+        let profiles = load_profiles(&dir);
+        let view2 = capacity_view(&store, &profiles);
+        assert_eq!(view2["poolai_capacity_stub"], false, "{view2}");
+        let row = view2["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["id"] == "edge-pc-01")
+            .expect("row");
+        assert_eq!(row["source"], "hub");
+        assert_eq!(row["effective"]["ram_mb"], 16384);
+        assert_eq!(row["effective"]["class"], "cpu");
+        // Durable round-trip + delete.
+        upsert_profile(&dir, "edge-pc-01", &json!({"delete": true})).expect("del");
+        assert!(load_profiles(&dir).is_empty());
+        assert!(upsert_profile(&dir, "../evil", &json!({})).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

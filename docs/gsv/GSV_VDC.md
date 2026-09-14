@@ -38,12 +38,16 @@ point-to-point.
 - Why: poolAI graph is point-in-time and memory-only; OpenCode/Cursor need a
   stable table that survives a poolAI restart.
 
-### 2. Capacity truth (VRAM) — P0
+### 2. Capacity truth (VRAM) — LANDED 2026-09-14 (hub profiles)
 - poolAI scheduler: boolean `has_gpu`, hardcoded 8192 MB free
-  (`scheduler.rs:164-167`); `dispatch.rs` hot-tier vram fields are stubs.
-- Hub owns per-device memory profiles and sends placement hints
-  (layer ranges per device) → poolAI/`llama_edge` payload `{model, layers,
-  rpc_endpoint}`.
+  (`scheduler.rs:164-167`); `dispatch.rs` hot-tier vram fields are stubs —
+  live proof: it echoes 7560/7560 for **both** edge-pc-01 and a54-01.
+- Hub owns durable per-device profiles (`data/gsv_grid_profiles.json`,
+  `POST /api/grid/profile {id, class, vram_mb, ram_mb, note, delete}`),
+  merged into `/api/grid` as `capacity.rows[]` with `source: hub|poolai` +
+  automatic `poolai_capacity_stub` flag (≥2 un-profiled nodes with identical
+  totals). Feeding these as placement hints into poolAI job payloads stays
+  open (needs a poolAI-side contract).
 
 ### 3. Placement/rebalance — P0
 - Layer-map planner: given Σ free RAM across devices + IQ2 weights ≈ 6.9 GiB,

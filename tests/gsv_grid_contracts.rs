@@ -43,6 +43,81 @@ async fn get_json(app: &axum::Router, path: &str) -> (StatusCode, Value) {
     (status, serde_json::from_slice(&bytes).unwrap_or_default())
 }
 
+async fn post_json(app: &axum::Router, path: &str, body: Value) -> (StatusCode, Value) {
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(path)
+                .method(Method::POST)
+                .header(axum::http::header::CONTENT_TYPE, "application/json")
+                .body(Body::from(body.to_string()))
+                .expect("req"),
+        )
+        .await
+        .expect("resp");
+    let status = res.status();
+    let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .expect("body");
+    (status, serde_json::from_slice(&bytes).unwrap_or_default())
+}
+
+#[tokio::test]
+async fn grid_profile_post_feeds_capacity_view() {
+    let dir = temp_data("profiles");
+    // Seed the echo-stub topology durably (dead base keeps refresh inert).
+    let seeded = GridStore {
+        poolai_alive: true,
+        nodes: json!({"nodes": {
+            "edge-pc-01": {"total_gpu_memory_mb": 7560, "total_memory_mb": 7560},
+            "a54-01": { "total_gpu_memory_mb": 7560, "total_memory_mb": 7560 }
+        }}),
+        ..Default::default()
+    };
+    std::fs::write(
+        dir.join("gsv_grid.json"),
+        serde_json::to_vec(&seeded).unwrap(),
+    )
+    .unwrap();
+    let (tx, _rx) = broadcast::channel(32);
+    let mut app_state = AppState::new(
+        Some(PathBuf::from(env!("CARGO_MANIFEST_DIR"))),
+        Some(dir.clone()),
+        tx,
+    );
+    app_state.grid = std::sync::Arc::new(GridBox::with_base(&dir, "http://127.0.0.1:9/api/v1"));
+    let app = router(app_state);
+
+    let before = get_json(&app, "/api/grid").await.1;
+    assert_eq!(before["capacity"]["poolai_capacity_stub"], true, "{before}");
+
+    let (status, posted) = post_json(
+        &app,
+        "/api/grid/profile",
+        json!({ "id": "a54-01", "class": "edge", "ram_mb": 6144, "note": "A54 no tensors" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{posted}");
+    assert_eq!(posted["ok"], true);
+    let after = get_json(&app, "/api/grid").await.1;
+    let row = after["capacity"]["rows"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["id"] == "a54-01")
+        .expect("row");
+    assert_eq!(row["source"], "hub");
+    assert_eq!(row["effective"]["ram_mb"], 6144);
+    assert_eq!(row["effective"]["class"], "edge");
+    // Missing id → ok:false, no panic; path-y id rejected.
+    let (_s, bad) = post_json(&app, "/api/grid/profile", json!({"class": "gpu"})).await;
+    assert_eq!(bad["ok"], false);
+    let (_s, evil) = post_json(&app, "/api/grid/profile", json!({"id": "../x"})).await;
+    assert_eq!(evil["ok"], false);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 #[tokio::test]
 async fn grid_box_keeps_last_topology_when_poolai_down() {
     let dir = temp_data("stale");

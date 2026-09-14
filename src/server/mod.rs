@@ -111,6 +111,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/health", get(api_health))
         .route("/api/keep-live", get(api_keep_live))
         .route("/api/grid", get(api_grid))
+        .route("/api/grid/profile", post(api_grid_profile_post))
         .route("/api/watchdog", get(api_watchdog))
         .route("/api/usage", get(api_usage))
         .route("/api/settings", get(api_settings).post(api_settings_post))
@@ -366,6 +367,22 @@ async fn api_keep_live(State(state): State<AppState>) -> Json<Value> {
 async fn api_grid(State(state): State<AppState>) -> Json<Value> {
     state.grid.refresh().await;
     Json(state.grid.wire().await)
+}
+
+/// Upsert/delete one hub-side capacity profile (`{id, class?, vram_mb?,
+/// ram_mb?, note?, delete?}`) — the truth layer over poolAI's echoed stubs.
+async fn api_grid_profile_post(
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> Json<Value> {
+    let id = body.get("id").and_then(Value::as_str).unwrap_or("");
+    if id.trim().is_empty() {
+        return Json(json!({ "ok": false, "error": "id required" }));
+    }
+    match crate::boxes::grid::upsert_profile(&state.data_dir, id, &body) {
+        Ok(row) => Json(json!({ "ok": true, "profile": row })),
+        Err(e) => Json(json!({ "ok": false, "error": e })),
+    }
 }
 
 async fn api_watchdog(State(state): State<AppState>) -> Json<Value> {
