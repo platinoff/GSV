@@ -1,6 +1,13 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-09-11 (band **232** · next = **owner pick**; refresh queue: rebook → LinFS → ORR → llama-rs → poolAI)
+**Оновлено:** 2026-09-14 (band **233** LAN-first session flow ✅ · next = **owner pick**; refresh queue: rebook → LinFS → ORR → llama-rs → poolAI)
+
+**band 233 (LAN-first):** `gsv::net::local_addr()` (env `GSV_LOCAL_ADDR`; harness=loopback) + LAN
+origin-gate (`gate_post`) + live bind `0.0.0.0 --allow-lan`; keep_live/usage/omni/telenetis/llama-rs
+URL-и — локальна адреса замість `127.0.0.1`; `GSV_ROUTES.md` — карта маршрутів; omniroute-проба з
+loopback-twin fallback; poolAI env-seeded service account `telenetis` (Viewer) + `.env` pins;
+live: gsv-server 0.0.0.0:9999, llama_serve 0.0.0.0:8080/8082, edge-pc-01 + a54-01 advertise
+192.168.2.238. Commits: GSV `019416a` · llama-rs `376aa5d` · poolAI `8f32f9f34`.
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
 **`абракадабра` / `abrakadabra`** → `cargo xtask products` → **AskQuestion на проєкти з environment**
