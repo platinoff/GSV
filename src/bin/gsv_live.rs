@@ -6,10 +6,12 @@
 use std::path::PathBuf;
 
 use gsv::boxes::xtask;
-use gsv::{DEFAULT_HOST, DEFAULT_PORT};
+use gsv::DEFAULT_PORT;
 
 fn main() {
-    let mut host = std::env::var("GSV_HOST").unwrap_or_else(|_| DEFAULT_HOST.into());
+    // Band 233: default bind is all local interfaces (loopback + LAN);
+    // GSV_HOST overrides for a concrete address.
+    let mut host = std::env::var("GSV_HOST").unwrap_or_else(|_| "0.0.0.0".into());
     let mut port = std::env::var("GSV_PORT")
         .ok()
         .and_then(|s| s.parse().ok())

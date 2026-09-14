@@ -24,12 +24,15 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 /// Simple CLI parser (no external deps): `--port N`, `--host H`, `--repo-root P`,
 /// `--data-dir P`, `--allow-lan`, `--help`.
+/// Band 233: `GSV_HOST` env seeds the default host and `GSV_ALLOW_LAN=1` is
+/// the env form of `--allow-lan`, so the live supervisor and shell flows can
+/// bind the local (LAN) address without editing the launch command.
 fn parse_args() -> (String, u16, Option<PathBuf>, Option<PathBuf>) {
-    let mut host = DEFAULT_HOST.to_string();
+    let mut host = std::env::var("GSV_HOST").unwrap_or_else(|_| DEFAULT_HOST.to_string());
     let mut port = DEFAULT_PORT;
     let mut repo_root = None;
     let mut data_dir = None;
-    let mut allow_lan = false;
+    let mut allow_lan = std::env::var("GSV_ALLOW_LAN").is_ok_and(|v| v == "1");
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -84,6 +87,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     let (host, port, repo_root, data_dir) = parse_args();
+    // Band 233: a wildcard or LAN bind opens the POST origin gate to private
+    // LAN origins so phone / VM / edge UIs can mutate (loopback stays strict).
+    gsv::security::set_lan_mode(!gsv::security::is_loopback_host(&host));
     let (tx, _rx) = broadcast::channel(256);
     let state = AppState::new(repo_root.clone(), data_dir.clone(), tx);
 

@@ -33,7 +33,7 @@ GSV is a standalone crate (`S:\rust\GSV`, sibling of PoolAI — not a subfolder)
 
 | | |
 |---|---|
-| **Live dashboard** | `gsv-server` → [http://127.0.0.1:9999/](http://127.0.0.1:9999/) (SSE, offline-safe, Update instead of reload) |
+| **Live dashboard** | `gsv-server` → [http://127.0.0.1:9999/](http://127.0.0.1:9999/) (SSE, offline-safe, Update instead of reload). Band 233 LAN-first: the live supervisor binds `0.0.0.0` — phone / VM / edge peers use the machine's local address `http://<lan-ip>:9999/` ([`docs/gsv/GSV_ROUTES.md`](docs/gsv/GSV_ROUTES.md)) |
 | **Always-on** | `cargo xtask live` copies `target/debug` → `target/live` so `cargo test` does not kill the listener |
 | **Ratio gate** | `gsv-loc-audit --stretch-96` — Rust **95–100%** (stretch ≥96%) |
 | **VDT entry** | Open this folder in Cursor / OpenCode, type `абракадабра` or `abrakadabra` — the agent lists **environment projects**, then asks which one |
@@ -102,7 +102,7 @@ The watchdog probes `GET /api/health` and respawns the live copy if Cursor (or a
 
 ### 5. Open
 
-Browser: [http://127.0.0.1:9999/](http://127.0.0.1:9999/).
+Browser: [http://127.0.0.1:9999/](http://127.0.0.1:9999/). From a phone / VM / another host use the LAN address: [http://<lan-ip>:9999/](http://127.0.0.1:9999/) (live bind is `0.0.0.0` since band 233; `GSV_LOCAL_ADDR` pins the advertised address).
 
 You should see Galaxy chrome (RSS ticker, cards, sprint board). If the page is empty, the live binary is not the crate you just built — recopy with `cargo xtask live` after the build finishes.
 

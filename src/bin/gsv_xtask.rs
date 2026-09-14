@@ -99,7 +99,9 @@ fn main() -> ExitCode {
             }
         }
         "live" => {
-            let host = env::var("GSV_HOST").unwrap_or_else(|_| DEFAULT_HOST.into());
+            // Band 233: live supervisor binds all local interfaces by default
+            // (loopback peers + LAN peers both reach :9999); GSV_HOST overrides.
+            let host = env::var("GSV_HOST").unwrap_or_else(|_| "0.0.0.0".into());
             let port = env::var("GSV_PORT")
                 .ok()
                 .and_then(|s| s.parse().ok())

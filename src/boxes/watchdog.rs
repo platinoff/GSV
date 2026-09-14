@@ -527,8 +527,11 @@ pub fn telenetis_live_exe_name() -> &'static str {
 /// `GET /api/watchdog` so Galaxy sees the Telegram bot's peer state.
 pub fn telenetis_alive_tcp() -> bool {
     use std::net::TcpStream;
+    let addr = format!("{}:9800", crate::net::local_addr());
     TcpStream::connect_timeout(
-        &"127.0.0.1:9800".parse().expect("static 127.0.0.1:9800"),
+        &addr
+            .parse()
+            .unwrap_or_else(|_| "127.0.0.1:9800".parse().unwrap()),
         std::time::Duration::from_millis(200),
     )
     .is_ok()
@@ -609,6 +612,16 @@ pub const SPAWN_LIVE_WINDOWS_FLAGS: u32 = {
     CREATE_NO_WINDOW | DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
 };
 
+/// Concrete probe/Origin host for a bind host (band 233): `0.0.0.0`/`::`
+/// wildcard binds are reachable via the machine's local address, so the
+/// watchdog polls and re-spawns through that instead of the wildcard.
+pub fn probe_host(host: &str) -> String {
+    match host {
+        "0.0.0.0" | "::" => crate::net::local_addr(),
+        other => other.to_string(),
+    }
+}
+
 /// Spawn the live copy detached. Cargo-test harness never execs.
 pub fn spawn_live(repo_root: &Path, host: &str, port: u16) -> Result<SpawnOutcome, String> {
     if update::is_cargo_test_harness() {
@@ -623,8 +636,11 @@ pub fn spawn_live(repo_root: &Path, host: &str, port: u16) -> Result<SpawnOutcom
     cmd.arg("--host")
         .arg(host)
         .arg("--port")
-        .arg(port.to_string())
-        .stdin(Stdio::null())
+        .arg(port.to_string());
+    if !crate::security::is_loopback_host(host) {
+        cmd.arg("--allow-lan");
+    }
+    cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
     #[cfg(windows)]

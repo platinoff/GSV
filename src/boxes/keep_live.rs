@@ -38,20 +38,45 @@ pub struct KeepLiveReport {
     pub omniroute: KeepLiveEntry,
 }
 
-/// Default URLs (overridable via env for tests).
+/// Default URLs (overridable via env for tests). Band 233: the advertised
+/// hosts use the machine's local (LAN) address, not `127.0.0.1`, so phone /
+/// VM / edge peers (llama-rs sessions) can reach and echo the same URLs the
+/// dashboard shows. Under the cargo-test harness `local_addr()` stays
+/// loopback, so every existing contract keeps its deterministic URL.
 pub fn gsv_url() -> String {
     std::env::var("GSV_KEEP_LIVE_GSV_URL")
-        .unwrap_or_else(|_| "http://127.0.0.1:9999/api/health".into())
+        .unwrap_or_else(|_| format!("http://{}:9999/api/health", crate::net::local_addr()))
 }
 pub fn telenetis_url() -> String {
     std::env::var("GSV_KEEP_LIVE_TELENETIS_URL")
-        .unwrap_or_else(|_| "http://127.0.0.1:9800/health".into())
+        .unwrap_or_else(|_| format!("http://{}:9800/health", crate::net::local_addr()))
 }
 pub fn omniroute_url() -> String {
     std::env::var("OMNIROUTE_URL")
         .or_else(|_| std::env::var("GSV_KEEP_LIVE_OMNIROUTE_URL"))
         .or_else(|_| std::env::var("GSV_OMNIROUTE_URL"))
-        .unwrap_or_else(|_| "http://127.0.0.1:20128".into())
+        .unwrap_or_else(|_| format!("http://{}:20128", crate::net::local_addr()))
+}
+
+/// `(host, port)` when `url` points at this server's own default listener
+/// (loopback or LAN bind on the default port) — band 233 replaces the
+/// `"http://127.0.0.1:9999/api/health"` string match so a LAN-advertised
+/// self-URL still takes the TCP self-probe path.
+fn self_gsv_authority(url: &str) -> Option<(String, u16)> {
+    let rest = url.strip_prefix("http://")?;
+    let auth = rest.split('/').next().unwrap_or("");
+    let (host, port) = match auth.rsplit_once(':') {
+        Some((h, p)) => (h.to_string(), p.parse::<u16>().ok()?),
+        None => (auth.to_string(), 80),
+    };
+    if port != crate::DEFAULT_PORT {
+        return None;
+    }
+    if crate::security::is_loopback_host(&host) || host == crate::net::local_addr() {
+        Some((host, port))
+    } else {
+        None
+    }
 }
 pub fn llama_heartbeat_path() -> PathBuf {
     std::env::var("LLAMA_HEARTBEAT_PATH")
@@ -211,13 +236,14 @@ pub fn report() -> KeepLiveReport {
     // gsv probe is TCP to avoid recursion (health includes keep_live).
     // Respect GSV_KEEP_LIVE_GSV_URL override for tests (fail-open).
     let gsv_url_str = gsv_url();
-    let (gsv_alive, gsv_ver, gsv_lat) = if gsv_url_str == "http://127.0.0.1:9999/api/health" {
+    let (gsv_alive, gsv_ver, gsv_lat) = if let Some((h, p)) = self_gsv_authority(&gsv_url_str) {
         let t0 = std::time::Instant::now();
-        let alive = std::net::TcpStream::connect_timeout(
-            &"127.0.0.1:9999".parse().unwrap(),
-            std::time::Duration::from_millis(500),
-        )
-        .is_ok();
+        let addr = format!("{h}:{p}")
+            .parse()
+            .unwrap_or_else(|_| "127.0.0.1:9999".parse().unwrap());
+        let alive =
+            std::net::TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(500))
+                .is_ok();
         let ver = crate::boxes::update::crate_version(&PathBuf::from(env!("CARGO_MANIFEST_DIR")));
         (alive, ver, t0.elapsed().as_millis() as u64)
     } else {
@@ -270,11 +296,11 @@ pub async fn report_async() -> KeepLiveReport {
         .map(|d| d.as_secs())
         .unwrap_or(0);
     let gsv_url_str = gsv_url();
-    let (gsv_alive, gsv_ver, gsv_lat) = if gsv_url_str == "http://127.0.0.1:9999/api/health" {
+    let (gsv_alive, gsv_ver, gsv_lat) = if let Some((h, p)) = self_gsv_authority(&gsv_url_str) {
         let t0 = std::time::Instant::now();
         let alive = tokio::time::timeout(
             std::time::Duration::from_millis(500),
-            tokio::net::TcpStream::connect("127.0.0.1:9999"),
+            tokio::net::TcpStream::connect(format!("{h}:{p}")),
         )
         .await
         .is_ok_and(|r| r.is_ok());

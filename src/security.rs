@@ -1,9 +1,14 @@
 //! Local-bind, mutate, and HTTP response guards for `gsv-server`.
 //!
 //! Default listen is loopback (`127.0.0.1`). Mutating POSTs from a non-local
-//! `Origin` or `Sec-Fetch-Site: cross-site` are rejected. Data files are an
-//! allowlist of basenames under `data_dir`. Responses carry CSP / nosniff /
-//! frame-deny headers; POST bodies are capped at [`MAX_BODY_BYTES`].
+//! `Origin` or `Sec-Fetch-Site: cross-site` are rejected. With LAN mode on
+//! (server bound beyond loopback, band 233) the machine's own local address
+//! and private-LAN origins are accepted too. Data files are an allowlist of
+//! basenames under `data_dir`. Responses carry CSP / nosniff / frame-deny
+//! headers; POST bodies are capped at [`MAX_BODY_BYTES`].
+
+use std::net::IpAddr;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// JSON snapshots served from `GET /data/{file}` (aliases map onto these).
 /// Secrets (`omni.toml`, `gsv_settings.json`) are not on this list.
@@ -28,6 +33,62 @@ pub fn is_loopback_host(host: &str) -> bool {
         .trim_end_matches(']')
         .trim();
     h.eq_ignore_ascii_case("localhost") || h == "127.0.0.1" || h == "::1" || h == "localhost."
+}
+
+/// LAN origin mode (band 233): set once by the server when it binds beyond
+/// loopback so phone / VM / edge-host UIs can mutate over the local network.
+static LAN_MODE: AtomicBool = AtomicBool::new(false);
+
+/// Open (or close) LAN origin acceptance for the POST gate.
+pub fn set_lan_mode(on: bool) {
+    LAN_MODE.store(on, Ordering::Relaxed);
+}
+
+/// Whether the POST gate currently accepts private-LAN origins.
+pub fn lan_mode() -> bool {
+    LAN_MODE.load(Ordering::Relaxed)
+}
+
+/// RFC1919-style private ranges: 10/8, 172.16/12, 192.168/16, link-local
+/// 169.254/16, IPv6 ULA fc00::/7 and link-local fe80::/10.
+pub fn is_private_lan_host(host: &str) -> bool {
+    let h = host
+        .trim()
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .trim();
+    match h.parse::<IpAddr>() {
+        Ok(IpAddr::V4(v4)) => {
+            let o = v4.octets();
+            o[0] == 10
+                || (o[0] == 172 && (16..=31).contains(&o[1]))
+                || (o[0] == 192 && o[1] == 168)
+                || (o[0] == 169 && o[1] == 254)
+        }
+        Ok(IpAddr::V6(v6)) => {
+            let s = v6.segments()[0];
+            s & 0xfe00 == 0xfc00 || s & 0xffc0 == 0xfe80
+        }
+        Err(_) => false,
+    }
+}
+
+/// Host is this machine over LAN mode: its resolved local address or a
+/// private-LAN range (band 233 — local address, not `127.0.0.1`, for all
+/// services so VM / phone / edge peers can reach it).
+pub fn is_local_origin_host(host: &str) -> bool {
+    if is_loopback_host(host) {
+        return true;
+    }
+    if !lan_mode() {
+        return false;
+    }
+    let h = host
+        .trim()
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .trim();
+    h == crate::net::local_addr() || is_private_lan_host(h)
 }
 
 /// Refuse non-loopback `--host` unless `--allow-lan` was passed.
@@ -59,8 +120,17 @@ pub fn origin_is_loopback(origin: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// True when `Origin` points at this machine: loopback always, plus (LAN
+/// mode) the resolved local address or any private-LAN host (band 233).
+pub fn origin_is_local(origin: &str) -> bool {
+    host_from_origin(origin)
+        .map(is_local_origin_host)
+        .unwrap_or(false)
+}
+
 /// Gate for POST handlers: missing site/origin (curl, tests) is allowed;
-/// browser cross-site or a non-loopback Origin is not.
+/// browser cross-site or a foreign Origin is not. In LAN mode the machine's
+/// own local address and private-LAN origins pass the gate.
 pub fn gate_post(sec_fetch_site: Option<&str>, origin: Option<&str>) -> Result<(), String> {
     if let Some(site) = sec_fetch_site {
         if site.eq_ignore_ascii_case("cross-site") {
@@ -68,7 +138,7 @@ pub fn gate_post(sec_fetch_site: Option<&str>, origin: Option<&str>) -> Result<(
         }
     }
     if let Some(origin) = origin {
-        if !origin_is_loopback(origin) {
+        if !origin_is_local(origin) {
             return Err("non-local origin rejected".to_string());
         }
     }
@@ -177,6 +247,31 @@ mod tests {
         assert!(gate_post(Some("same-origin"), Some("http://127.0.0.1:9999")).is_ok());
         assert!(gate_post(Some("cross-site"), None).is_err());
         assert!(gate_post(None, Some("https://example.com")).is_err());
+    }
+
+    #[test]
+    fn lan_mode_opens_own_private_origins_and_closes_cleanly() {
+        assert!(gate_post(Some("same-origin"), Some("http://192.168.2.238:9999")).is_err());
+        set_lan_mode(true);
+        assert!(lan_mode());
+        assert!(is_private_lan_host("10.1.2.3"));
+        assert!(is_private_lan_host("172.16.0.1"));
+        assert!(is_private_lan_host("172.31.255.255"));
+        assert!(!is_private_lan_host("172.32.0.1"));
+        assert!(is_private_lan_host("192.168.56.1"));
+        assert!(is_private_lan_host("169.254.1.1"));
+        assert!(is_private_lan_host("fd12:3456::78"));
+        assert!(is_private_lan_host("fe80::1"));
+        assert!(!is_private_lan_host("8.8.8.8"));
+        assert!(!is_private_lan_host("example.com"));
+        assert!(origin_is_local("http://192.168.2.238:9999"));
+        assert!(gate_post(Some("same-origin"), Some("http://192.168.2.238:9999")).is_ok());
+        assert!(gate_post(Some("same-origin"), Some("http://[fd12:3456::78]:9999")).is_ok());
+        // Internet origins stay rejected even in LAN mode; loopback always ok.
+        assert!(gate_post(Some("same-origin"), Some("https://example.com")).is_err());
+        assert!(gate_post(Some("same-origin"), Some("http://127.0.0.1:9999")).is_ok());
+        set_lan_mode(false);
+        assert!(gate_post(Some("same-origin"), Some("http://192.168.2.238:9999")).is_err());
     }
 
     #[test]

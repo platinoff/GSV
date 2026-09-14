@@ -2170,6 +2170,22 @@ file read/count in the ratio audit; determinism proven by unit test.
 | **PH-S2958** | Measure | AFTER ×5: 242/194/196/193/188 ms (median **194**, −13%; IO-bound audit, modest but real); record-speed 88s exit 0; record-rust 0w/0e — **✅** | 
 | **PH-S2959** | Gate + close | full `cargo test` **822/0** · clippy 0 · stretch-96 99.48% · sync clean · `--band 232` (0.232.0) · fingerprint · live take-over · one commit + push — **✅** | 
 
+## Спринти (band 233) — LAN-first session flow (llama-rs fix)
+
+Owner call: llama-rs session flow broke on loopback-only routes; every
+service addresses peers by the machine's **local (LAN) address** now, not
+`127.0.0.1` (kit `gsv::net` + telenetis/llama-rs mirrors; `GSV_LOCAL_ADDR`
+override, loopback under the cargo-test harness keeps contracts
+deterministic). Tickets `t-1789413085201472600`…`t-1789413091194317900`.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2960** | Resolver + gate | `src/net.rs::local_addr()` (env > harness-loopback > UDP default-route); `security` LAN mode: own-address + RFC1918 origins pass `gate_post`, internet origins still rejected; unit tests — **✅** |
+| **PH-S2961** | Wire the kit | keep_live/usage/telenetis-probes + `live_ui_url`/`mcp_http_url` on local addr; self-probe = own-host any-port-9999; live/watchdog spawn `--host 0.0.0.0` + auto `--allow-lan`; catalog `resolved_default_base_url` rewrites local loopback — **✅** |
+| **PH-S2962** | Telenetis | standalone `net.rs` mirror; `gsv_url`/`poolai_url` defaults on local addr; boot-verify default LAN — **✅** |
+| **PH-S2963** | llama-rs flow | `llama_rs::net`; `llama_serve` bind default `0.0.0.0`; `llama_edge` coordinator/rpc/register-address on local addr; `GSV_LIVE` ingest → `GSV_LIVE_URL`/local; xtask edge-install default LAN — **✅** (llama-rs repo) |
+| **PH-S2964** | Routes + close | `docs/gsv/GSV_ROUTES.md` port/caller map live-verified; AGENTS/README LAN notes; full `cargo test` · clippy · record-speed · record-rust · sync · live take-over on LAN bind — **✅** | 
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

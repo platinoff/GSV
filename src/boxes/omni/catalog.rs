@@ -1058,6 +1058,22 @@ pub fn provider_kind(id: &str) -> &'static str {
     }
 }
 
+/// Catalog default base URL as seen from this box (band 233): loopback
+/// hosts on `local` providers are rewritten to the resolved local address
+/// so the advertised route matches the LAN bind of `llama_serve` and stays
+/// meaningful for VM / phone / edge session peers.
+pub fn resolved_default_base_url(id: &str, url: &str) -> String {
+    if provider_kind(id) != "local" {
+        return url.to_string();
+    }
+    for loopback in ["http://127.0.0.1:", "http://localhost:"] {
+        if let Some(rest) = url.strip_prefix(loopback) {
+            return format!("http://{}:{rest}", crate::net::local_addr());
+        }
+    }
+    url.to_string()
+}
+
 /// Local model file backing a `local` provider (None for remote hosts).
 pub fn local_model_file(id: &str) -> Option<&'static str> {
     match id {

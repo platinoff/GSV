@@ -150,8 +150,10 @@ impl OmniConfig {
         if env.is_some() {
             return env;
         }
-        catalog::provider(id)
-            .and_then(|p| (!p.default_base_url.is_empty()).then(|| p.default_base_url.to_string()))
+        catalog::provider(id).and_then(|p| {
+            (!p.default_base_url.is_empty())
+                .then(|| catalog::resolved_default_base_url(id, p.default_base_url))
+        })
     }
 
     /// Effective API key: config override → `OMNI_{ID}_API_KEY` → `None`.

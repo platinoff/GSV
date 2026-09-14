@@ -5,12 +5,16 @@
 # serve: /health, /api/snapshot, /ws (WebSocket), /events (SSE), /webhook.
 #
 # Usage:
-#   ./scripts/telenetis-boot-verify.sh [BASE_URL]   # default http://127.0.0.1:9800
+#   ./scripts/telenetis-boot-verify.sh [BASE_URL]   # default http://<local-addr>:9800
 #
 # Exit 0 on pass, non-zero on the first failure. Requires curl.
+# Band 233: default base uses the machine's local (LAN) address (GSV_LOCAL_ADDR
+# override first, then first hostname -I IPv4, loopback as last resort).
 
 set -u
-BASE="${1:-http://127.0.0.1:9800}"
+LOCAL="${GSV_LOCAL_ADDR:-$(hostname -I 2>/dev/null | awk '{print $1}')}"
+[ -n "${LOCAL//[[:space:]]/}" ] || LOCAL=127.0.0.1
+BASE="${1:-http://$LOCAL:9800}"
 BASE="${BASE%/}"
 PASS=0
 FAIL=0

@@ -402,23 +402,29 @@ pub fn run_live(repo_root: &Path, host: &str, port: u16) -> Result<(), String> {
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null());
-        let status = child
+        child
             .arg("--host")
             .arg(host)
             .arg("--port")
-            .arg(port.to_string())
-            .status()
-            .map_err(|e| e.to_string())?;
+            .arg(port.to_string());
+        if !crate::security::is_loopback_host(host) {
+            child.arg("--allow-lan");
+        }
+        let status = child.status().map_err(|e| e.to_string())?;
         eprintln!("gsv-live: process exited ({status}), restarting in 1s");
         thread::sleep(Duration::from_secs(1));
     }
 }
 
 fn is_telenetis_alive() -> bool {
-    // Cheap TCP probe to :9800 — no http crate needed in xtask path.
+    // Cheap TCP probe to :9800 on the local address — no http crate needed
+    // in xtask path (band 233: LAN address, loopback fallback in harness).
     // If something already answers, don't spawn another telenetis-live (prevents N flashing windows).
+    let addr = format!("{}:9800", crate::net::local_addr());
     std::net::TcpStream::connect_timeout(
-        &"127.0.0.1:9800".parse().unwrap(),
+        &addr
+            .parse()
+            .unwrap_or_else(|_| "127.0.0.1:9800".parse().unwrap()),
         Duration::from_millis(200),
     )
     .is_ok()

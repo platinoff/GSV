@@ -34,10 +34,13 @@ impl Config {
     pub fn from_env() -> Self {
         Self {
             bot_token: env::var("TELENETIS_BOT_TOKEN").unwrap_or_default(),
+            // Band 233: defaults point at the machine's local (LAN) address,
+            // not `127.0.0.1` — same for GSV :9999 and poolAI :8091 peers;
+            // loopback under the test harness keeps asserts deterministic.
             gsv_url: env::var("TELENETIS_GSV_URL")
-                .unwrap_or_else(|_| "http://127.0.0.1:9999".to_string()),
+                .unwrap_or_else(|_| format!("http://{}:9999", crate::net::local_addr())),
             poolai_url: env::var("TELENETIS_POOLAI_URL")
-                .unwrap_or_else(|_| "http://127.0.0.1:8091".to_string()),
+                .unwrap_or_else(|_| format!("http://{}:8091", crate::net::local_addr())),
             port: env::var("TELENETIS_PORT")
                 .unwrap_or_else(|_| "9800".to_string())
                 .parse()

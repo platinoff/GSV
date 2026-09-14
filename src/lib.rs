@@ -21,6 +21,7 @@
 pub mod app_error;
 pub mod boxes;
 pub mod mcp;
+pub mod net;
 pub mod security;
 pub mod server;
 pub mod state;
@@ -40,17 +41,21 @@ pub const DEFAULT_HOST: &str = "127.0.0.1";
 pub const DEFAULT_PORT: u16 = 9999;
 
 /// Canon live UI URL for feed items, pointer pages, and sample links.
+/// Band 233: built on the machine's local (LAN) address so phone / VM /
+/// edge peers open the same link the desktop sees; loopback under the
+/// cargo-test harness keeps contract assertions deterministic.
 pub fn live_ui_url(fragment: &str) -> String {
+    let host = net::local_addr();
     if fragment.is_empty() {
-        format!("http://{DEFAULT_HOST}:{DEFAULT_PORT}/")
+        format!("http://{host}:{DEFAULT_PORT}/")
     } else {
-        format!("http://{DEFAULT_HOST}:{DEFAULT_PORT}/{fragment}")
+        format!("http://{host}:{DEFAULT_PORT}/{fragment}")
     }
 }
 
 /// Canon Streamable HTTP MCP URL (Cursor `.cursor/mcp.json` `url`).
 pub fn mcp_http_url() -> String {
-    format!("http://{DEFAULT_HOST}:{DEFAULT_PORT}/mcp")
+    format!("http://{}:{DEFAULT_PORT}/mcp", net::local_addr())
 }
 
 /// Build-time version of the GSV server binary.

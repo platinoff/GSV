@@ -41,7 +41,7 @@ OpenCode defaults to PowerShell — **this repo forbids that**. All `cargo` / `g
 C:\msys64\usr\bin\bash.exe -lc 'команда'
 ```
 
-`абракадабра` / `abrakadabra` in OpenCode uses the `question` tool (not Cursor AskQuestion). Skills: `.agents/skills/` (`opencode.json` → `skills.paths`). Plugin host: `.opencode/package.json` (`@opencode-ai/plugin`). **Do not auto-generate a product UI** — live Galaxy UI is `gsv-server` at `http://127.0.0.1:9999/`.
+`абракадабра` / `abrakadabra` in OpenCode uses the `question` tool (not Cursor AskQuestion). Skills: `.agents/skills/` (`opencode.json` → `skills.paths`). Plugin host: `.opencode/package.json` (`@opencode-ai/plugin`). **Do not auto-generate a product UI** — live Galaxy UI is `gsv-server` at `http://<local-addr>:9999/` (`127.0.0.1:9999` on this box; band 233 LAN-first, [`docs/gsv/GSV_ROUTES.md`](docs/gsv/GSV_ROUTES.md)).
 
 Cursor ↔ OpenCode ↔ Grok: Cursor `AskQuestion` = OpenCode `question`; Grok asks in plain text (numbered list, no question tool). Shared kit git-canon is this repo; copy (not symlink) to `.cursor/skills/` and `.opencode/skills/` via `cargo xtask mirrors`; Grok reads the `.agents/skills/` canon directly (`[skills] paths` in `.grok/config.toml`, no copy).
 
@@ -69,6 +69,7 @@ After tests: `cargo xtask record-speed` (or `--skip-run`) and `cargo xtask recor
 | `--repo-root` | this crate (`S:/rust/GSV`) |
 | `--data-dir` | `{repo-root}/data` |
 | `--port` | **9999** (8765 is Hyper-V reserved) |
+| bind (band 233) | live supervisor `cargo xtask live` binds `0.0.0.0` (auto `--allow-lan`); peers address services by the **local (LAN) address** (`GSV_LOCAL_ADDR` override), not `127.0.0.1`; loopback still works on-box. Routes canon: [`docs/gsv/GSV_ROUTES.md`](docs/gsv/GSV_ROUTES.md) |
 | Vision sources | `docs/vision/{manifest,feed,extensions,speed_index,rust_diagnostics}.json` |
 
 Optional: `--repo-root S:/rust/poolAI` to scan PoolAI FM / `bin/` / `scripts/` from this server.

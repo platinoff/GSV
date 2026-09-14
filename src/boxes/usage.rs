@@ -131,10 +131,11 @@ pub fn store_path(data_dir: &Path) -> PathBuf {
 
 pub fn omniroute_base() -> String {
     std::env::var("GSV_OMNIROUTE_URL")
+        .or_else(|_| std::env::var("OMNIROUTE_URL"))
         .ok()
         .map(|s| s.trim().trim_end_matches('/').to_string())
         .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| DEFAULT_OMNIROUTE_URL.to_string())
+        .unwrap_or_else(|| format!("http://{}:20128", crate::net::local_addr()))
 }
 
 pub fn omniroute_history_url(base: &str) -> String {

@@ -33,7 +33,7 @@ use gsv::boxes::watchdog::{
     self, epoch_now, heartbeat_path, hop_successor, read_heartbeat, write_heartbeat, Heartbeat,
     SpawnOutcome, DEFAULT_COOLDOWN_SECS, DEFAULT_FAIL_THRESHOLD, DEFAULT_INTERVAL_SECS,
 };
-use gsv::{DEFAULT_HOST, DEFAULT_PORT};
+use gsv::DEFAULT_PORT;
 
 struct Cfg {
     host: String,
@@ -47,7 +47,9 @@ struct Cfg {
 }
 
 fn parse_args() -> Cfg {
-    let mut host = DEFAULT_HOST.to_string();
+    // Band 233: bind all local interfaces by default (GSV_HOST overrides);
+    // probes/apply resolve the concrete local address via probe_host.
+    let mut host = std::env::var("GSV_HOST").unwrap_or_else(|_| "0.0.0.0".into());
     let mut port = DEFAULT_PORT;
     let mut interval = DEFAULT_INTERVAL_SECS;
     let mut threshold = DEFAULT_FAIL_THRESHOLD;
@@ -135,10 +137,13 @@ async fn post_apply(client: &reqwest::Client, host: &str, port: u16) -> (bool, u
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cfg = parse_args();
+    // Concrete reachability address for probes and apply (band 233): the
+    // wildcard bind host itself is not a valid Origin/probe target.
+    let target = watchdog::probe_host(&cfg.host);
     if cfg.no_lockstep {
         std::env::set_var(watchdog::LOCKSTEP_ENV, "0");
     }
-    let url = watchdog::health_url(&cfg.host, cfg.port);
+    let url = watchdog::health_url(&target, cfg.port);
     let hb_path = heartbeat_path(&cfg.repo_root);
     let now = epoch_now();
     let my_pid = std::process::id();
@@ -168,7 +173,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let taking_over =
                 watchdog::watchdog_version_lag(crate_ver.as_deref(), &existing.bin_version);
             if watchdog::should_oneshot_apply(true, needs) && !watchdog::lockstep_disabled() {
-                let (apply_ok, status, note) = post_apply(&client, &cfg.host, cfg.port).await;
+                let (apply_ok, status, note) = post_apply(&client, &target, cfg.port).await;
                 let action = watchdog::lockstep_action(apply_ok);
                 let hb = Heartbeat {
                     ts: gsv::vision::rfc3339_now(),
@@ -177,7 +182,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     last_ok: existing.last_ok,
                     consecutive_failures: existing.consecutive_failures,
                     last_action: action.into(),
-                    host: cfg.host.clone(),
+                    host: target.clone(),
                     port: cfg.port,
                     last_apply_status: status,
                     lockstep_note: note.clone(),
@@ -235,7 +240,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             lockstep_note = watchdog::lockstep_off_note().into();
             eprintln!("gsv-watchdog: lockstep-off ({lockstep_note})");
         } else if ok && watchdog::should_lockstep(needs, last_respawn, now, cfg.cooldown) {
-            let (apply_ok, status, note) = post_apply(&client, &cfg.host, cfg.port).await;
+            let (apply_ok, status, note) = post_apply(&client, &target, cfg.port).await;
             last_apply_status = status;
             lockstep_note = note;
             action = watchdog::lockstep_action(apply_ok);
@@ -287,7 +292,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             last_ok: ok,
             consecutive_failures: failures,
             last_action: action.into(),
-            host: cfg.host.clone(),
+            host: target.clone(),
             port: cfg.port,
             last_apply_status,
             lockstep_note: lockstep_note.clone(),
