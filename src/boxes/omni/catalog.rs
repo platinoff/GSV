@@ -17,6 +17,11 @@ pub const RESEARCHED_AT: &str = "2026-08-18";
 /// The provider is host-ready only while this file exists on disk.
 pub const BUNKE_ROCK_MODEL_FILE: &str = "S:/rust/llama-rs/models/Qwen3.8-27B-UD-IQ2_XXS.gguf";
 
+/// Local llama-rs model the `bunke-rock-fast` provider serves (interactive
+/// tier on `llama_serve :8082`, `llama-rs/docs/BENCHMARKS.md`).
+pub const BUNKE_ROCK_FAST_MODEL_FILE: &str =
+    "S:/rust/llama-rs/models/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf";
+
 /// Rate-limit window used for MCP auto-switch after 429 / RPM exhaustion.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct QuotaSpec {
@@ -230,6 +235,15 @@ pub fn providers() -> &'static [ProviderSpec] {
             free: true,
             default_base_url: "http://127.0.0.1:8080/v1",
             notes: "Local llama-rs inference backend (Qwen 27B IQ2_XXS, S:/rust/llama-rs/models/Qwen3.8-27B-UD-IQ2_XXS.gguf)",
+            quota: QUOTA_PAID,
+        },
+        ProviderSpec {
+            id: "bunke-rock-fast",
+            name: "BunkeRock fast (llama-rs)",
+            region: "Local",
+            free: true,
+            default_base_url: "http://127.0.0.1:8082/v1",
+            notes: "Local llama-rs interactive tier (Qwen2.5-1.5B, llama_serve :8082; deep tier is bunke-rock :8080)",
             quota: QUOTA_PAID,
         },
         ProviderSpec {
@@ -453,6 +467,19 @@ pub fn models() -> &'static [ModelSpec] {
             "bunke-rock",
             Some(32_768),
             Some(4_096),
+            true,
+            false,
+            "local",
+            true,
+            true,
+            C_ALL,
+        ),
+        m(
+            "lama-1.5",
+            "Lama 1.5 (BunkeRock fast · llama-rs)",
+            "bunke-rock-fast",
+            Some(4_096),
+            Some(1_024),
             true,
             false,
             "local",
@@ -1024,7 +1051,7 @@ pub fn provider(id: &str) -> Option<&'static ProviderSpec> {
 /// Provider kind: `"local"` for on-disk llama-rs backends, `"remote"` for
 /// API vendors / aggregators.
 pub fn provider_kind(id: &str) -> &'static str {
-    if id == "bunke-rock" {
+    if matches!(id, "bunke-rock" | "bunke-rock-fast") {
         "local"
     } else {
         "remote"
@@ -1033,10 +1060,10 @@ pub fn provider_kind(id: &str) -> &'static str {
 
 /// Local model file backing a `local` provider (None for remote hosts).
 pub fn local_model_file(id: &str) -> Option<&'static str> {
-    if id == "bunke-rock" {
-        Some(BUNKE_ROCK_MODEL_FILE)
-    } else {
-        None
+    match id {
+        "bunke-rock" => Some(BUNKE_ROCK_MODEL_FILE),
+        "bunke-rock-fast" => Some(BUNKE_ROCK_FAST_MODEL_FILE),
+        _ => None,
     }
 }
 
@@ -1096,6 +1123,24 @@ mod tests {
             host_ready("bunke-rock"),
             "host_ready must mirror {file} presence"
         );
+    }
+
+    #[test]
+    fn bunke_rock_fast_is_local_with_model_file() {
+        let p = provider("bunke-rock-fast").expect("bunke-rock-fast provider");
+        assert!(p.free, "fast llama is free tier");
+        assert_eq!(provider_kind("bunke-rock-fast"), "local");
+        assert_eq!(
+            local_model_file("bunke-rock-fast"),
+            Some(BUNKE_ROCK_FAST_MODEL_FILE)
+        );
+        let lama = find_models("lama-1.5");
+        assert!(!lama.is_empty(), "lama-1.5 in catalog");
+        for spec in &lama {
+            assert_eq!(spec.provider, "bunke-rock-fast");
+            assert!(spec.free && spec.rust && spec.web, "{} lanes", spec.id);
+            assert_eq!(spec.tier, "local");
+        }
     }
 
     #[test]

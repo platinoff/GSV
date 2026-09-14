@@ -570,6 +570,7 @@ const RESOURCE_URIS: &[&str] = &[
     "gsv://docs/solo-squad-jail",
     "gsv://docs/ranks",
     "gsv://docs/rules-check",
+    "gsv://docs/vdc",
 ];
 
 const PROMPT_NAMES: &[&str] = &["gsv_status", "gsv_vision_brief", "gsv_drain"];
@@ -681,6 +682,13 @@ const RESOURCES: &[ResourceSpec] = &[
         description: "Band 229: cargo xtask rules-check harness — gates, sources, harness map.",
         mime: "text/markdown",
         rel: "docs/gsv/GSV_RULES_CHECK.md",
+    },
+    ResourceSpec {
+        uri: "gsv://docs/vdc",
+        name: "VDC / ALLBGP must-have list",
+        description: "Hub-side virtual-datacenter canon: topology table, VRAM capacity, rebalance, burst seats, security, offline mode, connection stability.",
+        mime: "text/markdown",
+        rel: "docs/gsv/GSV_VDC.md",
     },
 ];
 
@@ -2479,6 +2487,7 @@ mod tests {
         assert!(RESOURCE_URIS.contains(&"gsv://docs/solo-squad-jail"));
         assert!(RESOURCE_URIS.contains(&"gsv://docs/ranks"));
         assert!(RESOURCE_URIS.contains(&"gsv://docs/rules-check"));
+        assert!(RESOURCE_URIS.contains(&"gsv://docs/vdc"));
         assert_eq!(listed.len(), RESOURCE_URIS.len());
         for (item, expected) in listed.iter().zip(RESOURCE_URIS.iter()) {
             assert_eq!(item["uri"], *expected);

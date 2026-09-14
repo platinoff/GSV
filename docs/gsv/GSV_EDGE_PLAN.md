@@ -2,6 +2,8 @@
 
 GSV is the hub (`:9999` + MCP openbot). Everything else hangs off it.
 Single source of truth for ports, autostart entries, env, and gaps.
+Hub-side virtual-datacenter must-have list (ALLBGP topology, VRAM capacity,
+rebalance, burst seats, security): see [GSV_VDC.md](GSV_VDC.md).
 
 ## 1. Topology (all on this box, hidden, no consoles)
 

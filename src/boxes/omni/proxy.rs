@@ -109,6 +109,16 @@ where
     })
 }
 
+/// Map `X-Omni-Tier` (`fast` | `deep`) to the local llama-rs tier model.
+/// Unknown/empty tiers return `None` (routing falls through to normal chains).
+pub fn tier_model(tier: &str) -> Option<&'static str> {
+    match tier.trim().to_ascii_lowercase().as_str() {
+        "fast" => Some("lama-1.5"),
+        "deep" => Some("lama-2.8"),
+        _ => None,
+    }
+}
+
 /// OpenAI-compatible `POST /chat/completions`.
 pub async fn chat_completions(
     state: &AppState,
@@ -136,6 +146,17 @@ pub async fn chat_completions(
         .get("x-omni-prefer-free")
         .and_then(|v| v.to_str().ok())
         .is_none_or(|v| v != "0");
+    // `X-Omni-Tier: fast|deep` names the local llama-rs tier when the caller
+    // left `model` empty — offline chat without knowing model ids by heart.
+    if model.is_empty() && explicit.is_none() {
+        if let Some(m) = headers
+            .get("x-omni-tier")
+            .and_then(|v| v.to_str().ok())
+            .and_then(tier_model)
+        {
+            model = m.to_string();
+        }
+    }
     let provider_id = if model.is_empty() && explicit.is_none() {
         let pick = quota::pick_route(&cfg, &cooling, task, prefer_free, now)
             .map_err(|e| AppError::new(format!("route: {e}")))?;
@@ -512,6 +533,26 @@ mod tests {
         assert_eq!(
             select_provider("deepseek-v4-pro", None, &cfg).as_deref(),
             Ok("deepseek")
+        );
+    }
+
+    #[test]
+    fn tier_model_maps_local_llama_tiers() {
+        assert_eq!(tier_model("fast"), Some("lama-1.5"));
+        assert_eq!(tier_model("Deep"), Some("lama-2.8"));
+        assert_eq!(tier_model("  fast  "), Some("lama-1.5"));
+        assert_eq!(tier_model(""), None);
+        assert_eq!(tier_model("cloud"), None);
+        let cfg = OmniConfig::default();
+        assert_eq!(
+            select_provider("lama-1.5", None, &cfg).as_deref(),
+            Ok("bunke-rock-fast"),
+            "fast tier resolves to :8082 provider"
+        );
+        assert_eq!(
+            select_provider("lama-2.8", None, &cfg).as_deref(),
+            Ok("bunke-rock"),
+            "deep tier resolves to :8080 provider"
         );
     }
 

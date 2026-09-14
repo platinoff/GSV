@@ -246,6 +246,32 @@ async fn omni_chat_dry_run_resolves_route_without_network() {
 }
 
 #[tokio::test]
+async fn omni_chat_tier_header_resolves_local_llama_without_model() {
+    let dir = temp_data_dir("chat-tier");
+    let app = app(dir.clone());
+    let (status, json) = post_headers(
+        &app,
+        "/api/omni/v1/chat/completions",
+        json!({ "messages": [{ "role": "user", "content": "hi" }] }),
+        &[("x-omni-dry-run", "1"), ("x-omni-tier", "fast")],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["provider"], "bunke-rock-fast", "{json}");
+    assert_eq!(json["model"], "lama-1.5");
+    let (_s, deep) = post_headers(
+        &app,
+        "/api/omni/v1/chat/completions",
+        json!({ "messages": [{ "role": "user", "content": "hi" }] }),
+        &[("x-omni-dry-run", "1"), ("x-omni-tier", "deep")],
+    )
+    .await;
+    assert_eq!(deep["provider"], "bunke-rock", "{deep}");
+    assert_eq!(deep["model"], "lama-2.8");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
 async fn omni_chat_rejects_unknown_provider() {
     let (app, dir) = {
         let d = temp_data_dir("chat-bad");
