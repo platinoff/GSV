@@ -791,7 +791,12 @@ pub fn wire(repo_root: &Path, data_dir: &Path) -> Value {
     })
 }
 
-/// HTTP POST / MCP mutate (`action` = list|award|demote|review).
+/// HTTP POST / MCP mutate (`action` = list|review).
+///
+/// Ranks are earned, never granted: `done`/`error` move the claimer's row
+/// automatically, and `review` demotes the fingerprint owner behind
+/// `git_head`. Direct `award`/`demote` were removed — any caller identity in
+/// the body is self-asserted and would allow farming or griefing.
 pub fn wire_post(repo_root: &Path, data_dir: &Path, body: &Value) -> Result<Value, String> {
     let action = body
         .get("action")
@@ -801,23 +806,7 @@ pub fn wire_post(repo_root: &Path, data_dir: &Path, body: &Value) -> Result<Valu
     match action {
         "" | "list" => Ok(wire(repo_root, data_dir)),
         "award" | "demote" => {
-            let actor = body.get("actor").and_then(Value::as_str).unwrap_or("agent");
-            let ide = body.get("ide").and_then(Value::as_str).unwrap_or("cursor");
-            let agent = body
-                .get("agent")
-                .and_then(Value::as_str)
-                .unwrap_or("orchestrator");
-            let tg = telegram_from(Some(body));
-            let id = identity_from(actor, ide, agent, &tg);
-            let ticket = body.get("ticket_id").and_then(Value::as_str).unwrap_or("");
-            let note = body.get("note").and_then(Value::as_str).unwrap_or("");
-            let head = body.get("git_head").and_then(Value::as_str).unwrap_or("");
-            if action == "award" {
-                award(data_dir, &id, ticket, note)?;
-            } else {
-                demote(data_dir, &id, ticket, head, note)?;
-            }
-            Ok(wire(repo_root, data_dir))
+            Err("direct award/demote removed: ranks are earned on done/error only".to_string())
         }
         "review" => {
             let tests_ok = body
@@ -825,24 +814,25 @@ pub fn wire_post(repo_root: &Path, data_dir: &Path, body: &Value) -> Result<Valu
                 .and_then(Value::as_bool)
                 .unwrap_or(true);
             if !tests_ok {
-                let actor = body.get("actor").and_then(Value::as_str).unwrap_or("");
-                let ide = body.get("ide").and_then(Value::as_str).unwrap_or("");
-                let agent = body.get("agent").and_then(Value::as_str).unwrap_or("");
-                let tg = telegram_from(Some(body));
-                let head = body.get("git_head").and_then(Value::as_str).unwrap_or("");
-                if !actor.trim().is_empty() {
-                    let id = identity_from(actor, ide, agent, &tg);
-                    demote(data_dir, &id, "", head, "tests failed after commit")?;
-                    if !head.trim().is_empty() {
-                        let path = ranks_path(data_dir);
-                        let mut file = load(&path);
-                        if !file.penalized_heads.iter().any(|h| h == head) {
-                            file.penalized_heads.push(head.to_string());
-                            let _ = save(&path, &file);
-                        }
-                    }
-                } else {
-                    let _ = review_failed_tests(repo_root, data_dir);
+                let head = body
+                    .get("git_head")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .trim()
+                    .to_string();
+                if head.is_empty() {
+                    return Err("review needs git_head".to_string());
+                }
+                let Some(fp) = fingerprint_for_head(repo_root, &head) else {
+                    return Err(format!("no fingerprint for git_head {head}"));
+                };
+                let id = identity_from(&fp.actor, &fp.ide, &fp.agent, &telegram_from(None));
+                demote(data_dir, &id, "", &head, "tests failed after commit")?;
+                let path = ranks_path(data_dir);
+                let mut file = load(&path);
+                if !file.penalized_heads.iter().any(|h| h == &head) {
+                    file.penalized_heads.push(head);
+                    let _ = save(&path, &file);
                 }
             }
             Ok(wire(repo_root, data_dir))
@@ -965,6 +955,80 @@ mod tests {
         let row = row.expect("fallback demote");
         assert_ne!(row.actor, "ghost", "legacy empty-git_head row was blamed");
         assert_eq!(row.actor, "agent");
+        let _ = fs::remove_dir_all(&kit);
+        let _ = fs::remove_dir_all(&data);
+    }
+
+    #[test]
+    fn wire_post_rejects_direct_award_demote() {
+        let kit = tmp();
+        let data = tmp();
+        for action in ["award", "demote"] {
+            let err = wire_post(
+                &kit,
+                &data,
+                &serde_json::json!({"action": action, "actor": "mallory"}),
+            )
+            .expect_err("direct move must fail");
+            assert!(err.contains("earned"), "{err}");
+        }
+        let _ = fs::remove_dir_all(&kit);
+        let _ = fs::remove_dir_all(&data);
+    }
+
+    #[test]
+    fn wire_post_review_needs_fingerprint_head() {
+        let kit = tmp();
+        let data = tmp();
+        // No head at all.
+        assert!(wire_post(
+            &kit,
+            &data,
+            &serde_json::json!({"action": "review", "tests_ok": false, "actor": "mallory"}),
+        )
+        .is_err());
+        // Unknown head (no fingerprint row).
+        assert!(wire_post(
+            &kit,
+            &data,
+            &serde_json::json!({"action": "review", "tests_ok": false, "git_head": "deadbee"}),
+        )
+        .is_err());
+        let _ = fs::remove_dir_all(&kit);
+        let _ = fs::remove_dir_all(&data);
+    }
+
+    #[test]
+    fn wire_post_review_demotes_fingerprint_owner() {
+        let kit = tmp();
+        let data = tmp();
+        fs::create_dir_all(kit.join("docs/gsv")).unwrap();
+        fs::write(
+            kit.join("docs/gsv/fingerprints.jsonl"),
+            r#"{"ts":"t","actor":"alice","ide":"cursor","model":"m","agent":"builder","version":"0.0.0","git_head":"abc1234","summary":""}"#,
+        )
+        .unwrap();
+        // A forged reporter identity must not redirect the blame.
+        let out = wire_post(
+            &kit,
+            &data,
+            &serde_json::json!({
+                "action": "review",
+                "tests_ok": false,
+                "git_head": "abc1234",
+                "actor": "mallory",
+            }),
+        )
+        .expect("review ok");
+        assert_eq!(out["ok"], true);
+        let file = load(&ranks_path(&data));
+        let row = file
+            .roster
+            .iter()
+            .find(|r| r.actor == "alice")
+            .expect("alice demoted");
+        assert_eq!(row.done_bad, 1);
+        assert!(file.roster.iter().all(|r| r.actor != "mallory"));
         let _ = fs::remove_dir_all(&kit);
         let _ = fs::remove_dir_all(&data);
     }

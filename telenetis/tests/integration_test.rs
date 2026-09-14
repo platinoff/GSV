@@ -110,6 +110,7 @@ async fn static_assets_served() {
         "/flows",
         "/roles",
         "/workers",
+        "/vm",
     ] {
         let resp = app
             .clone()
@@ -150,7 +151,7 @@ async fn snapshot_endpoint_served() {
     assert_eq!(json["live"]["keepalive_secs"], 25);
 
     // Edge workers endpoint: fail-open shape with or without live poolAI.
-    let resp = telenetis::ui::router(state)
+    let resp = telenetis::ui::router(state.clone())
         .oneshot(
             Request::builder()
                 .uri("/api/edge/workers")
@@ -165,4 +166,21 @@ async fn snapshot_endpoint_served() {
         .unwrap();
     let edge: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert!(edge.get("ok").is_some());
+
+    // VM endpoint: same fail-open contract.
+    let resp = telenetis::ui::router(state.clone())
+        .oneshot(
+            Request::builder()
+                .uri("/api/edge/vm")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+        .await
+        .unwrap();
+    let vm: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert!(vm.get("ok").is_some());
 }

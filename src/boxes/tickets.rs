@@ -2064,7 +2064,9 @@ pub fn wire_done(
 ) -> Result<Value, TicketError> {
     let id = body.get("id").and_then(Value::as_str).unwrap_or("");
     let note = body.get("note").and_then(Value::as_str).unwrap_or("");
-    let tg = ranks::telegram_from(Some(body));
+    // No body telegram override: the tail would be self-asserted (any caller
+    // could mint roster rows with someone else's tail). Server env only.
+    let tg = ranks::telegram_from(None);
     let who = resolve_claimed_by();
     let (ticket, _mv) = ranks::with_telegram(&tg, || {
         done(repo_root, data_dir, id, who.clone(), note, presence)
@@ -2083,7 +2085,8 @@ pub fn wire_error(
 ) -> Result<Value, TicketError> {
     let id = body.get("id").and_then(Value::as_str).unwrap_or("");
     let note = body.get("note").and_then(Value::as_str).unwrap_or("");
-    let tg = ranks::telegram_from(Some(body));
+    // Same rule as wire_done: no self-asserted telegram tails.
+    let tg = ranks::telegram_from(None);
     let (ticket, _mv) = ranks::with_telegram(&tg, || {
         error_ticket(
             repo_root,

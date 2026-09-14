@@ -32,6 +32,8 @@ pub enum Command {
     Status,
     Board,
     Worker(Option<String>),
+    Vm(Option<String>),
+    Chat(String),
     BoardScenario(String),
     Flows,
     Roles,
@@ -56,6 +58,8 @@ impl Command {
             "status" => Self::Status,
             "board" => Self::Board,
             "worker" => Self::Worker(None),
+            "chat" => Self::Chat(String::new()),
+            "vm" => Self::Vm(None),
             "flows" => Self::Flows,
             "roles" => Self::Roles,
             "ranks" => Self::Ranks,
@@ -86,6 +90,9 @@ impl Command {
             "done" => Self::Done(args),
             "worker" if !args.is_empty() => Self::Worker(Some(args)),
             "worker" => Self::Worker(None),
+            "vm" if !args.is_empty() => Self::Vm(Some(args)),
+            "vm" => Self::Vm(None),
+            "chat" => Self::Chat(args),
             "sync" => Self::Sync,
             "app" => Self::App,
             "tunnel" => Self::Tunnel,
@@ -113,6 +120,9 @@ pub fn command_response(cmd: &Command) -> String {
               /done <id> — Mark ticket done\n\
               /worker — Edge workers (poolAI telegram bindings)\n\
               /worker <user|peer> — One worker detail\n\
+              /vm — My VMs (poolAI instances behind edge peers)\n\
+              /vm <user|peer> — One VM detail\n\
+              /chat <text> — Ask llama (answer lands in Mini App chat)\n\
              /sync — Force sync from GSV\n\
              /app — Open Mini App\n\
              /tunnel — Show / refresh public tunnel URL\n\
@@ -131,6 +141,12 @@ pub fn command_response(cmd: &Command) -> String {
         Command::Done(id) => format!("Marking ticket `{id}` done..."),
         Command::Worker(None) => "Fetching edge workers...".to_string(),
         Command::Worker(Some(id)) => format!("Looking up edge worker `{id}`..."),
+        Command::Vm(None) => "Fetching virtual workers...".to_string(),
+        Command::Vm(Some(id)) => format!("Looking up virtual worker `{id}`..."),
+        Command::Chat(prompt) if prompt.trim().is_empty() => {
+            "Usage: /chat <text> — asks llama, answer in Mini App chat.".to_string()
+        }
+        Command::Chat(_) => "Queueing chat...".to_string(),
         Command::Sync => "Syncing from GSV...".to_string(),
         Command::App => "Opening Mini App...".to_string(),
         Command::Tunnel => "Tunnel".to_string(),
@@ -140,6 +156,19 @@ pub fn command_response(cmd: &Command) -> String {
 }
 
 pub async fn handle_command(cmd: &Command, state: &AppState) -> String {
+    handle_command_from(cmd, state, None).await
+}
+
+/// Sender-aware entry: `sender_id` is the Telegram numeric user id for
+/// commands that act as the sender (`/chat`); `None` elsewhere.
+pub async fn handle_command_from(
+    cmd: &Command,
+    state: &AppState,
+    sender_id: Option<&str>,
+) -> String {
+    if let Command::Chat(prompt) = cmd {
+        return handle_chat(prompt, sender_id, state).await;
+    }
     match cmd {
         Command::Start | Command::Help => command_response(cmd),
         Command::Status => handle_status(state).await,
@@ -153,6 +182,8 @@ pub async fn handle_command(cmd: &Command, state: &AppState) -> String {
         Command::Claim(id) => handle_claim(id, state).await,
         Command::Done(id) => handle_done(id, state).await,
         Command::Worker(id) => handle_worker(id.as_deref(), state).await,
+        Command::Vm(id) => handle_vm(id.as_deref(), state).await,
+        Command::Chat(_) => command_response(cmd),
         Command::Sync => handle_sync(state).await,
         Command::App => command_response(cmd),
         Command::Tunnel => handle_tunnel(state).await,
@@ -176,7 +207,17 @@ async fn handle_tunnel(state: &AppState) -> String {
                 url
             )
         }
-        Err(e) => format!("⚠️ *Tunnel unavailable*: `{e}`\n\nSet `TELENETIS_PUBLIC_URL` in `.env` to pin a fixed host."),
+        Err(e) => {
+            let lan = crate::edge::local_lan_ip()
+                .map(|ip| format!("http://{ip}:{}", state.config().port))
+                .unwrap_or_default();
+            format!(
+                "⚠️ *Tunnel unavailable*: `{e}`\n\n\
+                 On the same Wi-Fi use the LAN URL: `{lan}`\n\
+                 Outside the house: install ngrok (`winget install Ngrok.Ngrok` + authtoken) \
+                 or set `TELENETIS_PUBLIC_URL` in `.env` to pin a fixed host."
+            )
+        }
     }
 }
 
@@ -214,12 +255,15 @@ async fn handle_status(state: &AppState) -> String {
         })
         .collect();
 
+    let lan = crate::edge::local_lan_ip().unwrap_or_else(|| "?".to_string());
+    let public = state.tunnel_url().await;
     format!(
         "*Telenetis Status*\n\n\
          Online: {} | Jail: `{}`\n\
          Tickets: {} open / {} in-progress / {} done / {} blocked\n\
          Bus envelopes: {}\n\
-         Workers: {}\n{}",
+         Workers: {}\n{}\n\
+         Reach: LAN `http://{}:{}`{}",
         if online { "yes" } else { "no" },
         state.jail_id(),
         open,
@@ -232,6 +276,12 @@ async fn handle_status(state: &AppState) -> String {
             "  (none)".to_string()
         } else {
             workers.join("\n")
+        },
+        lan,
+        state.config().port,
+        match public {
+            Some(u) => format!(" · public `{u}`"),
+            None => String::new(),
         },
     )
 }
@@ -308,6 +358,53 @@ async fn handle_worker(id: Option<&str>, state: &AppState) -> String {
             Some(v) => render_workers(std::slice::from_ref(v), seats.as_ref()),
             None => format!("No edge worker `{want}`. Use /worker to list."),
         },
+    }
+}
+
+/// Virtual workers: poolAI VM instances behind edge peers (`{peer}-vm`).
+/// `/vm` lists, `/vm <telegram_user_id|peer_id>` shows one.
+async fn handle_vm(id: Option<&str>, state: &AppState) -> String {
+    use crate::edge::{render_vms, vm_views, PoolClient};
+
+    let pool = PoolClient::new(state.config());
+    let rows = match vm_views(&pool, id).await {
+        Ok(r) => r,
+        Err(e) => return format!("⚠️ *Virtual workers unavailable:* `{e}`"),
+    };
+    if let Some(want) = id {
+        if rows.is_empty() {
+            return format!("No virtual worker `{want}`. Use /vm to list.");
+        }
+    }
+    render_vms(&rows)
+}
+
+/// Ask llama through poolAI services only (no Termux, no direct calls).
+/// Enqueues a `llama_chat` task for the sender's bound peer; the answer
+/// lands in the Mini App chat screen (polled by task id).
+async fn handle_chat(prompt: &str, sender_id: Option<&str>, state: &AppState) -> String {
+    use crate::edge::PoolClient;
+
+    let prompt = prompt.trim();
+    if prompt.is_empty() {
+        return "Usage: /chat <text> — asks llama, answer in Mini App chat.".to_string();
+    }
+    let Some(sender) = sender_id.map(str::trim).filter(|s| !s.is_empty()) else {
+        return "Send /chat from your Telegram account so I know whose peer to ask.".to_string();
+    };
+    let pool = PoolClient::new(state.config());
+    let peer = match pool.peer_for_user(sender).await {
+        Ok(Some(p)) => p,
+        Ok(None) => {
+            return "No edge peer bound to you yet — /start on your phone, then bind.".to_string()
+        }
+        Err(e) => return format!("⚠️ *Chat unavailable:* `{e}`"),
+    };
+    match pool.enqueue_chat(&peer, prompt, 64).await {
+        Ok(id) => {
+            format!("Queued for `{peer}` (task `{id}`).\nThe answer appears in Mini App chat.")
+        }
+        Err(e) => format!("⚠️ *Chat unavailable:* `{e}`"),
     }
 }
 
@@ -643,6 +740,55 @@ mod tests {
     fn command_response_help_lists_worker() {
         let r = command_response(&Command::Help);
         assert!(r.contains("/worker"));
+    }
+
+    #[test]
+    fn command_chat_parses() {
+        assert!(matches!(
+            Command::from_text("/chat hello there"),
+            Command::Chat(p) if p == "hello there"
+        ));
+        let r = command_response(&Command::Help);
+        assert!(r.contains("/chat"));
+    }
+
+    #[tokio::test]
+    async fn handle_chat_needs_prompt_and_sender() {
+        let state = crate::state::AppState::new(test_config());
+        let r = handle_command_from(&Command::Chat("   ".to_string()), &state, Some("1")).await;
+        assert!(r.contains("Usage"));
+        let r = handle_command_from(&Command::Chat("hi".to_string()), &state, None).await;
+        assert!(r.contains("Telegram account"));
+    }
+
+    #[tokio::test]
+    async fn handle_chat_unreachable_pool() {
+        let mut cfg = test_config();
+        cfg.poolai_url = "http://127.0.0.1:9".to_string();
+        let state = crate::state::AppState::new(cfg);
+        let r = handle_command_from(&Command::Chat("hi".to_string()), &state, Some("1")).await;
+        assert!(r.contains("unavailable") || r.contains("No edge peer"));
+    }
+
+    #[test]
+    fn command_vm_parses() {
+        assert!(matches!(Command::from_str("vm"), Command::Vm(None)));
+        assert!(matches!(Command::from_text("/vm"), Command::Vm(None)));
+        match Command::from_text("/vm a54-01") {
+            Command::Vm(Some(id)) => assert_eq!(id, "a54-01"),
+            _ => panic!("expected vm with id"),
+        }
+        let r = command_response(&Command::Help);
+        assert!(r.contains("/vm"));
+    }
+
+    #[tokio::test]
+    async fn handle_vm_unreachable_pool() {
+        let mut cfg = test_config();
+        cfg.poolai_url = "http://127.0.0.1:9".to_string();
+        let state = crate::state::AppState::new(cfg);
+        let resp = handle_command(&Command::Vm(None), &state).await;
+        assert!(resp.contains("unavailable"));
     }
 
     #[tokio::test]

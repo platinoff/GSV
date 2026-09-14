@@ -7,7 +7,7 @@ use axum::{
     Json, Router,
 };
 use serde::Deserialize;
-use serde_json::json;
+use serde_json::{json, Value};
 
 pub mod miniapp;
 
@@ -20,6 +20,19 @@ pub fn router(state: AppState) -> Router {
         .route("/roles", get(roles_page))
         .route("/workers", get(workers_page))
         .route("/api/edge/workers", get(api_edge_workers))
+        .route("/vm", get(vm_page))
+        .route("/api/edge/vm", get(api_edge_vm))
+        .route("/api/edge/shards", get(api_edge_shards))
+        .route("/chat", get(chat_page))
+        .route(
+            "/api/edge/chat",
+            get(api_edge_chat_result).post(api_edge_chat_send),
+        )
+        .route("/api/edge/endpoints", get(api_edge_endpoints))
+        .route(
+            "/edge/upstream/{service}/{*tail}",
+            get(proxy_upstream).post(proxy_upstream),
+        )
         .route("/health", get(health))
         .route("/api/status", get(status))
         .route("/api/tickets", get(api_tickets))
@@ -505,6 +518,219 @@ async fn roles_page() -> Html<String> {
 
 async fn workers_page() -> Html<String> {
     Html(include_str!("templates/workers.html").to_string())
+}
+
+async fn vm_page() -> Html<String> {
+    Html(include_str!("templates/vm.html").to_string())
+}
+
+async fn chat_page() -> Html<String> {
+    Html(include_str!("templates/chat.html").to_string())
+}
+
+/// Layer map: latest `llama_shard` assignment per bound peer.
+/// Source of truth for who holds which layers (tensors follow separately).
+async fn api_edge_shards(State(state): State<AppState>) -> Json<serde_json::Value> {
+    use crate::edge::{assemble_views, shard_map, PoolClient};
+
+    let pool = PoolClient::new(state.config());
+    let bindings = match pool.bindings().await {
+        Ok(b) => b,
+        Err(e) => return Json(json!({"ok": false, "error": e.to_string()})),
+    };
+    let peers: Vec<String> = assemble_views(&bindings)
+        .into_iter()
+        .map(|v| v.peer_id)
+        .collect();
+    let map = shard_map(&pool, &peers).await;
+    let shards: Vec<serde_json::Value> = map
+        .iter()
+        .map(|a| {
+            json!({
+                "peer_id": a.peer_id,
+                "task_id": a.task_id,
+                "model": a.model,
+                "layers": a.layers,
+                "rpc_reachable": a.rpc_reachable,
+            })
+        })
+        .collect();
+    Json(json!({"ok": true, "shards": shards}))
+}
+
+/// Phone-reachable service map (loopback / LAN / via-Telenetis / public).
+async fn api_edge_endpoints(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let public = state.tunnel_url().await;
+    Json(crate::edge::service_endpoints(
+        state.config(),
+        public.as_deref(),
+    ))
+}
+
+/// Reverse proxy so phones use ONE origin (works out-of-NAT through the
+/// tunnel): `/edge/upstream/llama/<path>` → llama_serve,
+/// `/edge/upstream/poolai/<path>` → poolAI. Anything else → 404.
+/// poolAI calls carry the service token; llama needs none.
+async fn proxy_upstream(
+    State(state): State<AppState>,
+    axum::extract::Path((service, tail)): axum::extract::Path<(String, String)>,
+    axum::extract::RawQuery(query): axum::extract::RawQuery,
+    method: axum::http::Method,
+    body: axum::body::Bytes,
+) -> impl IntoResponse {
+    use crate::edge::{upstream_base, PoolClient};
+
+    let Some(base) = upstream_base(state.config(), &service) else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(json!({"ok": false, "error": "unknown service"})),
+        )
+            .into_response();
+    };
+    if tail.split('/').any(|s| s == "..") {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"ok": false, "error": "bad path"})),
+        )
+            .into_response();
+    }
+    let mut url = format!("{}/{tail}", base.trim_end_matches('/'));
+    if let Some(q) = query {
+        url.push('?');
+        url.push_str(&q);
+    }
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(600))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new());
+    let mut req = match method.as_str() {
+        "POST" => client.post(&url),
+        "PUT" => client.put(&url),
+        "DELETE" => client.delete(&url),
+        _ => client.get(&url),
+    };
+    if service == "poolai" {
+        let pool = PoolClient::new(state.config());
+        match pool.bearer_token().await {
+            Ok(t) => req = req.bearer_auth(t),
+            Err(e) => {
+                return (
+                    StatusCode::BAD_GATEWAY,
+                    Json(json!({"ok": false, "error": e.to_string()})),
+                )
+                    .into_response()
+            }
+        }
+    }
+    if !body.is_empty() {
+        req = req
+            .header("content-type", "application/json")
+            .body(body.to_vec());
+    }
+    let upstream = match req.send().await {
+        Ok(r) => r,
+        Err(e) => {
+            return (
+                StatusCode::BAD_GATEWAY,
+                Json(json!({"ok": false, "error": format!("upstream: {e}")})),
+            )
+                .into_response()
+        }
+    };
+    let status = upstream.status();
+    let ctype = upstream
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream")
+        .to_string();
+    // Buffered (not chunk-streamed): SSE still arrives as a valid
+    // event-stream, just batched. Keeps reqwest without the stream feature.
+    let bytes = match upstream.bytes().await {
+        Ok(b) => b,
+        Err(e) => {
+            return (
+                StatusCode::BAD_GATEWAY,
+                Json(json!({"ok": false, "error": format!("upstream body: {e}")})),
+            )
+                .into_response()
+        }
+    };
+    (status, [(axum::http::header::CONTENT_TYPE, ctype)], bytes).into_response()
+}
+
+/// Ask llama through poolAI services: enqueue `llama_chat` for the caller's
+/// bound peer. Body: `{user, prompt, max_tokens?}`.
+async fn api_edge_chat_send(
+    State(state): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use crate::edge::PoolClient;
+
+    let user = body.get("user").and_then(Value::as_str).unwrap_or("");
+    let prompt = body.get("prompt").and_then(Value::as_str).unwrap_or("");
+    if user.trim().is_empty() || prompt.trim().is_empty() {
+        return Json(json!({"ok": false, "error": "user + prompt required"}));
+    }
+    let pool = PoolClient::new(state.config());
+    let peer = match pool.peer_for_user(user).await {
+        Ok(Some(p)) => p,
+        Ok(None) => return Json(json!({"ok": false, "error": "no bound peer"})),
+        Err(e) => return Json(json!({"ok": false, "error": e.to_string()})),
+    };
+    let max_tokens = body.get("max_tokens").and_then(Value::as_u64).unwrap_or(64);
+    match pool.enqueue_chat(&peer, prompt, max_tokens).await {
+        Ok(id) => Json(json!({"ok": true, "peer": peer, "task_id": id})),
+        Err(e) => Json(json!({"ok": false, "error": e.to_string()})),
+    }
+}
+
+/// Poll a chat answer: `?peer=&task_id=` → `{ok, done, answer?}`.
+async fn api_edge_chat_result(
+    State(state): State<AppState>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> Json<serde_json::Value> {
+    use crate::edge::PoolClient;
+
+    let (Some(peer), Some(task)) = (q.get("peer"), q.get("task_id")) else {
+        return Json(json!({"ok": false, "error": "peer + task_id required"}));
+    };
+    let pool = PoolClient::new(state.config());
+    match pool.chat_answer(peer, task).await {
+        Ok(Some(answer)) => Json(json!({"ok": true, "done": true, "answer": answer})),
+        Ok(None) => Json(json!({"ok": true, "done": false})),
+        Err(e) => Json(json!({"ok": false, "error": e.to_string()})),
+    }
+}
+
+/// Virtual workers JSON for the Mini App VM screen. Fail-open like
+/// [`api_edge_workers`]; optional `?user=<telegram_user_id|peer_id>` filter.
+async fn api_edge_vm(
+    State(state): State<AppState>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> Json<serde_json::Value> {
+    use crate::edge::{vm_views, PoolClient};
+
+    let pool = PoolClient::new(state.config());
+    let filter = q.get("user").map(String::as_str);
+    match vm_views(&pool, filter).await {
+        Ok(rows) => {
+            let vms: Vec<serde_json::Value> = rows
+                .iter()
+                .map(|v| {
+                    json!({
+                        "telegram_user_id": v.telegram_user_id,
+                        "peer_id": v.peer_id,
+                        "vm_id": v.vm_id,
+                        "vm_status": v.vm_status,
+                        "vm_health": v.vm_health,
+                    })
+                })
+                .collect();
+            Json(json!({"ok": true, "vms": vms}))
+        }
+        Err(e) => Json(json!({"ok": false, "error": e.to_string()})),
+    }
 }
 
 /// Edge workers JSON for the Mini App workers screen: poolAI telegram

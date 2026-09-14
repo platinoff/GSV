@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title data-i18n="app.title">Telenetis - Chat</title>
+    <link rel="stylesheet" href="/static/app.css">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body class="platform-unknown">
+    <div id="app">
+        <h1 data-i18n="nav.chat">Chat with llama</h1>
+        <p class="dim">Routed only through poolAI services — no Termux, answers take minutes.</p>
+        <div id="chat-log" aria-live="polite"></div>
+        <form id="chat-form">
+            <input id="chat-input" type="text" autocomplete="off"
+                   placeholder="Ask llama..." aria-label="prompt">
+            <button type="submit">Send</button>
+        </form>
+    </div>
+    <script>
+    (function () {
+        function esc(s) {
+            return String(s == null ? "" : s)
+                .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+        var user = "";
+        try {
+            var tg = window.Telegram && window.Telegram.WebApp;
+            if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id) {
+                user = String(tg.initDataUnsafe.user.id);
+            }
+        } catch (e) { user = ""; }
+        var log = document.getElementById("chat-log");
+        var input = document.getElementById("chat-input");
+        function addMsg(who, text) {
+            var div = document.createElement("div");
+            div.className = "chat-msg chat-" + who;
+            div.textContent = text;
+            log.appendChild(div);
+            return div;
+        }
+        function poll(peer, taskId, bubble) {
+            var left = 60; // ~10 min at 10s cadence
+            var timer = setInterval(function () {
+                fetch("/api/edge/chat?peer=" + encodeURIComponent(peer) +
+                      "&task_id=" + encodeURIComponent(taskId),
+                      { headers: { "Accept": "application/json" } })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (data && data.ok && data.done) {
+                            clearInterval(timer);
+                            bubble.textContent = data.answer || "(empty)";
+                        } else if (!data || data.ok === false) {
+                            clearInterval(timer);
+                            bubble.textContent = "error: " +
+                                esc((data && data.error) || "unreachable");
+                        }
+                    })
+                    .catch(function () {
+                        clearInterval(timer);
+                        bubble.textContent = "poolAI unreachable";
+                    });
+                if (--left <= 0) {
+                    clearInterval(timer);
+                    if (bubble.textContent === "\u2026") bubble.textContent = "(still working — refresh)";
+                }
+            }, 10000);
+        }
+        document.getElementById("chat-form").addEventListener("submit", function (ev) {
+            ev.preventDefault();
+            var prompt = input.value.trim();
+            if (!prompt || !user) {
+                addMsg("sys", user ? "Type a prompt first." : "Open from Telegram to identify.");
+                return;
+            }
+            input.value = "";
+            addMsg("user", prompt);
+            var bubble = addMsg("llama", "\u2026");
+            fetch("/api/edge/chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ user: user, prompt: prompt, max_tokens: 64 })
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data && data.ok) {
+                        poll(data.peer, data.task_id, bubble);
+                    } else {
+                        bubble.textContent = "error: " + esc((data && data.error) || "unreachable");
+                    }
+                })
+                .catch(function () { bubble.textContent = "poolAI unreachable"; });
+        });
+    })();
+    </script>
+</body>
+</html>

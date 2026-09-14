@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title data-i18n="app.title">Telenetis - My Virtual Workers</title>
+    <link rel="stylesheet" href="/static/app.css">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body class="platform-unknown">
+    <div id="app">
+        <h1 data-i18n="nav.vm">My Virtual Workers</h1>
+        <p class="dim">poolAI VM instances behind your edge peers — no Termux needed, tensors stay on real workers.</p>
+        <h2 data-i18n="nav.shards">Shard map</h2>
+        <p class="dim">Latest <code>llama_shard</code> assignment per peer — who holds which layers.</p>
+        <table id="shards">
+            <thead>
+                <tr>
+                    <th>Peer</th>
+                    <th>Model</th>
+                    <th>Layers</th>
+                    <th>Worker up</th>
+                </tr>
+            </thead>
+            <tbody id="shards-body" aria-busy="true">
+                <tr data-skeleton="shards" aria-hidden="true">
+                    <td colspan="4"><div class="skeleton skeleton-row"></div></td>
+                </tr>
+            </tbody>
+        </table>
+        <table id="vms">
+            <thead>
+                <tr>
+                    <th>Peer</th>
+                    <th>VM</th>
+                    <th>Status</th>
+                    <th>Health</th>
+                </tr>
+            </thead>
+            <tbody id="vms-body" aria-busy="true">
+                <tr data-skeleton="vms" aria-hidden="true">
+                    <td colspan="4"><div class="skeleton skeleton-row"></div></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <script>
+    (function () {
+        fetch("/api/edge/shards", { headers: { "Accept": "application/json" } })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                var body = document.getElementById("shards-body");
+                if (!data || data.ok === false) return;
+                function esc(s) {
+                    return String(s == null ? "" : s)
+                        .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+                        .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+                }
+                var rows = (data.shards || []).map(function (s) {
+                    return "<tr><td>" + esc(s.peer_id) + "</td><td>" + esc(s.model) +
+                        "</td><td>" + esc(s.layers) + "</td><td>" +
+                        (s.rpc_reachable ? "yes" : "no") + "</td></tr>";
+                });
+                body.innerHTML = rows.length ? rows.join("") : "<tr><td colspan=\"4\">(no assignments yet)</td></tr>";
+                body.setAttribute("aria-busy", "false");
+            })
+            .catch(function () { /* fail-open: table keeps skeleton */ });
+    })();
+    </script>
+    <script>
+    (function () {
+        function esc(s) {
+            return String(s == null ? "" : s)
+                .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+        var user = "";
+        try {
+            var tg = window.Telegram && window.Telegram.WebApp;
+            if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id) {
+                user = String(tg.initDataUnsafe.user.id);
+            }
+        } catch (e) { user = ""; }
+        var url = "/api/edge/vm" + (user ? ("?user=" + encodeURIComponent(user)) : "");
+        fetch(url, { headers: { "Accept": "application/json" } })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                var body = document.getElementById("vms-body");
+                if (!data || data.ok === false) {
+                    body.innerHTML = "<tr><td colspan=\"4\">poolAI unreachable</td></tr>";
+                    return;
+                }
+                var rows = (data.vms || []).map(function (v) {
+                    var vm = v.vm_id ? esc(String(v.vm_id).slice(0, 8)) : "(no VM)";
+                    return "<tr><td>" + esc(v.peer_id) + "</td><td>" + vm +
+                        "</td><td>" + esc(v.vm_status) + "</td><td>" + esc(v.vm_health) + "</td></tr>";
+                });
+                body.innerHTML = rows.length ? rows.join("") : "<tr><td colspan=\"4\">(none bound — /start, then bind)</td></tr>";
+                body.setAttribute("aria-busy", "false");
+            })
+            .catch(function () {
+                document.getElementById("vms-body").innerHTML =
+                    "<tr><td colspan=\"4\">poolAI unreachable</td></tr>";
+            });
+    })();
+    </script>
+</body>
+</html>

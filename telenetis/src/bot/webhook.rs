@@ -1,4 +1,4 @@
-use crate::bot::commands::{handle_command, Command};
+use crate::bot::commands::Command;
 use crate::bot::mini_app::mini_app_url;
 use crate::bot::telegram::TelegramBot;
 use crate::state::{AppState, FlowEvent};
@@ -132,8 +132,16 @@ pub async fn process_update(state: &AppState, update: &Value) {
                     .and_then(|v| v.as_str())
                     .unwrap_or("unknown");
 
+                let sender_id = update
+                    .get("message")
+                    .and_then(|m| m.get("from"))
+                    .and_then(|f| f.get("id"))
+                    .and_then(|v| v.as_i64())
+                    .map(|id| id.to_string());
                 let cmd = Command::from_text(&text);
-                let response_text = handle_command(&cmd, state).await;
+                let response_text =
+                    crate::bot::commands::handle_command_from(&cmd, state, sender_id.as_deref())
+                        .await;
 
                 if matches!(cmd, Command::Start) {
                     // Cold-start prefetch (plan P3): the first interaction after
@@ -159,22 +167,22 @@ pub async fn process_update(state: &AppState, update: &Value) {
                 let bot = TelegramBot::new(state.config());
                 match &cmd {
                     Command::Start | Command::Help | Command::App => {
-                        let base = match state.tunnel_url().await {
-                            Some(url) => url,
-                            None => match &state.config().public_url {
-                                Some(pub_url) => pub_url.trim_end_matches('/').to_string(),
-                                None => format!("http://127.0.0.1:{}", state.config().port),
-                            },
-                        };
+                        let base = crate::edge::mini_app_base(
+                            state.tunnel_url().await,
+                            state.config().public_url.clone(),
+                            state.config().port,
+                            crate::edge::local_lan_ip(),
+                        );
                         let url = mini_app_url(&base);
-                        let res = if !url.starts_with("https://") {
-                            Err(crate::error::TelenetisError::Tunnel(
-                                "Mini App requires HTTPS tunnel URL (run /tunnel)".to_string(),
-                            ))
-                        } else if is_private_chat(chat_id) {
+                        // HTTPS → embedded web_app button (private) or t.me
+                        // startapp link (groups/channels reject web_app
+                        // buttons). Plain HTTP (LAN, no tunnel) → direct URL
+                        // button: opens in the browser on the same Wi-Fi.
+                        // 127.0.0.1 is never shown — it means the phone itself.
+                        let res = if url.starts_with("https://") && is_private_chat(chat_id) {
                             // Private chats support embedded `web_app` buttons.
                             bot.send_mini_app(chat_id, &response_text, &url).await
-                        } else {
+                        } else if url.starts_with("https://") {
                             // Channels/groups reject `web_app` buttons
                             // (BUTTON_TYPE_INVALID); a direct-link Mini App URL
                             // still opens the app embedded there.
@@ -187,9 +195,16 @@ pub async fn process_update(state: &AppState, update: &Value) {
                                 &app_link,
                             )
                             .await
+                        } else {
+                            let note = format!(
+                                "{response_text}\n\nSame Wi-Fi only: {url}\nOutside the house — run /tunnel."
+                            );
+                            bot.send_url_button(chat_id, &note, "Open Telenetis", &url)
+                                .await
                         };
                         if let Err(e) = res {
-                            let fallback_text = format!("{}\n\n⚠️ Mini App requires HTTPS tunnel URL.\nURL: {}\nError: {e}\n\nTip: Run /tunnel to start ngrok.", response_text, url);
+                            let fallback_text =
+                                format!("{response_text}\n\nOpen: {url}\nError: {e}");
                             if let Err(err) = bot.send_message(chat_id, &fallback_text).await {
                                 tracing::warn!("Failed to send fallback reply to {chat_id}: {err}");
                             }

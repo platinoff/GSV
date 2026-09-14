@@ -2304,8 +2304,57 @@ fn allowlisted(file: &SettingsFile, from: &str) -> bool {
         .any(|id| id.trim() == from)
 }
 
+/// Sender gate for `bus_send` when no allowlist is configured (the allowlist
+/// itself stays the strict mode). Permits local session words (`solo`,
+/// `squad`), the local jail id, online presence identity tokens, and numeric
+/// Telegram ids (channel users). Anything else — e.g. `godfather-admin` —
+/// is rejected as spoofing: with an empty allowlist any MCP client could
+/// otherwise claim/done as anyone.
+pub fn sender_permitted(online: &[String], local_jail: &str, from: &str) -> bool {
+    let f = from.trim();
+    if f.is_empty() {
+        return false;
+    }
+    if f == "solo" || f == "squad" {
+        return true;
+    }
+    if !local_jail.trim().is_empty() && f.eq_ignore_ascii_case(local_jail.trim()) {
+        return true;
+    }
+    if f.len() >= 5 && f.bytes().all(|b| b.is_ascii_digit()) {
+        return true;
+    }
+    online.iter().any(|n| n.trim() == f)
+}
+
+/// Identity tokens of currently-online workers for [`sender_permitted`].
+pub fn online_names(store: &tickets::PresenceStore) -> Vec<String> {
+    let mut out = Vec::new();
+    for p in tickets::online_now(store) {
+        for name in [&p.actor, &p.agent, &p.ide, &p.model, &p.jail_id] {
+            let name = name.trim();
+            if !name.is_empty() && !out.iter().any(|n: &String| n == name) {
+                out.push(name.to_string());
+            }
+        }
+    }
+    out
+}
+
 /// `POST /api/telegram/bus` / MCP `gsv_telegram_bus_send`.
 pub async fn bus_send(data_dir: &Path, explicit_dry: bool, args: &Value) -> Value {
+    bus_send_checked(data_dir, explicit_dry, args, None).await
+}
+
+/// Same, plus the sender gate: with a live worker set, `from` must be the
+/// allowlist (when configured), a local session word, an online identity,
+/// or a numeric Telegram id. Rejects arbitrary sender spoofing.
+pub async fn bus_send_checked(
+    data_dir: &Path,
+    explicit_dry: bool,
+    args: &Value,
+    presence: Option<&tickets::PresenceStore>,
+) -> Value {
     let dry = use_stub(explicit_dry);
     let file = match settings::load_result(data_dir) {
         Ok(f) => f,
@@ -2335,6 +2384,22 @@ pub async fn bus_send(data_dir: &Path, explicit_dry: bool, args: &Value) -> Valu
         let err = "from is not allowlisted";
         record_last(false, err);
         return bus_fail(err, &token);
+    }
+    if let Some(store) = presence {
+        // An explicit allowlist match above is sufficient (owner-approved
+        // names, incl. service jails). Only in open mode (empty allowlist)
+        // refuse unknown sender names (spoofing as privileged roles). Legit
+        // senders heartbeat first (solo/squad/jail/online name) or are
+        // channel users (numeric Telegram id).
+        if file.godfather.allowed_user_ids.is_empty() {
+            let jail = settings::jail_id(&file);
+            if !sender_permitted(&online_names(store), &jail, &from) {
+                let err =
+                    "from is not a known sender (heartbeat first, or ask the owner for allowlist)";
+                record_last(false, err);
+                return bus_fail(err, &token);
+            }
+        }
     }
     let kind = opt_arg(args, "kind").unwrap_or_else(|| "bus".into());
     let mut body = args
@@ -2753,6 +2818,64 @@ async fn bus_poll_live(token: &str, channel: &str, limit: usize, data_dir: &Path
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sender_permitted_allows_known_senders() {
+        let online = vec!["agent".to_string(), "muse-spark".to_string()];
+        assert!(sender_permitted(&online, "local", "solo"));
+        assert!(sender_permitted(&online, "local", "squad"));
+        assert!(sender_permitted(&online, "local", "local"));
+        assert!(sender_permitted(&online, "LOCAL", "local"));
+        assert!(sender_permitted(&online, "local", "muse-spark"));
+        assert!(sender_permitted(&online, "local", "5035500793"));
+        assert!(!sender_permitted(&online, "local", ""));
+        assert!(!sender_permitted(&online, "local", "godfather-admin"));
+        assert!(!sender_permitted(&[], "local", "mallory"));
+        assert!(!sender_permitted(&[], "local", "123"));
+    }
+
+    #[test]
+    fn checked_send_rejects_unknown_senders() {
+        let store = tickets::new_presence_store();
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let dir = std::env::temp_dir().join(format!(
+            "gsv-bussend-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        // Relay workflow on (else the relay gate, not the sender gate, fires).
+        std::fs::write(
+            dir.join("gsv_settings.json"),
+            r#"{"workflows":{"enabled":["telegram-relay"]}}"#,
+        )
+        .unwrap();
+        // Unknown name with an empty presence set is refused...
+        bus_clear_rate_limit();
+        let bad = rt.block_on(bus_send_checked(
+            &dir,
+            true,
+            &serde_json::json!({"from": "godfather-admin", "body": "x"}),
+            Some(&store),
+        ));
+        assert_eq!(bad.get("ok"), Some(&serde_json::Value::Bool(false)));
+        // ...while local session words still pass (dry-run, no channel).
+        // (The stub rate-limits the process-global bus to 1 msg/s.)
+        bus_clear_rate_limit();
+        let ok = rt.block_on(bus_send_checked(
+            &dir,
+            true,
+            &serde_json::json!({"from": "solo", "body": "x"}),
+            Some(&store),
+        ));
+        assert_eq!(ok.get("ok"), Some(&serde_json::Value::Bool(true)));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn live_api_off_in_lib_tests() {

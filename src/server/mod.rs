@@ -398,7 +398,15 @@ async fn api_telegram_bus_post(
     Json(body): Json<Value>,
 ) -> Json<Value> {
     let dry = crate::boxes::telegram::header_dry_run(&headers);
-    Json(crate::boxes::telegram::bus_send(&state.data_dir, dry, &body).await)
+    Json(
+        crate::boxes::telegram::bus_send_checked(
+            &state.data_dir,
+            dry,
+            &body,
+            Some(&state.ticket_presence),
+        )
+        .await,
+    )
 }
 
 async fn api_telegram_ticket(

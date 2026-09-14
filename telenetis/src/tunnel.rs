@@ -88,8 +88,13 @@ fn resolve_bin(config: &Config) -> Option<String> {
 
 /// Spawn the ngrok agent (detached) targeting the local listener.
 async fn spawn(config: &Config) -> Result<(), TelenetisError> {
-    let bin = resolve_bin(config)
-        .ok_or_else(|| TelenetisError::Tunnel("ngrok binary not found".to_string()))?;
+    let bin = resolve_bin(config).ok_or_else(|| {
+        TelenetisError::Tunnel(
+            "ngrok binary not found. Install it (`winget install Ngrok.Ngrok`, then `ngrok config add-authtoken …`), \
+             or set TELENETIS_PUBLIC_URL to a fixed host, or stay on the same Wi-Fi and use the LAN URL instead."
+                .to_string(),
+        )
+    })?;
     let addr = format!("http://127.0.0.1:{}", config.port);
     let mut cmd = Command::new(&bin);
     cmd.arg("http").arg(&addr).arg("--log=stdout");
