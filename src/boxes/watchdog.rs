@@ -10,6 +10,8 @@
 //! (`successor_plan` each tick) — it must not POST apply on the healthy server.
 //! Failed apply is `last_action=lockstep-fail` (never silent `probe-ok`).
 //! Cooldown while still needed is `lockstep-wait`, not `probe-ok`.
+//! `GSV_WATCHDOG_LOCKSTEP=0` (or `--no-lockstep`) turns the auto-apply leg off:
+//! needed-but-disabled ticks heartbeat `lockstep-off`, respawn-on-failure stays.
 //! A second process oneshot-applies on server-debug-newer **or** health lag, and
 //! only yields if the peer pid is still alive **and** its `bin_version` matches
 //! the crate. A stale watchdog exe spawns a successor (debug → live hop) then
@@ -35,6 +37,10 @@ pub const DEFAULT_FAIL_THRESHOLD: u32 = 2;
 pub const DEFAULT_COOLDOWN_SECS: u64 = 10;
 /// Heartbeat is "alive" if newer than this.
 pub const DEFAULT_MAX_AGE_SECS: u64 = 20;
+/// Env that disables the auto-apply (lockstep) leg: `0` / `off` / `false`.
+/// Respawn-on-failure stays on; `/api/update/apply` + `cargo xtask live`
+/// remain the operator paths (ticket drains must not restart the hub).
+pub const LOCKSTEP_ENV: &str = "GSV_WATCHDOG_LOCKSTEP";
 
 /// One watchdog tick.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -187,6 +193,32 @@ pub fn lockstep_wait_action() -> &'static str {
 /// Heartbeat note while waiting for cooldown.
 pub fn lockstep_wait_note() -> &'static str {
     "cooldown"
+}
+
+/// Pure gate behind [`LOCKSTEP_ENV`]: `0` / `off` / `false` (trimmed, any case)
+/// disables the auto-apply leg of the loop.
+pub fn lockstep_disabled_from(env: Option<&str>) -> bool {
+    matches!(
+        env.map(str::trim)
+            .map(|s| s.to_ascii_lowercase())
+            .as_deref(),
+        Some("0") | Some("off") | Some("false")
+    )
+}
+
+/// Process-env view of [`lockstep_disabled_from`].
+pub fn lockstep_disabled() -> bool {
+    lockstep_disabled_from(std::env::var(LOCKSTEP_ENV).ok().as_deref())
+}
+
+/// Heartbeat `last_action` while lockstep is needed but disabled by env/flag.
+pub fn lockstep_off_action() -> &'static str {
+    "lockstep-off"
+}
+
+/// Heartbeat note while auto-apply is disabled (`--no-lockstep` / [`LOCKSTEP_ENV`]).
+pub fn lockstep_off_note() -> &'static str {
+    "GSV_WATCHDOG_LOCKSTEP off (apply is operator-driven)"
 }
 
 /// Whether another watchdog process still holds the loop (fresh heartbeat + live pid).

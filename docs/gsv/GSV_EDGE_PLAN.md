@@ -59,6 +59,7 @@ Single source of truth for ports, autostart entries, env, and gaps.
 | `LLAMA_EDGE_SIGNING_KEY` | edge env (HKCU TR/vbs) | operator privkey | never echo, never commit |
 | `LLAMA_SERVE_URL` / `LLAMA_SERVE_FAST_URL` | edge env | `:8080` / `:8082` | tier routing |
 | `OMNI_*_API_KEY` | GSV env | out of `omni.toml` | keys never in toml |
+| `GSV_WATCHDOG_LOCKSTEP` | GSV env (watchdog) | `0` / `--no-lockstep` during drains | auto-`/api/update/apply` off (ticket-flow rebuilds must not bounce `:9999`); heartbeat `lockstep-off`; respawn-on-failure stays; apply stays operator-driven (`cargo xtask live`) |
 | `GSV_ACTOR`/`GSV_IDE`/`GSV_MODEL`/`GSV_AGENT` | GSV env | session identity | feeds claims + fingerprints |
 | Jail/allowed list | GSV `data/gsv_settings.json` | `["5035500793","solo","squad","local","telenetis-01"]` | owner edits via dashboard only |
 

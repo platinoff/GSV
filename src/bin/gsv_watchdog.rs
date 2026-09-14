@@ -16,9 +16,15 @@
 //! ```text
 //! cargo run --quiet --bin gsv-watchdog
 //! cargo run --quiet --bin gsv-watchdog -- --once
+//! cargo run --quiet --bin gsv-watchdog -- --no-lockstep
 //! cargo xtask watchdog
 //! cargo xtask watchdog-install
 //! ```
+//!
+//! `--no-lockstep` (or `GSV_WATCHDOG_LOCKSTEP=0` in the env) skips every
+//! auto-`/api/update/apply` — ticket drains rebuild `target/debug` and must
+//! not bounce the healthy `:9999` hub mid-session. Respawn-on-failure stays
+//! enabled either way.
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -37,6 +43,7 @@ struct Cfg {
     cooldown: u64,
     repo_root: PathBuf,
     once: bool,
+    no_lockstep: bool,
 }
 
 fn parse_args() -> Cfg {
@@ -47,6 +54,7 @@ fn parse_args() -> Cfg {
     let mut cooldown = DEFAULT_COOLDOWN_SECS;
     let mut repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let mut once = false;
+    let mut no_lockstep = false;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -71,9 +79,10 @@ fn parse_args() -> Cfg {
                 }
             }
             "--once" => once = true,
+            "--no-lockstep" => no_lockstep = true,
             "--help" | "-h" => {
                 println!(
-                    "Usage: gsv-watchdog [--host H] [--port N] [--interval S] [--fail-threshold N] [--cooldown S] [--repo-root P] [--once]"
+                    "Usage: gsv-watchdog [--host H] [--port N] [--interval S] [--fail-threshold N] [--cooldown S] [--repo-root P] [--once] [--no-lockstep]"
                 );
                 std::process::exit(0);
             }
@@ -88,6 +97,7 @@ fn parse_args() -> Cfg {
         cooldown,
         repo_root,
         once,
+        no_lockstep,
     }
 }
 
@@ -125,6 +135,9 @@ async fn post_apply(client: &reqwest::Client, host: &str, port: u16) -> (bool, u
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cfg = parse_args();
+    if cfg.no_lockstep {
+        std::env::set_var(watchdog::LOCKSTEP_ENV, "0");
+    }
     let url = watchdog::health_url(&cfg.host, cfg.port);
     let hb_path = heartbeat_path(&cfg.repo_root);
     let now = epoch_now();
@@ -154,7 +167,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let crate_ver = gsv::boxes::update::crate_version(&cfg.repo_root);
             let taking_over =
                 watchdog::watchdog_version_lag(crate_ver.as_deref(), &existing.bin_version);
-            if watchdog::should_oneshot_apply(true, needs) {
+            if watchdog::should_oneshot_apply(true, needs) && !watchdog::lockstep_disabled() {
                 let (apply_ok, status, note) = post_apply(&client, &cfg.host, cfg.port).await;
                 let action = watchdog::lockstep_action(apply_ok);
                 let hb = Heartbeat {
@@ -216,7 +229,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut action = if ok { "probe-ok" } else { "probe-fail" };
         let debug_newer = watchdog::debug_newer_server(&cfg.repo_root);
         let needs = watchdog::needs_lockstep(debug_newer, probe.version_lag);
-        if ok && watchdog::should_lockstep(needs, last_respawn, now, cfg.cooldown) {
+        let lockstep_off = ok && needs && watchdog::lockstep_disabled();
+        if lockstep_off {
+            action = watchdog::lockstep_off_action();
+            lockstep_note = watchdog::lockstep_off_note().into();
+            eprintln!("gsv-watchdog: lockstep-off ({lockstep_note})");
+        } else if ok && watchdog::should_lockstep(needs, last_respawn, now, cfg.cooldown) {
             let (apply_ok, status, note) = post_apply(&client, &cfg.host, cfg.port).await;
             last_apply_status = status;
             lockstep_note = note;

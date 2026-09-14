@@ -39,6 +39,24 @@ fn app_with_data(data: PathBuf) -> axum::Router {
     router(state)
 }
 
+/// Same as [`app_with_data`] but with a live `cursor` presence heartbeat:
+/// in open mode (empty allowlist) `bus_send_checked` only accepts senders
+/// that heartbeated first (anti-spoof gate, band 174+).
+fn app_cursor_online(data: PathBuf) -> axum::Router {
+    let (tx, _rx) = broadcast::channel(32);
+    let state = AppState::new(Some(kit_root()), Some(data), tx);
+    tickets::heartbeat(
+        &state.ticket_presence,
+        &ClaimedBy {
+            actor: "cursor".into(),
+            ide: "cursor".into(),
+            model: String::new(),
+            agent: String::new(),
+        },
+    );
+    router(state)
+}
+
 async fn get_json(app: &axum::Router, path: &str) -> (StatusCode, Value) {
     get_json_headers(app, path, &[]).await
 }
@@ -532,7 +550,7 @@ async fn http_bus_round_trip_and_csrf() {
     telegram::bus_reset();
     let data = temp_data("http-bus");
     save_relay(&data, "-100h", "123:http-bus-secret", &[]);
-    let app = app_with_data(data);
+    let app = app_cursor_online(data);
     let (cross, cjson) = post_json(
         &app,
         "/api/telegram/bus",
@@ -572,7 +590,7 @@ async fn mcp_bus_send_and_poll() {
     telegram::bus_reset();
     let data = temp_data("mcp-bus");
     save_relay(&data, "-100mcpbus", "mcp-bus-secret-token", &[]);
-    let app = app_with_data(data);
+    let app = app_cursor_online(data);
     let send = app
         .clone()
         .oneshot(

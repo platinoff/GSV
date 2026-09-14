@@ -384,11 +384,23 @@ mod tests {
             .unwrap_or_else(|p| p.into_inner());
         let root = Path::new("S:/rust/llama-rs");
         assert_eq!(heartbeat_of("gsv", root), (None, None));
+        // Override to a never-written path: a live `llama_serve` heartbeat on
+        // this box must not flip the no-file freshness expectation.
+        let missing = std::env::temp_dir().join(format!(
+            "gsv-products-hb-missing-{}.json",
+            std::process::id()
+        ));
+        std::env::set_var("LLAMA_HEARTBEAT_PATH", &missing);
         let (path, alive) = heartbeat_of("llama-rs", root);
-        let (path, alive) = (path.expect("path"), alive.expect("alive"));
-        assert!(path.ends_with("target/live/llama_heartbeat.json"), "{path}");
+        std::env::remove_var("LLAMA_HEARTBEAT_PATH");
+        let (_path, alive) = (path.expect("path"), alive.expect("alive"));
         // With no file the freshness mirrors keep_live (false), not a panic.
         assert!(!alive);
+        // Default shape still points at the llama-rs live heartbeat.
+        let (default_path, _) = heartbeat_of("llama-rs", root);
+        assert!(default_path
+            .expect("default path")
+            .ends_with("target/live/llama_heartbeat.json"));
     }
 
     #[test]

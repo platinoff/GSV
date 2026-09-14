@@ -149,6 +149,19 @@ fn lockstep_wait_is_not_probe_ok() {
 }
 
 #[test]
+fn lockstep_off_gate_parses_env_values() {
+    assert!(watchdog::lockstep_disabled_from(Some("0")));
+    assert!(watchdog::lockstep_disabled_from(Some("OFF")));
+    assert!(watchdog::lockstep_disabled_from(Some(" false ")));
+    assert!(!watchdog::lockstep_disabled_from(Some("1")));
+    assert!(!watchdog::lockstep_disabled_from(Some("on")));
+    assert!(!watchdog::lockstep_disabled_from(None));
+    assert_eq!(watchdog::lockstep_off_action(), "lockstep-off");
+    assert_ne!(watchdog::lockstep_off_action(), "probe-ok");
+    assert!(watchdog::lockstep_off_note().contains("operator-driven"));
+}
+
+#[test]
 fn watchdog_version_lag_treats_empty_bin_as_lag() {
     assert!(watchdog::watchdog_version_lag(Some("0.172.0"), ""));
     assert!(watchdog::watchdog_version_lag(Some("0.172.0"), "0.170.0"));
