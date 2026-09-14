@@ -27,7 +27,7 @@ landed 2026-09-14), and **OpenCode ⇄ hub never drops on ticket drains** (watch
 - [x] grid: ALLBGP topology box in GSV hub (mirror poolAI topology/workers/virtual-nodes + history ring, GET /api/grid, MCP gsv_grid, SSE events) — landed 2026-09-14: boxes/grid.rs, fail-open stale-keep, durable ring data/gsv_grid.json, 10 s loop + event:grid
 - [x] grid: per-device capacity profiles (VRAM/RAM/class) in hub, feed poolAI placement hints instead of boolean has_gpu — landed 2026-09-14: data/gsv_grid_profiles.json + POST /api/grid/profile + capacity.rows/stub detector; poolAI hint feed needs upstream contract (open)
 - [ ] omni: tier routing — add bunke-rock-fast provider (:8082, lama-1.5) to catalog + X-Omni-Tier fast|deep header in proxy
-- [ ] grid: Qwen-27B layer-map planner — compute shard ranges, render llama_serve --rpc list, re-issue on worker loss (rebalance)
+- [x] grid: Qwen-27B layer-map planner — compute shard ranges, render llama_serve --rpc list, re-issue on worker loss (rebalance) — landed 2026-09-14: plan_layers + GET /api/grid/plan (proportional contiguous ranges, --rpc args, advice; derived=rebalanced on every call)
 - [ ] grid: burst seat queue at hub — on poolAI 409 seat_exhausted enqueue + retry, expose queue depth on keep-live
 - [ ] security: hub single-entry proxy for poolAI edge plane (token auth + rate limit where poolAI has none)
 - [ ] security: service account for Telenetis edge calls replacing admin/admin123 (see ticket t-1789360414663375700)

@@ -49,12 +49,16 @@ point-to-point.
   totals). Feeding these as placement hints into poolAI job payloads stays
   open (needs a poolAI-side contract).
 
-### 3. Placement/rebalance — P0
-- Layer-map planner: given Σ free RAM across devices + IQ2 weights ≈ 6.9 GiB,
-  cut contiguous layer ranges; render `llama_serve --rpc` argv; re-issue on
-  worker loss (poolAI has no auto-migration — `re_migrate_prefetch_stub`).
-- No Termux ⇒ phones never hold tensors; only Linux ggml-rpc boxes shard the
-  27B. A54 stays a task worker (draft holder, probes, side jobs).
+### 3. Placement/rebalance — LANDED 2026-09-14 (planner core)
+- `plan_layers` (boxes/grid.rs) + `GET /api/grid/plan`: proportional contiguous
+  shard ranges per budgeted device, rendered `llama_serve --rpc` argv, honest
+  `advice` + `uncovered_layers` when 27B cannot fit. Derived from the live
+  mirror ⇒ a dead device is rebalanced away on the very next plan call (poolAI
+  itself still has no auto-migration for *running* jobs — planner fixes the
+  map, not the in-flight task).
+- No Termux ⇒ phones (class `edge`) never receive ranges; only Linux
+  ggml-rpc boxes shard the 27B. A54 stays a task worker (draft holder,
+  probes, side jobs).
 
 ### 4. Hybrid routing — DONE 2026-09-14, keep
 - `data/omni.toml`: cloud free-tier chain first, `bunke-rock` last;
