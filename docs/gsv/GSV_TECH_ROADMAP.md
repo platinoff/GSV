@@ -2198,9 +2198,9 @@ Plan: [`GSV_FRAMEWORK_REFRESH_PLAN.md`](./GSV_FRAMEWORK_REFRESH_PLAN.md) сек�
 |--------|-------|-------------------|
 | **PH-S2982** | telenetis wave A | tower-http 0.6→0.7 (без дрейфу), hmac 0.12→0.13 + sha2 0.10→0.11 (KeyInit constructor); OpenSSL-ref-pinned HMAC fixtures не деградуюли; 206+4 green; GSV `5e38604` — **✅** | 
 | **PH-S2983** | telenetis wave B | askama 0.13 = мертва залежність (0 `derive(Template)`; UI = `include_str!`) → видалена замість 3-мейджорPorting; GSV `c117343` — **✅** | 
-| **PH-S2984** | poolAI refresh | toml 0.9→1.1 + lock refresh (kube/k8s-openapi за cluster-політиці не чіпані); гейт `cargo test-ci` (-j1, features ml,enterprise,cloud,test-utils,job-store-sqlite,prometheus) — в процесі | 
+| **PH-S2984** | poolAI refresh | toml 0.9.11→1.1.6 + lock refresh (kube/k8s-openapi за cluster-політиці не чіпані); гейт `cargo test-ci` повний exit=0 (wall 1214s, 0 FAILED) · clippy 0 · record-rust/speed green — **✅** (poolAI `60daf92fe`) | 
 | **PH-S2985** | Bus-flake hardening | клас band 232: `checked_send_rejects_unknown_senders` + `enqueue_session_data_records_mcp_signal` серіалізовані `ENV_LOCK` (процес-глобальний 1 msg/s stub-bus гонив → record-speed exit=101); follow-up `t-1789434702535698600` — contracts-бінари (gsv_telegram/gsv_tickets, ~35 bus_reset без локу) — **✅** | 
-| **PH-S2986** | Gate + close | record-speed exit=0 · record-rust 0/0 · sync · fingerprint · `--band 234` (0.234.0) · live take-over · GSV+poolAI commit/push — в процесі | 
+| **PH-S2986** | Gate + close | record-speed exit=0 · record-rust 0/0 · sync · fingerprint · `--band 234` (0.234.0) · GSV×3 + poolAI×2 commits pushed · live take-over — **✅** | 
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
