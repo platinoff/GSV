@@ -18,6 +18,11 @@ use serde_json::{json, Value};
 use tokio::sync::broadcast;
 use tower::ServiceExt;
 
+/// The Godfather stub bus is process-global (queue + 1 msg/s rate clock).
+/// These two HTTP wire tests call `telegram::bus_reset()` and read the queue,
+/// so they must not interleave (band 234 flake hardening).
+static BUS_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 fn nanos() -> u128 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -1140,6 +1145,7 @@ fn solo_walk_claims_and_dones_band() {
 
 #[tokio::test]
 async fn http_walk_enqueues_telegram_sync() {
+    let _bus_guard = BUS_LOCK.lock().await;
     let kit = temp_kit("http-walk");
     enable_claim_relay(&kit.join("data"));
     write_mds_band(&kit);
@@ -1313,6 +1319,7 @@ fn parse_owner_phrase() {
 
 #[tokio::test]
 async fn http_hook_phrase_places_catalog_and_syncs() {
+    let _bus_guard = BUS_LOCK.lock().await;
     let kit = temp_kit("http-hook");
     enable_claim_relay(&kit.join("data"));
     write_mds_band(&kit);

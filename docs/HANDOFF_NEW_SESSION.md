@@ -1,6 +1,6 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-09-14 (band **233** LAN-first session flow ✅ · next = **owner pick**; refresh queue: rebook → LinFS → ORR → llama-rs → poolAI)
+**Оновлено:** 2026-09-15 (band **234** open · refresh wave: telenetis A/B ✅, poolAI toml 1.1 gate in progress · next = **owner pick**; refresh queue: rebook → LinFS → ORR → llama-rs → poolAI)
 
 **band 233 (LAN-first):** `gsv::net::local_addr()` (env `GSV_LOCAL_ADDR`; harness=loopback) + LAN
 origin-gate (`gate_post`) + live bind `0.0.0.0 --allow-lan`; keep_live/usage/omni/telenetis/llama-rs
