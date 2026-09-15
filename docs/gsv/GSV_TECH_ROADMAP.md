@@ -2204,6 +2204,19 @@ Plan: [`GSV_FRAMEWORK_REFRESH_PLAN.md`](./GSV_FRAMEWORK_REFRESH_PLAN.md) сек�
 | **PH-S2987** | llama-cpp bump trial | 0.1.156: 6 patches re-applied clean (capture `llama-rs e05cfde`), lib/bins/clippy/tests + 27B generate + chat GREEN; MTP draft ⛔ `qwen35.cpp GGML_ASSERT(nextn.eh_proj)` — той самий assert у .154 → blocker = draft-GGUF, не бамп; pin лишається 0.1.154, retry після re-export draft (`t-1789361515100705500` blocked) | 
 | **PH-S2988** | MoE bench wave | Qwen3-30B-A3B-UD-IQ2_XXS (9.65G) замість 8-біт MTP: `llama_speed` → **tg 0.497 tok/s (~11× dense-27B)**, pp 1.075, TTFT 298s cold; висновок: шлях MoE правильний, але файл > RAM → трешинг не дає 2–6 — потрібен quant < RAM або більше RAM (`llama-rs 783d163`); сервіси після прогону відновлені (respawn :8080, keep-live all-up, edges на 192.168.2.238) — **✅**. **Wave A (IQ1_S, рішення «1-біт?»)**: ⛔ негатив — `ggml-cpu/ops.cpp:3234 !isnan` на .154 І .156 (coherence-grid + cold/warm), 1-біт out для qwen3moe-on-CPU; постура: IQ2_XXS async + `:8082` (`llama-rs 14d77aa`) | 
 
+## Спринти (band 235) — transport modes + host-прискорення (research-план)
+
+Канон ресерчу: [`GSV_RESEARCH_RUST_GPU_EDGE.md`](./GSV_RESEARCH_RUST_GPU_EDGE.md)
+(2026-09-15). Owner-рішення: телефони не чіпаємо до PH-S2992; axum→ntex і
+wgpu-rewrite — відхилено з цифрами.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2989** | Deep-tier MoE swap | :8080 serve → `Qwen3-30B-A3B-UD-IQ2_XXS` (new `--model-name lama-2.9`, 0.497 проти 0.045); GSV catalog row + `tier_model(deep)` ремап; vbs/HKCU-запис + respawn; LAN E2E чат A54; 27B-fallback не видаляється; gate: fmt/clippy/test + record + rules-check |
+| **PH-S2990** | Transport modes | `transport_mode` клас (loopback|lan|tunnel) у health; Galaxy+Mini App: tunnel ⇒ view-only badge + data-action off (серверний 403 уже є); tunnel-profile: gzip через tower-http, уповільнений poll, SSE-only critical; gate: fmt/clippy/test telenetis+GSV + ngrok-смоук з телефону |
+| **PH-S2991** | Vulkan spike | llama-cpp-sys `-DGGML_VULKAN=ON` на our .154-патчах; `llama_speed` дельта (1.5B tg/pp; 30B attention/shared); документ-рядок у BENCHMARKS; **без** prod-зміни до результату |
+| **PH-S2992** | WASM 0.5–0.8B у Mini App | deltanet.wasm-клас рантайм (Qwen3.5 0.8B Q4, ~1GB peak) як локальний pre-fill/підказки; A54-measurement; після PH-S2990 |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.
