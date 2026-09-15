@@ -2201,6 +2201,7 @@ Plan: [`GSV_FRAMEWORK_REFRESH_PLAN.md`](./GSV_FRAMEWORK_REFRESH_PLAN.md) сек�
 | **PH-S2984** | poolAI refresh | toml 0.9.11→1.1.6 + lock refresh (kube/k8s-openapi за cluster-політиці не чіпані); гейт `cargo test-ci` повний exit=0 (wall 1214s, 0 FAILED) · clippy 0 · record-rust/speed green — **✅** (poolAI `60daf92fe`) | 
 | **PH-S2985** | Bus-flake hardening | клас band 232: `checked_send_rejects_unknown_senders` + `enqueue_session_data_records_mcp_signal` серіалізовані `ENV_LOCK` (процес-глобальний 1 msg/s stub-bus гонив → record-speed exit=101); follow-up `t-1789434702535698600` — contracts-бінари (gsv_telegram/gsv_tickets, ~35 bus_reset без локу) — **✅** | 
 | **PH-S2986** | Gate + close | record-speed exit=0 · record-rust 0/0 · sync · fingerprint · `--band 234` (0.234.0) · GSV×3 + poolAI×2 commits pushed · live take-over — **✅** | 
+| **PH-S2987** | llama-cpp bump trial | 0.1.156: 6 patches re-applied clean (capture `llama-rs e05cfde`), lib/bins/clippy/tests + 27B generate + chat GREEN; MTP draft ⛔ `qwen35.cpp GGML_ASSERT(nextn.eh_proj)` — той самий assert у .154 → blocker = draft-GGUF, не бамп; pin лишається 0.1.154, retry після re-export draft (`t-1789361515100705500` blocked) | 
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
