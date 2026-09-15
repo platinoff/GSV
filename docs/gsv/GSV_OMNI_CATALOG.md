@@ -32,7 +32,7 @@ Cursor-only speed lane: **Composer 2.5** (Cursor Models monthly pool). Not an Om
 
 ## Local llama provider `bunke-rock` (band 225)
 
-Local **llama-rs** backend (`S:/rust/llama-rs`, llama.cpp) registered as catalog `bunke-rock` / `lama-2.8` — the 2-bit `models/Qwen3.8-27B-UD-IQ2_XXS.gguf` (IQ2_XXS, ctx 32768, free tier).
+Local **llama-rs** backend (`S:/rust/llama-rs`, llama.cpp) registered as catalog `bunke-rock` / `lama-2.8` — deep tier since band 235: `models/Qwen3-30B-A3B-UD-IQ2_XXS.gguf` (IQ2_XXS MoE, ctx 40960, tg 0.497 measured 2026-09-15; 27B dense stays reserved as fallback; free tier).
 
 - **Kind** `local` (vs `remote` API vendors): `GET /api/omni` lists it with `kind: local`; `enabled` is **gated on the model file existing** (`catalog::host_ready`, same file Great Galaxy keep-live reads).
 - **Routing:** `GET /api/omni/route?task=rust&prefer_free=true` can pick it as the free lane (skips cooling); no base_url/token needed (defaults to `http://127.0.0.1:8080/v1` if it ever proxies).

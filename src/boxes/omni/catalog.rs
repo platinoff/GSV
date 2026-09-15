@@ -15,7 +15,10 @@ pub const RESEARCHED_AT: &str = "2026-08-18";
 
 /// Local llama-rs model the `bunke-rock` provider serves (kind `local`).
 /// The provider is host-ready only while this file exists on disk.
-pub const BUNKE_ROCK_MODEL_FILE: &str = "S:/rust/llama-rs/models/Qwen3.8-27B-UD-IQ2_XXS.gguf";
+/// Band 235 (PH-S2989): deep tier swapped dense-27B → Qwen3-30B-A3B
+/// IQ2_XXS (MoE, tg 0.497 vs 0.045 tok/s measured 2026-09-15,
+/// `llama-rs/docs/BENCHMARKS.md`); the 27B file stays as fallback.
+pub const BUNKE_ROCK_MODEL_FILE: &str = "S:/rust/llama-rs/models/Qwen3-30B-A3B-UD-IQ2_XXS.gguf";
 
 /// Local llama-rs model the `bunke-rock-fast` provider serves (interactive
 /// tier on `llama_serve :8082`, `llama-rs/docs/BENCHMARKS.md`).
@@ -234,7 +237,7 @@ pub fn providers() -> &'static [ProviderSpec] {
             region: "Local",
             free: true,
             default_base_url: "http://127.0.0.1:8080/v1",
-            notes: "Local llama-rs inference backend (Qwen 27B IQ2_XXS, S:/rust/llama-rs/models/Qwen3.8-27B-UD-IQ2_XXS.gguf)",
+            notes: "Local llama-rs deep tier (Qwen3-30B-A3B IQ2_XXS MoE, tg 0.497; 27B dense reserved; S:/rust/llama-rs/models/Qwen3-30B-A3B-UD-IQ2_XXS.gguf)",
             quota: QUOTA_PAID,
         },
         ProviderSpec {
@@ -465,7 +468,7 @@ pub fn models() -> &'static [ModelSpec] {
             "lama-2.8",
             "Lama 2.8 (BunkeRock · llama-rs)",
             "bunke-rock",
-            Some(32_768),
+            Some(40_960),
             Some(4_096),
             true,
             false,
@@ -1125,7 +1128,7 @@ mod tests {
         assert!(!lama.is_empty(), "lama-2.8 in catalog");
         for spec in &lama {
             assert_eq!(spec.provider, "bunke-rock");
-            assert_eq!(spec.context_window, Some(32_768));
+            assert_eq!(spec.context_window, Some(40_960));
             assert!(spec.free && spec.rust, "{} free+rust lane", spec.id);
         }
     }
