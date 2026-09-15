@@ -2213,7 +2213,7 @@ wgpu-rewrite — відхилено з цифрами.
 | Sprint | Фокус | Acceptance (ключ) |
 |--------|-------|-------------------|
 | **PH-S2989** | Deep-tier MoE swap | :8080 serve → `Qwen3-30B-A3B-UD-IQ2_XXS` (new `--model-name lama-2.9`, 0.497 проти 0.045); GSV catalog row + `tier_model(deep)` ремап; vbs/HKCU-запис + respawn; LAN E2E чат A54; 27B-fallback не видаляється; gate: fmt/clippy/test + record + rules-check |
-| **PH-S2990** | Transport modes | `transport_mode` клас (loopback|lan|tunnel) у health; Galaxy+Mini App: tunnel ⇒ view-only badge + data-action off (серверний 403 уже є); tunnel-profile: gzip через tower-http, уповільнений poll, SSE-only critical; gate: fmt/clippy/test telenetis+GSV + ngrok-смоук з телефону |
+| **PH-S2990** | Transport modes | `security::transport_mode` (loopback\|lan\|tunnel за Host; fail-closed tunnel) → `/api/health` + `GET /mcp`; Galaxy badge `view-only · tunnel` + `TRANSPORT_MUTATE`-гард + 3× сповільнений silent-resync; gzip `tower-http` CompressionLayer+DefaultPredicate з response-predicate (SSE text/event-stream не стискається); юніт transport_mode 10 + contracts (transport-mode/gzip/sse-no-gzip) + UI-маркери; повний suite 858/0; ngrok смоук з телефону — ручний крок власника — **✅** |
 | **PH-S2991** | Vulkan spike | llama-cpp-sys `-DGGML_VULKAN=ON` на our .154-патчах; `llama_speed` дельта (1.5B tg/pp; 30B attention/shared); документ-рядок у BENCHMARKS; **без** prod-зміни до результату |
 | **PH-S2992** | WASM 0.5–0.8B у Mini App | deltanet.wasm-клас рантайм (Qwen3.5 0.8B Q4, ~1GB peak) як локальний pre-fill/підказки; A54-measurement; після PH-S2990 |
 

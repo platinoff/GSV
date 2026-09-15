@@ -99,6 +99,81 @@ async fn index_serves_gsv_ui() {
 }
 
 #[tokio::test]
+async fn gzip_compresses_html_when_requested() {
+    let (app, _state) = app();
+    let res = app
+        .clone()
+        .oneshot(
+            Request::get("/")
+                .header("Accept-Encoding", "gzip")
+                .body(Body::empty())
+                .expect("req"),
+        )
+        .await
+        .expect("resp");
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(
+        res.headers()
+            .get(header::CONTENT_ENCODING)
+            .and_then(|v| v.to_str().ok()),
+        Some("gzip"),
+        "band 235: tunnel economy compression"
+    );
+}
+
+#[tokio::test]
+async fn sse_events_are_never_gzipped() {
+    let (app, _state) = app();
+    let res = app
+        .oneshot(
+            Request::get("/events")
+                .header("Accept-Encoding", "gzip")
+                .body(Body::empty())
+                .expect("req"),
+        )
+        .await
+        .expect("resp");
+    assert_eq!(res.status(), StatusCode::OK);
+    let enc = res
+        .headers()
+        .get(header::CONTENT_ENCODING)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_default();
+    assert_ne!(enc, "gzip", "SSE must stay uncompressed (live frames)");
+}
+
+#[tokio::test]
+async fn health_reports_transport_mode_per_host() {
+    let (app, _state) = app();
+    for (host, want) in [
+        ("127.0.0.1:9999", "loopback"),
+        ("localhost:9999", "loopback"),
+        ("192.168.2.238:9999", "lan"),
+        ("atonable-alibi-unwilling.ngrok-free.app", "tunnel"),
+    ] {
+        let res = app
+            .clone()
+            .oneshot(
+                Request::get("/api/health")
+                    .header("Host", host)
+                    .body(Body::empty())
+                    .expect("req"),
+            )
+            .await
+            .expect("resp");
+        let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+            .await
+            .expect("body");
+        let json: Value = serde_json::from_slice(&bytes).expect("json");
+        assert_eq!(json["transport_mode"], want, "host {host}");
+    }
+    // Missing Host (bare test builder) must fail closed to tunnel.
+    let (status, json) = get(&app, "/api/health").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["transport_mode"], "tunnel");
+}
+
+#[tokio::test]
 async fn health_returns_ok() {
     let (app, _state) = app();
     let (status, json) = get(&app, "/api/health").await;

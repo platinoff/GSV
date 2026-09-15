@@ -350,6 +350,22 @@ fn card_renderers_empty_state_contract() {
     assert!(tickets.contains("tickets — no data"), "{tickets}");
 }
 
+/// Band 235 PH-S2990: served UI carries the transport badge, the tunnel
+/// mutation guard, and health wiring (`transport_mode` from `/api/health`).
+#[tokio::test]
+async fn ui_index_transport_mode_markers_present() {
+    let (app, _state) = app();
+    let html = get_index_html(&app).await;
+    assert!(html.contains("function setTransport"), "transport badge fn");
+    assert!(html.contains("view-only · tunnel"), "tunnel badge copy");
+    assert!(html.contains("TRANSPORT_MUTATE"), "mutation guard list");
+    assert!(
+        html.contains("setTransport(d.transport_mode"),
+        "health wiring"
+    );
+    assert!(html.contains("TM===\"tunnel\""), "guard + poll economy");
+}
+
 /// A11y contract: the served UI HTML carries axe-friendly markers — lang,
 /// `role="status"` live regions, `aria-live`, `aria-label`s, image `alt`.
 #[tokio::test]

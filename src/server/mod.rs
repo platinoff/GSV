@@ -14,6 +14,8 @@ use axum::{Json, Router};
 use futures_util::stream::{self, StreamExt};
 use serde_json::{json, Value};
 use tokio_stream::wrappers::BroadcastStream;
+use tower_http::compression::predicate::DefaultPredicate;
+use tower_http::compression::{CompressionLayer, Predicate as _};
 
 use crate::boxes::ide::IdeSelection;
 use crate::boxes::preview::{resolve as preview_resolve, PreviewParams};
@@ -253,6 +255,26 @@ pub fn router(state: AppState) -> Router {
         )
         .layer(DefaultBodyLimit::max(crate::security::MAX_BODY_BYTES))
         .layer(middleware::from_fn(security_gate))
+        // Band 235 PH-S2990: gzip JSON/HTML/UI for the ngrok view-only path
+        // (bandwidth economy). Response predicate: keep the default rules
+        // (size + content-type) and never compress live SSE streams
+        // (`/events`, MCP Streamable-HTTP GET holds).
+        .layer(
+            CompressionLayer::new()
+                .gzip(true)
+                .compress_when(DefaultPredicate::new().and(
+                    |_status: StatusCode,
+                     _version: axum::http::Version,
+                     headers: &HeaderMap,
+                     _ext: &axum::http::Extensions| {
+                        headers
+                            .get(header::CONTENT_TYPE)
+                            .and_then(|v| v.to_str().ok())
+                            .map(|ct| !ct.starts_with("text/event-stream"))
+                            .unwrap_or(true)
+                    },
+                )),
+        )
         .with_state(state)
 }
 
@@ -345,8 +367,11 @@ async fn api_vision_svg() -> Response {
         .into_response()
 }
 
-async fn api_health(State(state): State<AppState>) -> Json<Value> {
+async fn api_health(State(state): State<AppState>, headers: axum::http::HeaderMap) -> Json<Value> {
     let mut h = health(&state);
+    // Band 235 PH-S2990: transport class of the caller (loopback|lan|tunnel).
+    let host = host_header(&headers);
+    h["transport_mode"] = json!(crate::security::transport_mode(host.as_deref()));
     // Keep-live is fail-open and async (1s total with concurrent probes) — merge here so health stays responsive.
     let mut keep = crate::boxes::keep_live::wire_async(&state.data_dir).await;
     let uptime = state.started_at.elapsed().map(|d| d.as_secs()).unwrap_or(0);
@@ -719,7 +744,19 @@ async fn api_mcp_get(State(state): State<AppState>, headers: HeaderMap) -> Respo
         }
         return mcp_sse_reply(state.drain_mcp_notifications(), None);
     }
-    Json(crate::mcp::http_info(&state)).into_response()
+    let mut info = crate::mcp::http_info(&state);
+    info["transport_mode"] = json!(crate::security::transport_mode(
+        host_header(&headers).as_deref()
+    ));
+    Json(info).into_response()
+}
+
+/// Host header as owned string (band 235).
+fn host_header(headers: &axum::http::HeaderMap) -> Option<String> {
+    headers
+        .get(axum::http::header::HOST)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string())
 }
 
 /// Long-lived Streamable HTTP GET (Cursor). Finite flush stays on sessionless GET.

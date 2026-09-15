@@ -128,6 +128,32 @@ pub fn origin_is_local(origin: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// Access transport class of a request `Host` value (band 235 PH-S2990):
+/// `"loopback"` (on-box), `"lan"` (own address / private range), or
+/// `"tunnel"` (everything else — ngrok domains, unknown hosts; fail-closed
+/// to view-only semantics). Server mutations are still gated by
+/// [`gate_post`]; this classification only informs the UI and poll economy.
+pub fn transport_mode(host: Option<&str>) -> &'static str {
+    let Some(h) = host.map(|h| h.trim()).filter(|h| !h.is_empty()) else {
+        return "tunnel";
+    };
+    let without_port = match h.strip_prefix('[') {
+        // "[::1]:9999" — bracketed IPv6 authority.
+        Some(rest) => rest.split(']').next().unwrap_or(rest),
+        // "host:8091" has exactly one colon; "::1" (bare IPv6) has more.
+        None if h.matches(':').count() == 1 => h.split(':').next().unwrap_or(h),
+        None => h,
+    };
+    let bare = without_port.trim_end_matches('.');
+    if is_loopback_host(bare) {
+        "loopback"
+    } else if bare == crate::net::local_addr() || is_private_lan_host(bare) {
+        "lan"
+    } else {
+        "tunnel"
+    }
+}
+
 /// Gate for POST handlers: missing site/origin (curl, tests) is allowed;
 /// browser cross-site or a foreign Origin is not. In LAN mode the machine's
 /// own local address and private-LAN origins pass the gate.
@@ -306,6 +332,34 @@ mod tests {
             .find(|(n, _)| *n == "cache-control")
             .map(|(_, v)| *v);
         assert_eq!(cache, Some("no-store"));
+    }
+
+    #[test]
+    fn transport_mode_classes_loopback_lan_and_tunnel() {
+        assert_eq!(transport_mode(Some("127.0.0.1:9999")), "loopback");
+        assert_eq!(transport_mode(Some("localhost")), "loopback");
+        assert_eq!(transport_mode(Some("[::1]:9999")), "loopback");
+        assert_eq!(transport_mode(Some("::1")), "loopback");
+        assert_eq!(transport_mode(Some("192.168.2.238:9999")), "lan");
+        assert_eq!(transport_mode(Some("10.1.2.3")), "lan");
+        assert_eq!(transport_mode(Some("[fd12::3456]")), "lan");
+        assert_eq!(
+            transport_mode(Some("atonable-alibi-unwilling.ngrok-free.app")),
+            "tunnel"
+        );
+        assert_eq!(transport_mode(Some("example.com:443")), "tunnel");
+        assert_eq!(transport_mode(None), "tunnel", "missing host fails closed");
+        assert_eq!(transport_mode(Some("  ")), "tunnel");
+        // The resolved local address is lan-class whenever it is not loopback
+        // (loopback wins by the explicit rule above; under the test harness
+        // local_addr() is 127.0.0.1, so assert the non-loopback form).
+        let local = crate::net::local_addr();
+        let want = if is_loopback_host(&local) {
+            "loopback"
+        } else {
+            "lan"
+        };
+        assert_eq!(transport_mode(Some(&local)), want);
     }
 
     #[test]
