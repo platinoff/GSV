@@ -2836,6 +2836,11 @@ mod tests {
 
     #[test]
     fn checked_send_rejects_unknown_senders() {
+        // The dry-run stub bus is process-global (1 msg/s rate clock):
+        // serialize with the other bus-touching test (band 232 flake class).
+        let _bus_guard = crate::boxes::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
         let store = tickets::new_presence_store();
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -2953,6 +2958,9 @@ mod tests {
 
     #[test]
     fn enqueue_session_data_records_mcp_signal() {
+        let _bus_guard = crate::boxes::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
         bus_reset();
         let data = SyncData {
             hint: Some("claim-next".into()),
