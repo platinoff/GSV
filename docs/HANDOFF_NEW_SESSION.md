@@ -1,6 +1,6 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-09-15 (band **234** ✅ — refresh wave: telenetis A `5e38604`/B `c117343`, poolAI toml 1.1 `60daf92fe` test-ci 0-failed, flake hardening `7d8747d`/`16cff8e` · llama-cpp-2 0.1.156 trial **blocked**: MTP draft `qwen35.cpp GGML_ASSERT(nextn.eh_proj)` — assert однаковий у .154/.156 → потрібен re-export draft-GGUF (owner), pin `=0.1.154` (llama-rs `4f314a6` + patch-capture `e05cfde`) · next = **owner pick**; refresh queue: rebook → LinFS → ORR → llama-rs → poolAI)
+**Оновлено:** 2026-09-15 (band **234** ✅ + MoE bench wave: llama-cpp-2 0.1.156 trial **blocked** (draft-GGUF `nextn.eh_proj`, не регресія бампу, pin `=0.1.154`, `4f314a6`+`e05cfde`); Qwen3-30B-A3B-UD-IQ2_XXS bench → **tg 0.497 ≈11× dense-27B**, needs quant<RAM для 2–6 (`llama-rs 783d163`); telenetis A `5e38604`/B `c117343`, poolAI toml 1.1 + service-account `60daf92fe`/`8f32f9f34`, flake hardening `7d8747d`/`16cff8e` · next = **owner pick** (сесія «підтримка сервісів» закрита: deep :8080 live, keep-live all-up) · refresh queue: rebook → LinFS → ORR → llama-rs → poolAI)
 
 **band 233 (LAN-first):** `gsv::net::local_addr()` (env `GSV_LOCAL_ADDR`; harness=loopback) + LAN
 origin-gate (`gate_post`) + live bind `0.0.0.0 --allow-lan`; keep_live/usage/omni/telenetis/llama-rs
