@@ -58,7 +58,7 @@ impl GsvClient {
     }
 
     pub async fn tickets(&self) -> Result<serde_json::Value, TelenetisError> {
-        self.get_json("/api/tickets/list").await
+        self.get_json("/api/tickets").await
     }
 
     pub async fn presence(&self) -> Result<serde_json::Value, TelenetisError> {

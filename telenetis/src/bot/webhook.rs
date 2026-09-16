@@ -366,7 +366,11 @@ mod tests {
 
     #[tokio::test]
     async fn warm_start_pushes_cold_start_flow() {
-        let state = crate::state::AppState::new(test_config());
+        // Hermetic: unreachable GSV, so the prefetch fails (swallowed) and
+        // the attempt is still recorded — never depend on a live board here.
+        let mut cfg = test_config();
+        cfg.gsv_url = "http://127.0.0.1:9".to_string();
+        let state = crate::state::AppState::new(cfg);
         let count = warm_start(&state).await;
         assert_eq!(count, 0);
         let flows = state.recent_flows(5).await;
@@ -377,7 +381,12 @@ mod tests {
 
     #[tokio::test]
     async fn warm_start_reflects_seeded_tickets() {
-        let state = crate::state::AppState::new(test_config());
+        // Hermetic: unreachable GSV keeps the seeded board intact (a live
+        // sync would overwrite it — that path is covered by the poll loop,
+        // not by unit tests).
+        let mut cfg = test_config();
+        cfg.gsv_url = "http://127.0.0.1:9".to_string();
+        let state = crate::state::AppState::new(cfg);
         state
             .set_tickets(vec![crate::state::TicketRow {
                 id: "T-1".to_string(),

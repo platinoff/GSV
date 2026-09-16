@@ -109,7 +109,7 @@ cargo clippy --all-targets
 cargo test
 ```
 
-**223** unit tests + **4** integration tests (`tests/integration_test.rs`) = **227** total.
+**225** unit tests + **4** integration tests (`tests/integration_test.rs`) = **229** total.
 
 ## Support / Donate
 
