@@ -366,6 +366,18 @@ button.error, .btn.error {
     font-size: 15px;
 }
 
+/* Model picker: one big radio button per model (native <select> is
+   unreliable in old WebViews — tiny tap targets, stale popups). */
+.models-grid {
+    grid-template-columns: 1fr;
+}
+
+.model-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(126, 184, 255, 0.08);
+}
+
 .pill {
     display: inline-block;
     border-radius: 999px;

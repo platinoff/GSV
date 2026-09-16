@@ -58,7 +58,8 @@ var S = {
     wpaused: false,
     timer: null,
     busy: false,
-    done: 0
+    done: 0,
+    selModel: ''
 };
 
 function esc(s) {
@@ -699,7 +700,7 @@ function startLoop() {
 // Promise version of the Load button flow (true when the model is ready).
 // Button handler keeps fire-and-forget behavior via the same path.
 function loadModelAsync() {
-    var key = el('tensor-model').value || Object.keys(MODELS)[0] || 'qwen15';
+    var key = selectedModelKey();
     var spec = MODELS[key] || MODELS.qwen15;
     if (!spec) { setStatus('no models available'); return Promise.resolve(false); }
     setStatus('loading runtime&hellip;');
@@ -833,24 +834,55 @@ function restoreWorkerState() {
     } catch (e) {}
 }
 
-function fillModels() {
-    var sel = el('tensor-model');
-    sel.innerHTML = '';
+function selectedModelKey() {
+    if (S.selModel && MODELS[S.selModel]) { return S.selModel; }
+    var keys = Object.keys(MODELS);
+    return keys[0] || '';
+}
+
+function renderModelButtons() {
+    // Big radio buttons instead of a native <select>: old WebViews show
+    // stale popups or a single row, while buttons always tap reliably.
+    var box = el('tensor-models');
+    if (!box) { return; }
+    while (box.firstChild) { box.removeChild(box.firstChild); }
     var keys = Object.keys(MODELS);
     // Phone-sane default: largest model within ~1.2GB (never auto-pick a
-    // 10GB dense/MoE file on a phone); the owner can still choose manually.
+    // 10GB file on a phone); the owner still taps manually.
     var best = keys[0] || '';
     var bestSize = -1;
     keys.forEach(function (k) {
-        var o = document.createElement('option');
-        o.value = k;
-        o.textContent = MODELS[k].label;
-        sel.appendChild(o);
         var sz = MODELS[k].size_mb || 0;
         if ((sz <= 0 || sz <= 1200) && sz > bestSize) {
             bestSize = sz;
             best = k;
         }
+    });
+    if (!S.selModel || !MODELS[S.selModel]) { S.selModel = best; }
+    keys.forEach(function (k) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'tab model-btn' + (k === S.selModel ? ' active' : '');
+        b.setAttribute('role', 'radio');
+        b.setAttribute('data-key', k);
+        b.textContent = MODELS[k].label;
+        b.addEventListener('click', function () {
+            S.selModel = k;
+            var kids = box.children;
+            for (var i = 0; i < kids.length; i++) {
+                kids[i].className = 'tab model-btn' +
+                    (kids[i].getAttribute('data-key') === k ? ' active' : '');
+            }
+            setStatus('selected: ' + MODELS[k].label);
+        });
+        box.appendChild(b);
+    });
+    tagCached();
+}
+
+function fillModels() {
+    renderModelButtons();
+}
     });
     if (best) { sel.value = best; }
 }
@@ -886,21 +918,23 @@ restoreWorkerState();
 el('tensor-load').disabled = true;
 function tagCached() {
     if (!IDB.ok) { return; }
-    var sel = el('tensor-model');
-    if (!sel || !sel.options.length) { return; }
+    var box = el('tensor-models');
+    if (!box || !box.children.length) { return; }
     IDB.listAll().then(function (rows) {
         var cached = {};
         for (var i = 0; i < rows.length; i++) {
             cached[rows[i].name] = rows[i].size;
         }
-        for (var j = 0; j < sel.options.length; j++) {
-            var opt = sel.options[j];
-            var entry = MODELS[opt.value];
+        var kids = box.children;
+        for (var j = 0; j < kids.length; j++) {
+            var key = kids[j].getAttribute('data-key');
+            var entry = MODELS[key];
             var fname = entry && entry.url
                 ? entry.url.split('/').pop()
                 : (entry && entry.file) || '';
-            if (fname && cached[fname] > 0 && opt.textContent.indexOf('[cached]') < 0) {
-                opt.textContent = entry.label + ' [cached]';
+            if (fname && cached[fname] > 0 &&
+                kids[j].textContent.indexOf('[cached]') < 0) {
+                kids[j].textContent = entry.label + ' [cached]';
             }
         }
         if (rows.length) {

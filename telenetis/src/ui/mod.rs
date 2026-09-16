@@ -2537,6 +2537,7 @@ mod tests {
         assert!(html.contains("tensor-torrent"));
         assert!(html.contains("tensor-wpause"));
         assert!(html.contains("tensor-cancel"));
+        assert!(html.contains("tensor-models"));
         assert!(html.contains("gsv-card"));
     }
 
@@ -2573,6 +2574,7 @@ mod tests {
         assert!(js.contains("loadModelAsync")); // Start auto-loads the model
         assert!(js.contains("cancelDownload")); // decline the download, discard
         assert!(js.contains("pauseWorker")); // worker pause/resume toggle
+        assert!(js.contains("renderModelButtons")); // radio buttons, no native select
         assert!(js.contains("/api/edge/tensor/config"));
     }
 

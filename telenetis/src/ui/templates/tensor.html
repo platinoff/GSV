@@ -27,9 +27,7 @@
         1) Load model (downloads once, cached) 2) Start worker.
         PC pollers race for the same queue during the PoC.</p>
         <div class="gsv-card">
-        <div class="tabs" role="group" aria-label="model">
-            <select id="tensor-model" aria-label="model"></select>
-        </div>
+        <div id="tensor-models" class="btn-grid models-grid" role="radiogroup" aria-label="model"></div>
         <div class="btn-grid" role="group" aria-label="download controls">
             <button type="button" id="tensor-load" class="tab">Load model</button>
             <button type="button" id="tensor-pause" class="tab">Pause</button>
