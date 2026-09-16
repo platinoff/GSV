@@ -63,6 +63,7 @@ cargo run
 - `/board` — ticket board link (Mini App)
 - `/flows` — live flows view
 - `/roles` — role planner
+- `/probe` — WebGPU adapter probe page (phone GPU → hub profile)
 - `/help` — same as /start
 
 ## API

@@ -44,6 +44,7 @@ pub enum Command {
     Done(String),
     Sync,
     App,
+    Probe,
     Tunnel,
     Reconnect,
     Help,
@@ -66,6 +67,7 @@ impl Command {
             "scenarios" => Self::Scenarios,
             "sync" => Self::Sync,
             "app" => Self::App,
+            "probe" => Self::Probe,
             "tunnel" => Self::Tunnel,
             "reconnect" => Self::Reconnect,
             "help" => Self::Help,
@@ -95,6 +97,7 @@ impl Command {
             "chat" => Self::Chat(args),
             "sync" => Self::Sync,
             "app" => Self::App,
+            "probe" => Self::Probe,
             "tunnel" => Self::Tunnel,
             "reconnect" => Self::Reconnect,
             "help" => Self::Help,
@@ -125,6 +128,7 @@ pub fn command_response(cmd: &Command) -> String {
               /chat [fast|deep] <text> — Ask llama (answer lands in Mini App chat)\n\
              /sync — Force sync from GSV\n\
              /app — Open Mini App\n\
+             /probe — WebGPU adapter probe (phone GPU → hub profile)\n\
              /tunnel — Show / refresh public tunnel URL\n\
              /reconnect — Reconnect bot to channel\n\
              /help — This message"
@@ -149,6 +153,7 @@ pub fn command_response(cmd: &Command) -> String {
         Command::Chat(_) => "Queueing chat...".to_string(),
         Command::Sync => "Syncing from GSV...".to_string(),
         Command::App => "Opening Mini App...".to_string(),
+        Command::Probe => "Opening WebGPU probe...".to_string(),
         Command::Tunnel => "Tunnel".to_string(),
         Command::Reconnect => "Reconnect".to_string(),
         Command::Unknown(cmd) => format!("Unknown command: /{cmd}"),
@@ -186,6 +191,7 @@ pub async fn handle_command_from(
         Command::Chat(_) => command_response(cmd),
         Command::Sync => handle_sync(state).await,
         Command::App => command_response(cmd),
+        Command::Probe => command_response(cmd),
         Command::Tunnel => handle_tunnel(state).await,
         Command::Reconnect => handle_reconnect(state).await,
         Command::Unknown(_) => command_response(cmd),
@@ -691,6 +697,8 @@ mod tests {
         assert!(matches!(Command::from_str("ranks"), Command::Ranks));
         assert!(matches!(Command::from_str("sync"), Command::Sync));
         assert!(matches!(Command::from_str("app"), Command::App));
+        assert!(matches!(Command::from_str("probe"), Command::Probe));
+        assert!(matches!(Command::from_text("/probe"), Command::Probe));
         assert!(matches!(Command::from_str("tunnel"), Command::Tunnel));
         assert!(matches!(Command::from_str("reconnect"), Command::Reconnect));
         assert!(matches!(Command::from_str("help"), Command::Help));
@@ -727,6 +735,7 @@ mod tests {
         assert!(r.contains("/done"));
         assert!(r.contains("/sync"));
         assert!(r.contains("/app"));
+        assert!(r.contains("/probe"));
     }
 
     #[test]

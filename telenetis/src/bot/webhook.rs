@@ -166,14 +166,20 @@ pub async fn process_update(state: &AppState, update: &Value) {
 
                 let bot = TelegramBot::new(state.config());
                 match &cmd {
-                    Command::Start | Command::Help | Command::App => {
+                    Command::Start | Command::Help | Command::App | Command::Probe => {
                         let base = crate::edge::mini_app_base(
                             state.tunnel_url().await,
                             state.config().public_url.clone(),
                             state.config().port,
                             crate::edge::local_lan_ip(),
                         );
-                        let url = mini_app_url(&base);
+                        // /probe deep-links past the /app shell straight to
+                        // the WebGPU probe page; everything else opens /app.
+                        let url = if matches!(cmd, Command::Probe) {
+                            format!("{}/probe", base)
+                        } else {
+                            mini_app_url(&base)
+                        };
                         // HTTPS → embedded web_app button (private) or t.me
                         // startapp link (groups/channels reject web_app
                         // buttons). Plain HTTP (LAN, no tunnel) → direct URL
