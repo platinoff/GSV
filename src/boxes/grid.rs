@@ -67,7 +67,9 @@ pub struct GridStore {
 
 /// Hub-owned truth for one device: real VRAM/RAM + role class. poolAI today
 /// mirrors the coordinator's own machine onto every node (stub), so placement
-/// weights come from here (`class`: `cpu` | `gpu` | `edge` | `draft-holder`).
+/// weights come from here (`class`: `cpu` | `gpu` | `server` | `webgpu` |
+/// `edge` | `draft-holder`). `webgpu` is a probed phone browser (path b);
+/// `edge` is a pure controller with no probe (never tensor-routed).
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
 pub struct DeviceProfile {
@@ -157,10 +159,21 @@ pub const DEFAULT_MB_PER_LAYER: u32 = 110;
 /// Percent of device RAM the planner may claim (rest = OS + KV + apps).
 pub const PLAN_BUDGET_PCT: u64 = 60;
 
-/// Tensor classes: allowed to hold ggml layers. `edge` (phones) and unknown
-/// classes never get shards — owner policy: **no Termux**, phones are task
-/// workers only.
+/// Tensor classes: allowed to hold model layers. `cpu`/`gpu`/`server` ride
+/// ggml-rpc (`llama_serve --rpc`). `webgpu` is the browser path (b):
+/// phone browsers holding slices via the Mini App task contract — they
+/// render in a separate `browser_peers` plan block, never in
+/// `llama_serve_args`. `edge` (phones without a probe) and unknown classes
+/// never get shards — owner policy: **no Termux**, pure controllers are
+/// task workers only.
 pub fn tensor_class(class: &str) -> bool {
+    matches!(class, "cpu" | "gpu" | "server" | "webgpu")
+}
+
+/// ggml-rpc classes only: the ones `llama_serve --rpc` can actually reach.
+/// `webgpu` peers are tensor-capable but need the browser task contract,
+/// so the planner keeps them out of `rows`/`llama_serve_args`.
+fn ggml_class(class: &str) -> bool {
     matches!(class, "cpu" | "gpu" | "server")
 }
 
@@ -168,6 +181,13 @@ pub fn tensor_class(class: &str) -> bool {
 /// tensor-capable devices (largest budget first), rendered `llama_serve`
 /// `--rpc` args for remote hosts, honest `advice` when the model cannot fit.
 /// Recomputed from the live mirror ⇒ worker loss auto-rebalances on next call.
+///
+/// Two lanes: ggml classes (`cpu`/`gpu`/`server`) fill `rows` exactly as
+/// before (feasibility, `uncovered_layers` and `llama_serve_args` are
+/// ggml-only — that is what deploys today). Whatever layers ggml leaves
+/// uncovered spill to `webgpu` browser peers (`browser_peers`: range +
+/// Mini App task endpoint), sized from the probe's real memory cap
+/// (`ram_mb`; 0 = unknown ⇒ standby entry, never a guessed slice).
 pub fn plan_layers(
     profiles: &std::collections::BTreeMap<String, DeviceProfile>,
     layers: u32,
@@ -176,7 +196,7 @@ pub fn plan_layers(
     let mb = mb_per_layer.max(1) as u64;
     let mut cands: Vec<(&String, &DeviceProfile, u64)> = profiles
         .iter()
-        .filter(|(_, p)| tensor_class(&p.class) && p.ram_mb > 0)
+        .filter(|(_, p)| ggml_class(&p.class) && p.ram_mb > 0)
         .map(|(id, p)| (id, p, p.ram_mb * PLAN_BUDGET_PCT / 100 / mb))
         .collect();
     cands.sort_by(|a, b| b.2.cmp(&a.2).then(a.0.cmp(b.0)));
@@ -229,6 +249,10 @@ pub fn plan_layers(
         remaining = remaining.saturating_sub(*take);
     }
     let feasible = start >= layers;
+    // Lane 2 (path b): spill whatever ggml left uncovered onto webgpu
+    // browser peers, largest cap first. Pure controllers (`edge`, no probe)
+    // and unknown classes never appear here either.
+    let browser_peers = plan_browser_peers(profiles, start, layers, mb);
     json!({
         "model_layers": layers,
         "mb_per_layer": mb,
@@ -237,14 +261,86 @@ pub fn plan_layers(
         "uncovered_layers": remaining,
         "rows": rows,
         "llama_serve_args": args,
+        "browser_peers": browser_peers,
         "advice": if feasible {
             ""
         } else if rows.is_empty() {
-            "no tensor-capable devices profiled yet — POST /api/grid/profile {id, class: cpu|gpu|server, ram_mb[, rpc_endpoint]} (Linux ggml-rpc hosts only; phones stay edge workers)"
+            "no tensor-capable devices profiled yet — POST /api/grid/profile {id, class: cpu|gpu|server|webgpu, ram_mb[, rpc_endpoint]} (ggml-rpc hosts + probed phone browsers; pure edge controllers stay task workers)"
         } else {
             "profile more ggml-rpc hosts (Pi4 / spare PC) or run the deep tier mmap-only; interactive chat uses the fast tier (:8082)"
         },
     })
+}
+
+/// Browser-lane planner (path b): distribute `layers` starting at
+/// `from_layer` over `webgpu` profiles by memory-budget caps. Returns one
+/// entry per probed peer: contiguous `layers` range (or `"standby"` when
+/// there is nothing left to cover / the cap is unknown), the slice weight,
+/// the probe note, and the Mini App task endpoint driving the slice.
+/// ggml `rows`/`feasible`/`advice` are untouched — this lane only renders.
+fn plan_browser_peers(
+    profiles: &std::collections::BTreeMap<String, DeviceProfile>,
+    from_layer: u32,
+    layers: u32,
+    mb_per_layer: u64,
+) -> Vec<Value> {
+    let mb = mb_per_layer.max(1);
+    let mut cands: Vec<(&String, &DeviceProfile, u64)> = profiles
+        .iter()
+        .filter(|(_, p)| p.class == "webgpu")
+        .map(|(id, p)| (id, p, p.ram_mb * PLAN_BUDGET_PCT / 100 / mb))
+        .collect();
+    cands.sort_by(|a, b| b.2.cmp(&a.2).then(a.0.cmp(b.0)));
+    let total_cap: u64 = cands.iter().map(|(_, _, c)| *c).sum();
+    // Proportional takes over the remaining layers, greedy top-up of the
+    // rounding remainder on peers with spare capacity (mirrors lane 1).
+    let remaining = layers.saturating_sub(from_layer);
+    let mut takes: Vec<u32> = cands
+        .iter()
+        .map(|(_, _, cap)| {
+            if total_cap == 0 || *cap == 0 || remaining == 0 {
+                0
+            } else {
+                ((remaining as u64 * *cap) / total_cap).min(*cap) as u32
+            }
+        })
+        .collect();
+    let spent: u32 = takes.iter().sum();
+    let mut extra = remaining.saturating_sub(spent);
+    for (i, (_, _, cap)) in cands.iter().enumerate() {
+        if extra == 0 {
+            break;
+        }
+        let spare = (*cap).saturating_sub(takes[i] as u64);
+        let add = spare.min(extra as u64) as u32;
+        takes[i] += add;
+        extra -= add;
+    }
+    // Render contiguous ranges in cap order; zero-take peers (nothing left
+    // to cover, or unknown cap) stay listed as standby so the gates can
+    // see every probed browser.
+    let mut start = from_layer;
+    let mut rows = Vec::new();
+    for ((id, p, cap), take) in cands.iter().zip(takes.iter()) {
+        let (range, share_mb) = if *take == 0 {
+            ("standby".to_string(), 0)
+        } else {
+            let end = start + take - 1;
+            let r = format!("{start}-{end}");
+            start += take;
+            (r, *take as u64 * mb)
+        };
+        rows.push(json!({
+            "id": id,
+            "layers": range,
+            "take": take,
+            "capacity_layers": cap,
+            "share_mb": share_mb,
+            "note": p.note,
+            "endpoint": format!("mini-app task via poolAI virtual-node contract (peer {id})"),
+        }));
+    }
+    rows
 }
 
 /// Merge hub profiles with the poolAI topology view: effective capacity per
@@ -595,13 +691,100 @@ mod tests {
     }
 
     #[test]
-    fn tensor_class_gates_phones_out() {
+    fn tensor_class_gates_phones_out_but_admits_webgpu() {
         assert!(tensor_class("cpu") && tensor_class("gpu") && tensor_class("server"));
         assert!(
+            tensor_class("webgpu"),
+            "probed phone browsers are tensor-capable (path b)"
+        );
+        assert!(
             !tensor_class("edge"),
-            "phones never hold tensors (no Termux)"
+            "unprobed phones never hold tensors (no Termux)"
         );
         assert!(!tensor_class(""));
+    }
+
+    #[test]
+    fn plan_browser_peers_spill_uncovered_layers_to_probed_phones() {
+        use std::collections::BTreeMap;
+        let mut profiles = BTreeMap::new();
+        // ggml host too small to cover 64 layers: 2048*0.60/110 = 11.
+        profiles.insert(
+            "tiny".to_string(),
+            DeviceProfile {
+                class: "cpu".into(),
+                ram_mb: 2_048,
+                ..Default::default()
+            },
+        );
+        // Probed browser with a real cap: 8192*0.60/110 = 44.
+        profiles.insert(
+            "a54-01".to_string(),
+            DeviceProfile {
+                class: "webgpu".into(),
+                ram_mb: 8_192,
+                note: "webgpu Adreno (TM) 740/adreno-740 maxbuf:128MB".into(),
+                ..Default::default()
+            },
+        );
+        // Pure controller: must stay out of both lanes.
+        profiles.insert(
+            "redmi-01".to_string(),
+            DeviceProfile {
+                class: "edge".into(),
+                ram_mb: 4_096,
+                ..Default::default()
+            },
+        );
+        let plan = plan_layers(&profiles, 64, 110);
+        // Lane 1 untouched: ggml infeasible, same rows/advice shape.
+        assert_eq!(plan["feasible"], false);
+        assert_eq!(plan["uncovered_layers"], 53);
+        assert_eq!(plan["rows"].as_array().unwrap().len(), 1);
+        assert_eq!(plan["llama_serve_args"].as_array().unwrap().len(), 0);
+        // Lane 2: the 53 uncovered layers spill to the browser.
+        let peers = plan["browser_peers"].as_array().unwrap();
+        assert_eq!(peers.len(), 1, "edge peer excluded: {peers:?}");
+        assert_eq!(peers[0]["id"], "a54-01");
+        assert_eq!(peers[0]["layers"], "11-54");
+        assert_eq!(peers[0]["take"], 44);
+        assert_eq!(peers[0]["capacity_layers"], 44);
+        assert!(peers[0]["note"].as_str().unwrap().contains("Adreno"));
+        assert!(peers[0]["endpoint"]
+            .as_str()
+            .unwrap()
+            .contains("peer a54-01"));
+    }
+
+    #[test]
+    fn plan_browser_peers_standby_when_covered_or_cap_unknown() {
+        use std::collections::BTreeMap;
+        let mut profiles = BTreeMap::new();
+        // ggml covers everything: 16384*0.60/110 = 89 ≥ 64.
+        profiles.insert(
+            "edge-pc-01".to_string(),
+            DeviceProfile {
+                class: "cpu".into(),
+                ram_mb: 16_384,
+                ..Default::default()
+            },
+        );
+        // Unknown cap (ram_mb 0, no deviceMemory): standby, never a slice.
+        profiles.insert(
+            "redmi-01".to_string(),
+            DeviceProfile {
+                class: "webgpu".into(),
+                ram_mb: 0,
+                note: "webgpu Mali-G72/? maxbuf:64MB".into(),
+                ..Default::default()
+            },
+        );
+        let plan = plan_layers(&profiles, 64, 110);
+        assert_eq!(plan["feasible"], true);
+        let peers = plan["browser_peers"].as_array().unwrap();
+        assert_eq!(peers.len(), 1);
+        assert_eq!(peers[0]["layers"], "standby");
+        assert_eq!(peers[0]["take"], 0);
     }
 
     /// Bind+drop a loopback listener: the port is guaranteed to RST (instant
