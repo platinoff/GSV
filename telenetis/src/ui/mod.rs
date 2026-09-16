@@ -2564,6 +2564,7 @@ mod tests {
         assert!(js.contains("/api/edge/tensor/config"));
         assert!(js.contains("tensor-lan"));
         assert!(js.contains("cacheManager")); // OPFS bypass: custom RAM cache shim
+        assert!(js.contains("indexedDB")); // device persistence across reloads
         assert!(js.contains("/api/edge/tensor/config"));
     }
 

@@ -235,11 +235,60 @@ function loadModel() {
     });
 }
 
+// Device persistence (IndexedDB works on HTTP LAN + old WebViews where
+// OPFS is absent): finished downloads survive reloads; RAM is the
+// fallback when IDB is missing or quota-rejected. Module-level so one
+// open serves every Load.
+var IDB = {
+    ok: false,
+    db: null,
+    open: function () {
+        var self = this;
+        return new Promise(function (resolve) {
+            try {
+                if (!('indexedDB' in window)) { resolve(false); return; }
+                var req = indexedDB.open('tensor-worker', 1);
+                req.onupgradeneeded = function () {
+                    try { req.result.createObjectStore('models'); } catch (e) {}
+                };
+                req.onsuccess = function () { self.db = req.result; self.ok = true; resolve(true); };
+                req.onerror = function () { resolve(false); };
+            } catch (e) { resolve(false); }
+        });
+    },
+    get: function (name) {
+        var self = this;
+        return new Promise(function (resolve) {
+            if (!self.ok) { resolve(null); return; }
+            try {
+                var tx = self.db.transaction('models', 'readonly');
+                var rq = tx.objectStore('models').get(name);
+                rq.onsuccess = function () { resolve(rq.result || null); };
+                rq.onerror = function () { resolve(null); };
+            } catch (e) { resolve(null); }
+        });
+    },
+    put: function (name, blob) {
+        var self = this;
+        return new Promise(function (resolve) {
+            if (!self.ok) { resolve(false); return; }
+            try {
+                var tx = self.db.transaction('models', 'readwrite');
+                var rq = tx.objectStore('models').put({ blob: blob, size: blob.size }, name);
+                rq.onsuccess = function () { resolve(true); };
+                rq.onerror = function () { resolve(false); };
+            } catch (e) { resolve(false); }
+        });
+    }
+};
+
 function startModelLoad(rt, spec, key) {
     // Custom RAM cache: wllama's default CacheManager demands OPFS
     // (absent on HTTP LAN + old WebViews → "No supported storage backend").
     // The shim speaks the 3 methods ModelManager uses (download/list/open),
-    // fetches with pause/resume + speed stats, and keeps bytes in RAM.
+    // fetches with pause/resume + speed stats, keeps bytes in RAM, and
+    // persists finished files to IndexedDB (works insecure + old) so
+    // reloads reuse them instead of re-downloading.
     var store = new Map();
     function fname(url) {
         var m = /\/([^\/\?#]+)(?:[\?#]|$)/.exec(url || '');
@@ -293,7 +342,13 @@ function startModelLoad(rt, spec, key) {
         var blob = new Blob(SEG.chunks, { type: 'application/octet-stream' });
         store.set(SEG.name, { blob: blob, size: blob.size });
         reportDl();
-        SEG.resolve({ name: SEG.name, size: blob.size });
+        setStatus('saving to device cache&hellip;');
+        IDB.put(SEG.name, blob).then(function (saved) {
+            logRow('sys', saved
+                ? 'saved to device cache (' + fmtMB(blob.size) + 'MB) — reloads reuse it'
+                : 'device cache unavailable (quota?) — RAM only this session');
+            SEG.resolve({ name: SEG.name, size: blob.size });
+        });
     }
     function dlSegment() {
         var from = SEG.loaded;
@@ -337,7 +392,20 @@ function startModelLoad(rt, spec, key) {
             return new Promise(function (resolve, reject) {
                 SEG.resolve = resolve;
                 SEG.reject = reject;
-                dlSegment();
+                // Device cache first: reloads skip the download entirely.
+                IDB.get(SEG.name).then(function (rec) {
+                    if (rec && rec.blob && rec.blob.size > 0) {
+                        store.set(SEG.name, { blob: rec.blob, size: rec.blob.size });
+                        SEG.loaded = rec.blob.size;
+                        SEG.total = rec.blob.size;
+                        reportDl();
+                        logRow('sys', 'loaded from device cache (' +
+                            fmtMB(rec.blob.size) + 'MB) — no download');
+                        SEG.resolve({ name: SEG.name, size: rec.blob.size });
+                        return;
+                    }
+                    dlSegment();
+                });
             });
         },
         list: function () {
@@ -347,7 +415,15 @@ function startModelLoad(rt, spec, key) {
         },
         open: function (name) {
             var e = store.get(name);
-            return Promise.resolve(e ? e.blob : null);
+            if (e) { return Promise.resolve(e.blob); }
+            // RAM missed (fresh reload): fall back to the device cache.
+            return IDB.get(name).then(function (rec) {
+                if (rec && rec.blob) {
+                    store.set(name, { blob: rec.blob, size: rec.blob.size });
+                    return rec.blob;
+                }
+                return null;
+            });
         }
     };
     window.__tensorPause = function () {
@@ -574,7 +650,7 @@ function restoreWorkerState() {
         if (st && (st.modelKey || st.peer)) {
             setStatus('last session: ' + esc(st.modelLabel || st.modelKey || '?') +
                 ', peer ' + esc(st.peer || '?') + ', ' + (st.done || 0) + ' tasks done.' +
-                ' Reload loses model bytes — Load again, then Start.');
+                ' Model bytes persist on-device — Load reuses them, then Start.');
         }
     } catch (e) {}
 }
@@ -622,3 +698,6 @@ window.__tensorReady = true;
 bootConfig();
 lanHint();
 restoreWorkerState();
+IDB.open().then(function (ok) {
+    if (ok) { logRow('sys', 'device cache ready (IndexedDB)'); }
+});
