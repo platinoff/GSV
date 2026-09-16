@@ -506,11 +506,49 @@ pub fn debug_newer_bin(repo_root: &Path, exe_name: &str) -> bool {
     !live.is_file() || file_mtime_secs(&debug) > file_mtime_secs(&live)
 }
 
+/// Telenetis debug binary with the workspace-target rule (bug-hunt 3):
+/// `CARGO_TARGET_DIR` wins; else the outermost ancestor holding
+/// `Cargo.toml` above the telenetis crate (this kit builds into
+/// `S:/rust/GSV/target`, including via the parent `.cargo/config.toml`
+/// `target-dir`); else the crate-local target (detached checkouts).
+/// Mirrors `telenetis_live::debug_exe` — keep the two in sync.
+pub fn telenetis_debug_exe(repo_root: &Path) -> PathBuf {
+    let crate_dir = repo_root.join("telenetis");
+    if let Some(dir) = std::env::var_os("CARGO_TARGET_DIR")
+        .map(PathBuf::from)
+        .filter(|p| !p.as_os_str().is_empty())
+    {
+        return dir.join("debug").join(telenetis_live_exe_name());
+    }
+    let mut root = crate_dir.clone();
+    while let Some(parent) = root.parent() {
+        if parent.join("Cargo.toml").is_file() {
+            root = parent.to_path_buf();
+        } else {
+            break;
+        }
+    }
+    let base = if root != crate_dir {
+        root.join("target")
+    } else {
+        crate_dir.join("target")
+    };
+    base.join("debug").join(telenetis_live_exe_name())
+}
+
 /// Telenetis live supervisor (`target/live/telenetis-live`) vs its debug twin.
 /// `true` when the debug copy is newer (or live missing) — same parity logic
 /// as `debug_newer_server` but for the Telenetis crate (band 228).
 pub fn debug_newer_telenetis(repo_root: &Path) -> bool {
-    debug_newer_bin(&repo_root.join("telenetis"), telenetis_live_exe_name())
+    let debug = telenetis_debug_exe(repo_root);
+    if !debug.is_file() {
+        return false;
+    }
+    let live = repo_root
+        .join("telenetis")
+        .join("target/live")
+        .join(telenetis_live_exe_name());
+    !live.is_file() || file_mtime_secs(&debug) > file_mtime_secs(&live)
 }
 
 /// Telenetis live-supervisor file name (`telenetis-live.exe` / `telenetis-live`).
@@ -700,5 +738,64 @@ pub fn wire(repo_root: &Path) -> Value {
                 "version_lag": watchdog_version_lag(crate_ver.as_deref(), ""),
             })
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sandbox(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "gsv-wd-telenetis-{}-{}-{}",
+            std::process::id(),
+            tag,
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        dir
+    }
+
+    #[test]
+    fn telenetis_debug_exe_prefers_workspace_target() {
+        // repo/telenetis nested under a workspace root: builds land in the
+        // ancestor target, not the crate target (bug-hunt 3 layout).
+        let root = sandbox("ws");
+        let krate = root.join("telenetis");
+        std::fs::create_dir_all(&krate).unwrap();
+        std::fs::write(root.join("Cargo.toml"), b"[workspace]\n").unwrap();
+        std::fs::write(krate.join("Cargo.toml"), b"[package]\n").unwrap();
+        assert_eq!(
+            telenetis_debug_exe(&root),
+            root.join("target/debug").join(telenetis_live_exe_name())
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn debug_newer_telenetis_sees_workspace_debug() {
+        // Debug newer in the WORKSPACE target flags the (stale) crate live
+        // copy — the exact drift this band fixes.
+        let root = sandbox("newer");
+        let krate = root.join("telenetis");
+        std::fs::create_dir_all(krate.join("target/live")).unwrap();
+        std::fs::create_dir_all(root.join("target/debug")).unwrap();
+        std::fs::write(root.join("Cargo.toml"), b"[workspace]\n").unwrap();
+        std::fs::write(krate.join("Cargo.toml"), b"[package]\n").unwrap();
+        let live = krate.join("target/live").join(telenetis_live_exe_name());
+        std::fs::write(&live, b"old").unwrap();
+        assert!(!debug_newer_telenetis(&root), "no debug yet");
+        // mtime comparison is second-granular: separate the writes.
+        std::thread::sleep(std::time::Duration::from_millis(1100));
+        std::fs::write(
+            root.join("target/debug").join(telenetis_live_exe_name()),
+            b"new",
+        )
+        .unwrap();
+        assert!(debug_newer_telenetis(&root), "workspace debug wins");
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

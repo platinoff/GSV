@@ -91,6 +91,12 @@ cargo run --bin telenetis-live
 target/release/telenetis-live   # (copy step picks the debug exe)
 ```
 
+Debug discovery (bug-hunt 3): `CARGO_TARGET_DIR` wins; else the outermost
+ancestor `Cargo.toml` target (`S:/rust/GSV/target/debug` in this kit —
+where cargo really builds); else the crate-local target. The refresh runs
+on every respawn, so a rebuild lands live on the next bot exit with no
+manual copy.
+
 Pair with a task/WakeOnLAN/Startup entry (e.g. `schtasks /create` on ONLOGON)
 for always-on on Windows.
 

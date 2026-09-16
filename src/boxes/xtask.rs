@@ -433,8 +433,10 @@ fn is_telenetis_alive() -> bool {
 /// Spawn the Telenetis live supervisor (best-effort) alongside gsv-live so the
 /// Telegram bot stays up and its webhook keeps delivering squad messages.
 ///
-/// Looks for `telenetis/target/{live,debug}/telenetis-live` and, if missing,
-/// best-effort `cargo build --bin telenetetis-live` inside `telenetis/`. The
+/// Looks for `telenetis/target/live/telenetis-live` and the workspace debug
+/// twin (`watchdog::telenetis_debug_exe`: `CARGO_TARGET_DIR`, else the
+/// outermost ancestor `Cargo.toml` target, else crate-local) and, if missing,
+/// best-effort `cargo build --bin telenetis-live` inside `telenetis/`. The
 /// spawned supervisor copies debug → live and respawns the bot on exit, so it
 /// runs independently of gsv-live's own loop.
 pub fn spawn_telenetis_live(repo_root: &Path) -> String {
@@ -446,7 +448,7 @@ pub fn spawn_telenetis_live(repo_root: &Path) -> String {
         return "telenetis-live: telenetis crate not present — skipped".into();
     }
     let live_exe = telenetis_dir.join("target/live/telenetis-live.exe");
-    let debug_exe = telenetis_dir.join("target/debug/telenetis-live.exe");
+    let debug_exe = watchdog::telenetis_debug_exe(repo_root);
     // Deduplicate: if telenetis already answers, don't spawn another supervisor
     // (gsv-live loops and would otherwise create one per gsv-server restart → N windows flashing).
     if is_telenetis_alive() {
