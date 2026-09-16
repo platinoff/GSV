@@ -4,6 +4,7 @@ pub mod config;
 pub mod edge;
 pub mod error;
 pub mod gsv;
+pub mod log;
 pub mod net;
 pub mod roles;
 pub mod security;

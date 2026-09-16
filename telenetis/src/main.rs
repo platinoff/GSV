@@ -1,5 +1,4 @@
 use axum::middleware;
-use tracing_subscriber::EnvFilter;
 
 use telenetis::state::register_self_presence;
 
@@ -14,11 +13,10 @@ async fn security_headers_middleware(
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::from_default_env().add_directive("telenetis=debug".parse().unwrap()),
-        )
-        .init();
+    // Rolling file sink next to stdout (bug-hunt 2): the detached live
+    // process has no console, so stdout alone loses everything. The guard
+    // must outlive main — dropping it stops the file sink.
+    let _log_guard = telenetis::log::init_logging();
 
     dotenvy::from_path(format!("{}/.env", env!("CARGO_MANIFEST_DIR"))).ok();
 

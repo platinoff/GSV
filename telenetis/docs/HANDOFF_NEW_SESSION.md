@@ -9,7 +9,7 @@
   [`docs/gsv/PRODUCTS.md`](../../docs/gsv/PRODUCTS.md); keep-live band 224
   (Windows parity: watchdog copies debug → live and respawns `:9800`);
   GSV MCP probe `gsv_telenetis_health`.
-- **Latest work**: self-hosted tensor bytes (`/vendor/*` + `/models/*` + `/api/edge/tensor/config`, torrent follow-up ticketed; PoC ticket t-1789571785502387700).
+- **Latest work**: live log capture (`src/log.rs` rolling file + stdout, ticket t-1789592197536381700).
 - **Tests**: `cargo fmt -- --check` → `cargo clippy --all-targets` → `cargo test`
   (run in `S:/rust/GSV/telenetis`). Do **not** kill the live `:9800` copy before tests.
 - **Health**: `GET http://127.0.0.1:9800/health` (GSV `keep_live.telenetis`, fresh = up).
