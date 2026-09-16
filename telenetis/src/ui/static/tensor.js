@@ -155,7 +155,11 @@ function applyConfig(data) {
     var ms = (data && data.models) || [];
     for (var i = 0; i < ms.length; i++) {
         if (ms[i] && ms[i].key && ms[i].url) {
-            MODELS[ms[i].key] = { label: ms[i].label || ms[i].key, url: ms[i].url };
+            MODELS[ms[i].key] = {
+                label: ms[i].label || ms[i].key,
+                url: ms[i].url,
+                size_mb: ms[i].size_mb || 0
+            };
         }
     }
     if (!Object.keys(MODELS).length) {
@@ -377,12 +381,23 @@ function selfTest() {
 function fillModels() {
     var sel = el('tensor-model');
     sel.innerHTML = '';
-    Object.keys(MODELS).forEach(function (k) {
+    var keys = Object.keys(MODELS);
+    // Phone-sane default: largest model within ~1.2GB (never auto-pick a
+    // 10GB dense/MoE file on a phone); the owner can still choose manually.
+    var best = keys[0] || '';
+    var bestSize = -1;
+    keys.forEach(function (k) {
         var o = document.createElement('option');
         o.value = k;
         o.textContent = MODELS[k].label;
         sel.appendChild(o);
+        var sz = MODELS[k].size_mb || 0;
+        if ((sz <= 0 || sz <= 1200) && sz > bestSize) {
+            bestSize = sz;
+            best = k;
+        }
     });
+    if (best) { sel.value = best; }
 }
 
 el('tensor-load').addEventListener('click', loadModel);

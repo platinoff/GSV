@@ -2560,6 +2560,7 @@ mod tests {
         assert!(js.contains("loadModelFromHF"));
         assert!(js.contains("loadWllama"));
         assert!(js.contains("/api/edge/tensor/config"));
+        assert!(js.contains("/api/edge/tensor/config"));
     }
 
     async fn get_uri(app: Router, uri: &str) -> axum::response::Response {
