@@ -26,7 +26,10 @@ pub fn security_headers(response: &mut axum::response::Response) {
     headers.insert("Cache-Control", "no-store".parse().unwrap());
     headers.insert(
         "Content-Security-Policy",
-        "default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:; img-src 'self' data:"
+        // Tensor worker origins: wllama ESM/WASM rides jsdelivr (script +
+        // worker), GGUFs download from the HF hub (connect). Everything else
+        // stays locked to self + the Telegram SDK host.
+        "default-src 'self'; script-src 'self' https://telegram.org https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss: https://cdn.jsdelivr.net https://huggingface.co https://*.huggingface.co; worker-src 'self' blob: https://cdn.jsdelivr.net; img-src 'self' data:"
             .parse()
             .unwrap(),
     );
@@ -88,5 +91,24 @@ mod tests {
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "application/json"
         );
+    }
+
+    #[test]
+    fn csp_allows_tensor_worker_origins() {
+        // Regression: the tensor page needs wllama from jsdelivr (script +
+        // worker) and GGUFs from the HF hub (connect) — a locked-down CSP
+        // fails the model load with a bare CDN error on the phone.
+        let mut resp = axum::response::Response::new(axum::body::Body::empty());
+        security_headers(&mut resp);
+        let csp = resp
+            .headers()
+            .get("Content-Security-Policy")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(csp.contains("https://cdn.jsdelivr.net"));
+        assert!(csp.contains("https://huggingface.co"));
+        assert!(csp.contains("https://*.huggingface.co"));
+        assert!(csp.contains("worker-src"));
     }
 }
