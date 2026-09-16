@@ -13,9 +13,13 @@
  * Constraints: needs WebGPU (else CPU fallback via n_gpu_layers 0);
  * needs the model download once (OPFS-cached after); PC pollers race for
  * the same queue during the PoC (steady-state routing is a follow-up).
+ *
+ * Classic script (no static imports): the wllama CDN modules load lazily
+ * via dynamic import() on Load, so a dead CDN leaves the model list and
+ * buttons alive and surfaces the exact error instead of a dead page.
  */
-import { Wllama } from 'https://cdn.jsdelivr.net/npm/@wllama/wllama@3.5.1/esm/index.js';
-import WasmFromCDN from 'https://cdn.jsdelivr.net/npm/@wllama/wllama@3.5.1/esm/wasm-from-cdn.js';
+var WLLAMA_ESM = 'https://cdn.jsdelivr.net/npm/@wllama/wllama@3.5.1/esm/index.js';
+var WLLAMA_WASM_CDN = 'https://cdn.jsdelivr.net/npm/@wllama/wllama@3.5.1/esm/wasm-from-cdn.js';
 
 var WLLAMA_PIN = '3.5.1';
 var N_GPU_LAYERS = 99; // all layers to WebGPU; CPU fallback on failure
@@ -122,11 +126,30 @@ function resolvePeer() {
         });
 }
 
+function loadWllama() {
+    // Dynamic import keeps the page alive when the CDN is unreachable;
+    // failures surface in status instead of killing the whole script.
+    return Promise.all([import(WLLAMA_ESM), import(WLLAMA_WASM_CDN)])
+        .then(function (mods) {
+            return { Wllama: mods[0].Wllama, WasmFromCDN: mods[1].default };
+        });
+}
+
 function loadModel() {
     var key = el('tensor-model').value || 'qwen15';
     var spec = MODELS[key] || MODELS.qwen15;
-    setStatus('loading ' + esc(spec.label) + '&hellip;');
-    var inst = new Wllama(WasmFromCDN);
+    setStatus('loading runtime (wllama CDN)&hellip;');
+    loadWllama().then(function (rt) {
+        setStatus('loading ' + esc(spec.label) + '&hellip;');
+        startModelLoad(rt, spec, key);
+    }).catch(function (e) {
+        setStatus('runtime load failed (CDN offline?): ' + esc(String((e && e.message) || e)));
+        logRow('err', 'wllama CDN import failed: ' + String((e && e.message) || e));
+    });
+}
+
+function startModelLoad(rt, spec, key) {
+    var inst = new rt.Wllama(rt.WasmFromCDN);
     var onProgress = function (loaded, total) {
         var pct = total ? Math.round((loaded / total) * 100) : 0;
         setStatus('downloading ' + esc(spec.label) + ': ' + pct + '%');
@@ -146,7 +169,7 @@ function loadModel() {
     }).catch(function (e) {
         // Redmi-class devices may fail the GPU path: retry CPU-only.
         setStatus('WebGPU load failed (' + esc((e && e.message) || e) + '), retrying CPU&hellip;');
-        var cpu = new Wllama(WasmFromCDN);
+        var cpu = new rt.Wllama(rt.WasmFromCDN);
         var cpuOpts = { progressCallback: onProgress, n_gpu_layers: 0 };
         return cpu.loadModelFromHF(cfg, cpuOpts).then(function () {
             S.wllama = cpu;

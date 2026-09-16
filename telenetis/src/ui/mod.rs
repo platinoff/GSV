@@ -2437,11 +2437,13 @@ mod tests {
             .await
             .unwrap();
         let js = String::from_utf8_lossy(&body);
-        // Pinned runtime + contract surfaces the worker speaks.
+        // Pinned runtime + contract surfaces the worker speaks; the runtime
+        // loads lazily via dynamic import so the model list works offline.
         assert!(js.contains("@wllama/wllama@3.5.1"));
         assert!(js.contains("tasks/poll"));
         assert!(js.contains("llama_chat"));
         assert!(js.contains("loadModelFromHF"));
+        assert!(js.contains("loadWllama"));
     }
 
     #[tokio::test]
