@@ -2566,6 +2566,8 @@ mod tests {
         assert!(js.contains("cacheManager")); // OPFS bypass: custom RAM cache shim
         assert!(js.contains("indexedDB")); // device persistence across reloads
         assert!(js.contains("listAll")); // visible cached tags, no silent empty
+        assert!(js.contains("wakeLock")); // screen lock against sleep stalls
+        assert!(js.contains("loadModelAsync")); // Start auto-loads the model
         assert!(js.contains("/api/edge/tensor/config"));
     }
 

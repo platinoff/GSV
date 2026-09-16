@@ -129,6 +129,48 @@ function tgUser() {
     return '';
 }
 
+// Screen wake lock: locked devices freeze WebView fetches mid-download,
+// resuming to a dead stream. Held while downloading or working, released
+// on stop/finish. Best-effort (old WebViews lack the API).
+var WL = { lock: null, want: false };
+function wakeLock(on) {
+    WL.want = !!on;
+    function release() {
+        if (!WL.lock) { return; }
+        try {
+            var l = WL.lock;
+            WL.lock = null;
+            if (l.release) { l.release(); }
+        } catch (e) {}
+    }
+    if (!on) { release(); return Promise.resolve(); }
+    try {
+        if (!('wakeLock' in navigator) || !navigator.wakeLock.request) {
+            logRow('sys', 'wake lock unsupported — keep the screen on manually');
+            return Promise.resolve();
+        }
+        return navigator.wakeLock.request('screen').then(function (l) {
+            WL.lock = l;
+            logRow('sys', 'screen lock held (download/worker)');
+            l.addEventListener('release', function () {
+                WL.lock = null;
+                if (WL.want) {
+                    logRow('sys', 'screen lock lost — re-request on return');
+                }
+            });
+        }).catch(function (e) {
+            logRow('sys', 'wake lock denied: ' + String((e && e.name) || e));
+        });
+    } catch (e) {
+        return Promise.resolve();
+    }
+}
+document.addEventListener('visibilitychange', function () {
+    // Re-acquire after sleep if still needed; the stall watchdog below
+    // resumes the byte stream itself.
+    if (!document.hidden && WL.want && !WL.lock) { wakeLock(true); }
+});
+
 function timed(url, opts, ms) {
     if (typeof AbortController === 'undefined' || typeof fetch === 'undefined') {
         return fetch(url, opts);
@@ -222,20 +264,6 @@ function loadWllama() {
     });
 }
 
-function loadModel() {
-    var key = el('tensor-model').value || Object.keys(MODELS)[0] || 'qwen15';
-    var spec = MODELS[key] || MODELS.qwen15;
-    if (!spec) { setStatus('no models available'); return; }
-    setStatus('loading runtime&hellip;');
-    loadWllama().then(function (rt) {
-        setStatus('loading ' + esc(spec.label) + '&hellip;');
-        startModelLoad(rt, spec, key);
-    }).catch(function (e) {
-        setStatus('runtime load failed: ' + esc(String((e && e.message) || e)));
-        logRow('err', 'runtime import failed: ' + String((e && e.message) || e));
-    });
-}
-
 // Device persistence (IndexedDB works on HTTP LAN + old WebViews where
 // OPFS is absent): finished downloads survive reloads; RAM is the
 // fallback when IDB is missing or quota-rejected. Module-level so one
@@ -323,7 +351,8 @@ function startModelLoad(rt, spec, key) {
     var SEG = {
         chunks: [], loaded: 0, total: 0, ctrl: null, t0: 0,
         lastT: 0, lastLoaded: 0, speed: 0, paused: false, url: '',
-        resolve: null, reject: null, onP: null, name: ''
+        resolve: null, reject: null, onP: null, name: '',
+        auto: false, lastByte: 0
     };
     function fmtMB(b) { return (b / 1048576).toFixed(1); }
     function fmtSpeed(bps) {
@@ -367,12 +396,14 @@ function startModelLoad(rt, spec, key) {
     function finishDl() {
         var blob = new Blob(SEG.chunks, { type: 'application/octet-stream' });
         store.set(SEG.name, { blob: blob, size: blob.size });
+        SEG.ctrl = null;
         reportDl();
         setStatus('saving to device cache&hellip;');
         IDB.put(SEG.name, blob).then(function (saved) {
             if (!saved) {
                 logRow('sys', 'device cache unavailable (quota?) — RAM only this session');
                 SEG.resolve({ name: SEG.name, size: blob.size });
+                if (!S.running) { wakeLock(false); }
                 return;
             }
             // Verify-after-write: read back and compare sizes, so a
@@ -383,6 +414,7 @@ function startModelLoad(rt, spec, key) {
                     ? 'saved to device cache (' + fmtMB(blob.size) + 'MB, verified)'
                     : 'device cache verify FAILED — will re-download next time');
                 SEG.resolve({ name: SEG.name, size: blob.size });
+                if (!S.running) { wakeLock(false); }
             });
         });
     }
@@ -399,6 +431,7 @@ function startModelLoad(rt, spec, key) {
                     if (res.done) { finishDl(); return; }
                     SEG.chunks.push(res.value);
                     SEG.loaded += res.value.byteLength;
+                    SEG.lastByte = Date.now();
                     tickSpeed();
                     reportDl();
                     return pump();
@@ -407,9 +440,31 @@ function startModelLoad(rt, spec, key) {
             return pump();
         }).catch(function (e) {
             // Pause aborts the segment on purpose: hold chunks, wait resume.
-            if (SEG.paused) { reportDl(); return; }
+            // Auto-resume (stall watchdog) re-arms itself the same way.
+            if (SEG.paused || SEG.auto) { SEG.auto = false; reportDl(); return; }
+            SEG.ctrl = null;
+            wakeLock(false);
             SEG.reject(e);
         });
+    }
+    // Stall watchdog: locked/sleeping radios freeze the stream without
+    // aborting it. No bytes for 20s → cut the dead segment and resume
+    // from SEG.loaded via Range (once per watchdog pass at most).
+    if (!window.__tensorStallWatch) {
+        window.__tensorStallWatch = setInterval(function () {
+            try {
+                if (!SEG.ctrl || SEG.paused || SEG.lastByte === 0) { return; }
+                if (SEG.total && SEG.loaded >= SEG.total) { return; }
+                if (Date.now() - SEG.lastByte > 20000) {
+                    logRow('sys', 'stall detected — resuming from ' +
+                        (SEG.loaded / 1048576).toFixed(1) + 'MB');
+                    SEG.auto = true;
+                    SEG.lastByte = Date.now();
+                    try { SEG.ctrl.abort(); } catch (e) {}
+                    dlSegment();
+                }
+            } catch (e) {}
+        }, 5000);
     }
     var shim = {
         download: function (url, opts) {
@@ -425,6 +480,8 @@ function startModelLoad(rt, spec, key) {
             SEG.speed = 0;
             SEG.onP = (opts && opts.progressCallback) || null;
             setPausedUI(false);
+            SEG.lastByte = Date.now();
+            wakeLock(true);
             return new Promise(function (resolve, reject) {
                 SEG.resolve = resolve;
                 SEG.reject = reject;
@@ -610,7 +667,15 @@ function pollOnce() {
 }
 
 function startLoop() {
-    if (!S.wllama) { setStatus('load the model first'); return; }
+    // No model yet: load it first, then continue into the loop instead of
+    // bouncing the user back to the Load button.
+    if (!S.wllama) {
+        setStatus('loading model first&hellip;');
+        loadModelAsync().then(function (ready) {
+            if (ready) { startLoop(); }
+        });
+        return;
+    }
     if (!S.peer) {
         setStatus('resolving peer&hellip;');
         resolvePeer().then(function (peer) {
@@ -625,9 +690,32 @@ function startLoop() {
     beginLoop();
 }
 
+// Promise version of the Load button flow (true when the model is ready).
+// Button handler keeps fire-and-forget behavior via the same path.
+function loadModelAsync() {
+    var key = el('tensor-model').value || Object.keys(MODELS)[0] || 'qwen15';
+    var spec = MODELS[key] || MODELS.qwen15;
+    if (!spec) { setStatus('no models available'); return Promise.resolve(false); }
+    setStatus('loading runtime&hellip;');
+    return loadWllama().then(function (rt) {
+        setStatus('loading ' + esc(spec.label) + '&hellip;');
+        return startModelLoad(rt, spec, key);
+    }).then(function () {
+        return !!S.wllama;
+    }).catch(function (e) {
+        setStatus('runtime load failed: ' + esc(String((e && e.message) || e)));
+        logRow('err', 'runtime import failed: ' + String((e && e.message) || e));
+        wakeLock(false);
+        return false;
+    });
+}
+
+function loadModel() { loadModelAsync(); }
+
 function beginLoop() {
     if (S.running) { return; }
     S.running = true;
+    wakeLock(true);
     setStatus('worker up on ' + esc(S.peer));
     el('tensor-start').disabled = true;
     el('tensor-stop').disabled = false;
@@ -642,6 +730,7 @@ function beginLoop() {
 
 function stopLoop() {
     S.running = false;
+    wakeLock(false);
     if (S.timer) { clearTimeout(S.timer); S.timer = null; }
     el('tensor-start').disabled = false;
     el('tensor-stop').disabled = true;
