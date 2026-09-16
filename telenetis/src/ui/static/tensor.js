@@ -499,7 +499,9 @@ function refreshRows() {
             show('cancel', dl.status === 'active' || dl.status === 'paused');
             var useBtn = el('btn-use-' + key);
             if (useBtn) {
-                useBtn.style.display = (dl.status === 'done' || dl.status === 'cached') ? '' : 'none';
+                // Always visible: tapping without bytes explains itself
+                // ("Download X first") instead of hiding the action.
+                useBtn.style.display = '';
                 if (S.modelKey === key && S.wllama) {
                     useBtn.textContent = 'In use';
                 } else {
