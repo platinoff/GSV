@@ -24,12 +24,24 @@ pub fn vendor_dir() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/live/vendor"))
 }
 
-/// GGUF library root. No compiled default — an absolute env path keeps
-/// other-repo trees (llama-rs `models/`) out of this crate's canon.
+/// GGUF library root: `TELENETIS_MODEL_DIR` first, then the sibling
+/// `llama-rs/models` tree next to this kit (`S:/rust/<kit>/telenetis`
+/// → `S:/rust/llama-rs/models`). The compiled fallback keeps device
+/// catalogs working even when dotenv fails to load the local `.env`.
+/// `None` only when neither exists.
 pub fn model_dir() -> Option<PathBuf> {
-    std::env::var_os("TELENETIS_MODEL_DIR")
+    if let Some(p) = std::env::var_os("TELENETIS_MODEL_DIR")
         .map(PathBuf::from)
         .filter(|p| !p.as_os_str().is_empty())
+        .filter(|p| p.is_dir())
+    {
+        return Some(p);
+    }
+    let sibling = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../llama-rs/models");
+    if sibling.is_dir() {
+        return Some(sibling);
+    }
+    None
 }
 
 /// Clean a URL tail into a relative path, or reject it. Allows
@@ -256,11 +268,22 @@ mod tests {
 
     #[test]
     fn tensor_config_shape_without_model_dir() {
+        // Deterministic everywhere: point the var at an empty temp dir
+        // (never rely on machine-global state like the sibling tree).
         let _guard = ENV_GUARD.blocking_lock();
-        std::env::remove_var("TELENETIS_MODEL_DIR");
+        let prev = std::env::var_os("TELENETIS_MODEL_DIR");
+        let dir = std::env::temp_dir().join(format!("tns-nomodels-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::env::set_var("TELENETIS_MODEL_DIR", &dir);
         let cfg = tensor_config();
         assert_eq!(cfg["runtime"]["esm"], "/vendor/wllama/index.js");
         assert_eq!(cfg["runtime"]["wasm"], "/vendor/wllama/wllama.wasm");
         assert_eq!(cfg["models"].as_array().unwrap().len(), 0);
+        match prev {
+            Some(v) => std::env::set_var("TELENETIS_MODEL_DIR", v),
+            None => std::env::remove_var("TELENETIS_MODEL_DIR"),
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
