@@ -87,6 +87,15 @@ pub fn is_private_chat(chat_id: i64) -> bool {
     chat_id > 0
 }
 
+/// Reply policy: Telenetis is the Mini App backend; group/channel traffic
+/// belongs to gsv bot official. Replies go to private chats only —
+/// answering in groups duplicates the owner bot (owner decision 2026-09-16).
+/// Observation (`telegram_message` flows) and `/start` prefetch still run
+/// everywhere; only the send is gated.
+pub fn should_reply_in_chat(chat_id: i64) -> bool {
+    is_private_chat(chat_id)
+}
+
 /// Cold-start warm-up for the Mini App (plan P3). When the owner taps the
 /// bot's `Start` web-app button, `process_update` syncs the board from GSV so
 /// the snapshot the WebView fetches is already fresh, and records a
@@ -139,10 +148,6 @@ pub async fn process_update(state: &AppState, update: &Value) {
                     .and_then(|v| v.as_i64())
                     .map(|id| id.to_string());
                 let cmd = Command::from_text(&text);
-                let response_text =
-                    crate::bot::commands::handle_command_from(&cmd, state, sender_id.as_deref())
-                        .await;
-
                 if matches!(cmd, Command::Start) {
                     // Cold-start prefetch (plan P3): the first interaction after
                     // the Mini App button opens syncs the board from GSV so the
@@ -161,6 +166,20 @@ pub async fn process_update(state: &AppState, update: &Value) {
                         detail: format!("chat={} from={} cmd={}", chat_id, from, text),
                     })
                     .await;
+
+                if !should_reply_in_chat(chat_id) {
+                    // Group/channel traffic belongs to gsv bot official —
+                    // Telenetis observes (flow above) but never replies, so
+                    // commands never get duplicate answers.
+                    tracing::info!(
+                        "group/channel message — no reply (chat owned by gsv bot official)"
+                    );
+                    return;
+                }
+
+                let response_text =
+                    crate::bot::commands::handle_command_from(&cmd, state, sender_id.as_deref())
+                        .await;
 
                 tracing::info!("Reply to {}: {}", chat_id, response_text);
 
@@ -362,6 +381,17 @@ mod tests {
         assert!(is_private_chat(123_456));
         assert!(!is_private_chat(-1_003_872_035_653));
         assert!(!is_private_chat(-42));
+    }
+
+    #[test]
+    fn replies_go_to_private_chats_only() {
+        // Owner decision 2026-09-16: gsv bot official owns group traffic,
+        // Telenetis is the Mini App backend — answering in groups duplicates
+        // the owner bot.
+        assert!(should_reply_in_chat(123_456));
+        assert!(!should_reply_in_chat(-1_003_872_035_653));
+        assert!(!should_reply_in_chat(-42));
+        assert!(!should_reply_in_chat(0));
     }
 
     #[tokio::test]
