@@ -26,14 +26,22 @@
         serves <code>llama_chat</code> tasks from your bound poolAI peer.
         1) Load model (downloads once, cached) 2) Start worker.
         PC pollers race for the same queue during the PoC.</p>
+        <div class="gsv-card">
         <div class="tabs" role="group" aria-label="model">
             <select id="tensor-model" aria-label="model"></select>
         </div>
-        <div class="tabs" role="group" aria-label="worker controls">
+        <div class="btn-grid" role="group" aria-label="download controls">
             <button type="button" id="tensor-load" class="tab">Load model</button>
-            <button type="button" id="tensor-start" class="tab">Start worker</button>
-            <button type="button" id="tensor-stop" class="tab">Stop</button>
             <button type="button" id="tensor-pause" class="tab">Pause</button>
+            <button type="button" id="tensor-cancel" class="tab">Cancel</button>
+        </div>
+        </div>
+        <div class="gsv-card">
+        <div class="btn-grid" role="group" aria-label="worker controls">
+            <button type="button" id="tensor-start" class="tab">Start worker</button>
+            <button type="button" id="tensor-wpause" class="tab">Pause worker</button>
+            <button type="button" id="tensor-stop" class="tab">Stop</button>
+        </div>
         </div>
         <form id="tensor-form">
             <input id="tensor-prompt" type="text" autocomplete="off"
@@ -41,7 +49,7 @@
             <button type="submit" id="tensor-self">Run</button>
         </form>
         <p id="tensor-status" class="dim" aria-live="polite">Not started.</p>
-        <p id="tensor-torrent" class="dim"></p>
+        <p id="tensor-torrent" class="dim stat-line"></p>
         <p id="tensor-lan" class="dim"></p>
         <table id="tensor-table">
             <thead>

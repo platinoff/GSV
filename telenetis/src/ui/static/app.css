@@ -341,3 +341,63 @@ button.error, .btn.error {
 
 .nav { display: flex; gap: 12px; overflow-x: auto; padding: 8px 0; margin-bottom: 12px; border-bottom: 1px solid var(--tg-theme-hint-color, #ccc); } .nav a { white-space: nowrap; }
 .tab.active { border-color: var(--accent); color: var(--accent); }
+
+/* GSV Galaxy flavor (tensor controls band): deep-navy cards, status
+   pills, full-width control grids. Additive only — existing pages keep
+   their Telegram-native look; tensor.html opts in per section. */
+.gsv-card {
+    background: linear-gradient(180deg, rgba(22, 32, 56, 0.55), rgba(10, 16, 32, 0.55));
+    border: 1px solid rgba(140, 180, 255, 0.22);
+    border-radius: 12px;
+    padding: 12px;
+    margin: 8px 0;
+}
+
+.btn-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin: 4px 0;
+}
+
+.btn-grid button {
+    width: 100%;
+    min-height: 44px;
+    font-size: 15px;
+}
+
+.pill {
+    display: inline-block;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 10px;
+    text-transform: uppercase;
+}
+
+.pill-ok { background: rgba(63, 185, 110, 0.15); color: #3fb96e; }
+.pill-warn { background: rgba(224, 168, 60, 0.15); color: #e0a83c; }
+.pill-err { background: rgba(224, 91, 91, 0.15); color: #e05b5b; }
+
+.stat-line {
+    font-family: ui-monospace, Cascadia Code, Consolas, monospace;
+    font-size: 13px;
+    word-break: break-word;
+}
+
+select, input[type=text] {
+    width: 100%;
+    min-height: 44px;
+    font-size: 15px;
+}
+
+/* Coarse pointers (phones): roomy touch targets everywhere. */
+@media (pointer: coarse) {
+    button, .btn, .tab {
+        min-height: 44px;
+    }
+
+    th, td {
+        padding: 12px 10px;
+    }
+}

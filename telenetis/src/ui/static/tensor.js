@@ -55,6 +55,7 @@ var S = {
     gpu: true,
     peer: '',
     running: false,
+    wpaused: false,
     timer: null,
     busy: false,
     done: 0
@@ -441,10 +442,11 @@ function startModelLoad(rt, spec, key) {
         }).catch(function (e) {
             // Pause aborts the segment on purpose: hold chunks, wait resume.
             // Auto-resume (stall watchdog) re-arms itself the same way.
+            // Cancelled downloads null resolve/reject first: stay silent.
             if (SEG.paused || SEG.auto) { SEG.auto = false; reportDl(); return; }
             SEG.ctrl = null;
             wakeLock(false);
-            SEG.reject(e);
+            if (SEG.reject) { SEG.reject(e); }
         });
     }
     // Stall watchdog: locked/sleeping radios freeze the stream without
@@ -520,6 +522,10 @@ function startModelLoad(rt, spec, key) {
         }
     };
     window.__tensorPause = function () {
+        if ((!SEG.ctrl && SEG.loaded === 0) || SEG.paused) {
+            if (!SEG.paused) { setStatus('nothing downloading'); }
+            return;
+        }
         if (!SEG.ctrl || SEG.paused) { return; }
         SEG.paused = true;
         try { SEG.ctrl.abort(); } catch (e) {}
@@ -713,14 +719,21 @@ function loadModelAsync() {
 function loadModel() { loadModelAsync(); }
 
 function beginLoop() {
-    if (S.running) { return; }
+    if (S.running) { setStatus('already running'); return; }
     S.running = true;
+    S.wpaused = false;
     wakeLock(true);
     setStatus('worker up on ' + esc(S.peer));
     el('tensor-start').disabled = true;
     el('tensor-stop').disabled = false;
+    el('tensor-wpause').disabled = false;
+    el('tensor-wpause').textContent = 'Pause worker';
     var tick = function () {
         if (!S.running) { return; }
+        if (S.wpaused) {
+            S.timer = setTimeout(tick, POLL_MS);
+            return;
+        }
         pollOnce().then(function () {
             if (S.running) { S.timer = setTimeout(tick, POLL_MS); }
         });
@@ -728,12 +741,52 @@ function beginLoop() {
     tick();
 }
 
+function pauseWorker() {
+    if (!S.running) { setStatus('worker not running'); return; }
+    if (!S.wpaused) {
+        S.wpaused = true;
+        el('tensor-wpause').textContent = 'Resume worker';
+        setStatus('worker paused on ' + esc(S.peer) + ' (queue untouched)');
+        logRow('sys', 'worker paused');
+    } else {
+        S.wpaused = false;
+        el('tensor-wpause').textContent = 'Pause worker';
+        setStatus('worker resumed');
+        logRow('sys', 'worker resumed');
+    }
+}
+
+function cancelDownload() {
+    if (!SEG.ctrl && SEG.loaded === 0 && !SEG.paused) {
+        setStatus('nothing downloading');
+        return;
+    }
+    SEG.paused = false;
+    try { if (SEG.ctrl) { SEG.ctrl.abort(); } catch (e) {}
+    SEG.ctrl = null;
+    SEG.chunks = [];
+    SEG.loaded = 0;
+    SEG.total = 0;
+    SEG.speed = 0;
+    SEG.resolve = null;
+    SEG.reject = null;
+    setPausedUI(false);
+    var box = el('tensor-torrent');
+    if (box) { box.textContent = 'download cancelled'; }
+    setStatus('download cancelled, progress discarded');
+    logRow('sys', 'download cancelled');
+    if (!S.running) { wakeLock(false); }
+}
+
 function stopLoop() {
     S.running = false;
+    S.wpaused = false;
     wakeLock(false);
     if (S.timer) { clearTimeout(S.timer); S.timer = null; }
     el('tensor-start').disabled = false;
     el('tensor-stop').disabled = true;
+    el('tensor-wpause').disabled = true;
+    el('tensor-wpause').textContent = 'Pause worker';
     setStatus('worker stopped (' + S.done + ' tasks done)');
 }
 
@@ -806,6 +859,9 @@ el('tensor-load').addEventListener('click', loadModel);
 el('tensor-start').addEventListener('click', startLoop);
 el('tensor-stop').addEventListener('click', stopLoop);
 el('tensor-stop').disabled = true;
+el('tensor-wpause').addEventListener('click', pauseWorker);
+el('tensor-wpause').disabled = true;
+el('tensor-cancel').addEventListener('click', cancelDownload);
 el('tensor-self').addEventListener('click', selfTest);
 el('tensor-pause').addEventListener('click', function () {
     try {

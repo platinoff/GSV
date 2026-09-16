@@ -2535,6 +2535,9 @@ mod tests {
         assert!(html.contains("tensor-start"));
         assert!(html.contains("tensor-pause"));
         assert!(html.contains("tensor-torrent"));
+        assert!(html.contains("tensor-wpause"));
+        assert!(html.contains("tensor-cancel"));
+        assert!(html.contains("gsv-card"));
     }
 
     #[tokio::test]
@@ -2568,6 +2571,8 @@ mod tests {
         assert!(js.contains("listAll")); // visible cached tags, no silent empty
         assert!(js.contains("wakeLock")); // screen lock against sleep stalls
         assert!(js.contains("loadModelAsync")); // Start auto-loads the model
+        assert!(js.contains("cancelDownload")); // decline the download, discard
+        assert!(js.contains("pauseWorker")); // worker pause/resume toggle
         assert!(js.contains("/api/edge/tensor/config"));
     }
 
