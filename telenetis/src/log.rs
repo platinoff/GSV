@@ -22,6 +22,28 @@ pub fn log_dir() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/live/logs"))
 }
 
+/// Report unparseable `.env` lines at boot (bug-hunt 2 root cause: a BOM
+/// on line 1 and bare Windows backslashes silently dropped keys while the
+/// service ran half-configured). Logs 1-based line numbers only — never
+/// values.
+fn warn_dotenv_errors() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".env");
+    let parsed = match dotenvy::from_path_iter(&path) {
+        Ok(iter) => iter,
+        Err(_) => {
+            // Missing/unreadable file is normal (env may come from elsewhere).
+            return;
+        }
+    };
+    for (idx, item) in parsed.enumerate() {
+        if item.is_err() {
+            tracing::warn!(
+                "dotenv line {} unparseable — key on that line is ignored (check BOM/quoting)",
+                idx + 1
+            );
+        }
+    }
+}
 /// Install stdout + rolling-file tracing. The returned guard must stay
 /// alive for the process lifetime (dropping it flushes and stops the
 /// file sink) — main holds it to the end of `main`.
@@ -51,6 +73,7 @@ pub fn init_logging() -> tracing_appender::non_blocking::WorkerGuard {
         eprintln!("tracing global default already set — file sink skipped");
     }
     tracing::info!("telenetis file log at {}", dir.display());
+    warn_dotenv_errors();
     guard
 }
 

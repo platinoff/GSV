@@ -111,18 +111,22 @@ tests (`tests/integration_test.rs`).
 ## Live logs (bug-hunt 2)
 
 The detached `:9800` process has no console, so tracing goes to stdout
-**and** a rolling file sink: `telenetis/target/live/logs/telenetis.log`
-(daily rotation, keep 7; `TELENETIS_LOG_DIR` overrides the directory).
-Tail on the host:
+**and** a rolling file sink: `telenetis/target/live/logs/` (daily files
+`telenetis.log.YYYY-MM-DD`, keep 7; `TELENETIS_LOG_DIR` overrides the
+directory). Tail on the host:
 
 ```bash
-tail -f S:/rust/GSV/telenetis/target/live/logs/telenetis.log
+tail -f S:/rust/GSV/telenetis/target/live/logs/telenetis.log.$(date +%F)
 ```
+
+Startup always logs `telenetis file log at <dir>` + `Telenetis starting
+on port 9800`; unparseable `.env` lines (BOM, unquoted Windows paths)
+are reported as `dotenv line N unparseable` warnings — fix the line,
+don't chase symptoms.
 
 Provoke a warn line (proves the sink is live): POST `/webhook` without the
 secret header while `TELENETIS_WEBHOOK_SECRET` is set → `webhook rejected
-(missing or mismatched secret token)` lands in the file. Startup always
-logs `telenetis file log at <dir>` + `Telenetis starting on port 9800`.
+(missing or mismatched secret token)` lands in the file.
 
 ## TLS / reverse proxy note
 
