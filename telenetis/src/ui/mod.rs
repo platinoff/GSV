@@ -2533,6 +2533,8 @@ mod tests {
         let html = String::from_utf8_lossy(&body);
         assert!(html.contains("/static/tensor.js"));
         assert!(html.contains("tensor-start"));
+        assert!(html.contains("tensor-pause"));
+        assert!(html.contains("tensor-torrent"));
     }
 
     #[tokio::test]
@@ -2561,6 +2563,7 @@ mod tests {
         assert!(js.contains("loadWllama"));
         assert!(js.contains("/api/edge/tensor/config"));
         assert!(js.contains("tensor-lan"));
+        assert!(js.contains("cacheManager")); // OPFS bypass: custom RAM cache shim
         assert!(js.contains("/api/edge/tensor/config"));
     }
 

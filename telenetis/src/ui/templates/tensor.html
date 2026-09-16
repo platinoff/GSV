@@ -33,6 +33,7 @@
             <button type="button" id="tensor-load" class="tab">Load model</button>
             <button type="button" id="tensor-start" class="tab">Start worker</button>
             <button type="button" id="tensor-stop" class="tab">Stop</button>
+            <button type="button" id="tensor-pause" class="tab">Pause</button>
         </div>
         <form id="tensor-form">
             <input id="tensor-prompt" type="text" autocomplete="off"
@@ -40,6 +41,7 @@
             <button type="submit" id="tensor-self">Run</button>
         </form>
         <p id="tensor-status" class="dim" aria-live="polite">Not started.</p>
+        <p id="tensor-torrent" class="dim"></p>
         <p id="tensor-lan" class="dim"></p>
         <table id="tensor-table">
             <thead>

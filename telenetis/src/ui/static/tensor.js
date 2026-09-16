@@ -167,6 +167,7 @@ function resolvePeer() {
             for (var i = 0; i < rows.length; i++) {
                 if (String(rows[i].telegram_user_id) === user) {
                     S.peer = rows[i].peer_id;
+                    saveWorkerState();
                     return S.peer;
                 }
             }
@@ -235,7 +236,135 @@ function loadModel() {
 }
 
 function startModelLoad(rt, spec, key) {
-    var inst = new rt.Wllama({ default: rt.wasmUrl });
+    // Custom RAM cache: wllama's default CacheManager demands OPFS
+    // (absent on HTTP LAN + old WebViews → "No supported storage backend").
+    // The shim speaks the 3 methods ModelManager uses (download/list/open),
+    // fetches with pause/resume + speed stats, and keeps bytes in RAM.
+    var store = new Map();
+    function fname(url) {
+        var m = /\/([^\/\?#]+)(?:[\?#]|$)/.exec(url || '');
+        return m ? m[1] : String(url);
+    }
+    var SEG = {
+        chunks: [], loaded: 0, total: 0, ctrl: null, t0: 0,
+        lastT: 0, lastLoaded: 0, speed: 0, paused: false, url: '',
+        resolve: null, reject: null, onP: null, name: ''
+    };
+    function fmtMB(b) { return (b / 1048576).toFixed(1); }
+    function fmtSpeed(bps) {
+        if (!isFinite(bps) || bps <= 0) { return '--'; }
+        return bps > 1048576
+            ? (bps / 1048576).toFixed(1) + 'MB/s'
+            : Math.round(bps / 1024) + 'KB/s';
+    }
+    function reportDl() {
+        var pct = SEG.total ? Math.round((SEG.loaded / SEG.total) * 100) : 0;
+        var box = el('tensor-torrent');
+        if (box) {
+            box.textContent =
+                '\u25BC ' + fmtSpeed(SEG.speed) + ' \u00B7 ' +
+                fmtMB(SEG.loaded) + '/' + (SEG.total ? fmtMB(SEG.total) : '?') + 'MB' +
+                ' (' + pct + '%) \u00B7 1 seed (host LAN) \u00B7 peers 1' +
+                (SEG.paused ? ' \u00B7 paused' : '');
+        }
+        try {
+            if (SEG.onP) { SEG.onP({ loaded: SEG.loaded, total: SEG.total }); }
+        } catch (e) {}
+    }
+    function totalFromHeaders(r) {
+        try {
+            var cr = r.headers.get('Content-Range') || '';
+            var m = /\/(\d+)\s*$/.exec(cr);
+            if (m) { return parseInt(m[1], 10) || 0; }
+            var cl = r.headers.get('Content-Length');
+            return cl ? parseInt(cl, 10) || 0 : 0;
+        } catch (e) { return 0; }
+    }
+    function tickSpeed() {
+        var now = Date.now();
+        var dt = (now - SEG.lastT) / 1000;
+        if (dt >= 0.5) {
+            SEG.speed = (SEG.loaded - SEG.lastLoaded) / dt;
+            SEG.lastT = now;
+            SEG.lastLoaded = SEG.loaded;
+        }
+    }
+    function finishDl() {
+        var blob = new Blob(SEG.chunks, { type: 'application/octet-stream' });
+        store.set(SEG.name, { blob: blob, size: blob.size });
+        reportDl();
+        SEG.resolve({ name: SEG.name, size: blob.size });
+    }
+    function dlSegment() {
+        var from = SEG.loaded;
+        SEG.ctrl = new AbortController();
+        var headers = from > 0 ? { Range: 'bytes=' + from + '-' } : {};
+        fetch(SEG.url, { signal: SEG.ctrl.signal, headers: headers }).then(function (r) {
+            if (r.status !== 200 && r.status !== 206) { throw new Error('HTTP ' + r.status); }
+            if (!SEG.total) { SEG.total = totalFromHeaders(r); }
+            var reader = r.body.getReader();
+            function pump() {
+                return reader.read().then(function (res) {
+                    if (res.done) { finishDl(); return; }
+                    SEG.chunks.push(res.value);
+                    SEG.loaded += res.value.byteLength;
+                    tickSpeed();
+                    reportDl();
+                    return pump();
+                });
+            }
+            return pump();
+        }).catch(function (e) {
+            // Pause aborts the segment on purpose: hold chunks, wait resume.
+            if (SEG.paused) { reportDl(); return; }
+            SEG.reject(e);
+        });
+    }
+    var shim = {
+        download: function (url, opts) {
+            SEG.url = url;
+            SEG.name = fname(url);
+            SEG.chunks = [];
+            SEG.loaded = 0;
+            SEG.total = 0;
+            SEG.paused = false;
+            SEG.t0 = Date.now();
+            SEG.lastT = SEG.t0;
+            SEG.lastLoaded = 0;
+            SEG.speed = 0;
+            SEG.onP = (opts && opts.progressCallback) || null;
+            setPausedUI(false);
+            return new Promise(function (resolve, reject) {
+                SEG.resolve = resolve;
+                SEG.reject = reject;
+                dlSegment();
+            });
+        },
+        list: function () {
+            var out = [];
+            store.forEach(function (v, k) { out.push({ name: k, size: v.size }); });
+            return Promise.resolve(out);
+        },
+        open: function (name) {
+            var e = store.get(name);
+            return Promise.resolve(e ? e.blob : null);
+        }
+    };
+    window.__tensorPause = function () {
+        if (!SEG.ctrl || SEG.paused) { return; }
+        SEG.paused = true;
+        try { SEG.ctrl.abort(); } catch (e) {}
+        setPausedUI(true);
+        reportDl();
+    };
+    window.__tensorResume = function () {
+        if (!SEG.paused) { return; }
+        SEG.paused = false;
+        setPausedUI(false);
+        reportDl();
+        dlSegment();
+    };
+    var inst = new rt.Wllama({ default: rt.wasmUrl }, { cacheManager: shim });
     var onProgress = function (loaded, total) {
         var pct = total ? Math.round((loaded / total) * 100) : 0;
         setStatus('downloading ' + esc(spec.label) + ': ' + pct + '%');
@@ -251,6 +380,7 @@ function startModelLoad(rt, spec, key) {
         S.modelKey = key;
         S.modelLabel = spec.label;
         S.gpu = true;
+        saveWorkerState();
         setStatus('model ready: ' + esc(spec.label) + ' (WebGPU)');
         logRow('sys', 'model loaded: ' + spec.label + ' (WebGPU)');
     }).catch(function (e) {
@@ -266,6 +396,7 @@ function startModelLoad(rt, spec, key) {
             S.modelKey = key;
             S.modelLabel = spec.label;
             S.gpu = false;
+            saveWorkerState();
             setStatus('model ready: ' + esc(spec.label) + ' (CPU fallback)');
             logRow('sys', 'model loaded: ' + spec.label + ' (CPU fallback)');
         });
@@ -331,6 +462,7 @@ function serveTask(task) {
         logRow('done', r.tps + ' tok/s, ' + r.ms + 'ms :: ' + r.text.slice(0, 200));
         return completeTask(task.id, r.text).then(function () {
             S.done++;
+            saveWorkerState();
             setStatus('worker up: ' + S.done + ' tasks done (' + esc(S.modelLabel) +
                 (S.gpu ? ', WebGPU' : ', CPU') + ')');
         });
@@ -417,6 +549,36 @@ function selfTest() {
     });
 }
 
+function setPausedUI(paused) {
+    var b = el('tensor-pause');
+    if (!b) { return; }
+    b.textContent = paused ? 'Resume' : 'Pause';
+}
+
+function saveWorkerState() {
+    try {
+        localStorage.setItem('tensor-worker', JSON.stringify({
+            modelKey: S.modelKey,
+            modelLabel: S.modelLabel,
+            peer: S.peer,
+            done: S.done
+        }));
+    } catch (e) {}
+}
+
+function restoreWorkerState() {
+    try {
+        var raw = localStorage.getItem('tensor-worker');
+        if (!raw) { return; }
+        var st = JSON.parse(raw);
+        if (st && (st.modelKey || st.peer)) {
+            setStatus('last session: ' + esc(st.modelLabel || st.modelKey || '?') +
+                ', peer ' + esc(st.peer || '?') + ', ' + (st.done || 0) + ' tasks done.' +
+                ' Reload loses model bytes — Load again, then Start.');
+        }
+    } catch (e) {}
+}
+
 function fillModels() {
     var sel = el('tensor-model');
     sel.innerHTML = '';
@@ -444,8 +606,19 @@ el('tensor-start').addEventListener('click', startLoop);
 el('tensor-stop').addEventListener('click', stopLoop);
 el('tensor-stop').disabled = true;
 el('tensor-self').addEventListener('click', selfTest);
+el('tensor-pause').addEventListener('click', function () {
+    try {
+        var label = el('tensor-pause').textContent || '';
+        if (label === 'Resume') {
+            if (window.__tensorResume) { window.__tensorResume(); }
+        } else {
+            if (window.__tensorPause) { window.__tensorPause(); }
+        }
+    } catch (e) {}
+});
 window.__tensorReady = true;
 // Catalog first (host vendor + GGUF library), so the list reflects what
 // this box actually serves; HF fallback when the host has no catalog.
 bootConfig();
 lanHint();
+restoreWorkerState();
