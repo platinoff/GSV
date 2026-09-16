@@ -10,6 +10,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 pub mod miniapp;
+pub mod vendor;
 pub mod webgpu;
 
 pub fn router(state: AppState) -> Router {
@@ -48,6 +49,9 @@ pub fn router(state: AppState) -> Router {
         .route("/static/app.js", get(serve_js))
         .route("/static/probe.js", get(serve_probe_js))
         .route("/static/tensor.js", get(serve_tensor_js))
+        .route("/vendor/{*path}", get(serve_vendor))
+        .route("/models/{*path}", get(serve_models))
+        .route("/api/edge/tensor/config", get(api_tensor_config))
         .route("/api/verify", get(api_verify_init_data))
         .route("/api/mini-app/i18n", get(api_mini_app_i18n))
         .route("/api/live/config", get(api_live_config))
@@ -1221,6 +1225,117 @@ async fn serve_tensor_js() -> impl IntoResponse {
         )],
         include_str!("static/tensor.js"),
     )
+}
+
+/// Tensor bootstrap for the browser worker: local runtime URLs + the
+/// host's GGUF catalog (empty `models` when `TELENETIS_MODEL_DIR` is unset —
+/// the page falls back to its pinned HuggingFace pair).
+async fn api_tensor_config() -> Json<serde_json::Value> {
+    Json(crate::ui::vendor::tensor_config())
+}
+
+/// Self-hosted vendor bytes (wllama ESM + wasm): same-origin, so no CDN
+/// and no CORS. Streams from disk with single-range support.
+async fn serve_vendor(
+    axum::extract::Path(tail): axum::extract::Path<String>,
+    headers: axum::http::HeaderMap,
+) -> Response {
+    serve_disk(
+        &crate::ui::vendor::vendor_dir(),
+        &tail,
+        headers.get(header::RANGE).and_then(|v| v.to_str().ok()),
+    )
+    .await
+}
+
+/// Host GGUF library (`TELENETIS_MODEL_DIR`): same-origin model bytes for
+/// the worker. 404 JSON when the dir is unconfigured (the page then uses
+/// its HuggingFace fallback).
+async fn serve_models(
+    axum::extract::Path(tail): axum::extract::Path<String>,
+    headers: axum::http::HeaderMap,
+) -> Response {
+    let Some(root) = crate::ui::vendor::model_dir() else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(crate::actions::err_json("model dir not configured")),
+        )
+            .into_response();
+    };
+    serve_disk(
+        &root,
+        &tail,
+        headers.get(header::RANGE).and_then(|v| v.to_str().ok()),
+    )
+    .await
+}
+
+/// Stream a file from `root` with single-range support. Traversal escapes
+/// and missing files are 404 (no path leak); unsatisfiable ranges are 416.
+async fn serve_disk(root: &std::path::Path, tail: &str, range: Option<&str>) -> Response {
+    use std::io::SeekFrom;
+    use tokio::io::{AsyncReadExt, AsyncSeekExt};
+
+    let Some(path) = crate::ui::vendor::resolve(root, tail) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let meta = match tokio::fs::metadata(&path).await {
+        Ok(m) if m.is_file() => m,
+        _ => return StatusCode::NOT_FOUND.into_response(),
+    };
+    let len = meta.len();
+    let ctype =
+        crate::ui::vendor::content_type(path.file_name().and_then(|n| n.to_str()).unwrap_or(""));
+    let (start, end, status) = match range {
+        None => (0, len.saturating_sub(1), StatusCode::OK),
+        Some(h) => match crate::ui::vendor::parse_range(h, len) {
+            Some((s, e)) => (s, e, StatusCode::PARTIAL_CONTENT),
+            None => {
+                return (
+                    StatusCode::RANGE_NOT_SATISFIABLE,
+                    [(header::CONTENT_RANGE, format!("bytes */{len}"))],
+                )
+                    .into_response();
+            }
+        },
+    };
+    if len == 0 {
+        return (StatusCode::OK, [(header::CONTENT_TYPE, ctype)]).into_response();
+    }
+    let mut file = match tokio::fs::File::open(&path).await {
+        Ok(f) => f,
+        Err(_) => return StatusCode::NOT_FOUND.into_response(),
+    };
+    if start > 0 && file.seek(SeekFrom::Start(start)).await.is_err() {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let left = end.saturating_sub(start) + 1;
+    let stream = futures::stream::unfold((file, left), |(mut f, mut left)| async move {
+        if left == 0 {
+            return None;
+        }
+        let n = left.min(65536) as usize;
+        let mut buf = vec![0u8; n];
+        match f.read_exact(&mut buf).await {
+            Ok(_) => {
+                left -= n as u64;
+                Some((Ok(axum::body::Bytes::from(buf)), (f, left)))
+            }
+            Err(e) => Some((Err(e), (f, 0))),
+        }
+    });
+    let mut resp = (status, axum::body::Body::from_stream(stream)).into_response();
+    let headers = resp.headers_mut();
+    headers.insert(header::CONTENT_TYPE, ctype.parse().unwrap());
+    headers.insert(header::ACCEPT_RANGES, "bytes".parse().unwrap());
+    headers.insert(header::CONTENT_LENGTH, left.to_string().parse().unwrap());
+    if status == StatusCode::PARTIAL_CONTENT {
+        headers.insert(
+            header::CONTENT_RANGE,
+            format!("bytes {start}-{end}/{len}").parse().unwrap(),
+        );
+    }
+    resp
 }
 
 #[cfg(test)]
@@ -2444,6 +2559,89 @@ mod tests {
         assert!(js.contains("llama_chat"));
         assert!(js.contains("loadModelFromHF"));
         assert!(js.contains("loadWllama"));
+        assert!(js.contains("/api/edge/tensor/config"));
+    }
+
+    async fn get_uri(app: Router, uri: &str) -> axum::response::Response {
+        app.oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn tensor_config_lists_host_models() {
+        // Hermetic: temp model dir with one GGUF; env restored after.
+        // Guarded: vendor shape test mutates the same process var.
+        let _guard = crate::ui::vendor::ENV_GUARD.lock().await;
+        let dir = std::env::temp_dir().join(format!("tns-cfg-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("tiny.gguf"), vec![0u8; 2048]).unwrap();
+        let prev = std::env::var_os("TELENETIS_MODEL_DIR");
+        std::env::set_var("TELENETIS_MODEL_DIR", &dir);
+        let resp = get_uri(router(test_state()), "/api/edge/tensor/config").await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 16 * 1024)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["runtime"]["esm"], "/vendor/wllama/index.js");
+        let models = json["models"].as_array().unwrap();
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0]["key"], "tiny");
+        assert!(models[0]["url"]
+            .as_str()
+            .unwrap()
+            .ends_with("/models/tiny.gguf"));
+        match prev {
+            Some(v) => std::env::set_var("TELENETIS_MODEL_DIR", v),
+            None => std::env::remove_var("TELENETIS_MODEL_DIR"),
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn vendor_serve_roundtrip_range_and_traversal() {
+        // Hermetic: temp vendor dir; env restored after. No guard needed —
+        // no other test touches TELENETIS_VENDOR_DIR.
+        let dir = std::env::temp_dir().join(format!("tns-vnd-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("wllama")).unwrap();
+        std::fs::write(dir.join("wllama/index.js"), b"var x=1;").unwrap();
+        let prev = std::env::var_os("TELENETIS_VENDOR_DIR");
+        std::env::set_var("TELENETIS_VENDOR_DIR", &dir);
+        let app = router(test_state());
+        let full = get_uri(app, "/vendor/wllama/index.js").await;
+        assert_eq!(full.status(), StatusCode::OK);
+        assert!(full
+            .headers()
+            .get(header::CONTENT_TYPE)
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .contains("javascript"));
+        let app = router(test_state());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/vendor/wllama/index.js")
+                    .header("Range", "bytes=0-3")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::PARTIAL_CONTENT);
+        let body = axum::body::to_bytes(resp.into_body(), 1024).await.unwrap();
+        assert_eq!(&body[..], b"var ");
+        let app = router(test_state());
+        let evil = get_uri(app, "/vendor/../secret").await;
+        assert_eq!(evil.status(), StatusCode::NOT_FOUND);
+        match prev {
+            Some(v) => std::env::set_var("TELENETIS_VENDOR_DIR", v),
+            None => std::env::remove_var("TELENETIS_VENDOR_DIR"),
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[tokio::test]

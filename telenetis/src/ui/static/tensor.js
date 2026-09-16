@@ -18,26 +18,35 @@
  * via dynamic import() on Load, so a dead CDN leaves the model list and
  * buttons alive and surfaces the exact error instead of a dead page.
  */
-var WLLAMA_ESM = 'https://cdn.jsdelivr.net/npm/@wllama/wllama@3.5.1/esm/index.js';
-var WLLAMA_WASM_CDN = 'https://cdn.jsdelivr.net/npm/@wllama/wllama@3.5.1/esm/wasm-from-cdn.js';
-
 var WLLAMA_PIN = '3.5.1';
 var N_GPU_LAYERS = 99; // all layers to WebGPU; CPU fallback on failure
 var POLL_MS = 5000;
 var MAX_REQUEUE_PER_TICK = 3;
 
-var MODELS = {
+// Runtime + models resolve at boot from /api/edge/tensor/config
+// (same-origin vendor + host GGUF library). HuggingFace pair below is the
+// fallback when the host serves no catalog — needs internet + the CSP
+// huggingface allowance, and the exact repo/file names.
+var RT = { esm: '', wasm: '' };
+var HF_RT = {
+    esm: 'https://cdn.jsdelivr.net/npm/@wllama/wllama@3.5.1/esm/index.js',
+    wasm: 'https://cdn.jsdelivr.net/npm/@wllama/wllama@3.5.1/esm/wasm/wllama.wasm'
+};
+var HF_MODELS = {
     qwen15: {
-        label: 'Qwen2.5-1.5B Q4_K_M (~1GB)',
+        label: 'Qwen2.5-1.5B Q4_K_M (~1GB, HF)',
+        hf: true,
         repo: 'Qwen/Qwen2.5-1.5B-Instruct-GGUF',
         file: 'qwen2.5-1.5b-instruct-q4_k_m.gguf'
     },
     qwen05: {
-        label: 'Qwen2.5-0.5B Q4_K_M (~400MB, Redmi fallback)',
+        label: 'Qwen2.5-0.5B Q4_K_M (~400MB, HF fallback)',
+        hf: true,
         repo: 'Qwen/Qwen2.5-0.5B-Instruct-GGUF',
         file: 'qwen2.5-0.5b-instruct-q4_k_m.gguf'
     }
 };
+var MODELS = {};
 
 var S = {
     wllama: null,
@@ -126,40 +135,75 @@ function resolvePeer() {
         });
 }
 
+function bootConfig() {
+    setStatus('loading tensor config&hellip;');
+    return timed('/api/edge/tensor/config', {
+        headers: { Accept: 'application/json' }
+    }, 15000).then(function (r) { return r.json(); }).then(function (data) {
+        applyConfig(data);
+    }).catch(function () {
+        applyConfig(null);
+    });
+}
+
+function applyConfig(data) {
+    var ok = data && data.runtime && data.runtime.esm && data.runtime.wasm;
+    RT = ok
+        ? { esm: data.runtime.esm, wasm: data.runtime.wasm }
+        : { esm: HF_RT.esm, wasm: HF_RT.wasm };
+    MODELS = {};
+    var ms = (data && data.models) || [];
+    for (var i = 0; i < ms.length; i++) {
+        if (ms[i] && ms[i].key && ms[i].url) {
+            MODELS[ms[i].key] = { label: ms[i].label || ms[i].key, url: ms[i].url };
+        }
+    }
+    if (!Object.keys(MODELS).length) {
+        MODELS = HF_MODELS;
+        setStatus('host catalog empty — HuggingFace fallback. 1) Load model 2) Start worker.');
+    } else {
+        setStatus('host catalog: ' + Object.keys(MODELS).length +
+            ' model(s), runtime local. 1) Load model 2) Start worker.');
+    }
+    fillModels();
+}
+
 function loadWllama() {
-    // Dynamic import keeps the page alive when the CDN is unreachable;
+    // Dynamic import keeps the page alive when the runtime is unreachable;
     // failures surface in status instead of killing the whole script.
-    return Promise.all([import(WLLAMA_ESM), import(WLLAMA_WASM_CDN)])
-        .then(function (mods) {
-            return { Wllama: mods[0].Wllama, WasmFromCDN: mods[1].default };
-        });
+    return import(RT.esm).then(function (mod) {
+        if (!mod || !mod.Wllama) { throw new Error('bad runtime module'); }
+        return { Wllama: mod.Wllama, wasmUrl: RT.wasm };
+    });
 }
 
 function loadModel() {
-    var key = el('tensor-model').value || 'qwen15';
+    var key = el('tensor-model').value || Object.keys(MODELS)[0] || 'qwen15';
     var spec = MODELS[key] || MODELS.qwen15;
-    setStatus('loading runtime (wllama CDN)&hellip;');
+    if (!spec) { setStatus('no models available'); return; }
+    setStatus('loading runtime&hellip;');
     loadWllama().then(function (rt) {
         setStatus('loading ' + esc(spec.label) + '&hellip;');
         startModelLoad(rt, spec, key);
     }).catch(function (e) {
-        setStatus('runtime load failed (CDN offline?): ' + esc(String((e && e.message) || e)));
-        logRow('err', 'wllama CDN import failed: ' + String((e && e.message) || e));
+        setStatus('runtime load failed: ' + esc(String((e && e.message) || e)));
+        logRow('err', 'runtime import failed: ' + String((e && e.message) || e));
     });
 }
 
 function startModelLoad(rt, spec, key) {
-    var inst = new rt.Wllama(rt.WasmFromCDN);
+    var inst = new rt.Wllama({ default: rt.wasmUrl });
     var onProgress = function (loaded, total) {
         var pct = total ? Math.round((loaded / total) * 100) : 0;
         setStatus('downloading ' + esc(spec.label) + ': ' + pct + '%');
     };
-    var cfg = {
-        repo: spec.repo,
-        file: spec.file
-    };
     var opts = { progressCallback: onProgress, n_gpu_layers: N_GPU_LAYERS };
-    return inst.loadModelFromHF(cfg, opts).then(function () {
+    // Same-origin host URL (local vendor + LAN model bytes) or the
+    // HuggingFace pair when the host serves no catalog.
+    var load = spec.hf
+        ? inst.loadModelFromHF({ repo: spec.repo, file: spec.file }, opts)
+        : inst.loadModelFromUrl(spec.url, opts);
+    return load.then(function () {
         S.wllama = inst;
         S.modelKey = key;
         S.modelLabel = spec.label;
@@ -169,9 +213,12 @@ function startModelLoad(rt, spec, key) {
     }).catch(function (e) {
         // Redmi-class devices may fail the GPU path: retry CPU-only.
         setStatus('WebGPU load failed (' + esc((e && e.message) || e) + '), retrying CPU&hellip;');
-        var cpu = new rt.Wllama(rt.WasmFromCDN);
+        var cpu = new rt.Wllama({ default: rt.wasmUrl });
         var cpuOpts = { progressCallback: onProgress, n_gpu_layers: 0 };
-        return cpu.loadModelFromHF(cfg, cpuOpts).then(function () {
+        var cpuLoad = spec.hf
+            ? cpu.loadModelFromHF({ repo: spec.repo, file: spec.file }, cpuOpts)
+            : cpu.loadModelFromUrl(spec.url, cpuOpts);
+        return cpuLoad.then(function () {
             S.wllama = cpu;
             S.modelKey = key;
             S.modelLabel = spec.label;
@@ -329,6 +376,7 @@ function selfTest() {
 
 function fillModels() {
     var sel = el('tensor-model');
+    sel.innerHTML = '';
     Object.keys(MODELS).forEach(function (k) {
         var o = document.createElement('option');
         o.value = k;
@@ -337,11 +385,12 @@ function fillModels() {
     });
 }
 
-fillModels();
 el('tensor-load').addEventListener('click', loadModel);
 el('tensor-start').addEventListener('click', startLoop);
 el('tensor-stop').addEventListener('click', stopLoop);
 el('tensor-stop').disabled = true;
 el('tensor-self').addEventListener('click', selfTest);
-setStatus('wllama ' + WLLAMA_PIN + ' (CDN). 1) Load model 2) Start worker.');
 window.__tensorReady = true;
+// Catalog first (host vendor + GGUF library), so the list reflects what
+// this box actually serves; HF fallback when the host has no catalog.
+bootConfig();
