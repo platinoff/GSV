@@ -1,8 +1,10 @@
 /* Browser tensor worker (swarm path b, PoC ticket t-1789571785502387700).
  *
- * Runs a GGUF model IN THIS PHONE via wllama (llama.cpp WASM + WebGPU,
- * fastest current browser runtime per arXiv:2605.20706: +54% decode vs
- * WebLLM, GGUF-native so our Qwen quants load unconverted), then serves
+ * Torrent-style UI: every model is a row with its own state and buttons
+ * (Download / Pause / Resume / Cancel / Use) — no single-select control,
+ * nothing to mis-tap. Runs a GGUF IN THIS PHONE via wllama (llama.cpp
+ * WASM + WebGPU, fastest current browser runtime: +54% decode vs WebLLM,
+ * GGUF-native so our Qwen quants load unconverted), then serves
  * `llama_chat` tasks from this device's poolAI peer queue:
  *   poll GET /edge/upstream/poolai/api/v1/virtual-nodes/{peer}/tasks/poll
  *   run locally -> POST .../tasks/{id}/complete {status, detail}
@@ -10,18 +12,16 @@
  * bearer handling in the browser. Non-chat tasks are re-queued untouched
  * (poll pops — dropping them would lose PC-side work).
  *
- * Constraints: needs WebGPU (else CPU fallback via n_gpu_layers 0);
- * needs the model download once (OPFS-cached after); PC pollers race for
- * the same queue during the PoC (steady-state routing is a follow-up).
- *
- * Classic script (no static imports): the wllama CDN modules load lazily
- * via dynamic import() on Load, so a dead CDN leaves the model list and
- * buttons alive and surfaces the exact error instead of a dead page.
+ * OPFS is absent on HTTP LAN + old WebViews, so wllama gets a custom RAM
+ * cache (plain fetch, no OPFS) and finished files persist to IndexedDB.
+ * Downloads support pause/resume via Range, speed stats, WakeLock against
+ * device sleep, and a stall watchdog that resumes dead streams.
  */
 var WLLAMA_PIN = '3.5.1';
 var N_GPU_LAYERS = 99; // all layers to WebGPU; CPU fallback on failure
 var POLL_MS = 5000;
 var MAX_REQUEUE_PER_TICK = 3;
+var STALL_MS = 20000;
 
 // Runtime + models resolve at boot from /api/edge/tensor/config
 // (same-origin vendor + host GGUF library). HuggingFace pair below is the
@@ -48,6 +48,12 @@ var HF_MODELS = {
 };
 var MODELS = {};
 
+// Per-model download state: idle | active | paused | done | error.
+var DLS = {};
+
+// Shared byte store (RAM) across loads: filename -> {blob, size}.
+var BYTESTORE = new Map();
+
 var S = {
     wllama: null,
     modelKey: '',
@@ -59,7 +65,79 @@ var S = {
     timer: null,
     busy: false,
     done: 0,
-    selModel: ''
+    rt: null // loaded runtime {Wllama, wasmUrl}
+};
+
+// Device persistence (IndexedDB works on HTTP LAN + old WebViews where
+// OPFS is absent): finished downloads survive reloads; RAM is the
+// fallback when IDB is missing or quota-rejected. Module-level so one
+// open serves every Load.
+var IDB = {
+    ok: false,
+    db: null,
+    open: function () {
+        var self = this;
+        return new Promise(function (resolve) {
+            try {
+                if (!('indexedDB' in window)) { resolve(false); return; }
+                var req = indexedDB.open('tensor-worker', 1);
+                req.onupgradeneeded = function () {
+                    try { req.result.createObjectStore('models'); } catch (e) {}
+                };
+                req.onsuccess = function () { self.db = req.result; self.ok = true; resolve(true); };
+                req.onerror = function () { resolve(false); };
+            } catch (e) { resolve(false); }
+        });
+    },
+    get: function (name) {
+        var self = this;
+        return new Promise(function (resolve) {
+            if (!self.ok) { resolve(null); return; }
+            try {
+                var tx = self.db.transaction('models', 'readonly');
+                var rq = tx.objectStore('models').get(name);
+                rq.onsuccess = function () { resolve(rq.result || null); };
+                rq.onerror = function () { resolve(null); };
+            } catch (e) { resolve(null); }
+        });
+    },
+    put: function (name, blob) {
+        var self = this;
+        return new Promise(function (resolve) {
+            if (!self.ok) { resolve(false); return; }
+            try {
+                var tx = self.db.transaction('models', 'readwrite');
+                var rq = tx.objectStore('models').put({ blob: blob, size: blob.size }, name);
+                rq.onsuccess = function () { resolve(true); };
+                rq.onerror = function () { resolve(false); };
+            } catch (e) { resolve(false); }
+        });
+    },
+    listAll: function () {
+        // Every cached model with its byte size (drives the [cached] tags,
+        // so an empty device is visible instead of silent).
+        var self = this;
+        return new Promise(function (resolve) {
+            if (!self.ok) { resolve([]); return; }
+            try {
+                var out = [];
+                var tx = self.db.transaction('models', 'readonly');
+                var rq = tx.objectStore('models').openCursor();
+                rq.onsuccess = function () {
+                    var cur = rq.result;
+                    if (cur) {
+                        var size = 0;
+                        try { size = (cur.value && cur.value.size) || 0; } catch (e) {}
+                        out.push({ name: cur.key, size: size });
+                        cur.continue();
+                    } else {
+                        resolve(out);
+                    }
+                };
+                rq.onerror = function () { resolve(out); };
+            } catch (e) { resolve([]); }
+        });
+    }
 };
 
 function esc(s) {
@@ -198,6 +276,7 @@ function resolvePeer() {
     var qp = queryPeer();
     if (qp) {
         S.peer = qp;
+        saveWorkerState();
         return Promise.resolve(qp);
     }
     var user = tgUser();
@@ -236,6 +315,7 @@ function applyConfig(data) {
         ? { esm: data.runtime.esm, wasm: data.runtime.wasm }
         : { esm: HF_RT.esm, wasm: HF_RT.wasm };
     MODELS = {};
+    DLS = {};
     var ms = (data && data.models) || [];
     for (var i = 0; i < ms.length; i++) {
         if (ms[i] && ms[i].key && ms[i].url) {
@@ -244,342 +324,510 @@ function applyConfig(data) {
                 url: ms[i].url,
                 size_mb: ms[i].size_mb || 0
             };
+            DLS[ms[i].key] = freshDl();
         }
     }
     if (!Object.keys(MODELS).length) {
         MODELS = HF_MODELS;
-        setStatus('host catalog empty — HuggingFace fallback. 1) Load model 2) Start worker.');
+        for (var k in HF_MODELS) {
+            if (Object.prototype.hasOwnProperty.call(HF_MODELS, k)) { DLS[k] = freshDl(); }
+        }
+        setStatus('host catalog empty — HuggingFace fallback.');
     } else {
-        setStatus('host catalog: ' + Object.keys(MODELS).length +
-            ' model(s), runtime local. 1) Load model 2) Start worker.');
+        setStatus('host catalog: ' + Object.keys(MODELS).length + ' model(s), runtime local.');
     }
-    fillModels();
-    tagCached();
+    renderRows();
+    refreshCachedTags();
 }
 
-function loadWllama() {
+function loadRuntime() {
     // Dynamic import keeps the page alive when the runtime is unreachable;
     // failures surface in status instead of killing the whole script.
+    if (S.rt) { return Promise.resolve(S.rt); }
     return import(RT.esm).then(function (mod) {
         if (!mod || !mod.Wllama) { throw new Error('bad runtime module'); }
-        return { Wllama: mod.Wllama, wasmUrl: RT.wasm };
+        S.rt = { Wllama: mod.Wllama, wasmUrl: RT.wasm };
+        return S.rt;
     });
 }
 
-// Device persistence (IndexedDB works on HTTP LAN + old WebViews where
-// OPFS is absent): finished downloads survive reloads; RAM is the
-// fallback when IDB is missing or quota-rejected. Module-level so one
-// open serves every Load.
-var IDB = {
-    ok: false,
-    db: null,
-    open: function () {
-        var self = this;
-        return new Promise(function (resolve) {
-            try {
-                if (!('indexedDB' in window)) { resolve(false); return; }
-                var req = indexedDB.open('tensor-worker', 1);
-                req.onupgradeneeded = function () {
-                    try { req.result.createObjectStore('models'); } catch (e) {}
-                };
-                req.onsuccess = function () { self.db = req.result; self.ok = true; resolve(true); };
-                req.onerror = function () { resolve(false); };
-            } catch (e) { resolve(false); }
-        });
-    },
-    get: function (name) {
-        var self = this;
-        return new Promise(function (resolve) {
-            if (!self.ok) { resolve(null); return; }
-            try {
-                var tx = self.db.transaction('models', 'readonly');
-                var rq = tx.objectStore('models').get(name);
-                rq.onsuccess = function () { resolve(rq.result || null); };
-                rq.onerror = function () { resolve(null); };
-            } catch (e) { resolve(null); }
-        });
-    },
-    put: function (name, blob) {
-        var self = this;
-        return new Promise(function (resolve) {
-            if (!self.ok) { resolve(false); return; }
-            try {
-                var tx = self.db.transaction('models', 'readwrite');
-                var rq = tx.objectStore('models').put({ blob: blob, size: blob.size }, name);
-                rq.onsuccess = function () { resolve(true); };
-                rq.onerror = function () { resolve(false); };
-            } catch (e) { resolve(false); }
-        });
-    },
-    listAll: function () {
-        // Every cached model with its byte size (drives the "(cached)"
-        // tags, so an empty device is visible instead of silent).
-        var self = this;
-        return new Promise(function (resolve) {
-            if (!self.ok) { resolve([]); return; }
-            try {
-                var out = [];
-                var tx = self.db.transaction('models', 'readonly');
-                var rq = tx.objectStore('models').openCursor();
-                rq.onsuccess = function () {
-                    var cur = rq.result;
-                    if (cur) {
-                        var size = 0;
-                        try { size = (cur.value && cur.value.size) || 0; } catch (e) {}
-                        out.push({ name: cur.key, size: size });
-                        cur.continue();
-                    } else {
-                        resolve(out);
-                    }
-                };
-                rq.onerror = function () { resolve(out); };
-            } catch (e) { resolve([]); }
-        });
-    }
-};
+// ---- per-model download state (torrent-style) ----
 
-function startModelLoad(rt, spec, key) {
-    // Custom RAM cache: wllama's default CacheManager demands OPFS
-    // (absent on HTTP LAN + old WebViews → "No supported storage backend").
-    // The shim speaks the 3 methods ModelManager uses (download/list/open),
-    // fetches with pause/resume + speed stats, keeps bytes in RAM, and
-    // persists finished files to IndexedDB (works insecure + old) so
-    // reloads reuse them instead of re-downloading.
-    var store = new Map();
-    function fname(url) {
-        var m = /\/([^\/\?#]+)(?:[\?#]|$)/.exec(url || '');
-        return m ? m[1] : String(url);
-    }
-    var SEG = {
-        chunks: [], loaded: 0, total: 0, ctrl: null, t0: 0,
-        lastT: 0, lastLoaded: 0, speed: 0, paused: false, url: '',
-        resolve: null, reject: null, onP: null, name: '',
-        auto: false, lastByte: 0
+function freshDl() {
+    return {
+        status: 'idle', // idle | active | paused | done | error
+        loaded: 0, total: 0, speed: 0,
+        chunks: [], ctrl: null,
+        t0: 0, lastT: 0, lastLoaded: 0, lastByte: 0,
+        auto: false, err: ''
     };
-    function fmtMB(b) { return (b / 1048576).toFixed(1); }
-    function fmtSpeed(bps) {
-        if (!isFinite(bps) || bps <= 0) { return '--'; }
-        return bps > 1048576
-            ? (bps / 1048576).toFixed(1) + 'MB/s'
-            : Math.round(bps / 1024) + 'KB/s';
+}
+
+function fmtMB(b) { return (b / 1048576).toFixed(1); }
+
+function fmtSpeed(bps) {
+    if (!isFinite(bps) || bps <= 0) { return '--'; }
+    return bps > 1048576
+        ? (bps / 1048576).toFixed(1) + 'MB/s'
+        : Math.round(bps / 1024) + 'KB/s';
+}
+
+function fnameOf(entry) {
+    if (!entry) { return 'model.gguf'; }
+    if (entry.url) {
+        var m = /\/([^\/\?#]+)(?:[\?#]|$)/.exec(entry.url);
+        if (m) { return m[1]; }
     }
-    function reportDl() {
-        var pct = SEG.total ? Math.round((SEG.loaded / SEG.total) * 100) : 0;
-        var box = el('tensor-torrent');
-        if (box) {
-            box.textContent =
-                '\u25BC ' + fmtSpeed(SEG.speed) + ' \u00B7 ' +
-                fmtMB(SEG.loaded) + '/' + (SEG.total ? fmtMB(SEG.total) : '?') + 'MB' +
-                ' (' + pct + '%) \u00B7 1 seed (host LAN) \u00B7 peers 1' +
-                (SEG.paused ? ' \u00B7 paused' : '');
-        }
-        try {
-            if (SEG.onP) { SEG.onP({ loaded: SEG.loaded, total: SEG.total }); }
-        } catch (e) {}
+    return entry.file || 'model.gguf';
+}
+
+function activeKey() {
+    var keys = Object.keys(DLS);
+    for (var i = 0; i < keys.length; i++) {
+        var st = DLS[keys[i]].status;
+        if (st === 'active' || st === 'paused') { return keys[i]; }
     }
-    function totalFromHeaders(r) {
-        try {
-            var cr = r.headers.get('Content-Range') || '';
-            var m = /\/(\d+)\s*$/.exec(cr);
-            if (m) { return parseInt(m[1], 10) || 0; }
-            var cl = r.headers.get('Content-Length');
-            return cl ? parseInt(cl, 10) || 0 : 0;
-        } catch (e) { return 0; }
-    }
-    function tickSpeed() {
-        var now = Date.now();
-        var dt = (now - SEG.lastT) / 1000;
-        if (dt >= 0.5) {
-            SEG.speed = (SEG.loaded - SEG.lastLoaded) / dt;
-            SEG.lastT = now;
-            SEG.lastLoaded = SEG.loaded;
-        }
-    }
-    function finishDl() {
-        var blob = new Blob(SEG.chunks, { type: 'application/octet-stream' });
-        store.set(SEG.name, { blob: blob, size: blob.size });
-        SEG.ctrl = null;
-        reportDl();
-        setStatus('saving to device cache&hellip;');
-        IDB.put(SEG.name, blob).then(function (saved) {
-            if (!saved) {
-                logRow('sys', 'device cache unavailable (quota?) — RAM only this session');
-                SEG.resolve({ name: SEG.name, size: blob.size });
-                if (!S.running) { wakeLock(false); }
-                return;
+    return '';
+}
+
+function rowEl(key) {
+    return el('dl-' + key);
+}
+
+function renderRows() {
+    // One torrent-style row per model: state text + contextual buttons.
+    var box = el('tensor-models');
+    if (!box) { return; }
+    while (box.firstChild) { box.removeChild(box.firstChild); }
+    var keys = Object.keys(MODELS);
+    // Largest phone-sane model first (~1.2GB cap keeps 10GB files away
+    // from the top); the rest follow catalog order.
+    keys.sort(function (a, b) {
+        var sa = MODELS[a].size_mb || 0;
+        var sb = MODELS[b].size_mb || 0;
+        var pa = (!sa || sa <= 1200) ? 0 : 1;
+        var pb = (!sb || sb <= 1200) ? 0 : 1;
+        if (pa !== pb) { return pa - pb; }
+        return sb - sa;
+    });
+    for (var i = 0; i < keys.length; i++) {
+        (function (key) {
+            var entry = MODELS[key];
+            var card = document.createElement('div');
+            card.className = 'gsv-card model-row';
+            card.id = 'dl-' + key;
+            var title = document.createElement('div');
+            var nm = document.createElement('strong');
+            nm.textContent = entry.label;
+            title.appendChild(nm);
+            var tag = document.createElement('span');
+            tag.className = 'pill pill-warn';
+            tag.id = 'tag-' + key;
+            tag.textContent = 'new';
+            tag.style.marginLeft = '8px';
+            title.appendChild(tag);
+            card.appendChild(title);
+            var stat = document.createElement('div');
+            stat.className = 'stat-line';
+            stat.id = 'stat-' + key;
+            stat.textContent = 'idle';
+            card.appendChild(stat);
+            var grid = document.createElement('div');
+            grid.className = 'btn-grid';
+            var acts = ['download', 'pause', 'cancel', 'use'];
+            for (var j = 0; j < acts.length; j++) {
+                (function (act) {
+                    var b = document.createElement('button');
+                    b.type = 'button';
+                    b.className = 'tab';
+                    b.id = 'btn-' + act + '-' + key;
+                    b.textContent = act === 'pause' && DLS[key].status === 'paused'
+                        ? 'Resume'
+                        : act[0].toUpperCase() + act.slice(1);
+                    b.addEventListener('click', function () { rowAction(key, act); });
+                    grid.appendChild(b);
+                })(acts[j]);
             }
-            // Verify-after-write: read back and compare sizes, so a
-            // half-written entry can never look cached.
-            IDB.get(SEG.name).then(function (rec) {
-                var ok = rec && rec.blob && rec.blob.size === blob.size;
-                logRow('sys', ok
-                    ? 'saved to device cache (' + fmtMB(blob.size) + 'MB, verified)'
-                    : 'device cache verify FAILED — will re-download next time');
-                SEG.resolve({ name: SEG.name, size: blob.size });
-                if (!S.running) { wakeLock(false); }
+            card.appendChild(grid);
+            box.appendChild(card);
+        })(keys[i]);
+    }
+    refreshRows();
+    refreshCachedTags();
+}
+
+function rowAction(key, act) {
+    if (act === 'download') { startDownload(key); }
+    else if (act === 'pause') {
+        var dl = DLS[key];
+        if (dl && dl.status === 'paused') { resumeDownload(key); }
+        else { pauseDownload(key); }
+    }
+    else if (act === 'cancel') { cancelDownload(key); }
+    else if (act === 'use') { useModel(key); }
+}
+
+function refreshRows() {
+    // Button visibility follows state; every control always answers.
+    var keys = Object.keys(DLS);
+    for (var i = 0; i < keys.length; i++) {
+        (function (key) {
+            var dl = DLS[key];
+            var show = function (id, vis) {
+                var b = el('btn-' + id + '-' + key);
+                if (b) { b.style.display = vis ? '' : 'none'; }
+            };
+            var stat = el('stat-' + key);
+            var pct = dl.total ? Math.round((dl.loaded / dl.total) * 100) : 0;
+            var line = dl.status;
+            if (dl.status === 'active' || dl.status === 'paused') {
+                line += ' ' + fmtMB(dl.loaded) + '/' + (dl.total ? fmtMB(dl.total) + 'MB' : '?') +
+                    ' (' + pct + '%) @ ' + fmtSpeed(dl.speed);
+            } else if (dl.status === 'done' || dl.status === 'cached') {
+                line += dl.total ? ' ' + fmtMB(dl.total) + 'MB' : '';
+            } else if (dl.status === 'error') {
+                line += ' ' + dl.err;
+            }
+            line += ' · 1 seed (host LAN) · peers 1';
+            if (stat) { stat.textContent = line; }
+            show('download', dl.status === 'idle' || dl.status === 'error');
+            var pauseBtn = el('btn-pause-' + key);
+            if (pauseBtn) {
+                pauseBtn.style.display = (dl.status === 'active' || dl.status === 'paused') ? '' : 'none';
+                pauseBtn.textContent = dl.status === 'paused' ? 'Resume' : 'Pause';
+            }
+            show('cancel', dl.status === 'active' || dl.status === 'paused');
+            var useBtn = el('btn-use-' + key);
+            if (useBtn) {
+                useBtn.style.display = (dl.status === 'done' || dl.status === 'cached') ? '' : 'none';
+                if (S.modelKey === key && S.wllama) {
+                    useBtn.textContent = 'In use';
+                } else {
+                    useBtn.textContent = 'Use';
+                }
+            }
+        })(keys[i]);
+    }
+}
+
+function totalFromHeaders(r) {
+    try {
+        var cr = r.headers.get('Content-Range') || '';
+        var m = /\/(\d+)\s*$/.exec(cr);
+        if (m) { return parseInt(m[1], 10) || 0; }
+        var cl = r.headers.get('Content-Length');
+        return cl ? parseInt(cl, 10) || 0 : 0;
+    } catch (e) { return 0; }
+}
+
+function startDownload(key) {
+    var entry = MODELS[key];
+    var dl = DLS[key];
+    if (!entry || !dl) { return; }
+    if (dl.status === 'active' || dl.status === 'paused') { return; }
+    var busy = activeKey();
+    if (busy && busy !== key) {
+        setStatus('finish or cancel ' + esc(MODELS[busy].label) + ' first');
+        return;
+    }
+    if (dl.status === 'done') {
+        useModel(key);
+        return;
+    }
+    if (dl.status === 'cached') {
+        // Bytes already on device: hydrate RAM and mark done, no fetch.
+        setStatus('reading ' + esc(entry.label) + ' from device cache&hellip;');
+        IDB.get(fnameOf(entry)).then(function (rec) {
+            if (rec && rec.blob) {
+                BYTESTORE.set(fnameOf(entry), { blob: rec.blob, size: rec.blob.size });
+                dl.status = 'done';
+                dl.total = rec.blob.size;
+                dl.loaded = rec.blob.size;
+                refreshRows();
+                logRow('sys', 'hydrated from device cache (' + fmtMB(rec.blob.size) + 'MB)');
+            } else {
+                dl.status = 'idle';
+                refreshRows();
+                startDownload(key);
+            }
+        });
+        return;
+    }
+    dl.status = 'active';
+    dl.chunks = [];
+    dl.loaded = 0;
+    dl.total = 0;
+    dl.speed = 0;
+    dl.err = '';
+    dl.t0 = Date.now();
+    dl.lastT = dl.t0;
+    dl.lastLoaded = 0;
+    dl.lastByte = Date.now();
+    dl.auto = false;
+    wakeLock(true);
+    refreshRows();
+    dlSegment(key);
+}
+
+function pauseDownload(key) {
+    var dl = DLS[key];
+    if (!dl || dl.status !== 'active' || !dl.ctrl) {
+        setStatus('nothing downloading');
+        return;
+    }
+    dl.status = 'paused';
+    try { dl.ctrl.abort(); } catch (e) {}
+    refreshRows();
+    setStatus('paused ' + esc(MODELS[key].label) + ' at ' + fmtMB(dl.loaded) + 'MB');
+}
+
+function resumeDownload(key) {
+    var dl = DLS[key];
+    if (!dl || dl.status !== 'paused') { return; }
+    dl.status = 'active';
+    dl.lastByte = Date.now();
+    refreshRows();
+    dlSegment(key);
+}
+
+function cancelDownload(key) {
+    var dl = DLS[key];
+    if (!dl || (dl.status !== 'active' && dl.status !== 'paused')) {
+        setStatus('nothing downloading');
+        return;
+    }
+    dl.status = 'idle';
+    try { if (dl.ctrl) { dl.ctrl.abort(); } } catch (e) {}
+    dl.ctrl = null;
+    dl.chunks = [];
+    dl.loaded = 0;
+    dl.total = 0;
+    dl.speed = 0;
+    refreshRows();
+    var stat = el('stat-' + key);
+    if (stat) { stat.textContent = 'cancelled'; }
+    setStatus('download cancelled, progress discarded');
+    logRow('sys', 'cancelled ' + MODELS[key].label);
+    if (!S.running) { wakeLock(false); }
+}
+
+function finishDl(key) {
+    var dl = DLS[key];
+    var entry = MODELS[key];
+    var blob = new Blob(dl.chunks, { type: 'application/octet-stream' });
+    var name = fnameOf(entry);
+    BYTESTORE.set(name, { blob: blob, size: blob.size });
+    dl.chunks = [];
+    dl.ctrl = null;
+    dl.total = blob.size;
+    dl.loaded = blob.size;
+    refreshRows();
+    setStatus('saving ' + esc(entry.label) + ' to device cache&hellip;');
+    IDB.put(name, blob).then(function (saved) {
+        if (!saved) {
+            dl.status = 'done';
+            refreshRows();
+            logRow('sys', 'device cache unavailable (quota?) — RAM only this session');
+            if (!S.running) { wakeLock(false); }
+            return;
+        }
+        IDB.get(name).then(function (rec) {
+            var ok = rec && rec.blob && rec.blob.size === blob.size;
+            dl.status = 'done';
+            refreshRows();
+            logRow('sys', ok
+                ? 'saved ' + entry.label + ' (' + fmtMB(blob.size) + 'MB, verified)'
+                : 'device cache verify FAILED for ' + entry.label);
+            if (!S.running) { wakeLock(false); }
+        });
+    });
+}
+
+function dlSegment(key) {
+    var dl = DLS[key];
+    var entry = MODELS[key];
+    if (!dl || !entry) { return; }
+    var url = entry.hf
+        ? 'https://huggingface.co/' + entry.repo + '/resolve/main/' + entry.file + '?download=true'
+        : entry.url;
+    dl.ctrl = new AbortController();
+    var headers = dl.loaded > 0 ? { Range: 'bytes=' + dl.loaded + '-' } : {};
+    fetch(url, { signal: dl.ctrl.signal, headers: headers }).then(function (r) {
+        if (r.status !== 200 && r.status !== 206) { throw new Error('HTTP ' + r.status); }
+        if (!dl.total) { dl.total = totalFromHeaders(r); }
+        var reader = r.body.getReader();
+        function pump() {
+            return reader.read().then(function (res) {
+                if (res.done) { finishDl(key); return; }
+                dl.chunks.push(res.value);
+                dl.loaded += res.value.byteLength;
+                dl.lastByte = Date.now();
+                var now = Date.now();
+                var dt = (now - dl.lastT) / 1000;
+                if (dt >= 0.5) {
+                    dl.speed = (dl.loaded - dl.lastLoaded) / dt;
+                    dl.lastT = now;
+                    dl.lastLoaded = dl.loaded;
+                }
+                refreshRows();
+                return pump();
             });
-        });
-    }
-    function dlSegment() {
-        var from = SEG.loaded;
-        SEG.ctrl = new AbortController();
-        var headers = from > 0 ? { Range: 'bytes=' + from + '-' } : {};
-        fetch(SEG.url, { signal: SEG.ctrl.signal, headers: headers }).then(function (r) {
-            if (r.status !== 200 && r.status !== 206) { throw new Error('HTTP ' + r.status); }
-            if (!SEG.total) { SEG.total = totalFromHeaders(r); }
-            var reader = r.body.getReader();
-            function pump() {
-                return reader.read().then(function (res) {
-                    if (res.done) { finishDl(); return; }
-                    SEG.chunks.push(res.value);
-                    SEG.loaded += res.value.byteLength;
-                    SEG.lastByte = Date.now();
-                    tickSpeed();
-                    reportDl();
-                    return pump();
-                });
-            }
-            return pump();
-        }).catch(function (e) {
-            // Pause aborts the segment on purpose: hold chunks, wait resume.
-            // Auto-resume (stall watchdog) re-arms itself the same way.
-            // Cancelled downloads null resolve/reject first: stay silent.
-            if (SEG.paused || SEG.auto) { SEG.auto = false; reportDl(); return; }
-            SEG.ctrl = null;
-            wakeLock(false);
-            if (SEG.reject) { SEG.reject(e); }
-        });
-    }
+        }
+        return pump();
+    }).catch(function (e) {
+        // Pause aborts on purpose; auto-resume re-arms itself. Cancelled
+        // downloads already reset state — stay silent.
+        if (dl.status === 'paused' || dl.auto) { dl.auto = false; refreshRows(); return; }
+        if (dl.status !== 'active') { return; }
+        dl.status = 'error';
+        dl.err = String((e && e.message) || e).slice(0, 120);
+        dl.ctrl = null;
+        wakeLock(false);
+        refreshRows();
+        logRow('err', 'download failed: ' + dl.err);
+    });
     // Stall watchdog: locked/sleeping radios freeze the stream without
-    // aborting it. No bytes for 20s → cut the dead segment and resume
-    // from SEG.loaded via Range (once per watchdog pass at most).
-    if (!window.__tensorStallWatch) {
-        window.__tensorStallWatch = setInterval(function () {
+    // aborting it. No bytes for STALL_MS → cut and resume via Range.
+    if (!dl.watch) {
+        dl.watch = setInterval(function () {
             try {
-                if (!SEG.ctrl || SEG.paused || SEG.lastByte === 0) { return; }
-                if (SEG.total && SEG.loaded >= SEG.total) { return; }
-                if (Date.now() - SEG.lastByte > 20000) {
-                    logRow('sys', 'stall detected — resuming from ' +
-                        (SEG.loaded / 1048576).toFixed(1) + 'MB');
-                    SEG.auto = true;
-                    SEG.lastByte = Date.now();
-                    try { SEG.ctrl.abort(); } catch (e) {}
-                    dlSegment();
+                if (!dl.ctrl || dl.status !== 'active') { return; }
+                if (dl.total && dl.loaded >= dl.total) { return; }
+                if (Date.now() - dl.lastByte > STALL_MS) {
+                    logRow('sys', 'stall detected — resuming from ' + fmtMB(dl.loaded) + 'MB');
+                    dl.auto = true;
+                    dl.lastByte = Date.now();
+                    try { dl.ctrl.abort(); } catch (e) {}
+                    dlSegment(key);
                 }
             } catch (e) {}
         }, 5000);
     }
-    var shim = {
-        download: function (url, opts) {
-            SEG.url = url;
-            SEG.name = fname(url);
-            SEG.chunks = [];
-            SEG.loaded = 0;
-            SEG.total = 0;
-            SEG.paused = false;
-            SEG.t0 = Date.now();
-            SEG.lastT = SEG.t0;
-            SEG.lastLoaded = 0;
-            SEG.speed = 0;
-            SEG.onP = (opts && opts.progressCallback) || null;
-            setPausedUI(false);
-            SEG.lastByte = Date.now();
-            wakeLock(true);
-            return new Promise(function (resolve, reject) {
-                SEG.resolve = resolve;
-                SEG.reject = reject;
-                // Device cache first: reloads skip the download entirely.
-                IDB.get(SEG.name).then(function (rec) {
-                    if (rec && rec.blob && rec.blob.size > 0) {
-                        store.set(SEG.name, { blob: rec.blob, size: rec.blob.size });
-                        SEG.loaded = rec.blob.size;
-                        SEG.total = rec.blob.size;
-                        reportDl();
-                        logRow('sys', 'loaded from device cache (' +
-                            fmtMB(rec.blob.size) + 'MB) — no download');
-                        SEG.resolve({ name: SEG.name, size: rec.blob.size });
-                        return;
-                    }
-                    dlSegment();
-                });
+}
+
+// ---- inference (wllama) ----
+
+function loadRuntime() {
+    // Dynamic import keeps the page alive when the runtime is unreachable;
+    // failures surface in status instead of killing the whole script.
+    if (S.rt) { return Promise.resolve(S.rt); }
+    return import(RT.esm).then(function (mod) {
+        if (!mod || !mod.Wllama) { throw new Error('bad runtime module'); }
+        S.rt = { Wllama: mod.Wllama, wasmUrl: RT.wasm };
+        return S.rt;
+    });
+}
+
+function useModel(key) {
+    var entry = MODELS[key];
+    var dl = DLS[key];
+    if (!entry) { return; }
+    if (S.modelKey === key && S.wllama) {
+        setStatus('already using ' + esc(entry.label));
+        return;
+    }
+    setStatus('preparing ' + esc(entry.label) + '&hellip;');
+    bytesFor(key).then(function (blob) {
+        if (!blob) {
+            setStatus('no bytes — Download ' + esc(entry.label) + ' first');
+            return;
+        }
+        loadIntoWllama(key, entry, blob);
+    });
+}
+
+function bytesFor(key) {
+    var entry = MODELS[key];
+    var name = fnameOf(entry);
+    var hit = BYTESTORE.get(name);
+    if (hit && hit.blob) { return Promise.resolve(hit.blob); }
+    return IDB.get(name).then(function (rec) {
+        if (rec && rec.blob) {
+            BYTESTORE.set(name, { blob: rec.blob, size: rec.blob.size });
+            return rec.blob;
+        }
+        return null;
+    });
+}
+
+function loadIntoWllama(key, entry, blob) {
+    loadRuntime().then(function (rt) {
+        var fname = fnameOf(entry);
+        var file = null;
+        try {
+            file = new File([blob], fname, { type: 'application/octet-stream' });
+        } catch (e) {
+            setStatus('this browser cannot build model files: ' + esc(String((e && e.message) || e)));
+            return;
+        }
+        setStatus('loading ' + esc(entry.label) + ' into engine&hellip;');
+        var shim = makeShim();
+        shim.seed(fname, blob);
+        var inst = null;
+        try {
+            inst = new rt.Wllama({ default: rt.wasmUrl }, { cacheManager: shim });
+        } catch (e) {
+            setStatus('engine init failed: ' + esc(String((e && e.message) || e)));
+            return;
+        }
+        inst.loadModel([file], { n_gpu_layers: N_GPU_LAYERS }).then(function () {
+            S.wllama = inst;
+            S.modelKey = key;
+            S.modelLabel = entry.label;
+            S.gpu = true;
+            saveWorkerState();
+            setStatus('model ready: ' + esc(entry.label) + ' (WebGPU)');
+            logRow('sys', 'model loaded: ' + entry.label + ' (WebGPU)');
+            refreshRows();
+        }).catch(function (e) {
+            setStatus('WebGPU load failed (' + esc((e && e.message) || e) + '), retrying CPU&hellip;');
+            var cpu = null;
+            try {
+                cpu = new rt.Wllama({ default: rt.wasmUrl }, { cacheManager: makeShim() });
+            } catch (e2) {
+                setStatus('engine init failed: ' + esc(String((e2 && e2.message) || e2)));
+                return;
+            }
+            cpu.loadModel([file], { n_gpu_layers: 0 }).then(function () {
+                S.wllama = cpu;
+                S.modelKey = key;
+                S.modelLabel = entry.label;
+                S.gpu = false;
+                saveWorkerState();
+                setStatus('model ready: ' + esc(entry.label) + ' (CPU fallback)');
+                logRow('sys', 'model loaded: ' + entry.label + ' (CPU fallback)');
+                refreshRows();
+            }).catch(function (e3) {
+                setStatus('model load failed: ' + esc((e3 && e3.message) || e3));
+                logRow('err', 'load failed: ' + String((e3 && e3.message) || e3));
             });
-        },
+        });
+    }).catch(function (e) {
+        setStatus('runtime load failed: ' + esc(String((e && e.message) || e)));
+        logRow('err', 'runtime import failed: ' + String((e && e.message) || e));
+    });
+}
+
+// Minimal cache object: the constructor demands OPFS (absent on HTTP LAN
+// + old WebViews), so a stub keeps init alive; files load directly.
+function makeShim() {
+    var mem = new Map();
+    return {
+        download: function () { return Promise.reject(new Error('direct files only')); },
         list: function () {
             var out = [];
-            store.forEach(function (v, k) { out.push({ name: k, size: v.size }); });
+            mem.forEach(function (v, k) { out.push({ name: k, size: v.size }); });
+            BYTESTORE.forEach(function (v, k) {
+                if (!mem.has(k)) { out.push({ name: k, size: v.size }); }
+            });
             return Promise.resolve(out);
         },
         open: function (name) {
-            var e = store.get(name);
-            if (e) { return Promise.resolve(e.blob); }
-            // RAM missed (fresh reload): fall back to the device cache.
-            return IDB.get(name).then(function (rec) {
-                if (rec && rec.blob) {
-                    store.set(name, { blob: rec.blob, size: rec.blob.size });
-                    return rec.blob;
-                }
-                return null;
-            });
-        }
+            var e = mem.get(name) || BYTESTORE.get(name);
+            return Promise.resolve(e ? e.blob : null);
+        },
+        seed: function (name, blob) { mem.set(name, { blob: blob, size: blob.size }); }
     };
-    window.__tensorPause = function () {
-        if ((!SEG.ctrl && SEG.loaded === 0) || SEG.paused) {
-            if (!SEG.paused) { setStatus('nothing downloading'); }
-            return;
-        }
-        if (!SEG.ctrl || SEG.paused) { return; }
-        SEG.paused = true;
-        try { SEG.ctrl.abort(); } catch (e) {}
-        setPausedUI(true);
-        reportDl();
-    };
-    window.__tensorResume = function () {
-        if (!SEG.paused) { return; }
-        SEG.paused = false;
-        setPausedUI(false);
-        reportDl();
-        dlSegment();
-    };
-    var inst = new rt.Wllama({ default: rt.wasmUrl }, { cacheManager: shim });
-    var onProgress = function (loaded, total) {
-        var pct = total ? Math.round((loaded / total) * 100) : 0;
-        setStatus('downloading ' + esc(spec.label) + ': ' + pct + '%');
-    };
-    var opts = { progressCallback: onProgress, n_gpu_layers: N_GPU_LAYERS };
-    // Same-origin host URL (local vendor + LAN model bytes) or the
-    // HuggingFace pair when the host serves no catalog.
-    var load = spec.hf
-        ? inst.loadModelFromHF({ repo: spec.repo, file: spec.file }, opts)
-        : inst.loadModelFromUrl(spec.url, opts);
-    return load.then(function () {
-        S.wllama = inst;
-        S.modelKey = key;
-        S.modelLabel = spec.label;
-        S.gpu = true;
-        saveWorkerState();
-        setStatus('model ready: ' + esc(spec.label) + ' (WebGPU)');
-        logRow('sys', 'model loaded: ' + spec.label + ' (WebGPU)');
-    }).catch(function (e) {
-        // Redmi-class devices may fail the GPU path: retry CPU-only.
-        setStatus('WebGPU load failed (' + esc((e && e.message) || e) + '), retrying CPU&hellip;');
-        var cpu = new rt.Wllama({ default: rt.wasmUrl });
-        var cpuOpts = { progressCallback: onProgress, n_gpu_layers: 0 };
-        var cpuLoad = spec.hf
-            ? cpu.loadModelFromHF({ repo: spec.repo, file: spec.file }, cpuOpts)
-            : cpu.loadModelFromUrl(spec.url, cpuOpts);
-        return cpuLoad.then(function () {
-            S.wllama = cpu;
-            S.modelKey = key;
-            S.modelLabel = spec.label;
-            S.gpu = false;
-            saveWorkerState();
-            setStatus('model ready: ' + esc(spec.label) + ' (CPU fallback)');
-            logRow('sys', 'model loaded: ' + spec.label + ' (CPU fallback)');
-        });
-    }).catch(function (e2) {
-        setStatus('model load failed: ' + esc((e2 && e2.message) || e2));
-        logRow('err', 'load failed: ' + String((e2 && e2.message) || e2));
-    });
 }
 
 function countTokens(text) {
@@ -674,13 +922,8 @@ function pollOnce() {
 }
 
 function startLoop() {
-    // No model yet: load it first, then continue into the loop instead of
-    // bouncing the user back to the Load button.
     if (!S.wllama) {
-        setStatus('loading model first&hellip;');
-        loadModelAsync().then(function (ready) {
-            if (ready) { startLoop(); }
-        });
+        setStatus('tap Use on a downloaded model first');
         return;
     }
     if (!S.peer) {
@@ -696,28 +939,6 @@ function startLoop() {
     }
     beginLoop();
 }
-
-// Promise version of the Load button flow (true when the model is ready).
-// Button handler keeps fire-and-forget behavior via the same path.
-function loadModelAsync() {
-    var key = selectedModelKey();
-    var spec = MODELS[key] || MODELS.qwen15;
-    if (!spec) { setStatus('no models available'); return Promise.resolve(false); }
-    setStatus('loading runtime&hellip;');
-    return loadWllama().then(function (rt) {
-        setStatus('loading ' + esc(spec.label) + '&hellip;');
-        return startModelLoad(rt, spec, key);
-    }).then(function () {
-        return !!S.wllama;
-    }).catch(function (e) {
-        setStatus('runtime load failed: ' + esc(String((e && e.message) || e)));
-        logRow('err', 'runtime import failed: ' + String((e && e.message) || e));
-        wakeLock(false);
-        return false;
-    });
-}
-
-function loadModel() { loadModelAsync(); }
 
 function beginLoop() {
     if (S.running) { setStatus('already running'); return; }
@@ -757,28 +978,6 @@ function pauseWorker() {
     }
 }
 
-function cancelDownload() {
-    if (!SEG.ctrl && SEG.loaded === 0 && !SEG.paused) {
-        setStatus('nothing downloading');
-        return;
-    }
-    SEG.paused = false;
-    try { if (SEG.ctrl) { SEG.ctrl.abort(); } catch (e) {}
-    SEG.ctrl = null;
-    SEG.chunks = [];
-    SEG.loaded = 0;
-    SEG.total = 0;
-    SEG.speed = 0;
-    SEG.resolve = null;
-    SEG.reject = null;
-    setPausedUI(false);
-    var box = el('tensor-torrent');
-    if (box) { box.textContent = 'download cancelled'; }
-    setStatus('download cancelled, progress discarded');
-    logRow('sys', 'download cancelled');
-    if (!S.running) { wakeLock(false); }
-}
-
 function stopLoop() {
     S.running = false;
     S.wpaused = false;
@@ -792,7 +991,7 @@ function stopLoop() {
 }
 
 function selfTest() {
-    if (!S.wllama) { setStatus('load the model first'); return; }
+    if (!S.wllama) { setStatus('tap Use on a downloaded model first'); return; }
     var prompt = el('tensor-prompt').value.trim();
     if (!prompt) { setStatus('type a prompt first'); return; }
     setStatus('self-test running&hellip;');
@@ -802,12 +1001,6 @@ function selfTest() {
     }).catch(function (e) {
         setStatus('self-test failed: ' + esc((e && e.message) || e));
     });
-}
-
-function setPausedUI(paused) {
-    var b = el('tensor-pause');
-    if (!b) { return; }
-    b.textContent = paused ? 'Resume' : 'Pause';
 }
 
 function saveWorkerState() {
@@ -829,94 +1022,38 @@ function restoreWorkerState() {
         if (st && (st.modelKey || st.peer)) {
             setStatus('last session: ' + esc(st.modelLabel || st.modelKey || '?') +
                 ', peer ' + esc(st.peer || '?') + ', ' + (st.done || 0) + ' tasks done.' +
-                ' Model bytes persist on-device — Load reuses them, then Start.');
+                ' Model bytes persist on-device — Use the model, then Start.');
         }
     } catch (e) {}
 }
 
-function selectedModelKey() {
-    if (S.selModel && MODELS[S.selModel]) { return S.selModel; }
-    var keys = Object.keys(MODELS);
-    return keys[0] || '';
-}
-
-function renderModelButtons() {
-    // Big radio buttons instead of a native <select>: old WebViews show
-    // stale popups or a single row, while buttons always tap reliably.
-    var box = el('tensor-models');
-    if (!box) { return; }
-    while (box.firstChild) { box.removeChild(box.firstChild); }
-    var keys = Object.keys(MODELS);
-    // Phone-sane default: largest model within ~1.2GB (never auto-pick a
-    // 10GB file on a phone); the owner still taps manually.
-    var best = keys[0] || '';
-    var bestSize = -1;
-    keys.forEach(function (k) {
-        var sz = MODELS[k].size_mb || 0;
-        if ((sz <= 0 || sz <= 1200) && sz > bestSize) {
-            bestSize = sz;
-            best = k;
-        }
-    });
-    if (!S.selModel || !MODELS[S.selModel]) { S.selModel = best; }
-    keys.forEach(function (k) {
-        var b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'tab model-btn' + (k === S.selModel ? ' active' : '');
-        b.setAttribute('role', 'radio');
-        b.setAttribute('data-key', k);
-        b.textContent = MODELS[k].label;
-        b.addEventListener('click', function () {
-            S.selModel = k;
-            var kids = box.children;
-            for (var i = 0; i < kids.length; i++) {
-                kids[i].className = 'tab model-btn' +
-                    (kids[i].getAttribute('data-key') === k ? ' active' : '');
-            }
-            setStatus('selected: ' + MODELS[k].label);
-        });
-        box.appendChild(b);
-    });
-    tagCached();
-}
-
-function fillModels() {
-    renderModelButtons();
-}
-    });
-    if (best) { sel.value = best; }
-}
-
-el('tensor-load').addEventListener('click', loadModel);
 el('tensor-start').addEventListener('click', startLoop);
 el('tensor-stop').addEventListener('click', stopLoop);
 el('tensor-stop').disabled = true;
 el('tensor-wpause').addEventListener('click', pauseWorker);
 el('tensor-wpause').disabled = true;
-el('tensor-cancel').addEventListener('click', cancelDownload);
 el('tensor-self').addEventListener('click', selfTest);
-el('tensor-pause').addEventListener('click', function () {
-    try {
-        var label = el('tensor-pause').textContent || '';
-        if (label === 'Resume') {
-            if (window.__tensorResume) { window.__tensorResume(); }
-        } else {
-            if (window.__tensorPause) { window.__tensorPause(); }
-        }
-    } catch (e) {}
-});
 window.__tensorReady = true;
 // Catalog first (host vendor + GGUF library), so the list reflects what
 // this box actually serves; HF fallback when the host has no catalog.
 bootConfig();
 lanHint();
 restoreWorkerState();
-// Storage gate: Load waits for IndexedDB (avoids racing an unopened
-// store and re-downloading). Cached models get [cached] tags from both
-// sides (catalog fetch and IDB open race each other; tagging is
-// idempotent), so an empty device is visible instead of silent.
-el('tensor-load').disabled = true;
-function tagCached() {
+IDB.open().then(function (ok) {
+    if (ok) {
+        logRow('sys', 'device cache ready (IndexedDB)');
+        try {
+            if (navigator.storage && navigator.storage.persist) {
+                navigator.storage.persist();
+            }
+        } catch (e) {}
+        refreshCachedTags();
+    } else {
+        logRow('sys', 'device cache unavailable (no IndexedDB) — RAM only');
+    }
+});
+
+function refreshCachedTags() {
     if (!IDB.ok) { return; }
     var box = el('tensor-models');
     if (!box || !box.children.length) { return; }
@@ -925,17 +1062,25 @@ function tagCached() {
         for (var i = 0; i < rows.length; i++) {
             cached[rows[i].name] = rows[i].size;
         }
-        var kids = box.children;
-        for (var j = 0; j < kids.length; j++) {
-            var key = kids[j].getAttribute('data-key');
-            var entry = MODELS[key];
-            var fname = entry && entry.url
-                ? entry.url.split('/').pop()
-                : (entry && entry.file) || '';
-            if (fname && cached[fname] > 0 &&
-                kids[j].textContent.indexOf('[cached]') < 0) {
-                kids[j].textContent = entry.label + ' [cached]';
-            }
+        for (var j = 0; j < box.children.length; j++) {
+            (function (card) {
+                var key = card.getAttribute('data-key');
+                var entry = MODELS[key];
+                var fname = entry && entry.url
+                    ? entry.url.split('/').pop()
+                    : (entry && entry.file) || '';
+                var tag = card.querySelector('.cache-tag');
+                if (fname && cached[fname] > 0) {
+                    if (tag) {
+                        tag.textContent = '[cached]';
+                    }
+                    var dl = DLS[key];
+                    if (dl && dl.status === 'idle') {
+                        dl.status = 'cached';
+                        refreshRows();
+                    }
+                }
+            })(box.children[j]);
         }
         if (rows.length) {
             logRow('sys', 'on device: ' + rows.length + ' model file(s)');
@@ -944,17 +1089,3 @@ function tagCached() {
         }
     });
 }
-IDB.open().then(function (ok) {
-    el('tensor-load').disabled = false;
-    if (ok) {
-        logRow('sys', 'device cache ready (IndexedDB)');
-        try {
-            if (navigator.storage && navigator.storage.persist) {
-                navigator.storage.persist();
-            }
-        } catch (e) {}
-        tagCached();
-    } else {
-        logRow('sys', 'device cache unavailable (no IndexedDB) — RAM only');
-    }
-});

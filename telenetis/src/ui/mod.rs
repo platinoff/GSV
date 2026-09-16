@@ -2533,10 +2533,8 @@ mod tests {
         let html = String::from_utf8_lossy(&body);
         assert!(html.contains("/static/tensor.js"));
         assert!(html.contains("tensor-start"));
-        assert!(html.contains("tensor-pause"));
         assert!(html.contains("tensor-torrent"));
         assert!(html.contains("tensor-wpause"));
-        assert!(html.contains("tensor-cancel"));
         assert!(html.contains("tensor-models"));
         assert!(html.contains("gsv-card"));
     }
@@ -2563,18 +2561,18 @@ mod tests {
         assert!(js.contains("@wllama/wllama@3.5.1"));
         assert!(js.contains("tasks/poll"));
         assert!(js.contains("llama_chat"));
-        assert!(js.contains("loadModelFromHF"));
-        assert!(js.contains("loadWllama"));
+        assert!(js.contains("huggingface.co")); // HF fallback resolves to direct URLs
+        assert!(js.contains("loadRuntime")); // lazy runtime import, page stays alive
         assert!(js.contains("/api/edge/tensor/config"));
         assert!(js.contains("tensor-lan"));
         assert!(js.contains("cacheManager")); // OPFS bypass: custom RAM cache shim
         assert!(js.contains("indexedDB")); // device persistence across reloads
         assert!(js.contains("listAll")); // visible cached tags, no silent empty
         assert!(js.contains("wakeLock")); // screen lock against sleep stalls
-        assert!(js.contains("loadModelAsync")); // Start auto-loads the model
         assert!(js.contains("cancelDownload")); // decline the download, discard
         assert!(js.contains("pauseWorker")); // worker pause/resume toggle
-        assert!(js.contains("renderModelButtons")); // radio buttons, no native select
+        assert!(js.contains("renderRows")); // torrent-style per-model rows
+        assert!(js.contains("useModel")); // load bytes into the engine
         assert!(js.contains("/api/edge/tensor/config"));
     }
 
