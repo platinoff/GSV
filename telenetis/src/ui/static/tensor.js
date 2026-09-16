@@ -489,6 +489,13 @@ function refreshRows() {
                 line += ' ' + dl.err;
             }
             line += ' · 1 seed (host LAN) · peers 1';
+            if (dl.via === 'torrent' && (dl.status === 'active' || dl.status === 'paused')) {
+                var peers = 0;
+                try { peers = (dl.handle && dl.handle.numPeers) || 0; } catch (e) {}
+                line += ' · via torrent · peers ' + peers;
+            } else if (dl.status === 'active' || dl.status === 'paused') {
+                line += ' · via http';
+            }
             if (stat) { stat.textContent = line; }
             show('download', dl.status === 'idle' || dl.status === 'error');
             var pauseBtn = el('btn-pause-' + key);
@@ -510,6 +517,100 @@ function refreshRows() {
             }
         })(keys[i]);
     }
+}
+
+var WT = { client: null };
+
+function wtClient() {
+    if (WT.client) { return WT.client; }
+    WT.client = new WebTorrent();
+    return WT.client;
+}
+
+function dropTorrent(key) {
+    var dl = DLS[key];
+    if (!dl) { return; }
+    if (dl.tick) { clearInterval(dl.tick); dl.tick = null; }
+    var t = dl.handle;
+    dl.handle = null;
+    if (t) {
+        try { t.destroy(); } catch (e) {}
+    }
+}
+
+function startTorrent(key) {
+    var dl = DLS[key];
+    var entry = MODELS[key];
+    dl.via = 'torrent';
+    setStatus('fetching torrent file&hellip;');
+    fetch(entry.torrent).then(function (r) {
+        if (!r.ok) { throw new Error('HTTP ' + r.status); }
+        return r.arrayBuffer();
+    }).then(function (buf) {
+        var client = wtClient();
+        var t = client.add(buf, { announce: [] });
+        dl.handle = t;
+        dl.loaded = 0;
+        dl.lastByte = Date.now();
+        dl.total = 0;
+        t.on('error', function (e) {
+            if (dl.status !== 'active') { return; }
+            logRow('sys', 'torrent failed, HTTP fallback: ' +
+                String((e && e.message) || e).slice(0, 100));
+            httpFallback(key);
+        });
+        dl.tick = setInterval(function () {
+            if (dl.status !== 'active') { return; }
+            try {
+                var before = dl.loaded;
+                dl.loaded = t.downloaded || 0;
+                if (t.length) { dl.total = t.length; }
+                dl.speed = t.downloadSpeed || 0;
+                if (dl.loaded > before) {
+                    dl.lastByte = Date.now();
+                } else if (Date.now() - dl.lastByte > STALL_MS) {
+                    logRow('sys', 'torrent stall — HTTP fallback');
+                    httpFallback(key);
+                    return;
+                }
+            } catch (e) {}
+            refreshRows();
+        }, 500);
+        t.on('done', function () {
+            if (dl.status !== 'active') { return; }
+            var f = t.files && t.files[0];
+            if (!f) {
+                logRow('sys', 'torrent empty, HTTP fallback');
+                httpFallback(key);
+                return;
+            }
+            f.getBlob(function (err, blob) {
+                if (err || !blob) {
+                    logRow('sys', 'torrent blob failed, HTTP fallback');
+                    httpFallback(key);
+                    return;
+                }
+                finishBytes(key, blob);
+            });
+        });
+        refreshRows();
+    }).catch(function (e) {
+        if (dl.status !== 'active') { return; }
+        logRow('sys', 'torrent file failed, HTTP fallback: ' +
+            String((e && e.message) || e).slice(0, 100));
+        httpFallback(key);
+    });
+}
+
+// Drop the torrent handle and restart this row over plain HTTP.
+function httpFallback(key) {
+    var dl = DLS[key];
+    dropTorrent(key);
+    dl.via = 'http';
+    dl.loaded = 0;
+    dl.total = 0;
+    dl.chunks = [];
+    dlSegment(key);
 }
 
 function totalFromHeaders(r) {
@@ -566,14 +667,32 @@ function startDownload(key) {
     dl.lastLoaded = 0;
     dl.lastByte = Date.now();
     dl.auto = false;
+    dl.via = 'http';
+    dl.handle = null;
+    dl.tick = null;
     wakeLock(true);
     refreshRows();
-    dlSegment(key);
+    if (window.WebTorrent && entry.torrent && !entry.hf) {
+        startTorrent(key);
+    } else {
+        dlSegment(key);
+    }
 }
 
 function pauseDownload(key) {
     var dl = DLS[key];
-    if (!dl || dl.status !== 'active' || !dl.ctrl) {
+    if (!dl || dl.status !== 'active') {
+        setStatus('nothing downloading');
+        return;
+    }
+    if (dl.via === 'torrent' && dl.handle) {
+        try { dl.handle.pause(); } catch (e) {}
+        dl.status = 'paused';
+        refreshRows();
+        setStatus('paused ' + esc(MODELS[key].label) + ' at ' + fmtMB(dl.loaded) + 'MB');
+        return;
+    }
+    if (!dl.ctrl) {
         setStatus('nothing downloading');
         return;
     }
@@ -586,6 +705,13 @@ function pauseDownload(key) {
 function resumeDownload(key) {
     var dl = DLS[key];
     if (!dl || dl.status !== 'paused') { return; }
+    if (dl.via === 'torrent' && dl.handle) {
+        try { dl.handle.resume(); } catch (e) {}
+        dl.status = 'active';
+        dl.lastByte = Date.now();
+        refreshRows();
+        return;
+    }
     dl.status = 'active';
     dl.lastByte = Date.now();
     refreshRows();
@@ -598,6 +724,7 @@ function cancelDownload(key) {
         setStatus('nothing downloading');
         return;
     }
+    dropTorrent(key);
     dl.status = 'idle';
     try { if (dl.ctrl) { dl.ctrl.abort(); } } catch (e) {}
     dl.ctrl = null;
@@ -615,14 +742,23 @@ function cancelDownload(key) {
 
 function finishDl(key) {
     var dl = DLS[key];
-    var entry = MODELS[key];
     var blob = new Blob(dl.chunks, { type: 'application/octet-stream' });
-    var name = fnameOf(entry);
-    BYTESTORE.set(name, { blob: blob, size: blob.size });
     dl.chunks = [];
     dl.ctrl = null;
+    finishBytes(key, blob);
+}
+
+// Shared completion: RAM store, verified IDB put, status flip. Used by
+// both transports (HTTP pump and torrent done-handler).
+function finishBytes(key, blob) {
+    var dl = DLS[key];
+    var entry = MODELS[key];
+    var name = fnameOf(entry);
+    BYTESTORE.set(name, { blob: blob, size: blob.size });
     dl.total = blob.size;
     dl.loaded = blob.size;
+    if (dl.tick) { clearInterval(dl.tick); dl.tick = null; }
+    dropTorrent(key);
     refreshRows();
     setStatus('saving ' + esc(entry.label) + ' to device cache&hellip;');
     IDB.put(name, blob).then(function (saved) {

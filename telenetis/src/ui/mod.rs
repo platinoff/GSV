@@ -10,6 +10,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 pub mod miniapp;
+pub mod torrent;
 pub mod vendor;
 pub mod webgpu;
 
@@ -51,6 +52,7 @@ pub fn router(state: AppState) -> Router {
         .route("/static/tensor.js", get(serve_tensor_js))
         .route("/vendor/{*path}", get(serve_vendor))
         .route("/models/{*path}", get(serve_models))
+        .route("/torrents/{name}", get(api_tensor_torrent))
         .route("/api/edge/tensor/config", get(api_tensor_config))
         .route("/api/verify", get(api_verify_init_data))
         .route("/api/mini-app/i18n", get(api_mini_app_i18n))
@@ -1227,6 +1229,56 @@ async fn serve_tensor_js() -> impl IntoResponse {
     )
 }
 
+/// Torrent metainfo for a host model (`{stem}.torrent` ↔ `{stem}.gguf`):
+/// pieces + `url-list` webseed built from this request's own Host, so the
+/// same bytes work over the tunnel and over LAN. Hashing runs blocking —
+/// served from an in-memory cache keyed by (path, size, mtime).
+async fn api_tensor_torrent(
+    axum::extract::Path(name): axum::extract::Path<String>,
+    headers: axum::http::HeaderMap,
+) -> Response {
+    let Some(root) = crate::ui::vendor::model_dir() else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(crate::actions::err_json("model dir not configured")),
+        )
+            .into_response();
+    };
+    let Some(stem) = name.strip_suffix(".torrent") else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let file = format!("{stem}.gguf");
+    let Some(path) = crate::ui::vendor::resolve(&root, &file) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let host = headers
+        .get(axum::http::header::HOST)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("127.0.0.1:9800")
+        .to_string();
+    let proto = headers
+        .get("x-forwarded-proto")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("http");
+    let webseed = format!("{proto}://{host}/models/{file}");
+    let built = tokio::task::spawn_blocking(move || {
+        crate::ui::torrent::metainfo_for_file(&path, &file, vec![webseed])
+    })
+    .await;
+    match built {
+        Ok(Ok(bytes)) => (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "application/x-bittorrent")],
+            bytes,
+        )
+            .into_response(),
+        _ => (
+            StatusCode::BAD_GATEWAY,
+            Json(crate::actions::err_json("torrent build failed")),
+        )
+            .into_response(),
+    }
+}
 /// Tensor bootstrap for the browser worker: local runtime URLs + the
 /// host's GGUF catalog (empty `models` when `TELENETIS_MODEL_DIR` is unset —
 /// the page falls back to its pinned HuggingFace pair).
@@ -2532,6 +2584,7 @@ mod tests {
             .unwrap();
         let html = String::from_utf8_lossy(&body);
         assert!(html.contains("/static/tensor.js"));
+        assert!(html.contains("/vendor/webtorrent/webtorrent.min.js"));
         assert!(html.contains("tensor-start"));
         assert!(html.contains("tensor-torrent"));
         assert!(html.contains("tensor-wpause"));
@@ -2573,6 +2626,8 @@ mod tests {
         assert!(js.contains("pauseWorker")); // worker pause/resume toggle
         assert!(js.contains("renderRows")); // torrent-style per-model rows
         assert!(js.contains("useModel")); // load bytes into the engine
+        assert!(js.contains("startTorrent")); // torrent path, HTTP fallback
+        assert!(js.contains("httpFallback")); // fallback stays working
         assert!(js.contains("/api/edge/tensor/config"));
     }
 
@@ -2580,6 +2635,57 @@ mod tests {
         app.oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
             .await
             .unwrap()
+    }
+
+    #[tokio::test]
+    async fn tensor_torrent_serves_metainfo_with_webseed() {
+        // Hermetic: temp model dir; env restored after (guarded: shares
+        // TELENETIS_MODEL_DIR with the config tests).
+        let _guard = crate::ui::vendor::ENV_GUARD.lock().await;
+        let dir = std::env::temp_dir().join(format!("tns-tor-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("tiny.gguf"), vec![9u8; 2048]).unwrap();
+        let prev = std::env::var_os("TELENETIS_MODEL_DIR");
+        std::env::set_var("TELENETIS_MODEL_DIR", &dir);
+        let app = router(test_state());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/torrents/tiny.torrent")
+                    .header("host", "lan:9800")
+                    .header("x-forwarded-proto", "https")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert!(resp
+            .headers()
+            .get(header::CONTENT_TYPE)
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .contains("x-bittorrent"));
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+            .await
+            .unwrap();
+        assert!(body.starts_with(b"d"), "bencoded dict");
+        assert!(body.windows(8).any(|w| w == b"url-list"), "webseed present");
+        assert!(
+            body.windows(b"https://lan:9800/models/tiny.gguf".len())
+                .any(|w| w == b"https://lan:9800/models/tiny.gguf"),
+            "webseed points at this host"
+        );
+        let app = router(test_state());
+        let missing = get_uri(app, "/torrents/nope.torrent").await;
+        assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+        match prev {
+            Some(v) => std::env::set_var("TELENETIS_MODEL_DIR", v),
+            None => std::env::remove_var("TELENETIS_MODEL_DIR"),
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[tokio::test]

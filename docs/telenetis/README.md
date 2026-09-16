@@ -84,6 +84,7 @@ cargo run
 - `GET /probe` → WebGPU probe page (adapter + limits, one tap per device)
 - `POST /api/edge/webgpu` → initData-checked probe submit (`ActionQuery` + JSON `{user, probe}`); validates, resolves bound peer, forwards `class=webgpu` hub profile to GSV; `{ok, unsupported}` when the adapter is absent
 - `GET /tensor` → browser tensor worker page (wllama runtime + poolAI task loop + self-test)
+- `GET /torrents/{stem}.torrent` → bittorrent metainfo for a host model (1 MiB pieces, `url-list` webseed to this host, trackerless); the worker page downloads through it with HTTP fallback
 - `GET /api/flows` → `{flows: [FlowEvent]}`
 - `POST /webhook` → `"ok"` (Telegram update)
 - `GET /ws` → WebSocket JSON `FlowEvent` stream
@@ -112,7 +113,7 @@ cargo clippy --all-targets
 cargo test
 ```
 
-**246** unit tests + **4** integration tests (`tests/integration_test.rs`) = **250** total.
+**251** unit tests + **4** integration tests (`tests/integration_test.rs`) = **255** total.
 
 ## Support / Donate
 

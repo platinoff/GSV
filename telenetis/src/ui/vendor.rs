@@ -170,6 +170,7 @@ pub fn list_models(dir: &Path) -> Vec<serde_json::Value> {
                 "key": stem,
                 "label": format!("{stem} ({}MB)", size / (1024 * 1024)),
                 "url": format!("/models/{name}"),
+                "torrent": format!("/torrents/{stem}.torrent"),
                 "size_mb": size / (1024 * 1024),
             })
         })
