@@ -87,6 +87,38 @@ function logRow(who, text) {
     while (body.rows.length > 30) { body.deleteRow(-1); }
 }
 
+function queryPeer() {
+    try {
+        var m = /[?&]peer=([^&]+)/.exec(location.search || '');
+        return m ? decodeURIComponent(m[1]).trim() : '';
+    } catch (e) { return ''; }
+}
+
+function lanHint() {
+    // Tunnel fetches die on big files (free-tier interstitial/limits);
+    // same Wi-Fi must go direct LAN. Derive the LAN host from the edge
+    // endpoints (same box serves llama/poolai) and suggest it once.
+    timed('/api/edge/endpoints', { headers: { Accept: 'application/json' } }, 15000)
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            var svcs = (data && data.services) || [];
+            var host = '';
+            for (var i = 0; i < svcs.length; i++) {
+                var m = /http:\/\/([^:\/]+)/.exec(svcs[i].lan || '');
+                if (m) { host = m[1]; break; }
+            }
+            if (!host || location.hostname === host) { return; }
+            var peer = queryPeer();
+            var url = 'http://' + host + ':9800/tensor' + (peer ? '?peer=' + encodeURIComponent(peer) : '');
+            var box = el('tensor-lan');
+            if (box) {
+                box.innerHTML = 'Slow tunnel? Same Wi-Fi goes direct LAN: ' +
+                    '<a href="' + esc(url) + '">' + esc(url) + '</a>';
+            }
+        })
+        .catch(function () {});
+}
+
 function tgUser() {
     try {
         var w = window.Telegram && window.Telegram.WebApp;
@@ -117,6 +149,13 @@ function pool(path, opts, ms) {
 }
 
 function resolvePeer() {
+    // ?peer= override: plain LAN browsers have no Telegram identity, but
+    // both phones share one bound peer — deep-link it and skip lookup.
+    var qp = queryPeer();
+    if (qp) {
+        S.peer = qp;
+        return Promise.resolve(qp);
+    }
     var user = tgUser();
     if (!user) {
         return Promise.reject(new Error('open from Telegram to identify'));
@@ -409,3 +448,4 @@ window.__tensorReady = true;
 // Catalog first (host vendor + GGUF library), so the list reflects what
 // this box actually serves; HF fallback when the host has no catalog.
 bootConfig();
+lanHint();
