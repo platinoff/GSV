@@ -210,6 +210,7 @@ function applyConfig(data) {
             ' model(s), runtime local. 1) Load model 2) Start worker.');
     }
     fillModels();
+    tagCached();
 }
 
 function loadWllama() {
@@ -279,6 +280,31 @@ var IDB = {
                 rq.onerror = function () { resolve(false); };
             } catch (e) { resolve(false); }
         });
+    },
+    listAll: function () {
+        // Every cached model with its byte size (drives the "(cached)"
+        // tags, so an empty device is visible instead of silent).
+        var self = this;
+        return new Promise(function (resolve) {
+            if (!self.ok) { resolve([]); return; }
+            try {
+                var out = [];
+                var tx = self.db.transaction('models', 'readonly');
+                var rq = tx.objectStore('models').openCursor();
+                rq.onsuccess = function () {
+                    var cur = rq.result;
+                    if (cur) {
+                        var size = 0;
+                        try { size = (cur.value && cur.value.size) || 0; } catch (e) {}
+                        out.push({ name: cur.key, size: size });
+                        cur.continue();
+                    } else {
+                        resolve(out);
+                    }
+                };
+                rq.onerror = function () { resolve(out); };
+            } catch (e) { resolve([]); }
+        });
     }
 };
 
@@ -344,10 +370,20 @@ function startModelLoad(rt, spec, key) {
         reportDl();
         setStatus('saving to device cache&hellip;');
         IDB.put(SEG.name, blob).then(function (saved) {
-            logRow('sys', saved
-                ? 'saved to device cache (' + fmtMB(blob.size) + 'MB) — reloads reuse it'
-                : 'device cache unavailable (quota?) — RAM only this session');
-            SEG.resolve({ name: SEG.name, size: blob.size });
+            if (!saved) {
+                logRow('sys', 'device cache unavailable (quota?) — RAM only this session');
+                SEG.resolve({ name: SEG.name, size: blob.size });
+                return;
+            }
+            // Verify-after-write: read back and compare sizes, so a
+            // half-written entry can never look cached.
+            IDB.get(SEG.name).then(function (rec) {
+                var ok = rec && rec.blob && rec.blob.size === blob.size;
+                logRow('sys', ok
+                    ? 'saved to device cache (' + fmtMB(blob.size) + 'MB, verified)'
+                    : 'device cache verify FAILED — will re-download next time');
+                SEG.resolve({ name: SEG.name, size: blob.size });
+            });
         });
     }
     function dlSegment() {
@@ -698,6 +734,48 @@ window.__tensorReady = true;
 bootConfig();
 lanHint();
 restoreWorkerState();
+// Storage gate: Load waits for IndexedDB (avoids racing an unopened
+// store and re-downloading). Cached models get [cached] tags from both
+// sides (catalog fetch and IDB open race each other; tagging is
+// idempotent), so an empty device is visible instead of silent.
+el('tensor-load').disabled = true;
+function tagCached() {
+    if (!IDB.ok) { return; }
+    var sel = el('tensor-model');
+    if (!sel || !sel.options.length) { return; }
+    IDB.listAll().then(function (rows) {
+        var cached = {};
+        for (var i = 0; i < rows.length; i++) {
+            cached[rows[i].name] = rows[i].size;
+        }
+        for (var j = 0; j < sel.options.length; j++) {
+            var opt = sel.options[j];
+            var entry = MODELS[opt.value];
+            var fname = entry && entry.url
+                ? entry.url.split('/').pop()
+                : (entry && entry.file) || '';
+            if (fname && cached[fname] > 0 && opt.textContent.indexOf('[cached]') < 0) {
+                opt.textContent = entry.label + ' [cached]';
+            }
+        }
+        if (rows.length) {
+            logRow('sys', 'on device: ' + rows.length + ' model file(s)');
+        } else {
+            logRow('sys', 'device cache empty — first Load downloads');
+        }
+    });
+}
 IDB.open().then(function (ok) {
-    if (ok) { logRow('sys', 'device cache ready (IndexedDB)'); }
+    el('tensor-load').disabled = false;
+    if (ok) {
+        logRow('sys', 'device cache ready (IndexedDB)');
+        try {
+            if (navigator.storage && navigator.storage.persist) {
+                navigator.storage.persist();
+            }
+        } catch (e) {}
+        tagCached();
+    } else {
+        logRow('sys', 'device cache unavailable (no IndexedDB) — RAM only');
+    }
 });
