@@ -191,9 +191,17 @@ pub async fn process_update(state: &AppState, update: &Value) {
                         } else if url.starts_with("https://") {
                             // Channels/groups reject `web_app` buttons
                             // (BUTTON_TYPE_INVALID); a direct-link Mini App URL
-                            // still opens the app embedded there.
+                            // still opens the app embedded there. `startapp`
+                            // carries the deep-link page (`probe` for /probe —
+                            // the /app shell redirects on it), because the
+                            // t.me link always opens the default page.
                             let username = bot.get_me().await.unwrap_or_default();
-                            let app_link = format!("https://t.me/{username}?startapp=telenetis");
+                            let param = if matches!(cmd, Command::Probe) {
+                                "probe"
+                            } else {
+                                "telenetis"
+                            };
+                            let app_link = crate::bot::mini_app::startapp_link(&username, param);
                             bot.send_url_button(
                                 chat_id,
                                 &response_text,

@@ -2341,6 +2341,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn app_shell_redirects_startapp_probe() {
+        // The t.me startapp link always opens /app; a `probe` start_param
+        // must hop to the probe page so group users land on Run directly.
+        let app = router(test_state());
+        let resp = app
+            .oneshot(Request::builder().uri("/app").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+            .await
+            .unwrap();
+        let html = String::from_utf8_lossy(&body);
+        assert!(html.contains("start_param"));
+        assert!(html.contains("/probe"));
+    }
+
+    #[tokio::test]
     async fn probe_page_ok() {
         let app = router(test_state());
         let resp = app

@@ -29,6 +29,19 @@
             <div class="skeleton skeleton-row" data-skeleton="workers" aria-hidden="true"></div>
         </div>
     </div>
+    <script>
+    // Deep-link entry: t.me startapp links always open this default page,
+    // so a `probe` start_param hops straight to the WebGPU probe page.
+    (function () {
+        try {
+            var w = window.Telegram && window.Telegram.WebApp;
+            var p = w && w.initDataUnsafe && w.initDataUnsafe.start_param;
+            if (String(p || "").toLowerCase() === "probe") {
+                location.replace("/probe");
+            }
+        } catch (e) {}
+    })();
+    </script>
     <script src="/static/app.js"></script>
 </body>
 </html>
