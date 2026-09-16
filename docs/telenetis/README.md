@@ -66,11 +66,6 @@ cargo run
 - `/probe` — WebGPU adapter probe page (phone GPU → hub profile)
 - `/help` — same as /start
 
-> Chat scope (owner decision 2026-09-16): gsv bot official owns group/channel
-> traffic — Telenetis answers in **private chats only** (no duplicate replies).
-> Group messages are still observed (`telegram_message` flows) and `/start`
-> still prefetches the board; the Mini App + JSON API are unaffected.
-
 ## API
 
 - `GET /health` → `{status, service, version}`
