@@ -10,6 +10,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 pub mod miniapp;
+pub mod webgpu;
 
 pub fn router(state: AppState) -> Router {
     Router::new()
@@ -25,11 +26,13 @@ pub fn router(state: AppState) -> Router {
         .route("/api/edge/vm/ensure", post(api_edge_vm_ensure))
         .route("/api/edge/shards", get(api_edge_shards))
         .route("/chat", get(chat_page))
+        .route("/probe", get(probe_page))
         .route(
             "/api/edge/chat",
             get(api_edge_chat_result).post(api_edge_chat_send),
         )
         .route("/api/edge/endpoints", get(api_edge_endpoints))
+        .route("/api/edge/webgpu", post(api_edge_webgpu_submit))
         .route(
             "/edge/upstream/{service}/{*tail}",
             get(proxy_upstream).post(proxy_upstream),
@@ -42,6 +45,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/flows", get(api_flows))
         .route("/static/app.css", get(serve_css))
         .route("/static/app.js", get(serve_js))
+        .route("/static/probe.js", get(serve_probe_js))
         .route("/api/verify", get(api_verify_init_data))
         .route("/api/mini-app/i18n", get(api_mini_app_i18n))
         .route("/api/live/config", get(api_live_config))
@@ -675,6 +679,13 @@ async fn chat_page() -> impl IntoResponse {
     page(include_str!("templates/chat.html").to_string())
 }
 
+/// WebGPU probe page (swarm browser path): one tap runs
+/// `navigator.gpu.requestAdapter()` on the phone and registers a
+/// `class=webgpu` hub profile under the caller's bound peer.
+async fn probe_page() -> impl IntoResponse {
+    page(include_str!("templates/probe.html").to_string())
+}
+
 /// Layer map: latest `llama_shard` assignment per bound peer.
 /// Source of truth for who holds which layers (tensors follow separately).
 async fn api_edge_shards(State(state): State<AppState>) -> Json<serde_json::Value> {
@@ -703,6 +714,82 @@ async fn api_edge_shards(State(state): State<AppState>) -> Json<serde_json::Valu
         })
         .collect();
     Json(json!({"ok": true, "shards": shards}))
+}
+
+/// Browser WebGPU probe submit: `POST /api/edge/webgpu?initData=…&authDate=…`
+/// body `{user, probe}`. Mutating (writes a durable hub profile), so the
+/// Telegram `initData` handshake is required like the board actions. The
+/// probe is validated by [`webgpu::parse_probe`], keyed by the caller's
+/// bound poolAI peer, and forwarded as a `class=webgpu` patch to GSV
+/// `POST /api/grid/profile`. Unsupported adapters short-circuit with
+/// `{ok, unsupported}` and no profile write.
+async fn api_edge_webgpu_submit(
+    State(state): State<AppState>,
+    Query(q): Query<ActionQuery>,
+    Json(body): Json<serde_json::Value>,
+) -> Response {
+    use crate::edge::PoolClient;
+
+    let token = &state.config().bot_token;
+    if token.is_empty() {
+        return (
+            StatusCode::BAD_GATEWAY,
+            Json(crate::actions::err_json("bot token not configured")),
+        )
+            .into_response();
+    }
+    let now = freshness_now(q.auth_date);
+    if let Err(e) = crate::security::verify_init_data(
+        &q.init_data,
+        token,
+        now,
+        crate::security::initdata::DEFAULT_MAX_AGE_SECS,
+    ) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(crate::actions::err_json(&format!("initData: {e}"))),
+        )
+            .into_response();
+    }
+    let user = body.get("user").and_then(Value::as_str).unwrap_or("");
+    if user.trim().is_empty() {
+        return Json(json!({"ok": false, "error": "user required"})).into_response();
+    }
+    let probe = match body.get("probe") {
+        Some(p) => match crate::ui::webgpu::parse_probe(p) {
+            Ok(pr) => pr,
+            Err(e) => {
+                return (StatusCode::BAD_REQUEST, Json(crate::actions::err_json(&e)))
+                    .into_response()
+            }
+        },
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(crate::actions::err_json("missing probe")),
+            )
+                .into_response()
+        }
+    };
+    if !probe.supported {
+        return Json(json!({"ok": true, "unsupported": true})).into_response();
+    }
+    let pool = PoolClient::new(state.config());
+    let peer = match pool.peer_for_user(user).await {
+        Ok(Some(p)) => p,
+        Ok(None) => return Json(json!({"ok": false, "error": "no bound peer"})).into_response(),
+        Err(e) => return Json(json!({"ok": false, "error": e.to_string()})).into_response(),
+    };
+    let patch = crate::ui::webgpu::profile_patch(&peer, &probe);
+    let gsv = crate::gsv::client::GsvClient::new(state.config());
+    match gsv.grid_profile(&patch).await {
+        Ok(row) => Json(json!({"ok": true, "peer": peer, "profile": row})).into_response(),
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            Json(crate::actions::err_json(&format!("GSV: {e}"))),
+        )
+            .into_response(),
+    }
 }
 
 /// Phone-reachable service map (loopback / LAN / via-Telenetis / public).
@@ -1081,6 +1168,17 @@ async fn serve_js() -> impl IntoResponse {
             "application/javascript; charset=utf-8",
         )],
         include_str!("static/app.js"),
+    )
+}
+
+async fn serve_probe_js() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        [(
+            header::CONTENT_TYPE,
+            "application/javascript; charset=utf-8",
+        )],
+        include_str!("static/probe.js"),
     )
 }
 
@@ -2216,5 +2314,190 @@ mod tests {
             );
             assert!(!crate::ui::miniapp::t(key, crate::ui::miniapp::Lang::En).is_empty());
         }
+    }
+
+    // ---- WebGPU probe surface (swarm browser path) ----
+
+    async fn post_webgpu(
+        init: &str,
+        auth: i64,
+        body: serde_json::Value,
+    ) -> axum::response::Response {
+        let app = router(test_state());
+        let init_q = percent_encode_query(&test_init_data(init));
+        app.oneshot(
+            Request::builder()
+                .uri(format!(
+                    "/api/edge/webgpu?initData={}&authDate={}",
+                    init_q, auth
+                ))
+                .method("POST")
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn probe_page_ok() {
+        let app = router(test_state());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/probe")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+            .await
+            .unwrap();
+        let html = String::from_utf8_lossy(&body);
+        assert!(html.contains("/static/probe.js"));
+        assert!(html.contains("probe-run"));
+    }
+
+    #[tokio::test]
+    async fn probe_js_served_as_javascript() {
+        let app = router(test_state());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/static/probe.js")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert!(resp
+            .headers()
+            .get(header::CONTENT_TYPE)
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .contains("javascript"));
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+            .await
+            .unwrap();
+        assert!(String::from_utf8_lossy(&body).contains("requestAdapter"));
+    }
+
+    #[tokio::test]
+    async fn webgpu_rejects_missing_init_data() {
+        let app = router(test_state());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/edge/webgpu")
+                    .method("POST")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"user":"1","probe":{"supported":false}}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn webgpu_rejects_tampered_init_data() {
+        let resp = post_webgpu(
+            TEST_TAMPERED_USER_RAW,
+            1750000010,
+            serde_json::json!({"user": "1", "probe": {"supported": false}}),
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn webgpu_rejects_missing_probe() {
+        let resp = post_webgpu(
+            TEST_USER_RAW,
+            1750000010,
+            serde_json::json!({"user": "279058397"}),
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["ok"], false);
+    }
+
+    #[tokio::test]
+    async fn webgpu_rejects_invalid_probe() {
+        let resp = post_webgpu(
+            TEST_USER_RAW,
+            1750000010,
+            serde_json::json!({"user": "279058397", "probe": {"supported": true}}),
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn webgpu_unsupported_short_circuits_without_profile() {
+        let resp = post_webgpu(
+            TEST_USER_RAW,
+            1750000010,
+            serde_json::json!({"user": "279058397", "probe": {"supported": false}}),
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["ok"], true);
+        assert_eq!(json["unsupported"], true);
+    }
+
+    #[tokio::test]
+    async fn webgpu_unbound_user_fails_before_gsv_forward() {
+        // poolAI + GSV both unreachable: user resolution fails first, so no
+        // profile write is ever attempted against a dead upstream.
+        let mut cfg = Config {
+            bot_token: "test".to_string(),
+            gsv_url: "http://127.0.0.1:1".to_string(),
+            poolai_url: "http://127.0.0.1:9".to_string(),
+            port: 9800,
+            jail_id: "test-jail".to_string(),
+            godfather_channel_id: 0,
+            webhook_url: None,
+            webhook_secret: None,
+            public_url: None,
+            tunnel_enabled: false,
+            ngrok_bin: None,
+        };
+        cfg.bot_token = "test".to_string();
+        let app = router(AppState::new(cfg));
+        let init_q = percent_encode_query(&test_init_data(TEST_USER_RAW));
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri(format!(
+                        "/api/edge/webgpu?initData={}&authDate=1750000010",
+                        init_q
+                    ))
+                    .method("POST")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::json!({
+                            "user": "279058397",
+                            "probe": {"supported": true, "adapter": {}, "limits": {}},
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["ok"], false);
     }
 }

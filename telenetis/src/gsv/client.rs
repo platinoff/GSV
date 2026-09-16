@@ -89,6 +89,17 @@ impl GsvClient {
         let body = serde_json::json!({ "id": id, "note": note });
         self.post_json(action.gsv_path(), &body).await
     }
+
+    /// Upsert a hub device profile on the grid mirror
+    /// (`POST /api/grid/profile`). The WebGPU probe posts
+    /// `{id, class: "webgpu", ram_mb, vram_mb: 0, note}` keyed by the
+    /// caller's bound poolAI peer; upsert accepts any class string.
+    pub async fn grid_profile(
+        &self,
+        patch: &serde_json::Value,
+    ) -> Result<serde_json::Value, TelenetisError> {
+        self.post_json("/api/grid/profile", patch).await
+    }
 }
 
 #[cfg(test)]
@@ -123,5 +134,19 @@ mod tests {
     fn new_preserves_url_without_slash() {
         let client = GsvClient::new(&test_config());
         assert_eq!(client.base_url(), "http://127.0.0.1:9999");
+    }
+
+    #[tokio::test]
+    async fn grid_profile_fails_fast_on_unreachable_gsv() {
+        // Never touches a live board: connection-refused must surface as Err,
+        // so the probe endpoint can fail open with a gateway shape.
+        let mut cfg = test_config();
+        cfg.gsv_url = "http://127.0.0.1:1".to_string();
+        let client = GsvClient::new(&cfg);
+        let err = client
+            .grid_profile(&serde_json::json!({"id": "x", "class": "webgpu"}))
+            .await
+            .expect_err("unreachable GSV must fail");
+        assert!(!err.to_string().is_empty());
     }
 }

@@ -38,8 +38,9 @@ GSV (9999)  <--HTTP-->  Telenetis (9800)  <--HTTPS-->  Telegram Bot API
 - **Security** (`src/security/auth.rs`): `MAX_BODY_BYTES 64 KiB`, `csrf_check`, `security_headers` (nosniff/no-store/CSP).
 - **Security** (`src/security/initdata.rs`): Telegram Mini App `initData` HMAC-SHA256 verification (secret key HMAC `WebAppData`, `auth_date` freshness, constant-time compare) — guards `/api/verify` + all `/api/board/*` actions.
 - **Actions** (`src/actions.rs`): `BoardAction` (Claim/Done/Error/Reclaim) + `available_actions(status)` + body parsing + GSV forward; `/api/board/claim|done|error|reclaim` POST routes forward on behalf of the verified Mini App user to GSV `/api/tickets/*`.
-- **UI** (`src/ui/mod.rs`): `GET /`, `/app`, `/board`, `/flows`, `/roles`, `/health`, `/api/status`, `/api/tickets`, `/api/roles`, `/api/flows`, `/api/snapshot?lang=`, `/api/mini-app/i18n`, `/api/live/config`, `/api/verify`, `/api/board/*`, `/static/app.css|js` (Askama templates in `src/ui/templates`).
-- **Main** (`src/main.rs`): merges `ui + webhook + ws + sse` routers, spawns poll loop, binds `0.0.0.0:{port}`.
+- **UI** (`src/ui/mod.rs`): `GET /`, `/app`, `/board`, `/flows`, `/roles`, `/probe`, `/health`, `/api/status`, `/api/tickets`, `/api/roles`, `/api/flows`, `/api/snapshot?lang=`, `/api/mini-app/i18n`, `/api/live/config`, `/api/verify`, `/api/board/*`, `/static/app.css|js` (Askama templates in `src/ui/templates`).
+- **Edge** (`src/edge.rs`): poolAI HTTP client + telegram-bindings read-model + VM/shard/chat surfaces; `lan_url`/`mini_app_base` keep phone-reachable URLs off loopback.
+- **WebGPU probe** (`src/ui/webgpu.rs` + `templates/probe.html` + `static/probe.js`): `/probe` runs `navigator.gpu.requestAdapter()` on the phone (adapter info + allocation limits + `deviceMemory`); `POST /api/edge/webgpu` (initData-checked, body `{user, probe}`) validates server-side, resolves the caller's bound poolAI peer, and forwards a `class=webgpu` patch to GSV `POST /api/grid/profile` (unknown `ram_mb` stays 0 — never guessed). Gates: run on A54 (Adreno) + Redmi 9 (Mali).- **Main** (`src/main.rs`): merges `ui + webhook + ws + sse` routers, spawns poll loop, binds `0.0.0.0:{port}`.
 
 ## Setup
 
@@ -77,6 +78,8 @@ cargo run
 - `GET /api/live/config` → server-authoritative reconnect + keep-alive schedule
 - `GET /api/verify?initData=&authDate=` → initData HMAC validation `{ok, error?}`
 - `POST /api/board/claim|done|error|reclaim` → initData HMAC verify → forward to GSV (`ActionQuery {initData, authDate}` + JSON `{action, ticket_id, note}`)
+- `GET /probe` → WebGPU probe page (adapter + limits, one tap per device)
+- `POST /api/edge/webgpu` → initData-checked probe submit (`ActionQuery` + JSON `{user, probe}`); validates, resolves bound peer, forwards `class=webgpu` hub profile to GSV; `{ok, unsupported}` when the adapter is absent
 - `GET /api/flows` → `{flows: [FlowEvent]}`
 - `POST /webhook` → `"ok"` (Telegram update)
 - `GET /ws` → WebSocket JSON `FlowEvent` stream
@@ -105,7 +108,7 @@ cargo clippy --all-targets
 cargo test
 ```
 
-**180** unit tests + **4** integration tests (`tests/integration_test.rs`) = **184** total.
+**223** unit tests + **4** integration tests (`tests/integration_test.rs`) = **227** total.
 
 ## Support / Donate
 

@@ -9,7 +9,7 @@
   [`docs/gsv/PRODUCTS.md`](../../docs/gsv/PRODUCTS.md); keep-live band 224
   (Windows parity: watchdog copies debug → live and respawns `:9800`);
   GSV MCP probe `gsv_telenetis_health`.
-- **Latest work**: `301aa2d` Telenetis role-store data wiring + integration test README.
+- **Latest work**: WebGPU adapter probe (`/probe` + `POST /api/edge/webgpu` → `class=webgpu` hub profile, ticket t-1789411940089445600; gates: run on A54 + Redmi 9).
 - **Tests**: `cargo fmt -- --check` → `cargo clippy --all-targets` → `cargo test`
   (run in `S:/rust/GSV/telenetis`). Do **not** kill the live `:9800` copy before tests.
 - **Health**: `GET http://127.0.0.1:9800/health` (GSV `keep_live.telenetis`, fresh = up).
