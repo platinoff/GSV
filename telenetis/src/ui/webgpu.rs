@@ -164,6 +164,58 @@ pub fn max_single_alloc_mb(probe: &WebGpuProbe) -> u64 {
     probe.limits.max_storage_bytes / (1024 * 1024)
 }
 
+/// Max length of the adapter slug inside a profile id (hub ids stay short
+/// and sortable; the full adapter string rides the profile `note`).
+pub const MAX_SLUG_LEN: usize = 32;
+
+/// Profile id for a probe: `{peer}-{adapter-slug}`. Both phones can share
+/// one Telegram account (one bound peer) while carrying different GPUs —
+/// keying by peer alone would let the second probe overwrite the first.
+/// Falls back to architecture, then to `"gpu"`, so an empty adapter still
+/// keys deterministically per peer.
+pub fn profile_id(peer_id: &str, probe: &WebGpuProbe) -> String {
+    let raw = if !probe.adapter.device.is_empty() {
+        probe.adapter.device.as_str()
+    } else if !probe.adapter.architecture.is_empty() {
+        probe.adapter.architecture.as_str()
+    } else {
+        "gpu"
+    };
+    let mut slug: String = raw
+        .to_ascii_lowercase()
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect();
+    // Collapse runs of '-' and trim edges for stable, readable ids.
+    let mut clean = String::with_capacity(slug.len());
+    let mut prev_dash = true;
+    for c in slug.chars() {
+        if c == '-' {
+            if !prev_dash {
+                clean.push(c);
+            }
+            prev_dash = true;
+        } else {
+            clean.push(c);
+            prev_dash = false;
+        }
+    }
+    while clean.ends_with('-') {
+        clean.pop();
+    }
+    slug = clean;
+    if slug.is_empty() {
+        slug = "gpu".to_string();
+    }
+    if slug.len() > MAX_SLUG_LEN {
+        slug.truncate(MAX_SLUG_LEN);
+        while slug.ends_with('-') {
+            slug.pop();
+        }
+    }
+    format!("{}-{slug}", peer_id.trim())
+}
+
 /// Hub-profile patch for GSV `POST /api/grid/profile` (includes the `id`;
 /// see `upsert_profile` — unknown classes pass through, so no GSV change is
 /// needed for `class: "webgpu"`). `vram_mb` stays 0: phone UMA has no
@@ -180,7 +232,7 @@ pub fn profile_patch(peer_id: &str, probe: &WebGpuProbe) -> Value {
         &probe.adapter.architecture
     };
     serde_json::json!({
-        "id": peer_id.trim(),
+        "id": profile_id(peer_id, probe),
         "class": "webgpu",
         "ram_mb": memory_cap_mb(probe),
         "vram_mb": 0,
@@ -232,13 +284,49 @@ mod tests {
     fn patch_keys_peer_and_marks_webgpu_class() {
         let p = parse_probe(&adreno_probe()).expect("parses");
         let patch = profile_patch("a54-01", &p);
-        assert_eq!(patch["id"], "a54-01");
+        assert_eq!(patch["id"], "a54-01-adreno-tm-740");
         assert_eq!(patch["class"], "webgpu");
         assert_eq!(patch["ram_mb"], 8192);
         assert_eq!(patch["vram_mb"], 0);
         let note = patch["note"].as_str().unwrap();
         assert!(note.contains("Adreno (TM) 740"));
         assert!(note.contains("maxbuf:128MB"));
+    }
+
+    #[test]
+    fn profile_id_disambiguates_two_phones_on_one_account() {
+        // Same Telegram account ⇒ same bound peer; adapters differ, so the
+        // second probe must not overwrite the first profile.
+        let adreno = parse_probe(&adreno_probe()).expect("parses");
+        let mali = parse_probe(&json!({
+            "supported": true,
+            "adapter": {"vendor": "arm", "architecture": "mali-g72", "device": "Mali-G72"},
+            "limits": {"maxStorageBufferBindingSize": 67108864u64}
+        }))
+        .expect("parses");
+        let a = profile_id("a54-01", &adreno);
+        let m = profile_id("a54-01", &mali);
+        assert_eq!(a, "a54-01-adreno-tm-740");
+        assert_eq!(m, "a54-01-mali-g72");
+        assert_ne!(a, m);
+    }
+
+    #[test]
+    fn profile_id_falls_back_without_adapter() {
+        let p = parse_probe(&json!({
+            "supported": true,
+            "adapter": {},
+            "limits": {"maxStorageBufferBindingSize": 1024u64}
+        }))
+        .expect("parses");
+        assert_eq!(profile_id("a54-01", &p), "a54-01-gpu");
+        let arch = parse_probe(&json!({
+            "supported": true,
+            "adapter": {"architecture": "adreno-610"},
+            "limits": {}
+        }))
+        .expect("parses");
+        assert_eq!(profile_id("peer", &arch), "peer-adreno-610");
     }
 
     #[test]
