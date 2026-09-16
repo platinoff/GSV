@@ -783,13 +783,35 @@ async fn api_edge_webgpu_submit(
     let patch = crate::ui::webgpu::profile_patch(&peer, &probe);
     let gsv = crate::gsv::client::GsvClient::new(state.config());
     match gsv.grid_profile(&patch).await {
-        Ok(row) => Json(json!({"ok": true, "peer": peer, "profile": row})).into_response(),
+        Ok(v) => match webgpu_profile_row(&v) {
+            Ok(row) => Json(json!({"ok": true, "peer": peer, "profile": row})).into_response(),
+            Err(e) => (
+                StatusCode::BAD_GATEWAY,
+                Json(crate::actions::err_json(&format!("GSV: {e}"))),
+            )
+                .into_response(),
+        },
         Err(e) => (
             StatusCode::BAD_GATEWAY,
             Json(crate::actions::err_json(&format!("GSV: {e}"))),
         )
             .into_response(),
     }
+}
+
+/// Unwrap the hub-profile row from a GSV `POST /api/grid/profile` answer
+/// (`{ok, profile: row}`). GSV errors arrive as HTTP 200 with `ok: false`,
+/// so the flag must be checked — otherwise the phone renders an empty
+/// profile (`?` id, zero ram) for a write that never happened.
+fn webgpu_profile_row(v: &serde_json::Value) -> Result<serde_json::Value, String> {
+    if !v.get("ok").and_then(Value::as_bool).unwrap_or(false) {
+        return Err(v
+            .get("error")
+            .and_then(Value::as_str)
+            .unwrap_or("grid profile rejected")
+            .to_string());
+    }
+    Ok(v.get("profile").cloned().unwrap_or_else(|| v.clone()))
 }
 
 /// Phone-reachable service map (loopback / LAN / via-Telenetis / public).
@@ -2471,6 +2493,19 @@ mod tests {
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["ok"], true);
         assert_eq!(json["unsupported"], true);
+    }
+
+    #[test]
+    fn webgpu_profile_row_unwraps_nested_gsv_answer() {
+        // Live GSV shape: {ok: true, profile: {id, ...}} — the phone must
+        // render the inner row, not the envelope (the `?` id bug).
+        let v =
+            serde_json::json!({"ok": true, "profile": {"id": "a54-01-valhall", "ram_mb": 4096}});
+        let row = webgpu_profile_row(&v).expect("row");
+        assert_eq!(row["id"], "a54-01-valhall");
+        assert_eq!(row["ram_mb"], 4096);
+        let err = webgpu_profile_row(&serde_json::json!({"ok": false, "error": "id required"}));
+        assert!(err.unwrap_err().contains("id required"));
     }
 
     #[tokio::test]
