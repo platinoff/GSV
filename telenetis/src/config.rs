@@ -44,7 +44,12 @@ impl Config {
             port: env::var("TELENETIS_PORT")
                 .unwrap_or_else(|_| "9800".to_string())
                 .parse()
-                .expect("TELENETIS_PORT must be a number"),
+                .unwrap_or_else(|_| {
+                    // A typo'd port must degrade to the default, not panic
+                    // the always-on service at boot (found by bug-hunt audit).
+                    eprintln!("TELENETIS_PORT is not a number — falling back to 9800");
+                    9800
+                }),
             jail_id: env::var("TELENETIS_JAIL_ID").unwrap_or_else(|_| "telenetis-01".to_string()),
             godfather_channel_id: env::var("TELENETIS_GODFATHER_CHANNEL_ID")
                 .unwrap_or_default()
@@ -86,6 +91,17 @@ mod tests {
         assert_eq!(cfg.poolai_url, "http://127.0.0.1:8091");
         assert_eq!(cfg.port, 9800);
         assert_eq!(cfg.jail_id, "test-jail");
+    }
+
+    #[test]
+    fn config_bad_port_falls_back_instead_of_panicking() {
+        // Bug-hunt: a garbage TELENETIS_PORT must not kill the service.
+        // Guarded: no other test mutates this var concurrently... (single
+        // setter here; from_env reads are independent.)
+        std::env::set_var("TELENETIS_PORT", "not-a-port");
+        let cfg = Config::from_env();
+        assert_eq!(cfg.port, 9800);
+        std::env::set_var("TELENETIS_PORT", "9800");
     }
 
     #[test]

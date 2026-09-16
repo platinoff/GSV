@@ -63,7 +63,7 @@
         if (form) {
             form.addEventListener("submit", function (ev) { ev.preventDefault(); });
         }
-        // Module import (wllama CDN) can fail offline: surface it instead of
+        // tensor.js failed to boot (network or parse): surface it instead of
         // a dead page with live buttons.
         var tries = 0;
         var timer = setInterval(function () {
