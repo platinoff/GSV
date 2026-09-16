@@ -27,6 +27,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/edge/shards", get(api_edge_shards))
         .route("/chat", get(chat_page))
         .route("/probe", get(probe_page))
+        .route("/tensor", get(tensor_page))
         .route(
             "/api/edge/chat",
             get(api_edge_chat_result).post(api_edge_chat_send),
@@ -46,6 +47,7 @@ pub fn router(state: AppState) -> Router {
         .route("/static/app.css", get(serve_css))
         .route("/static/app.js", get(serve_js))
         .route("/static/probe.js", get(serve_probe_js))
+        .route("/static/tensor.js", get(serve_tensor_js))
         .route("/api/verify", get(api_verify_init_data))
         .route("/api/mini-app/i18n", get(api_mini_app_i18n))
         .route("/api/live/config", get(api_live_config))
@@ -686,6 +688,12 @@ async fn probe_page() -> impl IntoResponse {
     page(include_str!("templates/probe.html").to_string())
 }
 
+/// Browser tensor worker page (swarm path b PoC): loads a GGUF in the
+/// phone via wllama and serves `llama_chat` tasks from the bound peer.
+async fn tensor_page() -> impl IntoResponse {
+    page(include_str!("templates/tensor.html").to_string())
+}
+
 /// Layer map: latest `llama_shard` assignment per bound peer.
 /// Source of truth for who holds which layers (tensors follow separately).
 async fn api_edge_shards(State(state): State<AppState>) -> Json<serde_json::Value> {
@@ -1201,6 +1209,17 @@ async fn serve_probe_js() -> impl IntoResponse {
             "application/javascript; charset=utf-8",
         )],
         include_str!("static/probe.js"),
+    )
+}
+
+async fn serve_tensor_js() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        [(
+            header::CONTENT_TYPE,
+            "application/javascript; charset=utf-8",
+        )],
+        include_str!("static/tensor.js"),
     )
 }
 
@@ -2378,6 +2397,51 @@ mod tests {
         let html = String::from_utf8_lossy(&body);
         assert!(html.contains("start_param"));
         assert!(html.contains("/probe"));
+    }
+
+    #[tokio::test]
+    async fn tensor_page_ok() {
+        let app = router(test_state());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/tensor")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+            .await
+            .unwrap();
+        let html = String::from_utf8_lossy(&body);
+        assert!(html.contains("/static/tensor.js"));
+        assert!(html.contains("tensor-start"));
+    }
+
+    #[tokio::test]
+    async fn tensor_js_served_with_worker_markers() {
+        let app = router(test_state());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/static/tensor.js")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 128 * 1024)
+            .await
+            .unwrap();
+        let js = String::from_utf8_lossy(&body);
+        // Pinned runtime + contract surfaces the worker speaks.
+        assert!(js.contains("@wllama/wllama@3.5.1"));
+        assert!(js.contains("tasks/poll"));
+        assert!(js.contains("llama_chat"));
+        assert!(js.contains("loadModelFromHF"));
     }
 
     #[tokio::test]

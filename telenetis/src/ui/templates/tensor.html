@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Telenetis - Browser Tensor Worker</title>
+    <link rel="stylesheet" href="/static/app.css">
+    <script defer src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body class="platform-unknown">
+    <div id="app">
+        <nav class="nav">
+            <a href="/" data-i18n="nav.home">Home</a>
+            <a href="/board" data-i18n="nav.board">Board</a>
+            <a href="/flows" data-i18n="nav.flows">Flows</a>
+            <a href="/roles" data-i18n="nav.roles">Roles</a>
+            <a href="/workers" data-i18n="nav.workers">Workers</a>
+            <a href="/vm" data-i18n="nav.vm">My VM</a>
+            <a href="/chat" data-i18n="nav.chat">Chat</a>
+            <a href="/probe">Probe</a>
+            <a href="/tensor">Tensor</a>
+        </nav>
+        <h1>Browser Tensor Worker</h1>
+        <p class="dim">build 2026-09-16b</p>
+        <p class="dim">Runs a GGUF in this phone (wllama 3.5.1 + WebGPU) and
+        serves <code>llama_chat</code> tasks from your bound poolAI peer.
+        1) Load model (downloads once, cached) 2) Start worker.
+        PC pollers race for the same queue during the PoC.</p>
+        <div class="tabs" role="group" aria-label="model">
+            <select id="tensor-model" aria-label="model"></select>
+        </div>
+        <div class="tabs" role="group" aria-label="worker controls">
+            <button type="button" id="tensor-load" class="tab">Load model</button>
+            <button type="button" id="tensor-start" class="tab">Start worker</button>
+            <button type="button" id="tensor-stop" class="tab">Stop</button>
+        </div>
+        <form id="tensor-form">
+            <input id="tensor-prompt" type="text" autocomplete="off"
+                   placeholder="Self-test prompt (no queue)..." aria-label="prompt">
+            <button type="submit" id="tensor-self">Run</button>
+        </form>
+        <p id="tensor-status" class="dim" aria-live="polite">Not started.</p>
+        <table id="tensor-table">
+            <thead>
+                <tr>
+                    <th>Kind</th>
+                    <th>Detail</th>
+                </tr>
+            </thead>
+            <tbody id="tensor-log" aria-busy="true">
+                <tr><td colspan="2">(worker log)</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <script type="module" src="/static/tensor.js"></script>
+    <script>
+    (function () {
+        var form = document.getElementById("tensor-form");
+        if (form) {
+            form.addEventListener("submit", function (ev) { ev.preventDefault(); });
+        }
+        // Module import (wllama CDN) can fail offline: surface it instead of
+        // a dead page with live buttons.
+        var tries = 0;
+        var timer = setInterval(function () {
+            if (window.__tensorReady) { clearInterval(timer); return; }
+            if (++tries >= 8) {
+                clearInterval(timer);
+                var s = document.getElementById("tensor-status");
+                if (s) {
+                    s.textContent = "runtime failed to load (CDN offline? WebGPU blocked?). Check connection and reload.";
+                }
+            }
+        }, 2000);
+    })();
+    </script>
+</body>
+</html>

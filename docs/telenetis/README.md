@@ -40,7 +40,9 @@ GSV (9999)  <--HTTP-->  Telenetis (9800)  <--HTTPS-->  Telegram Bot API
 - **Actions** (`src/actions.rs`): `BoardAction` (Claim/Done/Error/Reclaim) + `available_actions(status)` + body parsing + GSV forward; `/api/board/claim|done|error|reclaim` POST routes forward on behalf of the verified Mini App user to GSV `/api/tickets/*`.
 - **UI** (`src/ui/mod.rs`): `GET /`, `/app`, `/board`, `/flows`, `/roles`, `/probe`, `/health`, `/api/status`, `/api/tickets`, `/api/roles`, `/api/flows`, `/api/snapshot?lang=`, `/api/mini-app/i18n`, `/api/live/config`, `/api/verify`, `/api/board/*`, `/static/app.css|js` (Askama templates in `src/ui/templates`).
 - **Edge** (`src/edge.rs`): poolAI HTTP client + telegram-bindings read-model + VM/shard/chat surfaces; `lan_url`/`mini_app_base` keep phone-reachable URLs off loopback.
-- **WebGPU probe** (`src/ui/webgpu.rs` + `templates/probe.html` + `static/probe.js`): `/probe` runs `navigator.gpu.requestAdapter()` on the phone (adapter info + allocation limits + `deviceMemory`); `POST /api/edge/webgpu` (initData-checked, body `{user, probe}`) validates server-side, resolves the caller's bound poolAI peer, and forwards a `class=webgpu` patch to GSV `POST /api/grid/profile` (unknown `ram_mb` stays 0 — never guessed). Profiles key per device (`{peer}-{adapter-slug}`), so two phones on one Telegram account never overwrite each other. Gates: run on A54 (Adreno) + Redmi 9 (Mali).- **Main** (`src/main.rs`): merges `ui + webhook + ws + sse` routers, spawns poll loop, binds `0.0.0.0:{port}`.
+- **WebGPU probe** (`src/ui/webgpu.rs` + `templates/probe.html` + `static/probe.js`): `/probe` runs `navigator.gpu.requestAdapter()` on the phone (adapter info + allocation limits + `deviceMemory`); `POST /api/edge/webgpu` (initData-checked, body `{user, probe}`) validates server-side, resolves the caller's bound poolAI peer, and forwards a `class=webgpu` patch to GSV `POST /api/grid/profile` (unknown `ram_mb` stays 0 — never guessed). Profiles key per device (`{peer}-{adapter-slug}`), so two phones on one Telegram account never overwrite each other. Gates: run on A54 (Adreno) + Redmi 9 (Mali).
+- **Browser tensor worker** (`templates/tensor.html` + `static/tensor.js`, PoC): `/tensor` loads a GGUF in the phone via wllama 3.5.1 ESM CDN (WebGPU `n_gpu_layers`, CPU fallback, OPFS-cached; Qwen2.5-1.5B default, 0.5B Redmi fallback) and serves `llama_chat` tasks from the bound peer queue through the `/edge/upstream/poolai` reverse proxy (poll → run → complete; non-chat tasks re-queued untouched since poll pops). Manual self-test box reports tok/s without touching the queue. PC pollers race for the same queue during the PoC.
+- **Main** (`src/main.rs`): merges `ui + webhook + ws + sse` routers, spawns poll loop, binds `0.0.0.0:{port}`.
 
 ## Setup
 
@@ -81,6 +83,7 @@ cargo run
 - `POST /api/board/claim|done|error|reclaim` → initData HMAC verify → forward to GSV (`ActionQuery {initData, authDate}` + JSON `{action, ticket_id, note}`)
 - `GET /probe` → WebGPU probe page (adapter + limits, one tap per device)
 - `POST /api/edge/webgpu` → initData-checked probe submit (`ActionQuery` + JSON `{user, probe}`); validates, resolves bound peer, forwards `class=webgpu` hub profile to GSV; `{ok, unsupported}` when the adapter is absent
+- `GET /tensor` → browser tensor worker page (wllama runtime + poolAI task loop + self-test)
 - `GET /api/flows` → `{flows: [FlowEvent]}`
 - `POST /webhook` → `"ok"` (Telegram update)
 - `GET /ws` → WebSocket JSON `FlowEvent` stream
@@ -109,7 +112,7 @@ cargo clippy --all-targets
 cargo test
 ```
 
-**225** unit tests + **4** integration tests (`tests/integration_test.rs`) = **229** total.
+**233** unit tests + **4** integration tests (`tests/integration_test.rs`) = **237** total.
 
 ## Support / Donate
 
