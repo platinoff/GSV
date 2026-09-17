@@ -2232,6 +2232,26 @@ Owner pick (`абракадабра` gsv / return from OpenCode): desktop jumped
 | **PH-S2999** | Permissions / skill | `.cursor/permissions.json` registered trees; abracadabra example table matches `gsv_products` — **✅** |
 | **PH-S3000** | Close | fmt · clippy 0 · full `cargo test` exit 0 · stretch-96 **99.50%** · record-rust 0/0 · bump **0.236.0** · fingerprint grok-4.6 · sync last PH-S3008 next PH-S3009 — **✅** |
 
+## Спринти (band 237) — hub single-entry proxy for the poolAI edge plane
+
+Owner pick (`agi` gsv): remaining VDC P0 (`t-1789392387259710100`). poolAI's
+discovery/jobs/virtual-nodes/grid surface still has no JWT; the hub fronts it
+so clients never hit `:8091` off-box. Telenetis service-account rotation stays
+a follow-up ticket.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S3009** | Probe | clippy 0; first open GSV P0 = hub proxy (VDC §6); keep-live up; disk 21G — **✅** |
+| **PH-S3010** | Token | `GSV_EDGE_TOKEN` env wins; `settings.edge.token` on disk; redacted `token_set` / `source`; Debug never echoes — **✅** |
+| **PH-S3011** | Allowlist | `normalize_path` strips `/api/v1/`, rejects `..`; prefixes topology/workers/discovery/virtual-nodes/grid/jobs/health(GET) — **✅** |
+| **PH-S3012** | Rate | 20 req / 1s per token; 429 `rate limited`; `clear_rate_limit` for tests — **✅** |
+| **PH-S3013** | Redact | JSON keys `token`/`password`/`bot_token`/… stripped on the way out — **✅** |
+| **PH-S3014** | HTTP | `GET /api/edge` + `GET`/`POST /api/edge/{*path}`; 401/404/429/502/503 — **✅** |
+| **PH-S3015** | Health / VDC | `health.edge_proxy`; VDC card `edge proxy` line; stand-smoke `/api/edge` — **✅** |
+| **PH-S3016** | Contracts | lib unit + `tests/gsv_edge_contracts.rs` (status/deny/401/forward/429) — **✅** |
+| **PH-S3017** | Docs | VDC §6 · SERVER · BOXES · plan checklist · EDGE_PLAN — **✅** |
+| **PH-S3018** | Close | fmt · clippy 0 · full `cargo test` exit 0 · stretch-96 **99.50%** · record-rust 0/0 · bump **0.237.0** · fingerprint grok-4.6 · sync last PH-S3018 next PH-S3019 — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

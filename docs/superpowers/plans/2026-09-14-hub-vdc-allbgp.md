@@ -29,7 +29,7 @@ landed 2026-09-14), and **OpenCode ⇄ hub never drops on ticket drains** (watch
 - [ ] omni: tier routing — add bunke-rock-fast provider (:8082, lama-1.5) to catalog + X-Omni-Tier fast|deep header in proxy
 - [x] grid: Qwen-27B layer-map planner — compute shard ranges, render llama_serve --rpc list, re-issue on worker loss (rebalance) — landed 2026-09-14: plan_layers + GET /api/grid/plan (proportional contiguous ranges, --rpc args, advice; derived=rebalanced on every call)
 - [ ] grid: burst seat queue at hub — on poolAI 409 seat_exhausted enqueue + retry, expose queue depth on keep-live
-- [ ] security: hub single-entry proxy for poolAI edge plane (token auth + rate limit where poolAI has none)
+- [x] security: hub single-entry proxy for poolAI edge plane (token auth + rate limit where poolAI has none) — landed 2026-09-17 band 237: `boxes/edge.rs`, `GET /api/edge` + `/api/edge/{*path}`, `GSV_EDGE_TOKEN` / `settings.edge.token`, 20/s, allowlist, JSON redact, health `edge_proxy`
 - [ ] security: service account for Telenetis edge calls replacing admin/admin123 (see ticket t-1789360414663375700)
 - [ ] ui: VDC dashboard card — topology graph + seats + tiers + health history in Galaxy
 - [x] ops: offline mode signal — telegram-relay auto-degrade to LAN-only surfaced in keep-live + health hint — landed 2026-09-14: wire mode online|lan-only (relay ∧ offset-mtime ≤90s) + hint suffix, durable cross-process signal

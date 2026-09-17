@@ -2411,7 +2411,15 @@ pub fn render_vdc(d: &Value) -> String {
     let plan_rows = arr(&plan["rows"]);
     let browser = arr(&plan["browser_peers"]);
     let history = arr(&d["history"]);
-    if cap_rows.is_empty() && plan_rows.is_empty() && browser.is_empty() && history.is_empty() {
+    if cap_rows.is_empty()
+        && plan_rows.is_empty()
+        && browser.is_empty()
+        && history.is_empty()
+        && d.get("edge_proxy")
+            .and_then(|e| e.get("ok"))
+            .and_then(Value::as_bool)
+            != Some(true)
+    {
         return empty_html("vdc");
     }
     let mut out = String::new();
@@ -2428,6 +2436,20 @@ pub fn render_vdc(d: &Value) -> String {
             if alive { "poolai up" } else { "poolai down" }
         ),
     ));
+    let edge = &d["edge_proxy"];
+    if edge.get("ok").and_then(Value::as_bool) == Some(true) {
+        let set = b(&edge["token_set"]);
+        let n = arr(&edge["allowlist"]).len();
+        out.push_str(&format!(
+            "<div class='dim'>edge proxy {} · {} paths · {}</div>",
+            pill(
+                if set { "ok" } else { "warn" },
+                if set { "token set" } else { "token unset" }
+            ),
+            n,
+            esc(s(&edge["poolai_base"]).as_str()),
+        ));
+    }
     if b(&d["stale"]) {
         out.push_str(&format!(
             "<div class='dim'>stale mirror — {}</div>",
@@ -3478,6 +3500,19 @@ mod tests {
         assert!(html.contains("seats 1/5"), "{html}");
         assert!(html.contains("seat waitlist 1"), "{html}");
         assert!(html.contains("redmi-01"), "{html}");
+        assert!(!html.contains("edge proxy"), "{html}");
+        let with_edge = serde_json::json!({
+            "ok": true,
+            "edge_proxy": {
+                "ok": true,
+                "token_set": true,
+                "allowlist": ["grid", "health"],
+                "poolai_base": "http://127.0.0.1:8091/api/v1"
+            }
+        });
+        let edge_html = render_vdc(&with_edge);
+        assert!(edge_html.contains("edge proxy"), "{edge_html}");
+        assert!(edge_html.contains("token set"), "{edge_html}");
         let empty = serde_json::json!({"ok": true});
         assert!(render_vdc(&empty).contains("vdc — no data"));
         let err = serde_json::json!({"ok": false, "error": "down"});

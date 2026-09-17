@@ -66,9 +66,9 @@ Settings exist **before** any Telegram network call.
 
 | Piece | Acceptance |
 |-------|------------|
-| Schema | `SettingsFile` serde: `godfather.channel_id`, `godfather.allowed_user_ids`, `godfather.bot_token` (secret), `workflows.enabled: string[]`, `security.redact: true`. Unknown fields `#[serde(default)]`. |
+| Schema | `SettingsFile` serde: `godfather.channel_id`, `godfather.allowed_user_ids`, `godfather.bot_token` (secret), `edge.token` (secret, band 237 hub proxy), `workflows.enabled: string[]`, `security.redact: true`. Unknown fields `#[serde(default)]`. |
 | Store | Secrets in **`data/gsv_settings.json`** (already gitignored via `/data/*`). Env **`GSV_TELEGRAM_BOT_TOKEN`** wins over file. Never write the env value back to disk unless owner POSTs it. |
-| Redaction | `GET /api/settings` and MCP `gsv_settings` return `token_set: bool`, never `bot_token`. POST that includes a token stores it and returns redacted JSON. |
+| Redaction | `GET /api/settings` and MCP `gsv_settings` return `token_set: bool` and `edge.token_set`, never `bot_token` / `edge.token`. POST that includes a token stores it and returns redacted JSON. Env `GSV_EDGE_TOKEN` wins for the hub proxy. |
 | Galaxy | Ops card `settings` (`CARD_NAMES` +1). Empty-tolerant; error HTML on I/O fail. |
 | MCP | Tool `gsv_settings` (read redacted). **No** MCP write of tokens in 166 (HTTP POST stays the owner path). Resource `gsv://docs/settings-telegram` → this file. |
 | Security | CSRF + loopback Origin on `POST /api/settings`. Body cap 256 KiB. Log lines must not print the token. Contracts assert redaction. |

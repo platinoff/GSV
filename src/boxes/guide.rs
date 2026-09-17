@@ -287,7 +287,7 @@ pub const CARD_GUIDE: &[GuideEntry] = &[
         title: "VDC",
         group: "studio",
         r#use: "device cloud",
-        blurb: "poolAI fleet topology, layer tiers, seats, and health history from the grid mirror.",
+        blurb: "poolAI fleet topology, layer tiers, seats, health history, and the hub edge-proxy (token + allowlist) from the grid mirror.",
     },
     GuideEntry {
         id: "gpu-mode",

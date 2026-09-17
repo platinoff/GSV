@@ -28,7 +28,9 @@
 //! | Rules drift | `rules` | MCP `rules` (read) · `cargo xtask rules-check` | gates: git HEAD, fingerprint, vision drift, product registry, Rust ratio, SLI pool, bench freshness, live version lockstep |
 //! | Xtask | `xtask` | `/api/xtask` · `/api/disk` | `cargo xtask` product automation (no `.sh`) |
 //! | Grid (ALLBGP) | `grid` | `/api/grid` | durable mirror of poolAI `:8091` topology/workers/virtual-nodes/seats + history ring (`data/gsv_grid.json`, canon `GSV_VDC.md`) |
+//! | Edge proxy | `edge` | `/api/edge` · `/api/edge/{*path}` | hub single-entry to the poolAI edge plane: token + rate limit + allowlist (canon `GSV_VDC.md` §6) |
 
+pub mod edge;
 pub mod fingerprint;
 pub mod github;
 pub mod gitkit;

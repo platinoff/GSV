@@ -83,15 +83,19 @@ point-to-point.
 - Hub-side wait queue + retry + depth on keep-live = "burst" without touching
   poolAI's cap semantics; seat set is memory-only → hub re-admits on restart.
 
-### 6. Security (hub as the single entry) — P0 for anything beyond LAN
+### 6. Security (hub as the single entry) — LANDED 2026-09-17 (band 237)
 - poolAI edge plane (discovery/jobs/virtual-nodes/grid) has **no JWT**, the
   `RateLimitLayer` is attached nowhere, webhook secret is optional, and
-  `admin/admin123` is seeded. Until poolAI fixes these, LAN-only + loopback
-  binds; never expose `:8091`.
-- Hub adds what poolAI lacks on its edge plane: per-call token + rate limit,
-  capability-doc verify pinned (`POOLAI_CAPABILITY_VERIFY_KEY`), id redaction
-  on every wire (band-174 rule).
-- Service account replaces dev admin (ticket `t-1789360414663375700`).
+  `admin/admin123` is seeded. Never expose `:8091` off-box.
+- Hub front: `GET /api/edge` (redacted status) + `GET`/`POST /api/edge/{*path}`
+  reverse proxy (`boxes/edge.rs`). Per-call token (`GSV_EDGE_TOKEN` env wins,
+  else `settings.edge.token`; never on the wire), 20 req/s per token, path
+  allowlist (`topology` / `workers` / `discovery` / `virtual-nodes` / `grid` /
+  `jobs` / `health` GET-only). `login` / `vm` / `users` stay 404. JSON key
+  redaction on the way out (`token` / `password` / `bot_token` / …). Health
+  carries `edge_proxy`; VDC card shows the proxy line.
+- Service account replacing poolAI `admin/admin123` for Telenetis remains
+  open (`t-1789392387275733400` / `t-1789360414663375700`).
 
 ### 7. Connection stability (OpenCode ⇄ hub) — DONE 2026-09-14, keep
 - Watchdog `--no-lockstep` / `GSV_WATCHDOG_LOCKSTEP=0`: ticket-drain rebuilds

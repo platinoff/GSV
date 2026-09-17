@@ -16,8 +16,10 @@ use serde_json::{json, Value};
 
 /// Durable basename under `data/` (not served by `GET /data/{file}`).
 pub const STORE_FILE: &str = "gsv_settings.json";
-/// Process env that overrides a file token without being persisted.
+/// Process env that overrides a file Telegram token without being persisted.
 pub const TOKEN_ENV: &str = "GSV_TELEGRAM_BOT_TOKEN";
+/// Process env that overrides a file edge-proxy token without being persisted.
+pub const EDGE_TOKEN_ENV: &str = "GSV_EDGE_TOKEN";
 
 /// Known co-workflow ids (unknown values are kept, ignored by later bands).
 pub const WORKFLOW_IDS: &[&str] = &["drain", "ticket-claim", "telegram-relay", "ticket-squad"];
@@ -285,6 +287,28 @@ fn default_redact() -> bool {
     true
 }
 
+/// Hub edge-proxy secret (band 237). Never on the public wire.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EdgeSettings {
+    #[serde(default)]
+    pub token: String,
+}
+
+impl fmt::Debug for EdgeSettings {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EdgeSettings")
+            .field(
+                "token",
+                &if self.token.is_empty() {
+                    ""
+                } else {
+                    "[redacted]"
+                },
+            )
+            .finish()
+    }
+}
+
 /// Secret-policy flags. `redact` defaults on.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Security {
@@ -311,6 +335,8 @@ pub struct SettingsFile {
     pub tickets: TicketsSettings,
     #[serde(default)]
     pub jail: JailSettings,
+    #[serde(default)]
+    pub edge: EdgeSettings,
 }
 
 /// `{data_dir}/gsv_settings.json`.
@@ -321,6 +347,14 @@ pub fn store_path(data_dir: &Path) -> PathBuf {
 /// Non-empty `GSV_TELEGRAM_BOT_TOKEN`, if set.
 pub fn env_token() -> Option<String> {
     std::env::var(TOKEN_ENV)
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+/// Non-empty `GSV_EDGE_TOKEN`, if set.
+pub fn env_edge_token() -> Option<String> {
+    std::env::var(EDGE_TOKEN_ENV)
         .ok()
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
@@ -430,6 +464,14 @@ pub fn apply_patch(file: &mut SettingsFile, patch: &Value) {
             file.jail.id = id.trim().to_string();
         }
     }
+    if let Some(edge) = patch.get("edge") {
+        if let Some(tok) = edge.get("token").and_then(Value::as_str) {
+            let t = tok.trim();
+            if !t.is_empty() {
+                file.edge.token = t.to_string();
+            }
+        }
+    }
 }
 
 /// Redacted JSON: `token_set` + public Godfather fields, never `bot_token`.
@@ -466,6 +508,9 @@ pub fn redacted_wire(file: &SettingsFile, env: Option<&str>) -> Value {
             "bot_slot_cap": bot_slot_cap(file),
         },
         "jail": { "id": jail_id(file) },
+        "edge": {
+            "token_set": env_edge_token().is_some() || !file.edge.token.trim().is_empty()
+        },
     })
 }
 
@@ -659,6 +704,33 @@ mod tests {
         assert!(WORKFLOW_IDS.contains(&"drain"));
         assert!(WORKFLOW_IDS.contains(&"ticket-squad"));
         assert_eq!(ticket_mode(&raw), "solo");
+        assert_eq!(raw.edge.token, "");
+    }
+
+    #[test]
+    fn edge_token_stays_on_disk_not_wire() {
+        let dir = temp("edge-tok");
+        let mut file = SettingsFile {
+            edge: EdgeSettings {
+                token: "edge-secret-xyz".into(),
+            },
+            ..Default::default()
+        };
+        save(&dir, &file).expect("save");
+        let loaded = load_result(&dir).expect("reload");
+        assert_eq!(loaded.edge.token, "edge-secret-xyz");
+        let w = redacted_wire(&loaded, None);
+        assert_eq!(w["edge"]["token_set"], true);
+        let raw = serde_json::to_string(&w).expect("json");
+        assert!(!raw.contains("edge-secret-xyz"), "{raw}");
+        assert!(!raw.contains("\"token\""), "{raw}");
+        apply_patch(&mut file, &json!({ "edge": { "token": "  " } }));
+        assert_eq!(file.edge.token, "edge-secret-xyz");
+        apply_patch(&mut file, &json!({ "edge": { "token": "rotated-edge" } }));
+        assert_eq!(file.edge.token, "rotated-edge");
+        let d = format!("{:?}", file.edge);
+        assert!(d.contains("[redacted]"), "{d}");
+        assert!(!d.contains("rotated-edge"), "{d}");
     }
 
     #[test]

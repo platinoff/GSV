@@ -82,6 +82,7 @@ fn health(state: &AppState) -> Value {
             "fingerprint_product": latest.map(|f| f.product.as_str()),
             "fingerprint_version": latest.map(|f| f.version.as_str()),
             "client_errors": crate::boxes::ui_errors::count(&state.data_dir),
+            "edge_proxy": crate::boxes::edge::status_wire(&state.data_dir),
         }),
         &state.repo_root,
     )
@@ -113,6 +114,11 @@ pub fn router(state: AppState) -> Router {
         .route("/api/health", get(api_health))
         .route("/api/keep-live", get(api_keep_live))
         .route("/api/grid", get(api_grid))
+        .route("/api/edge", get(api_edge))
+        .route(
+            "/api/edge/{*path}",
+            get(api_edge_proxy).post(api_edge_proxy),
+        )
         .route("/api/grid/plan", get(api_grid_plan))
         .route("/api/grid/profile", post(api_grid_profile_post))
         .route("/api/grid/waitlist", post(api_grid_waitlist_post))
@@ -398,6 +404,53 @@ async fn api_keep_live(State(state): State<AppState>) -> Json<Value> {
 async fn api_grid(State(state): State<AppState>) -> Json<Value> {
     state.grid.refresh().await;
     Json(state.grid.wire().await)
+}
+
+/// Hub edge-proxy status (redacted; never the token).
+async fn api_edge(State(state): State<AppState>) -> Json<Value> {
+    Json(crate::boxes::edge::status_wire(&state.data_dir))
+}
+
+/// Allowlisted reverse proxy onto the poolAI edge plane.
+async fn api_edge_proxy(
+    State(state): State<AppState>,
+    method: Method,
+    Path(path): Path<String>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    let presented = crate::boxes::edge::presented_token(
+        headers
+            .get(header::AUTHORIZATION)
+            .and_then(|v| v.to_str().ok()),
+        headers
+            .get(crate::boxes::edge::TOKEN_HEADER)
+            .and_then(|v| v.to_str().ok()),
+    );
+    let json_body = if body.is_empty() {
+        None
+    } else {
+        serde_json::from_slice::<Value>(&body).ok()
+    };
+    match crate::boxes::edge::dispatch(
+        &state.data_dir,
+        &state.grid.base_url,
+        method.as_str(),
+        &path,
+        &presented,
+        json_body.as_ref(),
+    )
+    .await
+    {
+        Ok((status, val)) => {
+            let code = StatusCode::from_u16(status).unwrap_or(StatusCode::BAD_GATEWAY);
+            (code, Json(val)).into_response()
+        }
+        Err(rej) => err_json(
+            StatusCode::from_u16(rej.status).unwrap_or(StatusCode::BAD_GATEWAY),
+            rej.error,
+        ),
+    }
 }
 
 /// ALLBGP layer-map planner: shard ranges + `llama_serve --rpc` args from hub
@@ -913,7 +966,7 @@ async fn api_index() -> Json<Value> {
         "categories": [
             "/api/vision/", "/api/ui/", "/api/ratio/", "/api/toolchain/",
             "/api/ide/", "/api/omni/", "/api/sli", "/api/tracker", "/api/products",
-            "/api/fingerprints", "/api/ranks", "/api/sw", "/api/watchdog", "/api/usage", "/api/settings", "/api/telegram", "/api/telegram/bus", "/api/telegram/ticket", "/api/telegram/poll", "/api/telegram/decode", "/api/tickets", "/api/mds", "/api/xtask", "/api/disk", "/api/grid", "/sw.js",
+            "/api/fingerprints", "/api/ranks", "/api/sw", "/api/watchdog", "/api/usage", "/api/settings", "/api/telegram", "/api/telegram/bus", "/api/telegram/ticket", "/api/telegram/poll", "/api/telegram/decode", "/api/tickets", "/api/mds", "/api/xtask", "/api/disk", "/api/grid", "/api/edge", "/sw.js",
             "/api/hooks/", "/api/preview", "/api/terminal", "/data/", "/mcp"
         ],
         "example": "/api/vision",
@@ -1424,7 +1477,9 @@ async fn card_wire(state: &AppState, name: &str, q: &CardQuery) -> Result<Value,
         "about" => json!({ "ok": true, "locale": "en" }),
         "vdc" => {
             state.grid.refresh().await;
-            state.grid.wire().await
+            let mut w = state.grid.wire().await;
+            w["edge_proxy"] = crate::boxes::edge::status_wire(&state.data_dir);
+            w
         }
         _ => return Err(()),
     };

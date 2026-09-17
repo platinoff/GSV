@@ -253,6 +253,13 @@ async fn check_health_keep_live(client: &Client, base: &str) -> Result<(), Strin
         .get("hint")
         .and_then(Value::as_str)
         .ok_or_else(|| format!("{url}: keep_live.hint missing"))?;
+    let edge = body
+        .get("edge_proxy")
+        .ok_or_else(|| format!("{url}: missing edge_proxy"))?;
+    let _ok = edge
+        .get("ok")
+        .and_then(Value::as_bool)
+        .ok_or_else(|| format!("{url}: edge_proxy.ok missing"))?;
     Ok(())
 }
 
@@ -348,6 +355,12 @@ async fn run_smokes(cli: &Cli) -> SmokeReport {
         &mut cases,
         "mds",
         check_ok(&client, &cli.base_url, "/api/mds"),
+    )
+    .await;
+    record(
+        &mut cases,
+        "edge",
+        check_ok(&client, &cli.base_url, "/api/edge"),
     )
     .await;
     record(&mut cases, "mcp", check_ok(&client, &cli.base_url, "/mcp")).await;

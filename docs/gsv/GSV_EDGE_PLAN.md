@@ -45,6 +45,7 @@ rebalance, burst seats, security): see [GSV_VDC.md](GSV_VDC.md).
 3. `allowed_user_ids` allowlist (owner dashboard action) + session identity (gsv, open).
 4. Grid hardening: seats limit + prod keys (poolai, done 2026-09-14).
 5. Hub offline routing + IDE onboarding (gsv ×2, open).
+5b. Hub single-entry proxy (gsv) — done 2026-09-17 band 237 (`/api/edge`).
 6. OmniRoute gateway UP (omniroute, open; node).
 7. MTP draft decision (llama-rs, open).
 8. Teach prompt + initData audit (gsv/telenetis, open).

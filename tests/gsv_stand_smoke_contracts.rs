@@ -148,6 +148,14 @@ async fn health_keep_live_shape_has_four_peers_and_hint() {
         kl["hint"].as_str().is_some(),
         "keep_live.hint must be a string"
     );
+    assert_eq!(
+        json["edge_proxy"]["ok"], true,
+        "health must list edge_proxy"
+    );
+    assert!(
+        json["edge_proxy"]["allowlist"].as_array().is_some(),
+        "edge_proxy.allowlist"
+    );
 }
 
 /// SVG/status-only routes — the `check_status` set.
