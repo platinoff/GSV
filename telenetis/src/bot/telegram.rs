@@ -150,11 +150,14 @@ impl TelegramBot {
         .await
     }
 
-    /// Build the `answerWebAppQuery` request body (T1.3). `query_id` is the
-    /// `query_id` field of the Mini App initData (keyboard-button flow, carries
-    /// `can_send_after`); `result` is an `InlineQueryResult` object. Kept pure
-    /// so the wire shape is unit-tested without a live bot token. Wiring the
-    /// query_id through from webhook `web_app_data` updates is a follow-up.
+    /// Build the `answerWebAppQuery` request body (T1.3, verdict T6.1).
+    /// `query_id` exists only in the keyboard-button launch flow (the Mini App
+    /// calls `sendData()`, the bot gets `message.web_app_data`, initData
+    /// carries `query_id`). Our launches — inline `web_app` button, Menu
+    /// button, direct `t.me` link — never yield one: this crate sends no
+    /// reply-keyboard `web_app` button and the webhook does not classify
+    /// `web_app_data`. So the builder stays (wire shape unit-tested) and no
+    /// send-path is wired — it would be dead code until such a flow exists.
     pub fn answer_web_app_query_body(query_id: &str, result: Value) -> Value {
         json!({
             "web_app_query_id": query_id,

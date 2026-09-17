@@ -31,7 +31,9 @@
 - ✅ Webhook `secret_token` (403 без хедера); без тунелю — long polling `getUpdates`.
 - ✅ Групам `web_app`-кнопки заборонені → там `send_url_button` на direct-link.
 - ✅ Телефону ніколи не віддаємо `127.0.0.1` (`mini_app_base` / `lan_url`).
-- ❌ `answerWebAppQuery` / `can_send_after` не використовуємо — окремий тікет, не в цій сесії.
+- ✅ `answerWebAppQuery`-білдер (тестований).
+- 🚫 Проводка `answerWebAppQuery` — НЕ будуємо (T6.1): `query_id` є тільки в keyboard-button flow, а наші запуски (inline, menu, direct) його не дають; в коді нема reply-клавіатури — проводка була б мертвим кодом.
+- ⏳ Watch Bot API 10.x (липень 2026): origin-hardening Mini App — методи аплікації блокуються з чужого origin; стежити, щоб ngrok-URL збігався з налаштованим, інакше телефони мовчки втратять TG API.
 - ✅ Фронт ловить 403 від старої `auth_date` — показує «перевідкрий Mini App» (T1.2; сервер дає саме 403, не 401).
 - 🚫 Third-party Ed25519-валідація без токена — не потрібна, не робимо.
 
@@ -114,3 +116,4 @@ phone → Telenetis :9800 → Hub :9999 / PoolAI :8091 / llama :8080
 6. ✅ T3 done 2026-09-17: моделі на накопичувачі (IDB + Download + persist) + фон-фактчек (чат — так, згорнутий TG — тільки сервер+push).
 7. ✅ T4 done 2026-09-17: IDB визнано кешем; автосейв готового Blob в Download + toggle; File-пікер назад.
 8. ✅ T5 done 2026-09-17: вибір моделі липне (авто-Use з кешу); чейн у воркері (6 ходів + `payload.history`, poolAI не чіпали — payload opaque). Host-side сесії — follow-up іншим репо.
+9. ✅ T6.1 done 2026-09-17: вердикт `answerWebAppQuery` (білдер так, проводка ні — нема keyboard-flow) + аудит: worker-controls код готовий (pause/cancel/44px), лишився phone-verify.
