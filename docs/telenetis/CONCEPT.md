@@ -123,6 +123,11 @@ phone → Telenetis :9800 → Hub :9999 / PoolAI :8091 / llama :8080
   синхронізацією на stats-відповіді.
 - 🚫 Емулятор НЕ покриває реальні тапи WebView, жести, системний Download-менеджер —
   це лишається за двома телефонами в чаті.
+- 🚫 KVM/емулятор телефонів на хості — ні (T15.1): Telegram-логін тільки SIM
+  власника (SMS нікому не переслати); GPU емулятора (SwiftShader/ANGLE) бреше
+  саме там, де міряємо — Adreno/Mali WebGPU і tok/s; гігабайти SDK заради
+  нульової GPU-правди. Телефонам лишається тільки: тапи, Download Manager,
+  справжній WebGPU, P2P-байти — все інше вже доведено емулятором.
 
 ## Черга (порядок вирішує власник)
 
@@ -143,3 +148,4 @@ phone → Telenetis :9800 → Hub :9999 / PoolAI :8091 / llama :8080
 15. ✅ T12 done 2026-09-17 (вікно дано): респаун live — воркер 6208→4860, health ok, tracker/status 200, tensor.js свіжий, бінарь з маркерами. Живий збігається з емулятором.
 16. ✅ T13 done 2026-09-17: Save-аудит (host same-origin ok, HF cross-origin ліміт) + `attachment` на /models + same-origin хелпер; prime-підозра — WebView без DownloadListener (ранбук дає обхід через Chrome).
 17. ✅ T14 done 2026-09-17 (вікно дано): респаун live — воркер →13456, health ok, tracker 200, tensor.js T13, каталог 5 моделей, attachment наживо доведено Range-запитом 1 байта.
+18. ✅ T15 done 2026-09-17: вердикт KVM — ні (SIM, брехливий GPU, ГБ заради нуля); тільки доки.
