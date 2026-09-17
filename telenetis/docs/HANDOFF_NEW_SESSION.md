@@ -9,8 +9,14 @@
   [`docs/gsv/PRODUCTS.md`](../../docs/gsv/PRODUCTS.md); keep-live band 224
   (Windows parity: watchdog copies debug → live and respawns `:9800`);
   GSV MCP probe `gsv_telenetis_health`.
-- **Latest work**: torrent distribution of tensor bytes (bencode + `/torrents/*.torrent` webseed, webtorrent 2.8.5 vendored, ticket t-1789575326442785700).
-- **Tests**: `cargo fmt -- --check` → `cargo clippy --all-targets` → `cargo test`
+- **Latest work (2026-09-17, bands T1–T7, all ticket-driven)**: reopen-hint on stale initData (403),
+  `answerWebAppQuery` builder (wiring verdict: no keyboard-flow → none needed),
+  probe compatibility-mode, claim/next hints (snapshot + `/board`),
+  Download auto-save (IDB is cache), sticky model auto-Use, worker chain memory
+  (`payload.history`), WS tracker `GET /tracker` + client announce.
+  Concept: [`CONCEPT.md`](../../docs/telenetis/CONCEPT.md).
+- **Tests**: `cargo fmt -- --check` → `cargo clippy --all-targets` (0) → `cargo test`
+  (**280** lib + 4 live + 4 integration, green)
   (run in `S:/rust/GSV/telenetis`). Do **not** kill the live `:9800` copy before tests.
 - **Health**: `GET http://127.0.0.1:9800/health` (GSV `keep_live.telenetis`, fresh = up).
 - **NEXT pointer**: [`NEXT_SESSION_PROMPT.md`](./NEXT_SESSION_PROMPT.md).
