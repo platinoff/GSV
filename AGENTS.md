@@ -3,7 +3,7 @@
 Standalone Rust-first vision server **and VDT entry workspace** for registered
 Rust products. **Root:** `S:\rust\GSV` (sibling of PoolAI, not a subfolder).
 
-**Kit (rules / skills / `абракадабра` / `abrakadabra`):** open **this** folder in Cursor / OpenCode / Grok Build. Canon —
+**Kit (rules / skills / `абракадабра` / `abrakadabra` / `agi`):** open **this** folder in Cursor / OpenCode / Grok Build. Canon —
 [`docs/gsv/GSV_VDT_KIT.md`](docs/gsv/GSV_VDT_KIT.md). Product code may live in
 another tree (`S:\rust\poolAI`, …); the window being GSV does **not** mean the
 drain target is GSV — the skill asks first.
@@ -22,9 +22,9 @@ cd /s/rust/GSV || cd "S:/rust/GSV"
 unset CARGO_TARGET_DIR
 ```
 
-## Session (`абракадабра` / `abrakadabra` — спочатку вибір продукту)
+## Session (`абракадабра` / `abrakadabra` / `agi` — спочатку вибір продукту)
 
-Trigger skill: `.agents/skills/abracadabra/`. Either spelling starts the same drain. Вікно GSV ≠ автоматично drain GSV.
+Trigger skill: `.agents/skills/abracadabra/` (same drain). `agi` (`.agents/skills/agi/`) is the same Step 0 **plus** hub keep-live and the ticket board. Вікно GSV ≠ автоматично drain GSV.
 
 1. `cargo xtask products` → AskQuestion (Cursor) / `question` (OpenCode) / numbered plain-text list (Grok) on **those** environment projects (not a hardcoded `gsv | poolai` pair).
 2. S0 disk for **that** product → `git fetch` → its HANDOFF.
@@ -41,7 +41,7 @@ OpenCode defaults to PowerShell — **this repo forbids that**. All `cargo` / `g
 C:\msys64\usr\bin\bash.exe -lc 'команда'
 ```
 
-`абракадабра` / `abrakadabra` in OpenCode uses the `question` tool (not Cursor AskQuestion). Skills: `.agents/skills/` (`opencode.json` → `skills.paths`). Plugin host: `.opencode/package.json` (`@opencode-ai/plugin`). **Do not auto-generate a product UI** — live Galaxy UI is `gsv-server` at `http://<local-addr>:9999/` (`127.0.0.1:9999` on this box; band 233 LAN-first, [`docs/gsv/GSV_ROUTES.md`](docs/gsv/GSV_ROUTES.md)).
+`абракадабра` / `abrakadabra` / `agi` in OpenCode uses the `question` tool (not Cursor AskQuestion). Skills: `.agents/skills/` (`opencode.json` → `skills.paths`). Plugin host: `.opencode/package.json` (`@opencode-ai/plugin`). **Do not auto-generate a product UI** — live Galaxy UI is `gsv-server` at `http://<local-addr>:9999/` (`127.0.0.1:9999` on this box; band 233 LAN-first, [`docs/gsv/GSV_ROUTES.md`](docs/gsv/GSV_ROUTES.md)).
 
 Cursor ↔ OpenCode ↔ Grok: Cursor `AskQuestion` = OpenCode `question`; Grok asks in plain text (numbered list, no question tool). Shared kit git-canon is this repo; copy (not symlink) to `.cursor/skills/` and `.opencode/skills/` via `cargo xtask mirrors`; Grok reads the `.agents/skills/` canon directly (`[skills] paths` in `.grok/config.toml`, no copy).
 
@@ -56,7 +56,7 @@ One MCP server serves Cursor / OpenCode / Grok — same tools, one surface. Cano
 - **Resources:** `gsv://vision/{manifest,feed,extensions}` + `gsv://docs/{mcp-openbot,handoff,next,fingerprints,post-always-on,rust-dev,omni-catalog,settings-telegram,solo-squad-jail,ranks,rules-check,vdc}` (allowlist; `..` / `file://` → `-32602`). `gsv_vision_sync` notifies every subscribed `gsv://` URI.
 - **Prompts:** `gsv_status` · `gsv_vision_brief` · `gsv_drain`.
 - **Read rules:** `gsv_xtask {task:sync}` is `--check`-only drift; terminal = HTTP SLI allowlist; `gsv_settings`/`gsv_telegram*` redact `token_set`/`bot_token` — never echo secrets.
-- `абракадабра` / `abrakadabra` in OpenCode/Cursor: product discovery via `cargo xtask products` **or** `gsv_products` → `question`/AskQuestion.
+- `абракадабра` / `abrakadabra` / `agi` in OpenCode/Cursor: product discovery via `cargo xtask products` **or** `gsv_products` → `question`/AskQuestion. `agi` then `gsv_keep_live` + `gsv_tickets`.
 
 ## Speeds + Rust panel (GSV drain)
 

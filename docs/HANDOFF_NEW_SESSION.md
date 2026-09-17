@@ -10,7 +10,7 @@ live: gsv-server 0.0.0.0:9999, llama_serve 0.0.0.0:8080/8082, edge-pc-01 + a54-0
 192.168.2.238. Commits: GSV `019416a` · llama-rs `376aa5d` · poolAI `8f32f9f34`.
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
-**`абракадабра` / `abrakadabra`** → `cargo xtask products` → **AskQuestion на проєкти з environment**
+**`абракадабра` / `abrakadabra` / `agi`** → `cargo xtask products` → **AskQuestion на проєкти з environment**
 (не `gsv | poolai` з голови) → S0 диск/git → project scan (warnings first) →
 якщо **gsv:** settings/Telegram/tickets spec bands **166–212 ✅**
 + **band 212** telenetis to 100% — security wiring + HTTP checks + graceful shutdown + 13 new tests (55 total)

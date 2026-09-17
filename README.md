@@ -128,7 +128,7 @@ The window being GSV does **not** mean the drain target is GSV. Pick `gsv`, `poo
 
 ```mermaid
 flowchart LR
-  Owner[Owner] --> Ask["абракадабра / abrakadabra"]
+  Owner[Owner] --> Ask["абракадабра / abrakadabra / agi"]
   Ask --> Scan[cargo xtask products]
   Scan --> Pick[AskQuestion: env projects]
   Pick --> Drain[S0 → scan → band]

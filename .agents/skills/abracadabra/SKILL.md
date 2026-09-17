@@ -1,12 +1,13 @@
 ---
 name: abracadabra
 description: >-
-  Trigger words абракадабра, abrakadabra, or abracadabra start a VDT drain
+  Trigger words абракадабра, abrakadabra, abracadabra, or agi start a VDT drain
   session. FIRST discover products from the live environment (workspace folders
   + sibling git repos), ask which one to work with, THEN run project-scan →
   drain → one commit + push. Host workspace is GSV (`S:\rust\GSV`). Use when
-  the owner writes абракадабра or abrakadabra (or abracadabra) in a new
-  session (Cursor, OpenCode, or Grok).
+  the owner writes абракадабра, abrakadabra, abracadabra, or agi in a new
+  session (Cursor, OpenCode, or Grok). `agi` also keep-lives hub services and
+  the ticket board — see .agents/skills/agi/.
 metadata:
   audience: gsv-vdt-kit
   clients: cursor-opencode-grok
@@ -26,8 +27,9 @@ Kit split: [`docs/gsv/GSV_VDT_KIT.md`](../../../docs/gsv/GSV_VDT_KIT.md).
 
 ## Step 0 — Discover environment projects (ALWAYS first)
 
-When the owner writes `абракадабра` **or** `abrakadabra` (same session;
-`abracadabra` is the skill folder name), **before anything else** discover which
+When the owner writes `абракадабра` **or** `abrakadabra` **or** `agi` (same
+session; `abracadabra` is this skill folder name; `agi` is the keep-live +
+tickets overlay in `.agents/skills/agi/`), **before anything else** discover which
 projects are actually on this machine, then ask which one to work with.
 
 Do **not** hardcode a two-option `gsv | poolai` list. The question UI must show

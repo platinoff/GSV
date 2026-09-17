@@ -25,7 +25,7 @@ pub const TASKS: &[(&str, &str)] = &[
     ("catalog", "List xtask names (this help)"),
     (
         "products",
-        "Discover VDT products (TSV; abracadabra Step 0)",
+        "Discover VDT products (TSV; abracadabra / agi Step 0)",
     ),
     (
         "rules-check",
@@ -1176,6 +1176,18 @@ mod tests {
             "debug exe must stay"
         );
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn agi_skill_canon_names_keep_live_and_tickets() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let text = fs::read_to_string(root.join(".agents/skills/agi/SKILL.md")).expect("agi skill");
+        assert!(text.contains("name: agi"), "{text}");
+        assert!(text.contains("Trigger word agi"), "{text}");
+        assert!(text.contains("gsv_keep_live"), "{text}");
+        assert!(text.contains("gsv_tickets"), "{text}");
+        assert!(text.contains("abracadabra"), "{text}");
+        assert!(text.contains("OmniRoute"), "{text}");
     }
 
     #[test]

@@ -11,7 +11,7 @@
     {
       "id": "drain-next",
       "title": "Drain next PH-S* band",
-      "body": "абракадабра / abrakadabra: products scan → S0 disk → warnings-first → one commit + push.",
+      "body": "абракадабра / abrakadabra / agi: products scan → keep-live + tickets (agi) → S0 disk → warnings-first → one commit + push.",
       "workflow": "drain",
       "product": "gsv"
     },
@@ -99,6 +99,39 @@
         {
           "title": "Session: close",
           "body": "solo: fmt/clippy/test/loc-audit line, then bump+fingerprint in the real drain close."
+        }
+      ]
+    },
+    {
+      "id": "agi-session",
+      "title": "AGI trigger session (keep-live + drain + tickets)",
+      "body": "Owner trigger agi: same VDT drain as абракадабра, with keep-live of hub services and the ticket board. OmniRoute stays policy-down.",
+      "workflow": "ticket-claim",
+      "product": "gsv",
+      "tickets": [
+        {
+          "title": "AGI: keep-live hub",
+          "body": "gsv_keep_live + gsv_telenetis_health + gsv_grid + gsv_watchdog. OmniRoute stays policy-down (fail-open). Do not start a second cargo xtask live."
+        },
+        {
+          "title": "AGI: ticket board",
+          "body": "gsv_tickets_presence then gsv_tickets. Create/claim/done the drain band. Hook ≤10 PH-S* if the owner asked."
+        },
+        {
+          "title": "AGI: products + S0",
+          "body": "cargo xtask products → AskQuestion → S0 disk + git fetch + HANDOFF of the picked product."
+        },
+        {
+          "title": "AGI: warnings-first drain",
+          "body": "clippy/diagnostics first, ≤10 PH-S*, no mid-drain push."
+        },
+        {
+          "title": "AGI: product tests",
+          "body": "PRODUCTS.md test command. GSV: do not kill target/live."
+        },
+        {
+          "title": "AGI: close",
+          "body": "one commit + push if remote exists; live recopy if version_lag."
         }
       ]
     },

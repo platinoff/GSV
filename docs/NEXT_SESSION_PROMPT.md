@@ -15,6 +15,14 @@
 abrakadabra
 ```
 
+або
+
+```
+agi
+```
+
+`agi` = той самий drain **плюс** keep-live хаба (GSV / Telenetis / llama-rs / grid; OmniRoute policy-down) і тікет-борд.
+
 **Порядок:** `cargo xtask products` → AskQuestion **на ці рядки** (вікно GSV ≠ автоматично продукт GSV) →
 **S0 диск** (`df -h /s` → `cargo xtask disk` → `cargo xtask disk --clean` keeps live) →
 project scan (**warnings first**) → drain наступного band (**без** mid-push) →
