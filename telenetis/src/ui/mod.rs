@@ -2979,6 +2979,7 @@ mod tests {
         assert!(js.contains("authedPool")); // initData on proxied POSTs
         assert!(js.contains("saveToDevice")); // real files via Download Manager
         assert!(js.contains("pickFileFor")); // load saved GGUF from disk
+        assert!(js.contains("requestPersistentStorage")); // T3.1: persist() after save
         assert!(js.contains("/api/edge/tensor/config"));
     }
 

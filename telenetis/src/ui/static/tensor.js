@@ -140,6 +140,22 @@ var IDB = {
     }
 };
 
+// T3.1: persistent-storage request. The IDB bucket is best-effort by default
+// and the OS may evict it under storage pressure (classic on Android
+// WebViews). Best moment to ask: right after the user saved real bytes —
+// Chromium grants silently for engaged origins, denies silently otherwise.
+// Either way the Download-folder Save stays the durable fallback.
+function requestPersistentStorage() {
+    try {
+        if (!navigator.storage || !navigator.storage.persist) { return; }
+        navigator.storage.persist().then(function (granted) {
+            logRow('sys', granted
+                ? 'device cache marked persistent (OS will not evict)'
+                : 'device cache best-effort (OS may evict under pressure — use Save for durability)');
+        }).catch(function () {});
+    } catch (e) {}
+}
+
 function esc(s) {
     return String(s == null ? '' : s)
         .replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -846,6 +862,7 @@ function finishBytes(key, blob) {
             logRow('sys', ok
                 ? 'saved ' + entry.label + ' (' + fmtMB(blob.size) + 'MB, verified)'
                 : 'device cache verify FAILED for ' + entry.label);
+            if (ok) { requestPersistentStorage(); }
             if (!S.running) { wakeLock(false); }
         });
     });

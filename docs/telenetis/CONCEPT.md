@@ -1,8 +1,7 @@
 # Telenetis — концепція (щоб не плутатись)
 
 Проєкт: **telenetis** (`S:/rust/GSV/telenetis`, порт **9800**). Ресерч 2026-09-17.
-Закриті тікети: `t-1789647024104829400`, `t-1789647024140541300`,
-`t-1789647024169324600`, `t-1789647024193502000`.
+Бенди: T1 (Mini App correctness) + T2 (compat-probe, next-hint) + T3 (сховище, фон) — done.
 
 Легенда (стоїть перед кожним пунктом, без винятків):
 - ✅ — вже є в коді, працює.
@@ -38,13 +37,14 @@
 
 ## 2. Ресурси пристрою
 
-**Вердикт: міряємо те, що браузер реально віддає; цифри не вигадуємо.**
+**Вердикт: моделі ТАК зберігаються на накопичувачі; міряємо те, що браузер реально віддає.**
 
-- ✅ `/probe` → adapter info/limits + `deviceMemory` → hub-профіль `class=webgpu`, ключ `{peer}-{adapter}`.
-- ✅ `/tensor`: wllama 3.5.1, `n_gpu_layers=99` + CPU fallback; Qwen2.5-1.5B (дефолт) / 0.5B (Redmi).
-- ✅ Кеш: RAM + IndexedDB (OPFS нема на HTTP LAN); pause/resume Range; Save в Download + File-пікер; `.torrent` webseed.
-- ✅ Невідоме RAM/VRAM = `0`. Ніколи не гадаємо.
-- ❌ `compatibility`-режим probe для Mali/Adreno — майбутній тікет.
+ storage-фактчек T3.1 (код `tensor.js`):
+- ✅ Готові GGUF лежать в IndexedDB `tensor-worker/models` (`{blob,size}`) — переживають рестарт.
+- ✅ Save → папка Download (справжній диск, переживає все) + File-пікер вантажить назад без скачування/кешу.
+- ✅ Після збереження фронт просить `navigator.storage.persist()` (T3.1) — інакше бакет best-effort і ОС може виселити під тиском (класика Android WebView).
+- ✅ RAM-кеш губиться при перезавантаженні; недокачане губиться (в IDB тільки готові файли); докачка Range + stall-watchdog — в межах сесії.
+- ✅ Невідоме RAM/VRAM = `0`. OPFS нема на HTTP LAN. `compatibility`-probe done (T2.1).
 
 ## 3. Мережа: Hub + PoolAI
 
@@ -71,10 +71,13 @@ phone → Telenetis :9800 → Hub :9999 / PoolAI :8091 / llama :8080
 
 ## 5. Згорнута аплікація
 
-**Вердикт: фону нема і не буде — це обмеження Telegram, не наш баг.**
+**Вердикт: у чаті — докачка і реконект; при згорнутому Telegram — тільки сервер і бот-push.**
 
-- 🚫 Фоновий процес у згорнутому WebView — неможливий (suspend/reload будь-коли, нема SW на iOS, нема надійного `beforeunload`).
-- ✅ Замість фону: інкрементальний save → resume як повна реконструкція (`/api/snapshot`); WS лише поки відкрита; push = бот-повідомлення; WakeLock лише у відкритій `/tensor`.
+фон-фактчек T3.2 (код + ресерч 2026):
+- ✅ Згорнута в чаті (Telegram відкритий): сокети рвуться → WS backoff-реконект + SSE-fallback (`app.js`), воркер-poll на `setTimeout` тротлиться і продовжує по поверненню, докачка Range + stall-watchdog, WakeLock перезахоплюється по `visibilitychange`.
+- 🚫 Згорнутий сам Telegram (згорнутий застосунок): WebView заморожено/вбито — в телефоні не працює НІЧОГО (ні воркер, ні докачка). Правильне налаштування тут = серверна сторона: черги PoolAI чекають, Telenetis/GSV живуть, результат приходить бот-повідомленням.
+- ✅ `/probe` і `/tensor` окремо: моделі в IDB/Download чекають повернення, байти не губляться.
+- 🚫 Вічного фону, Service Worker, Background Sync у TG WebView — нема і не буде.
 
 ## 6. Rust-стек
 
@@ -101,3 +104,4 @@ phone → Telenetis :9800 → Hub :9999 / PoolAI :8091 / llama :8080
 3. ✅ T2 done 2026-09-17: `compatibility`-probe + claim/next-підказки (phone-гейт окремо).
 4. ⏳ WS-трекер P2P.
 5. ✅ Квартальний refresh хвилями.
+6. ✅ T3 done 2026-09-17: моделі на накопичувачі (IDB + Download + persist) + фон-фактчек (чат — так, згорнутий TG — тільки сервер+push).
