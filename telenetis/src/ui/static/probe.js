@@ -81,15 +81,32 @@
         }
         var p;
         try {
+            // T2.1: core first (high-performance), then the compatibility
+            // feature level — old Mali/Adreno WebViews (Redmi 9 class) return
+            // null for core but serve a compat adapter. Unknown dict members
+            // are ignored by old implementations, and every step is guarded.
             p = navigator.gpu.requestAdapter({ powerPreference: "high-performance" })
-                .then(function (a) { return a || navigator.gpu.requestAdapter(); });
+                .then(function (a) { return a || navigator.gpu.requestAdapter(); })
+                .then(function (a) {
+                    if (a) return { adapter: a, compat: false };
+                    return navigator.gpu.requestAdapter({ featureLevel: "compatibility" })
+                        .then(function (c) { return c ? { adapter: c, compat: true } : null; })
+                        .catch(function () { return null; });
+                });
         } catch (e) {
             return Promise.resolve({ supported: false, reason: "requestAdapter threw: " + String((e && e.name) || e) });
         }
-        return p.then(function (adapter) {
-            if (!adapter) {
+        return p.then(function (found) {
+            if (!found) {
                 return { supported: false, reason: "requestAdapter() returned null" };
             }
+            var adapter = found.adapter;
+            var compat = !!found.compat;
+            var core = false;
+            try {
+                core = !!(adapter.features && adapter.features.has &&
+                    adapter.features.has("core-features-and-limits"));
+            } catch (e2) { /* old WebView without features */ }
             return adapterInfo(adapter).then(function (info) {
                 var lim = adapter.limits || {};
                 var num = function (v) { return (typeof v === "number" && isFinite(v) && v >= 0) ? v : 0; };
@@ -98,6 +115,8 @@
                     ? navigator.deviceMemory : null;
                 return {
                     supported: true,
+                    compat: compat,
+                    core: core,
                     adapter: {
                         vendor: info.vendor || "",
                         architecture: info.architecture || "",
@@ -130,6 +149,7 @@
         var mb = function (b) { return b ? (b / 1048576) + " MB" : "unknown"; };
         body.innerHTML =
             row("WebGPU", "SUPPORTED") +
+            row("mode", report.compat ? "compatibility" : (report.core ? "core" : "default")) +
             row("vendor", a.vendor || "?") +
             row("architecture", a.architecture || "?") +
             row("device", a.device || "?") +

@@ -57,6 +57,13 @@ pub struct WebGpuProbe {
     pub device_memory_gb: Option<f64>,
     /// Telegram platform string (`android`/`ios`/…) for the profile note.
     pub platform: String,
+    /// True when the report came from a `featureLevel: "compatibility"`
+    /// adapter (T2.1: old Mali/Adreno WebViews that return null for core).
+    /// Absent in old probe.js builds — defaults to false.
+    pub compat_mode: bool,
+    /// `adapter.features.has("core-features-and-limits")` when the browser
+    /// reported it; `None` for old probe.js builds without the flag.
+    pub core_capable: Option<bool>,
 }
 
 fn clean_str(v: Option<&Value>) -> String {
@@ -80,7 +87,8 @@ fn clean_u64(v: Option<&Value>) -> Option<u64> {
 /// unsupported, no profile write) or
 /// `{supported: true, adapter: {vendor?, architecture?, device?, description?},
 ///   limits: {maxStorageBufferBindingSize?, maxBufferSize?, maxTextureDimension2D?},
-///   deviceMemoryGb?, platform?}`.
+///   deviceMemoryGb?, platform?, compat?, core?}` (`compat`/`core` are T2.1
+/// mode flags; absent ⇒ core attempt, unknown core capability).
 ///
 /// Missing `supported` defaults to `true` when `adapter`/`limits` are
 /// present. Non-finite or negative numbers are rejected; absent numeric
@@ -144,6 +152,8 @@ pub fn parse_probe(body: &Value) -> Result<WebGpuProbe, String> {
         limits,
         device_memory_gb,
         platform: clean_str(body.get("platform")),
+        compat_mode: body.get("compat").and_then(Value::as_bool).unwrap_or(false),
+        core_capable: body.get("core").and_then(Value::as_bool),
     })
 }
 
@@ -219,7 +229,9 @@ pub fn profile_id(peer_id: &str, probe: &WebGpuProbe) -> String {
 /// Hub-profile patch for GSV `POST /api/grid/profile` (includes the `id`;
 /// see `upsert_profile` — unknown classes pass through, so no GSV change is
 /// needed for `class: "webgpu"`). `vram_mb` stays 0: phone UMA has no
-/// discrete VRAM; the unified-memory cap rides `ram_mb`.
+/// discrete VRAM; the unified-memory cap rides `ram_mb`. The `mode` marker
+/// (`compat`/`core`/`default`) tells the planner which WebGPU flavor sized
+/// the slice without a second lookup.
 pub fn profile_patch(peer_id: &str, probe: &WebGpuProbe) -> Value {
     let device = if probe.adapter.device.is_empty() {
         "unknown-adapter"
@@ -231,13 +243,20 @@ pub fn profile_patch(peer_id: &str, probe: &WebGpuProbe) -> Value {
     } else {
         &probe.adapter.architecture
     };
+    let mode = if probe.compat_mode {
+        "compat"
+    } else if probe.core_capable == Some(true) {
+        "core"
+    } else {
+        "default"
+    };
     serde_json::json!({
         "id": profile_id(peer_id, probe),
         "class": "webgpu",
         "ram_mb": memory_cap_mb(probe),
         "vram_mb": 0,
         "note": format!(
-            "webgpu {device}/{arch} maxbuf:{}MB plat:{}",
+            "webgpu {device}/{arch} maxbuf:{}MB plat:{} mode:{mode}",
             max_single_alloc_mb(probe),
             if probe.platform.is_empty() { "?" } else { &probe.platform },
         ),
@@ -278,6 +297,51 @@ mod tests {
         assert_eq!(p.device_memory_gb, Some(8.0));
         assert_eq!(memory_cap_mb(&p), 8192);
         assert_eq!(max_single_alloc_mb(&p), 128);
+        // Old probe.js builds carry no mode flags.
+        assert!(!p.compat_mode);
+        assert_eq!(p.core_capable, None);
+    }
+
+    #[test]
+    fn parses_compat_mode_probe_and_marks_patch() {
+        // T2.1: Redmi-class WebView — core returned null, compat served.
+        let mut report = adreno_probe();
+        report["compat"] = serde_json::json!(true);
+        report["core"] = serde_json::json!(false);
+        let p = parse_probe(&report).expect("parses");
+        assert!(p.compat_mode);
+        assert_eq!(p.core_capable, Some(false));
+        let patch = profile_patch("redmi-01", &p);
+        assert!(
+            patch["note"].as_str().unwrap().contains("mode:compat"),
+            "note: {}",
+            patch["note"]
+        );
+    }
+
+    #[test]
+    fn core_probe_marks_core_mode() {
+        let mut report = adreno_probe();
+        report["core"] = serde_json::json!(true);
+        let p = parse_probe(&report).expect("parses");
+        assert!(!p.compat_mode);
+        assert_eq!(p.core_capable, Some(true));
+        let patch = profile_patch("a54-01", &p);
+        assert!(
+            patch["note"].as_str().unwrap().contains("mode:core"),
+            "note: {}",
+            patch["note"]
+        );
+    }
+
+    #[test]
+    fn compat_flag_rejects_non_bool() {
+        // `compat: "yes"` is not a bool — defaults to false, never errors the
+        // whole report (old/foreign clients keep flowing).
+        let mut report = adreno_probe();
+        report["compat"] = serde_json::json!("yes");
+        let p = parse_probe(&report).expect("parses");
+        assert!(!p.compat_mode);
     }
 
     #[test]

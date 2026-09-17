@@ -173,6 +173,7 @@ pub fn t(key: &str, lang: Lang) -> &'static str {
             "board.no_description" => "No description.",
             "board.no_actions" => "No actions",
             "board.offline" => "Board unavailable — reconnecting…",
+            "board.auth_expired" => "Session expired — reopen the Mini App",
             _ => "",
         },
         Lang::Uk => match key {
@@ -212,6 +213,7 @@ pub fn t(key: &str, lang: Lang) -> &'static str {
             "board.no_description" => "Опису немає.",
             "board.no_actions" => "Немає дій",
             "board.offline" => "Дошка недоступна — перепідключаємось…",
+            "board.auth_expired" => "Сесія застаріла — перевідкрий Mini App",
             _ => "",
         },
         Lang::Ru => match key {
@@ -251,6 +253,7 @@ pub fn t(key: &str, lang: Lang) -> &'static str {
             "board.no_description" => "Описания нет.",
             "board.no_actions" => "Нет действий",
             "board.offline" => "Доска недоступна — переподключаемся…",
+            "board.auth_expired" => "Сессия устарела — переоткрой Mini App",
             _ => "",
         },
     }
@@ -294,6 +297,7 @@ pub const I18N_KEYS: &[&str] = &[
     "board.no_description",
     "board.no_actions",
     "board.offline",
+    "board.auth_expired",
 ];
 
 #[cfg(test)]

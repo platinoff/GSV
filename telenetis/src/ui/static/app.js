@@ -301,6 +301,7 @@ function t(key) {
         'board.no_description': 'No description.',
         'board.no_actions': 'No actions',
         'board.offline': 'Board unavailable — reconnecting…',
+        'board.auth_expired': 'Session expired — reopen the Mini App',
         'workers.none': 'No workers online.',
         'action.claim': 'Claim',
         'action.done': 'Done',
@@ -478,12 +479,14 @@ async function postBoardAction(action, ticketId, btn) {
     const authDate = Math.floor(Date.now() / 1000);
     btn.disabled = true;
     btn.textContent = actionLabel(action, false);
+    let httpStatus = 0;
     try {
         const resp = await fetch(`/api/board/${action}?initData=${encodeURIComponent(initData)}&authDate=${authDate}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id: ticketId }),
         });
+        httpStatus = resp.status;
         const data = await resp.json();
         if (data && data.ok) {
             haptics('done');
@@ -497,7 +500,26 @@ async function postBoardAction(action, ticketId, btn) {
         btn.textContent = actionLabel(action, false);
         haptics('error');
         console.error('board action failed:', e);
+        // T1.2: a stale initData (older than 24h) comes back 403 — tell the
+        // owner to reopen the Mini App instead of failing silently.
+        if (httpStatus === 403) showAuthExpired();
     }
+}
+
+/* T1.2: expired-handshake notice. A 403 from /api/board/* means the Telegram
+   initData went stale (auth_date > 24h); the only fix is reopening the Mini
+   App for a fresh handshake — the backend limit stays untouched. */
+function showAuthExpired() {
+    const tbody = document.getElementById('board-body');
+    if (!tbody || document.getElementById('board-auth-expired')) return;
+    const tr = document.createElement('tr');
+    tr.id = 'board-auth-expired';
+    const td = document.createElement('td');
+    td.colSpan = 6;
+    td.className = 'board-empty board-auth';
+    td.textContent = t('board.auth_expired');
+    tr.appendChild(td);
+    tbody.prepend(tr);
 }
 
 function renderTickets(tickets) {
@@ -584,6 +606,7 @@ function hydrateFromSnapshot(s) {
         renderTickets(s.tickets);
         renderTicketRows(s.tickets);
     }
+    renderNextHint(s.next_hint);
     if (Array.isArray(s.workers)) {
         renderWorkers(s.workers);
         renderRoles(s.workers);
@@ -636,6 +659,24 @@ function setBoardOffline() {
     td.textContent = t('board.offline');
     tr.appendChild(td);
     tbody.appendChild(tr);
+}
+
+/* T2.2: next-move hint badge. The server computes next_hint {kind, ticket_id}
+   in the snapshot; the Mini App only renders it — never auto-claims. */
+function renderNextHint(hint) {
+    var old = document.getElementById('board-next-hint');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    if (!hint || !hint.kind || !hint.ticket_id) return;
+    const tbody = document.getElementById('board-body');
+    if (!tbody) return;
+    const tr = document.createElement('tr');
+    tr.id = 'board-next-hint';
+    const td = document.createElement('td');
+    td.colSpan = 6;
+    td.className = 'board-empty board-hint';
+    td.textContent = t('action.' + hint.kind) + ' ' + hint.ticket_id;
+    tr.appendChild(td);
+    tbody.prepend(tr);
 }
 
 document.addEventListener('DOMContentLoaded', function () {

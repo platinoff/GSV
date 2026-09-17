@@ -33,7 +33,7 @@
 - ✅ Групам `web_app`-кнопки заборонені → там `send_url_button` на direct-link.
 - ✅ Телефону ніколи не віддаємо `127.0.0.1` (`mini_app_base` / `lan_url`).
 - ❌ `answerWebAppQuery` / `can_send_after` не використовуємо — окремий тікет, не в цій сесії.
-- ❌ Фронт не ловить 401 від старої `auth_date` — показати «перевідкрий Mini App», ліміт 24h не міняти.
+- ✅ Фронт ловить 403 від старої `auth_date` — показує «перевідкрий Mini App» (T1.2; сервер дає саме 403, не 401).
 - 🚫 Third-party Ed25519-валідація без токена — не потрібна, не робимо.
 
 ## 2. Ресурси пристрою
@@ -97,7 +97,7 @@ phone → Telenetis :9800 → Hub :9999 / PoolAI :8091 / llama :8080
 ## Черга (порядок вирішує власник)
 
 1. ⏳ token rotate + group ownership (блокують інше).
-2. ❌ BotFather-чеклист у README + 401-перевідкриття + `answerWebAppQuery`.
-3. ❌ `compatibility`-probe + авто-підказки claim/next.
+2. ✅ T1 done 2026-09-17: BotFather-чеклист + reopen-підказка (403) + `answerWebAppQuery`.
+3. ✅ T2 done 2026-09-17: `compatibility`-probe + claim/next-підказки (phone-гейт окремо).
 4. ⏳ WS-трекер P2P.
 5. ✅ Квартальний refresh хвилями.

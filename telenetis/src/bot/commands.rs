@@ -338,6 +338,15 @@ async fn handle_board(state: &AppState, scenario_filter: Option<&str>) -> String
         ));
     }
 
+    // T2.2: hint only — suggest the next move, never auto-claim (ownership
+    // stays with the owner ticket t-1789606667836911200).
+    if let Some((action, id)) =
+        crate::actions::next_hint(&filtered.iter().map(|t| (*t).clone()).collect::<Vec<_>>())
+    {
+        lines.push(String::new());
+        lines.push(format!("Next: {} `{}`.", action.as_str(), id));
+    }
+
     format!("{}\n\nUse /ticket <id> for details.", lines.join("\n"))
 }
 
@@ -854,6 +863,27 @@ mod tests {
         let resp = handle_command(&Command::Board, &state).await;
         assert!(resp.contains("T-1"));
         assert!(resp.contains("Fix bug"));
+    }
+
+    #[tokio::test]
+    async fn handle_board_appends_next_hint() {
+        // T2.2: the bot suggests the next move, never auto-claims.
+        let state = crate::state::AppState::new(test_config());
+        state
+            .set_tickets(vec![crate::state::TicketRow {
+                id: "T-1".to_string(),
+                title: "Fix bug".to_string(),
+                body: "desc".to_string(),
+                status: "open".to_string(),
+                product: "gsv".to_string(),
+                claimed_by: None,
+                scenario: None,
+            }])
+            .await;
+        let resp = handle_command(&Command::Board, &state).await;
+        assert!(resp.contains("Next:"));
+        assert!(resp.contains("claim"));
+        assert!(resp.contains("T-1"));
     }
 
     #[tokio::test]

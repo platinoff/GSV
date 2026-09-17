@@ -137,6 +137,10 @@ async fn api_snapshot(
             "recent_flows": flows.len(),
         },
         "tickets": wire_tickets(&tickets),
+        // T2.2: server-computed next move (hint only — never auto-claim).
+        "next_hint": crate::actions::next_hint(&tickets).map(|(action, id)| {
+            json!({"kind": action.as_str(), "ticket_id": id})
+        }),
         "workers": wire_workers(&presence),
         "roles": wire_roles(&roles),
         "flows": wire_flows(&flows),
@@ -1761,6 +1765,30 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn board_action_rejects_stale_handshake_as_forbidden() {
+        // T1.2: an initData older than DEFAULT_MAX_AGE_SECS must surface as
+        // 403 with a stale-marked JSON error (never 500/200) so the Mini App
+        // can tell the owner to reopen it instead of failing silently.
+        let stale_auth = 1_750_000_000 - crate::security::initdata::DEFAULT_MAX_AGE_SECS as i64 - 5;
+        let resp = post_action(
+            "claim",
+            TEST_USER_RAW,
+            stale_auth,
+            serde_json::json!({"id": "T-1"}),
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["ok"], false);
+        assert!(
+            json["error"].as_str().unwrap().contains("stale"),
+            "stale handshake must be marked, got: {}",
+            json["error"]
+        );
+    }
+
+    #[tokio::test]
     async fn board_action_rejects_missing_ticket_id() {
         let resp = post_action("claim", TEST_USER_RAW, 1750000010, serde_json::json!({})).await;
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
@@ -2136,6 +2164,75 @@ mod tests {
         assert_eq!(json["v"], 1);
         assert_eq!(json["status"]["jail_id"], "test-jail");
         assert_eq!(json["i18n"]["lang"], "en");
+        assert!(
+            json.get("next_hint").is_some(),
+            "snapshot missing next_hint"
+        );
+    }
+
+    #[tokio::test]
+    async fn snapshot_carries_next_hint() {
+        // T2.2: server-computed next move rides the snapshot next to tickets.
+        let state = test_state();
+        state
+            .set_tickets(vec![
+                crate::state::TicketRow {
+                    id: "T-1".to_string(),
+                    title: "Open task".to_string(),
+                    body: String::new(),
+                    status: "open".to_string(),
+                    product: "gsv".to_string(),
+                    claimed_by: None,
+                    scenario: None,
+                },
+                crate::state::TicketRow {
+                    id: "T-2".to_string(),
+                    title: "Busy task".to_string(),
+                    body: String::new(),
+                    status: "in_progress".to_string(),
+                    product: "gsv".to_string(),
+                    claimed_by: Some("w".to_string()),
+                    scenario: None,
+                },
+            ])
+            .await;
+        let app = router(state);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/snapshot")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["next_hint"]["kind"], "claim");
+        assert_eq!(json["next_hint"]["ticket_id"], "T-1");
+    }
+
+    #[tokio::test]
+    async fn snapshot_next_hint_null_on_empty_board() {
+        let app = router(test_state());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/snapshot")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(json["next_hint"].is_null());
     }
 
     #[tokio::test]
@@ -2418,6 +2515,25 @@ mod tests {
         assert!(js.contains("detail.hidden"));
     }
 
+    #[test]
+    fn app_js_handles_expired_handshake_with_reopen_hint() {
+        // T1.2: a 403 from /api/board/* (stale initData) must surface a
+        // reopen hint, not a silent button restore.
+        let js = include_str!("static/app.js");
+        assert!(js.contains("function showAuthExpired"));
+        assert!(js.contains("board.auth_expired"));
+        assert!(js.contains("403"));
+    }
+
+    #[test]
+    fn app_js_renders_server_next_hint_badge() {
+        // T2.2: the snapshot next_hint is rendered as a badge, never acted on.
+        let js = include_str!("static/app.js");
+        assert!(js.contains("function renderNextHint"));
+        assert!(js.contains("next_hint"));
+        assert!(js.contains("board-next-hint"));
+    }
+
     #[tokio::test]
     async fn snapshot_wires_ticket_body_and_actions() {
         let state = test_state();
@@ -2567,6 +2683,7 @@ mod tests {
                 "board.no_description",
                 "board.no_actions",
                 "board.offline",
+                "board.auth_expired",
             ] {
                 assert!(
                     !crate::ui::miniapp::t(key, lang).is_empty(),
@@ -3043,6 +3160,16 @@ mod tests {
             .await
             .unwrap();
         assert!(String::from_utf8_lossy(&body).contains("requestAdapter"));
+    }
+
+    #[test]
+    fn probe_js_falls_back_to_compatibility_mode() {
+        // T2.1: old Mali/Adreno WebViews return null for core — probe.js must
+        // retry with the compatibility feature level and report the mode.
+        let js = include_str!("static/probe.js");
+        assert!(js.contains("featureLevel"));
+        assert!(js.contains("compatibility"));
+        assert!(js.contains("compat"));
     }
 
     #[tokio::test]

@@ -150,6 +150,32 @@ impl TelegramBot {
         .await
     }
 
+    /// Build the `answerWebAppQuery` request body (T1.3). `query_id` is the
+    /// `query_id` field of the Mini App initData (keyboard-button flow, carries
+    /// `can_send_after`); `result` is an `InlineQueryResult` object. Kept pure
+    /// so the wire shape is unit-tested without a live bot token. Wiring the
+    /// query_id through from webhook `web_app_data` updates is a follow-up.
+    pub fn answer_web_app_query_body(query_id: &str, result: Value) -> Value {
+        json!({
+            "web_app_query_id": query_id,
+            "result": result,
+        })
+    }
+
+    /// Answer a Mini App interaction via `answerWebAppQuery` (sends `result`
+    /// as a message to the chat that opened the app).
+    pub async fn answer_web_app_query(
+        &self,
+        query_id: &str,
+        result: Value,
+    ) -> Result<Value, TelenetisError> {
+        self.post(
+            "answerWebAppQuery",
+            Self::answer_web_app_query_body(query_id, result),
+        )
+        .await
+    }
+
     pub async fn set_webhook(
         &self,
         url: &str,
@@ -237,5 +263,25 @@ mod tests {
     fn api_base_is_url() {
         let bot = TelegramBot::new(&test_config());
         assert!(bot.api_base().starts_with("https://api.telegram.org/bot"));
+    }
+
+    #[test]
+    fn answer_web_app_query_body_shape() {
+        // T1.3: Bot API contract — web_app_query_id + InlineQueryResult.
+        let body = TelegramBot::answer_web_app_query_body(
+            "AAHdF6IQAAAAAN0XohDhrOrc",
+            json!({
+                "type": "article",
+                "id": "1",
+                "title": "ok",
+                "input_message_content": {"message_text": "done"},
+            }),
+        );
+        assert_eq!(body["web_app_query_id"], "AAHdF6IQAAAAAN0XohDhrOrc");
+        assert_eq!(body["result"]["type"], "article");
+        assert_eq!(
+            body["result"]["input_message_content"]["message_text"],
+            "done"
+        );
     }
 }

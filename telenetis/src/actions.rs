@@ -8,6 +8,7 @@
 //! action server-side to GSV (`/api/tickets/{claim,done,error}`), so an
 //! anonymous caller on a public tunnel cannot mutate the board.
 
+use crate::state::TicketRow;
 use serde_json::{json, Value};
 
 /// The board actions a Mini App user can take on a ticket. They mirror the GSV
@@ -142,6 +143,23 @@ pub fn available_actions(status: &str) -> &'static [BoardAction] {
         "in_progress" => &[BoardAction::Done, BoardAction::Error, BoardAction::Reclaim],
         _ => &[],
     }
+}
+
+/// Next suggested board move (T2.2). First `open` ticket → Claim it, else the
+/// first `in_progress` ticket → finish it (Done). Pure **hint** — the Mini App
+/// and the bot render it, nobody auto-claims (ownership stays with the owner
+/// ticket t-1789606667836911200). Boards with no actionable ticket → None.
+pub fn next_hint(tickets: &[TicketRow]) -> Option<(BoardAction, String)> {
+    if let Some(t) = tickets
+        .iter()
+        .find(|t| t.status.trim().eq_ignore_ascii_case("open"))
+    {
+        return Some((BoardAction::Claim, t.id.clone()));
+    }
+    tickets
+        .iter()
+        .find(|t| t.status.trim().eq_ignore_ascii_case("in_progress"))
+        .map(|t| (BoardAction::Done, t.id.clone()))
 }
 
 #[cfg(test)]
@@ -287,5 +305,46 @@ mod tests {
         assert_eq!(BoardAction::Reclaim.gsv_path(), "/api/tickets/reclaim");
         assert_eq!(BoardAction::Reclaim.as_str(), "reclaim");
         assert_eq!(BoardAction::parse("reclaim"), Some(BoardAction::Reclaim));
+    }
+
+    fn hint_row(id: &str, status: &str) -> TicketRow {
+        TicketRow {
+            id: id.to_string(),
+            title: "t".to_string(),
+            body: String::new(),
+            status: status.to_string(),
+            product: "gsv".to_string(),
+            claimed_by: None,
+            scenario: None,
+        }
+    }
+
+    #[test]
+    fn next_hint_prefers_first_open_ticket() {
+        let rows = vec![
+            hint_row("T-9", "done"),
+            hint_row("T-1", "open"),
+            hint_row("T-2", "open"),
+        ];
+        assert_eq!(
+            next_hint(&rows),
+            Some((BoardAction::Claim, "T-1".to_string()))
+        );
+    }
+
+    #[test]
+    fn next_hint_falls_back_to_in_progress_done() {
+        let rows = vec![hint_row("T-7", "in_progress"), hint_row("T-8", "done")];
+        assert_eq!(
+            next_hint(&rows),
+            Some((BoardAction::Done, "T-7".to_string()))
+        );
+    }
+
+    #[test]
+    fn next_hint_none_without_actionable_tickets() {
+        assert_eq!(next_hint(&[]), None);
+        let rows = vec![hint_row("T-1", "done"), hint_row("T-2", "blocked")];
+        assert_eq!(next_hint(&rows), None);
     }
 }

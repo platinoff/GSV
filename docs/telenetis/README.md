@@ -58,6 +58,19 @@ cd telenetis
 cargo run
 ```
 
+## Telegram setup checklist (BotFather) — T1.1
+
+1. `/newbot` → save the HTTP API token → `TELENETIS_BOT_TOKEN` in `.env` (never commit).
+2. `/newapp` → title + description → Web App URL (placeholder first, prod HTTPS later).
+3. Main Mini App link: `/myapps` → Edit link → `https://t.me/{bot}/{app}`.
+4. Menu button: `/setmenubutton` (or the bot sets it itself via `setChatMenuButton`).
+5. Webhook (if public HTTPS): `TELENETIS_WEBHOOK_URL` + `TELENETIS_WEBHOOK_SECRET`
+   (inbound `/webhook` without the secret header is 403). No tunnel → long polling.
+6. Groups/channels reject `web_app` buttons — there the bot sends a URL button
+   (`send_url_button`) to the direct-link Mini App instead.
+
+Details: [`ops.md`](ops.md), concept [`CONCEPT.md`](CONCEPT.md) §1.
+
 ## Commands (Telegram)
 
 - `/start` — welcome + command list
