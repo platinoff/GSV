@@ -45,6 +45,8 @@
 | IndexedDB `tensor-worker/models` | готові GGUF (швидкий кеш) | ✅ | ❌ (best-effort; `persist()` просимо після збереження) |
 | Download (auto-save T4.1, toggle) | готові GGUF (накопичувач) | ✅ | ✅ |
 | File-пікер | вантажить з Download назад без скачування/кешу | — | — |
+| Вибір моделі (T5.1) | пам'ятається (localStorage), авто-Use з кешу при старті; Start лишається ручним | ✅ | — |
+| Чейн (T5.2) | воркер пам'ятає останні 6 ходів (localStorage); `payload.history` сідає з хоста; complete лишається answer | ✅ | — |
 
 - ✅ Готовий Blob після verify сам падає в Download (same-origin blob-URL; toggle Auto-save on/off).
 - ✅ Недокачане губиться (в кеші тільки готові файли); докачка Range + stall-watchdog — в межах сесії.
@@ -111,3 +113,4 @@ phone → Telenetis :9800 → Hub :9999 / PoolAI :8091 / llama :8080
 5. ✅ Квартальний refresh хвилями.
 6. ✅ T3 done 2026-09-17: моделі на накопичувачі (IDB + Download + persist) + фон-фактчек (чат — так, згорнутий TG — тільки сервер+push).
 7. ✅ T4 done 2026-09-17: IDB визнано кешем; автосейв готового Blob в Download + toggle; File-пікер назад.
+8. ✅ T5 done 2026-09-17: вибір моделі липне (авто-Use з кешу); чейн у воркері (6 ходів + `payload.history`, poolAI не чіпали — payload opaque). Host-side сесії — follow-up іншим репо.

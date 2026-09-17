@@ -1101,10 +1101,82 @@ function countTokens(text) {
     } catch (e) { return Math.ceil(String(text).length / 4); }
 }
 
-function runChat(prompt, maxTokens) {
+// T5.1: pick once — always there. After catalog + cache are ready, reload
+// the saved model straight into the engine (no tap). Cache evicted → point
+// at File… (Downloads keep the bytes). Worker Start stays manual.
+function autoUseSaved() {
+    var key = null;
+    try {
+        var raw = localStorage.getItem('tensor-worker');
+        var st = raw ? JSON.parse(raw) : null;
+        key = (st && st.modelKey) || null;
+    } catch (e) { key = null; }
+    if (!key || S.wllama) { return; }
+    var entry = MODELS[key];
+    if (!entry) {
+        setStatus('saved model gone from catalog — pick a model again');
+        logRow('sys', 'saved model ' + key + ' not in catalog');
+        return;
+    }
+    bytesFor(key).then(function (blob) {
+        if (!blob) {
+            setStatus('cache evicted — File… ' + esc(entry.label) + ' back from Downloads');
+            logRow('sys', 'auto-use: no cached bytes for ' + entry.label + ' (evicted?)');
+            return;
+        }
+        logRow('sys', 'restoring saved model: ' + entry.label);
+        loadIntoWllama(key, entry, blob);
+    });
+}
+
+// T5.2: conversation chain. The queue payload is opaque to poolAI, so memory
+// lives in the worker: last CHAIN_KEEP turns, persisted. A task may carry
+// payload.history ([{role, content}]) to seed/override — the host passes the
+// chain back and the client LLM picks it up. complete detail stays the bare
+// answer (contract unchanged).
+var CHAIN_KEEP = 6;
+var CHAIN_KEY = 'tensor-chain';
+var CHAIN = [];
+function loadChain() {
+    try {
+        var raw = localStorage.getItem(CHAIN_KEY);
+        var arr = raw ? JSON.parse(raw) : [];
+        CHAIN = Array.isArray(arr) ? arr.filter(function (t) {
+            return t && typeof t.q === 'string' && typeof t.a === 'string';
+        }).slice(-CHAIN_KEEP) : [];
+    } catch (e) { CHAIN = []; }
+}
+function saveChain() {
+    try { localStorage.setItem(CHAIN_KEY, JSON.stringify(CHAIN.slice(-CHAIN_KEEP))); } catch (e) {}
+}
+function chainMessages(prompt, seedHistory) {
+    var msgs = [];
+    if (Array.isArray(seedHistory)) {
+        for (var i = 0; i < seedHistory.length; i++) {
+            var m = seedHistory[i];
+            if (m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string') {
+                msgs.push({ role: m.role, content: m.content });
+            }
+        }
+    } else {
+        for (var j = 0; j < CHAIN.length; j++) {
+            msgs.push({ role: 'user', content: CHAIN[j].q });
+            msgs.push({ role: 'assistant', content: CHAIN[j].a });
+        }
+    }
+    msgs.push({ role: 'user', content: String(prompt) });
+    return msgs.slice(-(CHAIN_KEEP * 2 + 1));
+}
+function recordTurn(prompt, answer) {
+    CHAIN.push({ q: String(prompt), a: String(answer) });
+    if (CHAIN.length > CHAIN_KEEP) { CHAIN = CHAIN.slice(-CHAIN_KEEP); }
+    saveChain();
+}
+
+function runChat(prompt, maxTokens, history) {
     var t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
     return S.wllama.createChatCompletion({
-        messages: [{ role: 'user', content: String(prompt) }],
+        messages: chainMessages(prompt, history),
         max_tokens: maxTokens > 0 ? maxTokens : 64,
         temperature: 0
     }).then(function (resp) {
@@ -1143,9 +1215,11 @@ function serveTask(task) {
         logRow('skip', 'llama_chat without prompt (id ' + task.id + ')');
         return completeTask(task.id, '(empty prompt)').then(function () {});
     }
-    logRow('task', 'llama_chat <- ' + prompt.slice(0, 120));
-    return runChat(prompt, maxTokens).then(function (r) {
+    logRow('task', 'llama_chat <- ' + prompt.slice(0, 120) +
+        (Array.isArray(payload.history) ? ' (+host chain)' : ''));
+    return runChat(prompt, maxTokens, payload.history).then(function (r) {
         logRow('done', r.tps + ' tok/s, ' + r.ms + 'ms :: ' + r.text.slice(0, 200));
+        recordTurn(prompt, r.text);
         return completeTask(task.id, r.text).then(function () {
             S.done++;
             saveWorkerState();
@@ -1304,10 +1378,13 @@ el('tensor-self').addEventListener('click', selfTest);
 window.__tensorReady = true;
 // Catalog first (host vendor + GGUF library), so the list reflects what
 // this box actually serves; HF fallback when the host has no catalog.
-bootConfig();
 lanHint();
-restoreWorkerState();
-IDB.open().then(function (ok) {
+loadChain();
+// Catalog first (MODELS), then cache: auto-use needs both ready.
+bootConfig().then(function () {
+    restoreWorkerState();
+    return IDB.open();
+}).then(function (ok) {
     if (ok) {
         logRow('sys', 'device cache ready (IndexedDB)');
         try {
@@ -1316,6 +1393,7 @@ IDB.open().then(function (ok) {
             }
         } catch (e) {}
         refreshCachedTags();
+        autoUseSaved();
     } else {
         logRow('sys', 'device cache unavailable (no IndexedDB) — RAM only');
     }

@@ -2982,6 +2982,9 @@ mod tests {
         assert!(js.contains("pickFileFor")); // load saved GGUF from disk
         assert!(js.contains("autoSaveBlob")); // T4.1: finished blob → Downloads
         assert!(js.contains("tensor-autosave")); // T4.1: on/off toggle
+        assert!(js.contains("autoUseSaved")); // T5.1: saved model back, no tap
+        assert!(js.contains("chainMessages")); // T5.2: worker-side chain
+        assert!(js.contains("payload.history")); // T5.2: host seeds the chain
         assert!(js.contains("requestPersistentStorage")); // T3.1: persist() after save
         assert!(js.contains("/api/edge/tensor/config"));
     }
