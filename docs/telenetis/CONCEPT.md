@@ -35,16 +35,21 @@
 - ✅ Фронт ловить 403 від старої `auth_date` — показує «перевідкрий Mini App» (T1.2; сервер дає саме 403, не 401).
 - 🚫 Third-party Ed25519-валідація без токена — не потрібна, не робимо.
 
-## 2. Ресурси пристрою
+## 2. Де лежать моделі: кеш vs накопичувач
 
-**Вердикт: моделі ТАК зберігаються на накопичувачі; міряємо те, що браузер реально віддає.**
+**Вердикт: IndexedDB — це кеш, а не накопичувач. Накопичувач — це папка Download.**
 
- storage-фактчек T3.1 (код `tensor.js`):
-- ✅ Готові GGUF лежать в IndexedDB `tensor-worker/models` (`{blob,size}`) — переживають рестарт.
-- ✅ Save → папка Download (справжній диск, переживає все) + File-пікер вантажить назад без скачування/кешу.
-- ✅ Після збереження фронт просить `navigator.storage.persist()` (T3.1) — інакше бакет best-effort і ОС може виселити під тиском (класика Android WebView).
-- ✅ RAM-кеш губиться при перезавантаженні; недокачане губиться (в IDB тільки готові файли); докачка Range + stall-watchdog — в межах сесії.
-- ✅ Невідоме RAM/VRAM = `0`. OPFS нема на HTTP LAN. `compatibility`-probe done (T2.1).
+| Де | Що | Переживає рестарт | Переживає виселення ОС |
+|---|---|---|---|
+| RAM (`BYTESTORE`) | активні байти | ❌ | ❌ |
+| IndexedDB `tensor-worker/models` | готові GGUF (швидкий кеш) | ✅ | ❌ (best-effort; `persist()` просимо після збереження) |
+| Download (auto-save T4.1, toggle) | готові GGUF (накопичувач) | ✅ | ✅ |
+| File-пікер | вантажить з Download назад без скачування/кешу | — | — |
+
+- ✅ Готовий Blob після verify сам падає в Download (same-origin blob-URL; toggle Auto-save on/off).
+- ✅ Недокачане губиться (в кеші тільки готові файли); докачка Range + stall-watchdog — в межах сесії.
+- ✅ OPFS нема на HTTP LAN; File System Access у TG WebView нема — anchor-Download єдиний чесний шлях.
+- ✅ Невідоме RAM/VRAM = `0`. `compatibility`-probe done (T2.1).
 
 ## 3. Мережа: Hub + PoolAI
 
@@ -105,3 +110,4 @@ phone → Telenetis :9800 → Hub :9999 / PoolAI :8091 / llama :8080
 4. ⏳ WS-трекер P2P.
 5. ✅ Квартальний refresh хвилями.
 6. ✅ T3 done 2026-09-17: моделі на накопичувачі (IDB + Download + persist) + фон-фактчек (чат — так, згорнутий TG — тільки сервер+push).
+7. ✅ T4 done 2026-09-17: IDB визнано кешем; автосейв готового Blob в Download + toggle; File-пікер назад.

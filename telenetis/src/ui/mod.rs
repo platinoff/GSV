@@ -2935,6 +2935,7 @@ mod tests {
         assert!(html.contains("tensor-start"));
         assert!(html.contains("tensor-torrent"));
         assert!(html.contains("tensor-wpause"));
+        assert!(html.contains("tensor-autosave")); // T4.1: auto-save toggle
         assert!(html.contains("tensor-models"));
         assert!(html.contains("tensor-file"));
         assert!(html.contains("gsv-card"));
@@ -2979,6 +2980,8 @@ mod tests {
         assert!(js.contains("authedPool")); // initData on proxied POSTs
         assert!(js.contains("saveToDevice")); // real files via Download Manager
         assert!(js.contains("pickFileFor")); // load saved GGUF from disk
+        assert!(js.contains("autoSaveBlob")); // T4.1: finished blob → Downloads
+        assert!(js.contains("tensor-autosave")); // T4.1: on/off toggle
         assert!(js.contains("requestPersistentStorage")); // T3.1: persist() after save
         assert!(js.contains("/api/edge/tensor/config"));
     }

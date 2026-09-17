@@ -13,7 +13,9 @@
  * (poll pops — dropping them would lose PC-side work).
  *
  * OPFS is absent on HTTP LAN + old WebViews, so wllama gets a custom RAM
- * cache (plain fetch, no OPFS) and finished files persist to IndexedDB.
+ * cache (plain fetch, no OPFS); finished files land in IndexedDB (fast but
+ * evictable cache) and auto-save into the phone Download folder (device
+ * storage), with File… loading them back from disk.
  * Downloads support pause/resume via Range, speed stats, WakeLock against
  * device sleep, and a stall watchdog that resumes dead streams.
  */
@@ -154,6 +156,41 @@ function requestPersistentStorage() {
                 : 'device cache best-effort (OS may evict under pressure — use Save for durability)');
         }).catch(function () {});
     } catch (e) {}
+}
+
+// T4.1: device storage, not cache. A finished blob auto-saves into the phone
+// Download folder (real storage, survives eviction); IndexedDB stays a fast
+// cache. Same-origin blob: URL honors the download attribute via the system
+// Download Manager. Programmatic clicks can be blocked without a recent
+// gesture — then the manual Save button is the fallback and the log says so.
+var AUTOSAVE_KEY = 'tensor-autosave';
+function autoSaveOn() {
+    try {
+        var v = localStorage.getItem(AUTOSAVE_KEY);
+        return v === null || v !== '0';
+    } catch (e) { return true; }
+}
+function setAutoSave(on) {
+    try { localStorage.setItem(AUTOSAVE_KEY, on ? '1' : '0'); } catch (e) {}
+    var b = el('tensor-autosave');
+    if (b) { b.textContent = 'Auto-save: ' + (on ? 'on' : 'off'); }
+}
+function autoSaveBlob(name, blob) {
+    try {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.setAttribute('download', name);
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function () { try { URL.revokeObjectURL(url); } catch (e) {} }, 60000);
+        logRow('sys', 'auto-saved ' + name + ' to device Downloads');
+        return true;
+    } catch (e) {
+        logRow('sys', 'auto-save blocked — tap Save for ' + name);
+        return false;
+    }
 }
 
 function esc(s) {
@@ -862,7 +899,7 @@ function finishBytes(key, blob) {
             logRow('sys', ok
                 ? 'saved ' + entry.label + ' (' + fmtMB(blob.size) + 'MB, verified)'
                 : 'device cache verify FAILED for ' + entry.label);
-            if (ok) { requestPersistentStorage(); }
+            if (ok) { requestPersistentStorage(); if (autoSaveOn()) { autoSaveBlob(name, blob); } }
             if (!S.running) { wakeLock(false); }
         });
     });
@@ -1247,7 +1284,7 @@ function restoreWorkerState() {
         if (st && (st.modelKey || st.peer)) {
             setStatus('last session: ' + esc(st.modelLabel || st.modelKey || '?') +
                 ', peer ' + esc(st.peer || '?') + ', ' + (st.done || 0) + ' tasks done.' +
-                ' Model bytes persist on-device — Use the model, then Start.');
+                ' Cached bytes can be evicted — keep models in Downloads, then Use + Start.');
         }
     } catch (e) {}
 }
@@ -1257,6 +1294,12 @@ el('tensor-stop').addEventListener('click', stopLoop);
 el('tensor-stop').disabled = true;
 el('tensor-wpause').addEventListener('click', pauseWorker);
 el('tensor-wpause').disabled = true;
+el('tensor-autosave').addEventListener('click', function () {
+    var on = !autoSaveOn();
+    setAutoSave(on);
+    logRow('sys', 'auto-save to Downloads ' + (on ? 'on' : 'off'));
+});
+setAutoSave(autoSaveOn());
 el('tensor-self').addEventListener('click', selfTest);
 window.__tensorReady = true;
 // Catalog first (host vendor + GGUF library), so the list reflects what
@@ -1308,7 +1351,7 @@ function refreshCachedTags() {
             })(box.children[j]);
         }
         if (rows.length) {
-            logRow('sys', 'on device: ' + rows.length + ' model file(s)');
+            logRow('sys', 'cached on device (IDB, evictable): ' + rows.length + ' model file(s)');
         } else {
             logRow('sys', 'device cache empty — first Load downloads');
         }
