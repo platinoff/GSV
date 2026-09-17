@@ -102,6 +102,7 @@ Details: [`ops.md`](ops.md), concept [`CONCEPT.md`](CONCEPT.md) §1.
 - `POST /webhook` → `"ok"` (Telegram update)
 - `GET /ws` → WebSocket JSON `FlowEvent` stream
 - `GET /events` → SSE `text/event-stream`
+- `GET /tracker` → WS torrent signaling relay (WebTorrent announce/offer/answer for phone-to-phone P2P)
 
 ## Windows keep-live (band 228)
 

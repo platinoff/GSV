@@ -67,6 +67,8 @@ pub struct AppState {
     tunnel_url: Arc<RwLock<Option<String>>>,
     roles: Arc<RwLock<RoleStore>>,
     roles_file: PathBuf,
+    /// WS-tracker swarms (T7): info-hash → peers for phone-to-phone P2P.
+    tracker: Arc<RwLock<crate::tracker::SwarmRegistry>>,
 }
 
 impl AppState {
@@ -98,6 +100,7 @@ impl AppState {
             tunnel_url: Arc::new(RwLock::new(None)),
             roles: Arc::new(RwLock::new(roles)),
             roles_file,
+            tracker: Arc::new(RwLock::new(crate::tracker::SwarmRegistry::new())),
         }
     }
 
@@ -107,6 +110,11 @@ impl AppState {
 
     pub async fn tunnel_url(&self) -> Option<String> {
         self.tunnel_url.read().await.clone()
+    }
+
+    /// WS-tracker registry (T7) shared by every `/tracker` socket.
+    pub fn tracker_state(&self) -> &Arc<RwLock<crate::tracker::SwarmRegistry>> {
+        &self.tracker
     }
 
     pub fn jail_id(&self) -> &str {

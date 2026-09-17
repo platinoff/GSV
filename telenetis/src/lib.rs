@@ -10,5 +10,6 @@ pub mod roles;
 pub mod security;
 pub mod state;
 pub mod stream;
+pub mod tracker;
 pub mod tunnel;
 pub mod ui;

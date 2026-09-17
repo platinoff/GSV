@@ -104,6 +104,7 @@ async fn main() {
         .merge(telenetis::bot::webhook::router(state.clone()))
         .merge(telenetis::stream::ws::router(state.clone()))
         .merge(telenetis::stream::sse::router(state.clone()))
+        .merge(telenetis::tracker::router(state.clone()))
         .layer(middleware::from_fn(security_headers_middleware))
         .layer(telenetis::security::limit_layer());
 

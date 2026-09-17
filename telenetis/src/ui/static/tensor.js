@@ -650,6 +650,14 @@ function wtClient() {
     return WT.client;
 }
 
+// T7.2: our own WS tracker (same origin — works through the tunnel too,
+// unlike public trackers). Phones announce here for phone-to-phone P2P;
+// webseed HTTP stays the fallback.
+function trackerUrl() {
+    var proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return proto + '//' + window.location.host + '/tracker';
+}
+
 function dropTorrent(key) {
     var dl = DLS[key];
     if (!dl) { return; }
@@ -671,7 +679,9 @@ function startTorrent(key) {
         return r.arrayBuffer();
     }).then(function (buf) {
         var client = wtClient();
-        var t = client.add(buf, { announce: [] });
+        var tracker = trackerUrl();
+        logRow('sys', 'tracker: ' + tracker);
+        var t = client.add(buf, { announce: [tracker] });
         dl.handle = t;
         dl.loaded = 0;
         dl.lastByte = Date.now();

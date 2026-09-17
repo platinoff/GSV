@@ -103,7 +103,7 @@ phone → Telenetis :9800 → Hub :9999 / PoolAI :8091 / llama :8080
 - ✅ `llama_serve :8080` (27B), rpc proto-5.0.0 pin, heartbeat у keep-live.
 - ✅ `/tensor` ↔ poolAI `llama_chat` черга (poll → run → complete, чуже re-queue).
 - ⏳ Bump `llama-cpp-2 → 0.1.156` — відкрито в llama-rs (ребилд + даунтайм), не наше.
-- ⏳ WS-трекер для phone-to-phone P2P (`t-1789606673625339100`) — треба 2 живі телефони.
+- ⏳ WS-трекер для phone-to-phone P2P (`t-1789606673625339100`) — T7: сервер `GET /tracker` + announce з клієнта готові; лишився вимір байтів на двох живих телефонах.
 - 🚫 Новий протокол розподілу тензорів — не вигадуємо, канон `llama-rs/docs/DISTRIBUTED.md`.
 
 ## Черга (порядок вирішує власник)
@@ -117,3 +117,4 @@ phone → Telenetis :9800 → Hub :9999 / PoolAI :8091 / llama :8080
 7. ✅ T4 done 2026-09-17: IDB визнано кешем; автосейв готового Blob в Download + toggle; File-пікер назад.
 8. ✅ T5 done 2026-09-17: вибір моделі липне (авто-Use з кешу); чейн у воркері (6 ходів + `payload.history`, poolAI не чіпали — payload opaque). Host-side сесії — follow-up іншим репо.
 9. ✅ T6.1 done 2026-09-17: вердикт `answerWebAppQuery` (білдер так, проводка ні — нема keyboard-flow) + аудит: worker-controls код готовий (pause/cancel/44px), лишився phone-verify.
+10. ✅ T7 done 2026-09-17: WS-трекер `/tracker` (announce/offer/answer relay, latin1, cap 5, 10 тестів) + announce з tensor.js (webseed fallback цілий); вимір P2P — гейт на телефонах.
