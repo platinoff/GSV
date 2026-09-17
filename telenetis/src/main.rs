@@ -112,7 +112,9 @@ async fn main() {
         .expect("failed to bind TCP listener");
 
     tracing::info!("Telenetis starting on port {}", config.port);
-    axum::serve(listener, app)
+    // ConnectInfo feeds the proxy POST gate (direct peer address).
+    let svc = app.into_make_service_with_connect_info::<std::net::SocketAddr>();
+    axum::serve(listener, svc)
         .with_graceful_shutdown(async {
             tokio::signal::ctrl_c()
                 .await

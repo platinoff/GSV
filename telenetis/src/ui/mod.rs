@@ -1,6 +1,6 @@
 use crate::state::AppState;
 use axum::{
-    extract::{Query, State},
+    extract::{ConnectInfo, Query, State},
     http::{header, StatusCode},
     response::{Html, IntoResponse, Response},
     routing::{get, post},
@@ -841,16 +841,95 @@ async fn api_edge_endpoints(State(state): State<AppState>) -> Json<serde_json::V
 /// tunnel): `/edge/upstream/llama/<path>` → llama_serve,
 /// `/edge/upstream/poolai/<path>` → poolAI. Anything else → 404.
 /// poolAI calls carry the service token; llama needs none.
+///
+/// POSTs are gated (bug-hunt sec follow-up): a valid Telegram `initData`
+/// handshake, or a direct loopback/LAN peer with no forwarding headers.
+/// Anonymous tunnel traffic (ngrok stamps `X-Forwarded-For`) without
+/// initData is refused — otherwise anyone on the internet could burn
+/// inference and spend the server poolAI bearer. GETs stay open
+/// (read-only status for the Mini App screens).
+///
+/// The gate decision, factored pure for tests: `init_data` is the raw
+/// query value (verified against `bot_token` + `now_unix`); `peer` is the
+/// direct TCP peer; `forwarded` is whether proxy headers are present.
+fn proxy_post_allowed(
+    bot_token: &str,
+    init_data: &str,
+    now_unix: i64,
+    peer: Option<std::net::IpAddr>,
+    forwarded: bool,
+) -> bool {
+    if !bot_token.is_empty()
+        && !init_data.is_empty()
+        && crate::security::verify_init_data(
+            init_data,
+            bot_token,
+            now_unix,
+            crate::security::initdata::DEFAULT_MAX_AGE_SECS,
+        )
+        .is_ok()
+    {
+        return true;
+    }
+    // No (valid) handshake: only direct home-network callers pass.
+    // Forwarded traffic arrives from the tunnel exit (loopback-shaped!),
+    // so headers — not the peer address — tell tunnel apart from LAN.
+    !forwarded && peer.map(is_lan_peer).unwrap_or(false)
+}
+
+/// Home-network peers: loopback + RFC1918. Anything else (public IPs,
+/// unknown) is treated as the hostile internet for POST purposes.
+fn is_lan_peer(ip: std::net::IpAddr) -> bool {
+    use std::net::IpAddr;
+    match ip {
+        IpAddr::V4(v4) => v4.is_loopback() || v4.is_private(),
+        IpAddr::V6(v6) => v6.is_loopback() || v6.is_unique_local(),
+    }
+}
+
+/// Handler argument count follows the wire inputs (one extractor each).
+/// `ConnectInfo` stays required: production wires it via
+/// `into_make_service_with_connect_info`, and an unknown peer must never
+/// silently read as trusted — tests insert it explicitly.
+#[allow(clippy::too_many_arguments)]
 async fn proxy_upstream(
     State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<std::net::SocketAddr>,
     axum::extract::Path((service, tail)): axum::extract::Path<(String, String)>,
     axum::extract::RawQuery(query): axum::extract::RawQuery,
     method: axum::http::Method,
+    headers: axum::http::HeaderMap,
+    Query(gate): Query<ActionQuery>,
     body: axum::body::Bytes,
 ) -> impl IntoResponse {
-    use crate::edge::{upstream_base, PoolClient};
+    use crate::edge::PoolClient;
 
-    let Some(base) = upstream_base(state.config(), &service) else {
+    if method == axum::http::Method::POST {
+        // Same ActionQuery shape as the board endpoints (?initData&authDate).
+        let forwarded =
+            headers.contains_key("x-forwarded-for") || headers.contains_key("x-forwarded-proto");
+        let now = freshness_now(gate.auth_date);
+        if !proxy_post_allowed(
+            &state.config().bot_token,
+            &gate.init_data,
+            now,
+            Some(peer.ip()),
+            forwarded,
+        ) {
+            let why = if state.config().bot_token.is_empty() {
+                "initData unavailable (no bot token) and not a direct LAN caller"
+            } else {
+                "initData required for proxied POSTs from public networks"
+            };
+            return (
+                StatusCode::FORBIDDEN,
+                Json(crate::actions::err_json(&format!("proxy denied: {why}"))),
+            )
+                .into_response();
+        }
+    }
+
+    let Some(base) = crate::edge::upstream_base(state.config(), &service) else {
         return (
             StatusCode::NOT_FOUND,
             Json(json!({"ok": false, "error": "unknown service"})),
@@ -2526,6 +2605,157 @@ mod tests {
 
     // ---- WebGPU probe surface (swarm browser path) ----
 
+    // ---- proxy POST gate (bug-hunt sec follow-up) ----
+
+    fn lan(ip: &str) -> Option<std::net::IpAddr> {
+        ip.parse().ok()
+    }
+
+    #[test]
+    fn is_lan_peer_covers_loopback_and_rfc1918() {
+        assert!(is_lan_peer(lan("127.0.0.1").unwrap()));
+        assert!(is_lan_peer(lan("::1").unwrap()));
+        assert!(is_lan_peer(lan("192.168.2.238").unwrap()));
+        assert!(is_lan_peer(lan("10.0.0.5").unwrap()));
+        assert!(is_lan_peer(lan("172.16.9.9").unwrap()));
+        assert!(!is_lan_peer(lan("8.8.8.8").unwrap()));
+        assert!(!is_lan_peer(lan("1.1.1.1").unwrap()));
+    }
+
+    #[test]
+    fn proxy_post_allows_initdata_or_direct_lan_only() {
+        // Valid handshake (reference vector from the verify tests) passes
+        // from anywhere, even via a tunnel.
+        let good = test_init_data(TEST_USER_RAW);
+        assert!(proxy_post_allowed(
+            "test",
+            &good,
+            1750000010,
+            lan("8.8.8.8"),
+            true
+        ));
+        // Direct home network without handshake passes (LAN browsers).
+        assert!(proxy_post_allowed(
+            "test",
+            "",
+            1750000010,
+            lan("192.168.2.238"),
+            false
+        ));
+        assert!(proxy_post_allowed(
+            "test",
+            "",
+            1750000010,
+            lan("127.0.0.1"),
+            false
+        ));
+        // Tunnel-shaped traffic without a handshake is refused…
+        assert!(!proxy_post_allowed(
+            "test",
+            "",
+            1750000010,
+            lan("127.0.0.1"),
+            true
+        ));
+        assert!(!proxy_post_allowed(
+            "test",
+            "",
+            1750000010,
+            lan("8.8.8.8"),
+            true
+        ));
+        // …as is unknown-origin traffic without a handshake.
+        assert!(!proxy_post_allowed("test", "", 1750000010, None, false));
+        // A forged handshake never upgrades anything by itself.
+        assert!(!proxy_post_allowed(
+            "test",
+            &test_init_data(TEST_TAMPERED_USER_RAW),
+            1750000010,
+            lan("8.8.8.8"),
+            true
+        ));
+        // No bot token: only direct LAN passes (fail-closed otherwise).
+        assert!(proxy_post_allowed(
+            "",
+            "",
+            1750000010,
+            lan("192.168.1.1"),
+            false
+        ));
+        assert!(!proxy_post_allowed(
+            "",
+            "",
+            1750000010,
+            lan("8.8.8.8"),
+            false
+        ));
+    }
+
+    #[tokio::test]
+    async fn proxy_post_rejects_anonymous_tunnel_caller() {
+        // Forwarded POST without initData → 403 before any upstream touch.
+        // Peer looks loopback-shaped (tunnel exit) — headers decide.
+        use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+        let app = router(test_state());
+        let peer = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 55555);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/edge/upstream/poolai/api/v1/x")
+                    .method("POST")
+                    .header("content-type", "application/json")
+                    .header("x-forwarded-for", "203.0.113.7")
+                    .extension(ConnectInfo(peer))
+                    .body(Body::from(r#"{"a":1}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn proxy_post_passes_direct_lan_caller() {
+        // Loopback peer, no handshake → gate passes; unknown service then
+        // answers 404 (deterministic, no live upstream involved).
+        use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+        let app = router(test_state());
+        let peer = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 55555);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/edge/upstream/nosuch/api/v1/x")
+                    .method("POST")
+                    .header("content-type", "application/json")
+                    .extension(ConnectInfo(peer))
+                    .body(Body::from(r#"{"a":1}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn proxy_get_stays_open_for_reads() {
+        // Same forwarded shape over GET: no gate, unknown service 404.
+        use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+        let app = router(test_state());
+        let peer = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 55555);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/edge/upstream/poolai/api/v1/x")
+                    .header("x-forwarded-for", "203.0.113.7")
+                    .extension(ConnectInfo(peer))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
     async fn post_webgpu(
         init: &str,
         auth: i64,
@@ -2628,6 +2858,7 @@ mod tests {
         assert!(js.contains("useModel")); // load bytes into the engine
         assert!(js.contains("startTorrent")); // torrent path, HTTP fallback
         assert!(js.contains("httpFallback")); // fallback stays working
+        assert!(js.contains("authedPool")); // initData on proxied POSTs
         assert!(js.contains("/api/edge/tensor/config"));
     }
 

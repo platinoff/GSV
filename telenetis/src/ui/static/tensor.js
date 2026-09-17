@@ -270,6 +270,26 @@ function pool(path, opts, ms) {
         });
 }
 
+function authedPool(path, opts, ms) {
+    // Proxied POSTs require a Telegram initData handshake unless the call
+    // comes straight off the LAN (server rule); GETs stay open. Telegram
+    // WebViews always carry initData; plain LAN browsers send none and
+    // pass via the direct-LAN branch.
+    opts = opts || {};
+    if ((opts.method || 'GET').toUpperCase() === 'POST') {
+        var initData = '';
+        try {
+            var w = window.Telegram && window.Telegram.WebApp;
+            if (w && w.initData) { initData = w.initData; }
+        } catch (e) {}
+        var authDate = Math.floor(Date.now() / 1000);
+        path += (path.indexOf('?') < 0 ? '?' : '&') +
+            'initData=' + encodeURIComponent(initData) +
+            '&authDate=' + authDate;
+    }
+    return pool(path, opts, ms);
+}
+
 function resolvePeer() {
     // ?peer= override: plain LAN browsers have no Telegram identity, but
     // both phones share one bound peer — deep-link it and skip lookup.
@@ -995,7 +1015,7 @@ function runChat(prompt, maxTokens) {
 }
 
 function completeTask(taskId, answer) {
-    return pool('/virtual-nodes/' + encodeURIComponent(S.peer) + '/tasks/' +
+    return authedPool('/virtual-nodes/' + encodeURIComponent(S.peer) + '/tasks/' +
         encodeURIComponent(taskId) + '/complete', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1004,7 +1024,7 @@ function completeTask(taskId, answer) {
 }
 
 function requeue(task) {
-    return pool('/virtual-nodes/' + encodeURIComponent(S.peer) + '/tasks', {
+    return authedPool('/virtual-nodes/' + encodeURIComponent(S.peer) + '/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ task_type: task.task_type, payload: task.payload || {} })
