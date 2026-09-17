@@ -136,6 +136,76 @@
       ]
     },
     {
+      "id": "hub-agi-path",
+      "title": "AGI path: rust-folder host, portable plugins",
+      "body": "Owner 2026-09-17: The rust folder that contains GSV is the host. Every other project is a portable plugin. Environment security first. Maximum Rust architecture. Session law: agi. GSV :9999 is the super MCP hub. Telenetis is a Telegram-shell plugin. Phone APK + WiFi debug registers as virtual_node via /api/edge. Canon GSV_AGI_PATH.md (gsv://docs/agi-path). Do not copy the kit into plugins. OmniRoute stays policy-down.",
+      "workflow": "ticket-claim",
+      "product": "gsv",
+      "tickets": [
+        {
+          "title": "phone: APK LAN peer via hub /api/edge",
+          "body": "WiFi debug already exists. APK registers as virtual_node through GET/POST /api/edge/{*path} with edge token. Never talk to :8091. Do not clone Telenetis (no board, bot, KVM) into the APK. Canon GSV_VDC.md AGI path + EDGE_PLAN gap 10."
+        },
+        {
+          "title": "telenetis: freeze feature surface (shell only)",
+          "body": "Stop growing Telenetis as the app that handles everything. Keep identity + Mini App chrome + LAN degrade. No new tensor/KVM/swarm-as-OS in the Mini App. Path (b) WebGPU stays a probe. Product telenetis; hub owns the policy. EDGE_PLAN gap 11."
+        },
+        {
+          "title": "gsv: Godfather allowlisted free-text ingest",
+          "body": "Inbound poller skips plain chat (only /ticket, hook, bus JSON). Owner @platinofff / 5035500793 writes in @GSV_OFFICIAL and messages vanish. Ingest allowlisted non-bot text as tickets. EDGE_PLAN gap 13."
+        },
+        {
+          "title": "gsv: products scan host vs portable plugin",
+          "body": "Canon GSV_AGI_PATH.md (gsv://docs/agi-path). cargo xtask products / gsv_products distinguish the rust-folder HOST (gsv) from sibling PLUGIN trees. Plugin = own git root, own target/, unplug fail-open. Nested GSV/telenetis is an exception, not the pattern. PRODUCTS.md enriches registered drains; it is not a closed allowlist of existence."
+        },
+        {
+          "title": "gsv: MCP sandbox stays GSV crate when plugin is picked",
+          "body": "Environment security first. Preview/terminal/vision/xtask remain inside S:/rust/GSV even after gsv_products_select of a plugin. No gsv_products_open, no tunnel, no User-scope MCP. Contracts: traversal / file:// / plugin-root path → -32602. Canon GSV_AGI_PATH env security table."
+        },
+        {
+          "title": "gsv: keep-live fail-open if a plugin is unplugged",
+          "body": "Missing poolAI / llama-rs / Telenetis / OmniRoute must not abort agi. Hub stays up. gsv_keep_live reports the plugin down, not an error. OmniRoute stays policy-down (do not start). Canon plugin contract."
+        },
+        {
+          "title": "gsv: kit must not copy into plugin repos",
+          "body": "cargo xtask mirrors / rules-check: skills and VDT kit stay in GSV. Do not write .agents/skills or AGENTS.md globals into poolAI/llama-rs/etc. Plugin rules stay in the plugin tree. Do not copy the kit."
+        },
+        {
+          "title": "gsv: per-plugin target/ isolation",
+          "body": "Maximum Rust architecture. Drain of a plugin uses that plugin's target/ (poolAI CARGO_TARGET_DIR=/s/rust/poolAI/target). Never two cargo on one target/. products scan should show the plugin target dir. Do not kill GSV target/live/ when draining a plugin."
+        }
+      ]
+    },
+    {
+      "id": "hub-agi-plugins",
+      "title": "AGI plugins: portable siblings, env security, max Rust",
+      "body": "Placement band for GSV_AGI_PATH plugin contract (does not re-place APK / Telenetis freeze / Godfather ingest). Rust folder is the host. Everything else is a portable plugin. Environment security first. Maximum Rust. Session law: agi.",
+      "workflow": "ticket-claim",
+      "product": "gsv",
+      "tickets": [
+        {
+          "title": "gsv: products scan host vs portable plugin",
+          "body": "Canon GSV_AGI_PATH.md (gsv://docs/agi-path). cargo xtask products / gsv_products distinguish the rust-folder HOST (gsv) from sibling PLUGIN trees. Plugin = own git root, own target/, unplug fail-open. Nested GSV/telenetis is an exception, not the pattern. PRODUCTS.md enriches registered drains; it is not a closed allowlist of existence."
+        },
+        {
+          "title": "gsv: MCP sandbox stays GSV crate when plugin is picked",
+          "body": "Environment security first. Preview/terminal/vision/xtask remain inside S:/rust/GSV even after gsv_products_select of a plugin. No gsv_products_open, no tunnel, no User-scope MCP. Contracts: traversal / file:// / plugin-root path → -32602. Canon GSV_AGI_PATH env security table."
+        },
+        {
+          "title": "gsv: keep-live fail-open if a plugin is unplugged",
+          "body": "Missing poolAI / llama-rs / Telenetis / OmniRoute must not abort agi. Hub stays up. gsv_keep_live reports the plugin down, not an error. OmniRoute stays policy-down (do not start). Canon plugin contract."
+        },
+        {
+          "title": "gsv: kit must not copy into plugin repos",
+          "body": "cargo xtask mirrors / rules-check: skills and VDT kit stay in GSV. Do not write .agents/skills or AGENTS.md globals into poolAI/llama-rs/etc. Plugin rules stay in the plugin tree. Do not copy the kit."
+        },
+        {
+          "title": "gsv: per-plugin target/ isolation",
+          "body": "Maximum Rust architecture. Drain of a plugin uses that plugin's target/ (poolAI CARGO_TARGET_DIR=/s/rust/poolAI/target). Never two cargo on one target/. products scan should show the plugin target dir. Do not kill GSV target/live/ when draining a plugin."
+        }
+      ]
+    },
+    {
       "id": "roadmap-hook",
       "title": "Hook tickets from roadmap or plan",
       "body": "run mcp bot hook up scenario <id|band N|plan stem> [walk]. Parses GSV_TECH_ROADMAP.md PH-S* rows or superpowers plan checkboxes into ≤10 board rows. MCP gsv_tickets_hook.",

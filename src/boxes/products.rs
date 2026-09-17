@@ -22,6 +22,15 @@ pub struct ProductRow {
     pub source: String,
     pub git: bool,
     pub cargo: bool,
+    /// `host` = this GSV crate (the rust-folder brain). `plugin` = every other tree.
+    pub role: String,
+    /// Plugin nested under the kit (Telenetis exception), not a sibling.
+    pub nested: bool,
+    /// Cargo `target/` for this tree. Drain uses this dir; never share with another plugin.
+    pub target_dir: String,
+    /// Host-only live copy (`target/live/`). Do not kill before GSV `cargo test`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub live_dir: Option<String>,
 }
 
 /// Auto-parse of a selected product (no `cargo test`).
@@ -42,6 +51,11 @@ pub struct ProductScan {
     pub heartbeat_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub heartbeat_alive: Option<bool>,
+    pub role: String,
+    pub nested: bool,
+    pub target_dir: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub live_dir: Option<String>,
 }
 
 /// Display path as `S:/rust/...` (`/` not `\`).
@@ -67,6 +81,53 @@ fn slug_of(path: &Path) -> String {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+fn ecosystem_role(kit_root: &Path, path: &Path) -> &'static str {
+    if canon_key(kit_root) == canon_key(path) {
+        "host"
+    } else {
+        "plugin"
+    }
+}
+
+fn is_nested_plugin(kit_root: &Path, path: &Path) -> bool {
+    if ecosystem_role(kit_root, path) != "plugin" {
+        return false;
+    }
+    let root = canon_key(kit_root);
+    let child = canon_key(path);
+    child.starts_with(&format!("{root}/"))
+}
+
+fn target_dir_of(path: &Path) -> String {
+    let base = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    display_path(&base.join("target"))
+}
+
+fn live_dir_of(role: &str, path: &Path) -> Option<String> {
+    if role == "host" {
+        let base = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+        Some(display_path(&base.join("target/live")))
+    } else {
+        None
+    }
+}
+
+/// Plugin ids that contain the GSV-only `agi` skill (kit must not copy into plugins).
+pub fn kit_skill_leaked_into_plugins(kit_root: &Path) -> Vec<String> {
+    discover(kit_root)
+        .into_iter()
+        .filter(|r| r.role == "plugin")
+        .filter_map(|r| {
+            let p = PathBuf::from(&r.path);
+            if p.join(".agents/skills/agi").is_dir() || p.join(".cursor/skills/agi").is_dir() {
+                Some(r.id)
+            } else {
+                None
+            }
+        })
+        .collect()
 }
 
 fn is_registered(kit_root: &Path, id: &str) -> bool {
@@ -150,6 +211,7 @@ fn push_row(
     } else {
         "folder"
     };
+    let role = ecosystem_role(kit_root, path);
     out.push(ProductRow {
         registered: is_registered(kit_root, &id),
         id,
@@ -159,6 +221,10 @@ fn push_row(
         source: source.into(),
         git,
         cargo,
+        role: role.into(),
+        nested: is_nested_plugin(kit_root, path),
+        target_dir: target_dir_of(path),
+        live_dir: live_dir_of(role, path),
     });
 }
 
@@ -254,6 +320,10 @@ pub fn scan(kit_root: &Path, id: &str) -> Result<ProductScan, String> {
         cargo_name,
         heartbeat_path,
         heartbeat_alive,
+        role: row.role.clone(),
+        nested: row.nested,
+        target_dir: row.target_dir.clone(),
+        live_dir: row.live_dir.clone(),
     })
 }
 
@@ -427,5 +497,76 @@ mod tests {
         assert_eq!(alive, Some(true));
         std::env::remove_var("LLAMA_HEARTBEAT_PATH");
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn gsv_is_host_with_live_dir() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let rows = discover(&root);
+        let gsv = rows.iter().find(|r| r.id == "gsv").expect("gsv");
+        assert_eq!(gsv.role, "host");
+        assert!(!gsv.nested);
+        assert!(gsv.target_dir.replace('\\', "/").ends_with("/GSV/target"));
+        assert!(gsv
+            .live_dir
+            .as_deref()
+            .unwrap_or("")
+            .replace('\\', "/")
+            .ends_with("/GSV/target/live"));
+    }
+
+    #[test]
+    fn non_gsv_rows_are_plugins_with_own_target() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let rows = discover(&root);
+        for row in rows.iter().filter(|r| r.id != "gsv") {
+            assert_eq!(row.role, "plugin", "{}", row.id);
+            assert!(row.live_dir.is_none(), "{}", row.id);
+            assert!(
+                row.target_dir.ends_with("/target") || row.target_dir.ends_with("\\target"),
+                "{} target={}",
+                row.id,
+                row.target_dir
+            );
+            assert!(
+                !row.target_dir.contains(".."),
+                "target_dir must be canonical: {} {}",
+                row.id,
+                row.target_dir
+            );
+            assert_ne!(
+                row.target_dir.replace('\\', "/").to_ascii_lowercase(),
+                format!("{}/target", gsv_target_prefix(&root)),
+                "plugin {} must not share GSV target/",
+                row.id
+            );
+        }
+    }
+
+    fn gsv_target_prefix(root: &Path) -> String {
+        display_path(&root.join("target"))
+            .replace('\\', "/")
+            .trim_end_matches("/target")
+            .to_string()
+    }
+
+    #[test]
+    fn telenetis_nested_plugin_is_exception() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let rows = discover(&root);
+        if let Some(t) = rows.iter().find(|r| r.id == "telenetis") {
+            assert_eq!(t.role, "plugin");
+            assert!(t.nested, "telenetis lives under GSV, not a sibling");
+        }
+    }
+
+    #[test]
+    fn kit_agi_skill_stays_out_of_plugins() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let leaked = kit_skill_leaked_into_plugins(&root);
+        assert!(
+            leaked.is_empty(),
+            "agi skill copied into plugins: {leaked:?}"
+        );
     }
 }

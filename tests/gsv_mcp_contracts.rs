@@ -703,6 +703,9 @@ async fn logging_and_completion_over_http() {
         .iter()
         .any(|v| v.as_str() == Some("gsv://docs/rules-check")));
     assert!(values.iter().any(|v| v.as_str() == Some("gsv://docs/vdc")));
+    assert!(values
+        .iter()
+        .any(|v| v.as_str() == Some("gsv://docs/agi-path")));
 
     let (status, rejected) = mcp_post(
         &app,
@@ -1441,6 +1444,7 @@ async fn drain_prompt_names_always_on_tools() {
     assert!(text.contains("type=http"), "{text}");
     assert!(text.contains("gsv_grid"), "{text}");
     assert!(text.contains("gsv://docs/vdc"), "{text}");
+    assert!(text.contains("gsv://docs/agi-path"), "{text}");
     assert!(text.contains("tool_count (59)"), "{text}");
 }
 

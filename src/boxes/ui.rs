@@ -1978,10 +1978,17 @@ pub fn render_products(d: &Value) -> String {
         .iter()
         .map(|p| {
             let id = s(&p["id"]);
+            let role = s(&p["role"]);
+            let role_bit = if role.is_empty() {
+                esc(&s(&p["kind"]))
+            } else {
+                format!("{} · {}", esc(&role), esc(&s(&p["kind"])))
+            };
             vec![
                 format!("<kbd>{}</kbd>", esc(&id)),
                 esc(&s(&p["name"])),
-                esc(&s(&p["kind"])),
+                role_bit,
+                esc(&s(&p["target_dir"])),
                 if b(&p["registered"]) {
                     "<span class='ok'>yes</span>".into()
                 } else {
@@ -2000,13 +2007,22 @@ pub fn render_products(d: &Value) -> String {
             ]
         })
         .collect();
-    out.push_str(&tab(&["id", "name", "kind", "reg", "", ""], rows));
+    out.push_str(&tab(&["id", "name", "role", "target", "reg", "", ""], rows));
     let scan = &d["scan"];
     if scan.is_object() {
+        let live = s(&scan["live_dir"]);
+        let live_bit = if live.is_empty() {
+            String::new()
+        } else {
+            format!(" · live <kbd>{}</kbd>", esc(&live))
+        };
         out.push_str(&format!(
-            "<div class='dim'>scan git <kbd>{}</kbd> · cargo <kbd>{}</kbd> · handoff {}</div>",
+            "<div class='dim'>scan <kbd>{}</kbd> · git <kbd>{}</kbd> · cargo <kbd>{}</kbd> · target <kbd>{}</kbd>{} · handoff {}</div>",
+            esc(&s(&scan["role"])),
             esc(&s(&scan["git_head"])),
             esc(&s(&scan["cargo_name"])),
+            esc(&s(&scan["target_dir"])),
+            live_bit,
             if b(&scan["handoff_exists"]) {
                 "yes"
             } else {
@@ -2387,6 +2403,9 @@ pub fn render_keep_live(d: &Value) -> String {
     let hint = s(&d["hint"]);
     let mut out =
         String::from("<div class='dim'>keep-live 4 peers · fail-open (ok stays true)</div>");
+    if s(&d["omniroute_policy"]) == "down" {
+        out.push_str("<div class='dim'>OmniRoute <kbd>policy-down</kbd> · do not start</div>");
+    }
     if !hint.is_empty() {
         out.push_str(&format!("<div class='dim'>hint: {}</div>", esc(&hint)));
     }

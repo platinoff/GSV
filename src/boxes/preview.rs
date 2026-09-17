@@ -186,6 +186,10 @@ mod tests {
         let root = Path::new(".");
         assert!(resolve(root, "../../Cargo.toml").is_err());
         assert!(resolve(root, "/etc/hosts").is_err());
+        assert!(
+            resolve(root, "../poolAI/Cargo.toml").is_err(),
+            "plugin trees stay outside MCP preview sandbox"
+        );
     }
 
     #[test]

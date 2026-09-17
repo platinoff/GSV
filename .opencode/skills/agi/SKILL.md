@@ -35,14 +35,20 @@ When the owner writes `agi` (standalone word; same session as `абракада�
 C:\msys64\usr\bin\bash.exe -lc 'cd /s/rust/GSV && cargo xtask products'
 ```
 
-Then AskQuestion / `question` / numbered list: **«Проєкти з цього середовища. З яким працюємо?»**
+If `docs/NEXT_SESSION_PROMPT.md` names **`Owner product pick: <id>`** and that
+id is in the scan, **skip AskQuestion** and drain that product. Current pick
+(2026-09-17): **`telenetis`** — Redmi 9 is the Wi-Fi debug rabbit; play from
+the GSV hub (`:9999` + `/api/edge`), not a second brain.
+
+Otherwise AskQuestion / `question` / numbered list: **«Проєкти з цього середовища. З яким працюємо?»**
 
 One option **per discovered row**. Do **not** hardcode `gsv | poolai`.
 
 ## Step 0d — Keep-live all hub services (before drain)
 
-Call MCP (live `:9999`, 59 tools / 15 `gsv://`). Fail-open: a down peer does not
-abort the session.
+Call MCP (live `:9999`, 59 tools / 16 `gsv://`). Read `gsv://docs/agi-path`
+(rust-folder host, portable plugins, env security first, max Rust). Fail-open:
+a down plugin does not abort the session.
 
 | Probe | Tool / check | Expected |
 |-------|----------------|----------|
@@ -78,5 +84,6 @@ bash, no `git add -A`, no mid-drain push, no parallel `cargo` on one `target/`.
 ## See also
 
 - Drain skill: `.agents/skills/abracadabra/SKILL.md`
+- Ecosystem canon: `docs/gsv/GSV_AGI_PATH.md` · MCP `gsv://docs/agi-path` (host = rust folder; plugins portable; security first)
 - Keep-live: `docs/gsv/GSV_EDGE_PLAN.md` · MCP `gsv_keep_live`
-- Tickets: `docs/gsv/GSV_SETTINGS_TELEGRAM.md` · scenario `agi-session`
+- Tickets: `docs/gsv/GSV_SETTINGS_TELEGRAM.md` · scenarios `agi-session`, `hub-agi-path`, `hub-agi-plugins`

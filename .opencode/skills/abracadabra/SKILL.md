@@ -20,8 +20,10 @@ this skill is **`S:\rust\GSV/.agents/skills/abracadabra/`**. Client copies under
 `.cursor/skills/` and `.opencode/skills/` must stay identical; Grok reads the
 canon directly via `[skills] paths` in `.grok/config.toml` (no copy).
 
-**Open this folder as the Cursor workspace:** `S:\rust\GSV` (kit entry).
-Do not assume the product is GSV just because the window is GSV.
+**Open this folder as the Cursor workspace:** `S:\rust\GSV` (kit entry — the
+rust-folder **host**). Sibling git repos are **portable plugins**. Do not
+assume the product is GSV just because the window is GSV. Canon:
+[`docs/gsv/GSV_AGI_PATH.md`](../../../docs/gsv/GSV_AGI_PATH.md).
 
 Kit split: [`docs/gsv/GSV_VDT_KIT.md`](../../../docs/gsv/GSV_VDT_KIT.md).
 
@@ -48,29 +50,35 @@ The script merges, in order:
 3. This kit itself (`S:/rust/GSV`).
 
 Each row: `id`, `name`, `path`, `kind` (`rust` / `node` / `git` / `folder`),
-`registered` (`yes` if a row exists in [`docs/gsv/PRODUCTS.md`](../../../docs/gsv/PRODUCTS.md)).
+`registered` (`yes` if a row exists in [`docs/gsv/PRODUCTS.md`](../../../docs/gsv/PRODUCTS.md)),
+`role` (`host` = this GSV crate, `plugin` = every other tree), `target_dir`
+(drain `cargo` here; host also has `live_dir` — do not kill before GSV tests).
 
 Example from this machine (changes when new repos appear):
 
-| id | name | path | kind | registered |
-|----|------|------|------|------------|
-| gsv | GSV | `S:/rust/GSV` | rust | yes |
-| poolai | poolAI | `S:/rust/poolAI` | rust | yes |
-| linfs | LinFS | `S:/rust/LinFS` | rust | yes |
-| telenetis | telenetis | `S:/rust/GSV/telenetis` | rust | yes |
-| llama-rs | llama-rs | `S:/rust/llama-rs` | rust | yes |
-| rebook | rebook | `S:/rust/rebook` | rust | yes |
-| orr_desktop | ORR_DESKTOP | `S:/rust/ORR_DESKTOP` | rust | yes |
-| omniroute | omniroute | `S:/rust/omniroute` | node | yes |
+| id | name | path | kind | role | registered |
+|----|------|------|------|------|------------|
+| gsv | GSV | `S:/rust/GSV` | rust | **host** | yes |
+| poolai | poolAI | `S:/rust/poolAI` | rust | plugin | yes |
+| linfs | LinFS | `S:/rust/LinFS` | rust | plugin | yes |
+| telenetis | telenetis | `S:/rust/GSV/telenetis` | rust | plugin (nested) | yes |
+| llama-rs | llama-rs | `S:/rust/llama-rs` | rust | plugin | yes |
+| rebook | rebook | `S:/rust/rebook` | rust | plugin | yes |
+| orr_desktop | ORR_DESKTOP | `S:/rust/ORR_DESKTOP` | rust | plugin | yes |
+| omniroute | omniroute | `S:/rust/omniroute` | node | plugin | yes |
 
 If the script fails, fall back: read `gsv.code-workspace` + `ls` the parent of
 GSV for directories that contain `.git`. Still do **not** invent a fixed pair.
 
 ### 0b. Ask (one click)
 
-Use the host question UI. One option **per discovered row**. Label format:
+If `docs/NEXT_SESSION_PROMPT.md` names **`Owner product pick: <id>`** and that
+id is in the scan, **skip this ask** and drain that product (2026-09-17:
+**telenetis**, Redmi 9 Wi-Fi debug rabbit from the GSV hub).
 
-`{name} — {path} ({kind} · registered|discovered)`
+Otherwise use the host question UI. One option **per discovered row**. Label format:
+
+`{name} — {path} ({role} · {kind} · registered|discovered)`
 
 - **Cursor:** `AskQuestion`
 - **OpenCode:** `question`

@@ -1,5 +1,12 @@
 # Telenetis — Next Session Prompt
 
+**Owner product pick: telenetis** (next `agi` in the GSV window skips AskQuestion).
+
+0. Keep-live GSV `:9999` + this `:9800`. Redmi 9 = Wi-Fi debug rabbit.
+   Host ADB: `S:/rust/GSV/target/adb/platform-tools/adb.exe` (`adb devices` is
+   empty until pair). Owner: Developer → Wireless debugging → pair by code →
+   send IP:port + 6 digits. Then `adb pair` + `adb connect` → screenshots / taps
+   / logcat from the hub. Never `:8091` off-box. Never a second GSV.
 1. `cargo test` in `S:/rust/GSV/telenetis` — keep green (280+4+4); check
    `GET /health` on `:9800` and GSV `keep_live.telenetis` row
    (MCP `gsv_telenetis_health`; band 224 watchdog respawn).

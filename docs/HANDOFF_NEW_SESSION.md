@@ -1,6 +1,8 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-09-17 (band **237 ✅** hub single-entry proxy for poolAI edge plane — `GET /api/edge` + `/api/edge/{*path}`, token + 20/s + allowlist + JSON redact; crate **0.237.0**; queue last PH-S3018 next PH-S3019; keep-live `gsv/telenetis/llama_rs up · omniroute down` policy fail-open; poolAI grid `:8091` alive; OpenBot **59**/15. Next gsv drain = owner pick — leftover VDC: Telenetis service-account `t-1789392387275733400`)
+**Оновлено:** 2026-09-17 (band **237 ✅** hub `/api/edge`; crate **0.237.0**; **canon** [`gsv/GSV_AGI_PATH.md`](gsv/GSV_AGI_PATH.md) `gsv://docs/agi-path` — rust-folder host, portable plugins, env security first, max Rust, `agi`. **Owner product pick: telenetis**. Redmi 9 = Wi-Fi debug rabbit. Queue last PH-S3018 next PH-S3019)
+
+**Wi-Fi debug (Redmi 9):** ADB on box `target/adb/platform-tools/adb.exe`; `adb devices` empty until pair. Phone: Developer → Wireless debugging → pair by code → send `IP:port` + 6 digits. Then `adb pair` + `adb connect`. Play from GSV hub + Telenetis `:9800` (LAN `192.168.2.238`). Runbook [`telenetis/TWO_PHONES.md`](telenetis/TWO_PHONES.md) §KVM. Open: T23.1 ping · T26.1 pong · T32.1 download.
 
 **band 233 (LAN-first):** `gsv::net::local_addr()` (env `GSV_LOCAL_ADDR`; harness=loopback) + LAN
 origin-gate (`gate_post`) + live bind `0.0.0.0 --allow-lan`; keep_live/usage/omni/telenetis/llama-rs
@@ -10,9 +12,10 @@ live: gsv-server 0.0.0.0:9999, llama_serve 0.0.0.0:8080/8082, edge-pc-01 + a54-0
 192.168.2.238. Commits: GSV `019416a` · llama-rs `376aa5d` · poolAI `8f32f9f34`.
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
-**`абракадабра` / `abrakadabra` / `agi`** → `cargo xtask products` → **AskQuestion на проєкти з environment**
-(не `gsv | poolai` з голови) → S0 диск/git → project scan (warnings first) →
-якщо **gsv:** settings/Telegram/tickets spec bands **166–212 ✅**
+**`agi`** → `cargo xtask products` → **Owner product pick: telenetis** (skip AskQuestion
+if `telenetis` is in the scan) → S0 диск/git у **`S:/rust/GSV/telenetis`** →
+warnings-first → Redmi 9 Wi-Fi debug з хаба (не другий мозок).
+Якщо **gsv:** settings/Telegram/tickets spec bands **166–212 ✅**
 + **band 212** telenetis to 100% — security wiring + HTTP checks + graceful shutdown + 13 new tests (55 total)
 + **band 214** telenetis Mini App initData HMAC-SHA256 verify (P0 from band-213 plan) — real handshake
   verification replaces the placeholder `csrf_check`; `/api/verify` HTTP surface; ref-pinned vs OpenSSL;

@@ -1,6 +1,9 @@
 # Edge deployment plan — hub topology + settings (2026-09-14)
 
-GSV is the hub (`:9999` + MCP openbot). Everything else hangs off it.
+GSV is the hub (`:9999` + MCP openbot). The rust folder that holds GSV is the
+host; everything else is a **portable plugin**. Environment security first.
+**Telenetis is a Telegram-shell plugin, not a second brain.** Phone compute
+joins as an APK peer through hub `/api/edge` (canon [GSV_AGI_PATH.md](GSV_AGI_PATH.md)).
 Single source of truth for ports, autostart entries, env, and gaps.
 Hub-side virtual-datacenter must-have list (ALLBGP topology, VRAM capacity,
 rebalance, burst seats, security): see [GSV_VDC.md](GSV_VDC.md).
@@ -13,7 +16,7 @@ rebalance, burst seats, security): see [GSV_VDC.md](GSV_VDC.md).
 | llama provider | `:8080` | `llama-rs/target/release/llama_serve.exe` +27B mmap | HKCU `llama-serve` | `llama-rs/target/live/llama_serve.log`, heartbeat json |
 | poolAI grid | `:8091` | `poolAI/target/debug/poolai.exe` (`POOLAI_HTTP_PORT`) | HKCU `poolai-edge` → `target/edge_start.vbs` | `poolAI/target/live/edge_data/` (binds+tasks) |
 | edge executor | — | `llama-rs/target/debug/llama_edge.exe` as `edge-pc-01` (+ `a54-01`) | HKCU `llama-edge` → `target/edge_start.vbs` (with signing key) | `llama-rs/target/live/llama_edge.log` |
-| Telenetis edge | `:9800` | `telenetis/target/live/` + `telenetis-live.exe` supervisor | HKCU `telenetis-edge` → `target/telenetis_start.vbs` | roles jsonl (gitignored) |
+| Telenetis shell | `:9800` | `telenetis/target/live/` + `telenetis-live.exe` supervisor | HKCU `telenetis-edge` → `target/telenetis_start.vbs` | identity + Mini App chrome; not orchestrator |
 | ngrok tunnel | `:4040` api | Temp `ngrok.exe` v3.39.11 | HKCU `ngrok-tunnel` | reserved domain `atonable-alibi-unwilling` |
 | OmniRoute gate | `:20128` | node (no runtime, policy: Rust only) | DOWN by decision — role served by the hub itself (OmniRouter box) | keep-live probe stays as down-signal |
 
@@ -30,11 +33,14 @@ rebalance, burst seats, security): see [GSV_VDC.md](GSV_VDC.md).
   set (binds survive restarts), dev admin `admin/admin123` (change in prod),
   `POOLAI_TELEGRAM_SEAT_LIMIT=5` (flat), capability verify = operator key
   `221c…8235` (dev key rejected — verified live).
-- Telenetis `.env`: bot token, `GSV_URL=:9999`, `POOLAI_URL=:8091` (explicit),
-  `NGROK_BIN`=Temp path, `NGROK_AUTHTOKEN` set, webhook URL = reserved domain.
+- Telenetis `.env`: bot token, `GSV_URL=:9999`. **Grid calls go through hub
+  `/api/edge`**, not `POOLAI_URL=:8091` off-box. `NGROK_BIN`=Temp path,
+  `NGROK_AUTHTOKEN` set, webhook URL = reserved domain.
   `TELENETIS_PUBLIC_URL` unset (auto via tunnel).
-- GSV Godfather: channel `@GSV_OFFICIAL`, `allowed_user_ids` = EMPTY (spoof
-  risk — sec band), chat role host, squad_cap 3.
+- GSV Godfather: channel `@GSV_OFFICIAL`, `allowed_user_ids` includes owner
+  Telegram id `5035500793` + `platinofff` + session words (`solo`/`squad`/
+  `local`/`telenetis-01`); chat role host, squad_cap 3. Inbound poller skips
+  plain chat — owner commands use `/ticket gsv …`.
 - Telegram↔poolAI: binding `5035500793 ↔ a54-01`, VM `a54-01-vm` Running.
   Proto pin for workers: `f5b9bd39` (5.0.0; master is 6.0, no handshake).
 
@@ -46,9 +52,19 @@ rebalance, burst seats, security): see [GSV_VDC.md](GSV_VDC.md).
 4. Grid hardening: seats limit + prod keys (poolai, done 2026-09-14).
 5. Hub offline routing + IDE onboarding (gsv ×2, open).
 5b. Hub single-entry proxy (gsv) — done 2026-09-17 band 237 (`/api/edge`).
-6. OmniRoute gateway UP (omniroute, open; node).
+6. OmniRoute gateway UP (omniroute, open; node). **Policy-down** — do not start.
 7. MTP draft decision (llama-rs, open).
 8. Teach prompt + initData audit (gsv/telenetis, open).
+9. AGI path lockstep (gsv) — 2026-09-17: VDC “AGI path” table; Telenetis = shell;
+   APK + WiFi debug = `virtual_node` via `/api/edge`; no second hub in Mini App.
+10. APK LAN peer (gsv × phone) — register through hub edge-proxy; WiFi debug
+    already exists; do not clone Telenetis into the APK (open).
+11. Freeze Telenetis feature surface (telenetis) — identity + Mini App chrome
+    only; no new tensor/KVM/swarm-as-OS (open).
+12. Service account for Telenetis/APK replacing `admin/admin123` (gsv, open;
+    `t-1789392387275733400`).
+13. Godfather allowlisted free-text ingest (gsv, open) — plain owner chat in
+    `@GSV_OFFICIAL` is skipped today.
 
 ## 4. Cross-project settings matrix (research 2026-09-14)
 
@@ -86,7 +102,8 @@ has no runtime at all.
 
 ## 6. Rules carried over
 
-No Termux (owner). Everything through poolAI services; phones see Telenetis
-only (no 127.0.0.1 leaks; LAN `192.168.2.238`, remote via tunnel with free-tier
-interstitial caveat). Rust-first, MSYS2 bash, one commit per drain, no push
-mid-drain, secrets never echoed.
+No Termux (owner). Phone compute joins the hub as an APK peer via `/api/edge`;
+Telenetis is Telegram identity + Mini App shell only. Never expose `:8091`
+off-box. LAN `192.168.2.238`, remote via tunnel with free-tier interstitial
+caveat. Rust-first, MSYS2 bash, one commit per drain, no push mid-drain,
+secrets never echoed.

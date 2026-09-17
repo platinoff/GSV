@@ -26,6 +26,7 @@ Report fields: `ok` (sum of hard gates), `at`, `git_head`, `doc`, `checks[]`
 | `fingerprint` | hard | this crate version has a fingerprinted drain row (product=`gsv`) | `src/boxes/fingerprint.rs` → `latest` + `fingerprints.jsonl` (`docs/gsv/fingerprints.jsonl`) |
 | `vision` | hard | vision snapshot has no source↔persisted drift | `src/boxes/vision.rs` → `collect_drift` (revision + feed + extensions + persisted mirror) |
 | `registry` | soft | every registered product row keeps HANDOFF+NEXT (PRODUCTS.md ↔ discovery reality) | `src/boxes/products.rs` → `discover` + `scan` |
+| `kit_copy` | soft | GSV-only `agi` skill is not copied into plugin trees | `src/boxes/products.rs` → `kit_skill_leaked_into_plugins` |
 | `ratio` | hard | persisted Rust ratio ≥ formal band 95% (96% stretch advisory) | `src/boxes/ratio.rs` → `audit`/`save`/`load` → `data/rust_ratio.json` |
 | `sli` | soft | SLI catalog used/unused counts (unused = new-SLI candidate pool) | `src/boxes/sli.rs` → `wire`/`SliCatalog::scan` |
 | `bench` | soft | speed index fresh (≤ 31 days; rerun `cargo xtask record-speed`) | `src/boxes/vision.rs` → `read_speed_index` → `docs/vision/speed_index.json` |

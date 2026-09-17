@@ -10,6 +10,7 @@ Install + what to do: root [`README.md`](../../README.md). SMIL tiles: [`../asse
 
 | Файл | Призначення |
 |------|-------------|
+| [`GSV_AGI_PATH.md`](./GSV_AGI_PATH.md) | **Canon:** rust-folder host, portable plugins, env security, max Rust, `agi` (`gsv://docs/agi-path`) |
 | [`GSV_ARCHITECTURE.md`](./GSV_ARCHITECTURE.md) | Архітектура сервера + боксів; Rust/wasm split; шари L0–L5 |
 | [`GSV_SERVER.md`](./GSV_SERVER.md) | `gsv-server`: endpoints, update, offline, metrics resync |
 | [`GSV_BOXES.md`](./GSV_BOXES.md) | Специфікація боксів |

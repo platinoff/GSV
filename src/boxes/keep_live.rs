@@ -486,6 +486,8 @@ pub fn wire(data_dir: &Path) -> Value {
     let mode = mode_for(data_dir);
     json!({
         "ok": true,
+        "fail_open": true,
+        "omniroute_policy": "down",
         "mode": mode,
         "hint": format!("{} · {mode}", hint(&r)),
         "gsv": r.gsv,
@@ -502,6 +504,8 @@ pub async fn wire_async(data_dir: &Path) -> Value {
     let mode = mode_for(data_dir);
     json!({
         "ok": true,
+        "fail_open": true,
+        "omniroute_policy": "down",
         "mode": mode,
         "hint": format!("{} · {mode}", hint(&r)),
         "gsv": r.gsv,
@@ -753,6 +757,8 @@ mod tests {
         fs::create_dir_all(&tmp).unwrap();
         let v = wire(&tmp);
         assert_eq!(v["ok"], true);
+        assert_eq!(v["fail_open"], true);
+        assert_eq!(v["omniroute_policy"], "down");
         assert_eq!(v["gsv"]["alive"], false);
         assert_eq!(v["telenetis"]["alive"], false);
         assert_eq!(v["llama_rs"]["alive"], false);

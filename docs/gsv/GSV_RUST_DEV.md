@@ -3,7 +3,7 @@
 **Status:** Accepted (owner 2026-08-18 · band **153**) · **Workspace:** `S:\rust\GSV`  
 **MCP:** `gsv_xtask` · `gsv_disk` · resource `gsv://docs/rust-dev`
 
-Product **tests**, **benchmarks**, and **kit scripts** are Rust (`.rs`). Do not add `.sh`, `.ps1`, or JSON as the implementation of those things.
+Product **tests**, **benchmarks**, and **kit scripts** are Rust (`.rs`). Do not add `.sh`, `.ps1`, or JSON as the implementation of those things. This is the **maximum Rust** gate of [`GSV_AGI_PATH.md`](./GSV_AGI_PATH.md): hub + Rust plugins; Node/Python stay out of the host.
 
 JSON remains **data or host protocol** (vision snapshots, MCP client configs, `Cargo.lock`). It is not a test harness, a bench driver, or a drain script.
 

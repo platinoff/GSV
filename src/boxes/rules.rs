@@ -9,6 +9,7 @@
 //! - `vision` — the vision snapshot has no drift (`vision::collect_drift`).
 //! - `registry` — every registered product row keeps HANDOFF + NEXT
 //!   (`products::scan`), i.e. PRODUCTS.md matches discovery reality.
+//! - `kit_copy` — GSV-only `agi` skill is not copied into plugin trees.
 //! - `ratio` — the persisted `data/rust_ratio.json` meets the Rust 95–100%
 //!   formal band (`ratio::load`); the 96% stretch is advisory.
 //! - `sli` — unused script candidates (new-SLI pool) — advisory.
@@ -158,6 +159,18 @@ pub fn collect(repo_root: &Path, data_dir: &Path, live_url: Option<&str>) -> Rul
                 registered.len(),
                 missing.join(", ")
             )
+        },
+    ));
+
+    // kit_copy: GSV-only `agi` skill must not appear inside plugin trees.
+    let leaked = products::kit_skill_leaked_into_plugins(repo_root);
+    checks.push(RuleCheck::soft(
+        "kit_copy",
+        leaked.is_empty(),
+        if leaked.is_empty() {
+            "agi skill stays in GSV kit (plugins uncopied)".to_string()
+        } else {
+            format!("agi skill leaked into plugins: {}", leaked.join(", "))
         },
     ));
 

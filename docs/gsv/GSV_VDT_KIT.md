@@ -13,9 +13,11 @@ PoolAI тримає лише продуктовий шар + вказівник 
 Після drain: відкривати GSV (або `gsv.code-workspace`); PoolAI як єдиний корінь — fallback.
 
 Власник: **GSV = точка входу** для розробки будь-якого Rust-проєкту (спочатку PoolAI + GSV).
+The rust folder that holds this crate is the **host**; every other tree is a **portable plugin**.
+Environment security first. Maximum Rust. Session law: `agi`. Canon: [`GSV_AGI_PATH.md`](./GSV_AGI_PATH.md).
 
 Це узгоджено з боксами GSV (Toolchain, IDE, SLI, Tracker): сервер уже є мета-шаром над
-продуктами; тепер і **агентський кіт** має жити тут.
+плагінами; тепер і **агентський кіт** має жити тут.
 
 ## Decision
 
@@ -30,8 +32,8 @@ PoolAI тримає лише продуктовий шар + вказівник 
 3. **Продуктовий шар лишається в продукті** (не переїжджає в GSV):
    - PoolAI: FM, concept, `test-ci`, Playwright admin, OpenAPI gap, Galaxy, 90–95% ratio
    - GSV-продукт: `gsv-server`, бокси, 95–100% ratio, порт 9999
-4. Новий проєкт на цій машині: покласти git-репо під `S:/rust/<name>` (discover підхопить).
-   Рядок у `PRODUCTS.md` — лише якщо потрібен зареєстрований drain (Rust: HANDOFF + PH-S*; node: AGENTS + `npm test`, без PH-S*). Спільний кіт не копіювати.
+4. Новий **плагін** на цій машині: git-репо-сусід під rust-фолдером `S:/rust/<name>` (discover підхопить).
+   Рядок у `PRODUCTS.md` — лише якщо потрібен зареєстрований drain (Rust: HANDOFF + PH-S*; node: AGENTS + `npm test`, без PH-S*). Спільний кіт не копіювати. Безпека середовища (MCP sandbox = цей crate) не розширюється деревом плагіна.
 
 ## Split (що куди)
 
@@ -102,5 +104,6 @@ workspace folders, і git-сусідів під `S:/rust`.
 ## See also
 
 - Ролі сесії: [`../GSV_ROLES.md`](../GSV_ROLES.md)
+- Open ecosystem / super MCP hub / AGI path: [`GSV_AGI_PATH.md`](./GSV_AGI_PATH.md)
 - Roadmap: [`GSV_TECH_ROADMAP.md`](./GSV_TECH_ROADMAP.md)
 - PoolAI (продукт): `S:/rust/poolAI/docs/development/NEXT_SESSION_PROMPT.md`

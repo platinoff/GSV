@@ -4,7 +4,16 @@
 
 ## Принципи
 
-- **Rust 95–100%** — runtime, API, ML, tools, бокси, сервер.
+- **Hub is the brain.** GSV `:9999` is the **super MCP hub** for the open
+  ecosystem (`gsv_mcp_openbot`). The rust folder that contains this crate is
+  the host; every other project is a **portable plugin**. Environment security
+  first (MCP sandbox = this crate; no User-scope MCP; plugins do not widen
+  privilege). Telenetis is a Telegram-shell plugin. Phone APK + WiFi debug
+  joins as a `virtual_node` via `/api/edge`, not as a second hub. Canon:
+  [`GSV_AGI_PATH.md`](./GSV_AGI_PATH.md) · [`GSV_VDC.md`](./GSV_VDC.md) ·
+  [`GSV_EDGE_PLAN.md`](./GSV_EDGE_PLAN.md).
+- **Rust 95–100%** — runtime, API, ML, tools, бокси, сервер. Maximum Rust
+  architecture; `agi` session rules. No Node/Python/Java as the hub.
 - **WebAssembly 0–5%** — горизонт. This crate has **no** `crates/poolai-ui-wasm` member; charts are Rust-rendered SVG in `boxes/vision.rs`.
 - **UI** — тонкий JS/DOM glue поверх Rust API; сторінка оновлюється через серверні події (SSE/WS), а не через перезавантаження.
 - **Bind** — default `127.0.0.1:9999`; `--allow-lan` required to listen beyond loopback. Mutating POSTs from a non-local Origin are rejected. Responses carry CSP (`worker-src 'self'`) / `X-Content-Type-Options: nosniff` / `X-Frame-Options: DENY` / `Cache-Control: no-store`; POST bodies are capped at 256 KiB.
@@ -45,7 +54,7 @@
 | `tickets/` | Ticket board (`GET`/`POST /api/tickets` · claim/done/error/presence/reclaim/walk) — scenarios + solo/squad + lease + MDS band walk + jail/squad_cap (band **186 ✅**); Galaxy ops card `tickets` (band **168 ✅** · **170 ✅** · **171 ✅** · **175 ✅** · **186 ✅**) |
 | `mds/` | Light memory / disk / speed probe (`GET /api/mds` · `gsv-mds`) — band **175 ✅** |
 | `update/` | перевірка оновлення бінарника; сигнал «Update»; offline resync |
-| `mcp/` | `gsv_mcp_openbot` JSON-RPC (stdio `target/live/gsv-mcp.exe` + Cursor HTTP `http://127.0.0.1:9999/mcp`); **59** tools + **15** `gsv://` (band **236** Cursor 3.20.21 kit lockstep · **grid** ALLBGP · `gsv://docs/{rules-check,vdc}` · **226** `gsv_telenetis_health` keep-live) · **186** `gsv://docs/solo-squad-jail` · **185** `catalog_stale` / restart Cursor · **184** session catalog lockstep · **183** `gsv_tickets_next` + `tools.listChanged` · **182** `gsv_telegram_decode` · **179 ✅** `gsv_telegram_poll` · **178 ✅** `gsv_tickets_bench` · **177 ✅** `gsv_tickets_hook` · **175 ✅** `gsv_tickets_walk` + `gsv_mds` · **174 ✅** `gsv_telegram_ticket` · **171 ✅** ticket reclaim · **170 ✅** ticket create/done/error/presence · **169 ✅** `gsv_telegram_bus_*`; **168 ✅** `gsv_tickets` + `gsv_tickets_claim`; **167 ✅** `gsv_telegram`; **166 ✅** `gsv_settings`; **164 ✅** Cursor 3.16.29 kit lockstep; **159 ✅** Cursor HTTP + session SSE hold; **158 ✅** live copy + sync `--check`; **157 ✅** omni route) |
+| `mcp/` | `gsv_mcp_openbot` JSON-RPC (stdio `target/live/gsv-mcp.exe` + Cursor HTTP `http://127.0.0.1:9999/mcp`); **59** tools + **16** `gsv://` (incl. `gsv://docs/agi-path` · band **236** Cursor 3.20.21 kit lockstep · **grid** ALLBGP · `gsv://docs/{rules-check,vdc,agi-path}` · **226** `gsv_telenetis_health` keep-live) · **186** `gsv://docs/solo-squad-jail` · **185** `catalog_stale` / restart Cursor · **184** session catalog lockstep · **183** `gsv_tickets_next` + `tools.listChanged` · **182** `gsv_telegram_decode` · **179 ✅** `gsv_telegram_poll` · **178 ✅** `gsv_tickets_bench` · **177 ✅** `gsv_tickets_hook` · **175 ✅** `gsv_tickets_walk` + `gsv_mds` · **174 ✅** `gsv_telegram_ticket` · **171 ✅** ticket reclaim · **170 ✅** ticket create/done/error/presence · **169 ✅** `gsv_telegram_bus_*`; **168 ✅** `gsv_tickets` + `gsv_tickets_claim`; **167 ✅** `gsv_telegram`; **166 ✅** `gsv_settings`; **164 ✅** Cursor 3.16.29 kit lockstep; **159 ✅** Cursor HTTP + session SSE hold; **158 ✅** live copy + sync `--check`; **157 ✅** omni route) |
 
 ### UI (тонкий JS glue)
 

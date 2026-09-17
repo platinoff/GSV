@@ -12,6 +12,39 @@ capacity, model placement, seat, tier, and health edge — mirrored from poolAI
 `:8091`, kept in GSV (poolAI's peers/VMs/seats are memory-only), never
 point-to-point.
 
+**Ecosystem canon:** [`GSV_AGI_PATH.md`](./GSV_AGI_PATH.md) (`gsv://docs/agi-path`) —
+rust folder is the host; every other project is a portable plugin; environment
+security first; maximum Rust; `agi` is the session rule.
+
+## AGI path (owner 2026-09-17)
+
+The ecosystem brain is **this hub**, not Telenetis and not a phone APK.
+The rust folder that contains GSV is the only required host tree; poolAI,
+llama-rs, Telenetis, and the APK are **portable plugins**. Telenetis as
+“the app that handles everything” is a congestion path: Mini App WebView,
+webhook/ngrok, two bots, and direct `:8091` calls pile up until even small
+models look “dumb.” Owner policy: **GSV orchestrates; plugins execute.
+Environment security first.**
+
+| Layer | Who | Does | Does not |
+|---|---|---|---|
+| Brain | GSV `:9999` + MCP | tickets, Omni, grid, `/api/edge`, keep-live, placement | run tensors; speak Telegram as a product UI |
+| Grid | poolAI `:8091` | seats, virtual-nodes, jobs | be reachable off-box (hub proxy only, §6) |
+| Tensors | llama-rs `:8080` / `:8082` | deep / fast local tiers | own the fleet map |
+| Telegram shell | Telenetis `:9800` | identity, Mini App chrome, LAN when the bot is down | grow tensor / KVM / swarm / board-as-OS |
+| Phone peer | APK + WiFi debug | register as `virtual_node` via `/api/edge/{*path}` | become a second Telenetis |
+
+Path (b) in §3 (WebGPU **inside** the Mini App) stays a probe, not the
+control plane. The intended phone join is the **APK peer**: WiFi debug already
+exists; the APK talks to the hub edge-proxy with a token, never to `:8091`.
+Service-account rotation for Telenetis/APK (`t-1789392387275733400`) is the
+security leftover so those clients stop using `admin/admin123`.
+
+Godfather inbound (`gsv_telegram_poll`) classifies `/ticket`, hook phrases,
+and bus JSON only — plain channel chat is skipped. Owner commands in
+`@GSV_OFFICIAL` must use `/ticket gsv …` until an allowlisted free-text ingest
+lands.
+
 ## Fleet today (2026-09-14)
 
 | Node | Role | Wire | Notes |
@@ -20,8 +53,8 @@ point-to-point.
 | PC 5500U | fast interactive | `llama_serve :8082` (`lama-1.5`) | ~4 s E2E head |
 | PC 5500U | hub + MCP + watchdog | `gsv-server :9999`, `gsv-mcp` stdio, `gsv-watchdog` | `--no-lockstep` during drains |
 | PC 5500U | coordinator | poolAI `:8091` (admin/admin123 dev) | telegram seats + virtual nodes |
-| A54 | edge-worker (tasks, not tensors) | `llama_edge` → telenetis/poolAI | **no Termux** ⇒ no ggml-rpc; **browser-WebGPU slice peer = path (b), §3, probe pending** |
-| telenetis | bot + edge UI | `:9800` | LAN-only when Telegram is down |
+| A54 | edge-worker (tasks, not tensors) | `llama_edge` → hub `/api/edge` (not `:8091`) | **no Termux** ⇒ no ggml-rpc; Mini App WebGPU = path (b) probe; **APK + WiFi debug = intended peer** |
+| telenetis | Telegram identity + Mini App shell | `:9800` | LAN-only when Telegram is down; **not** the orchestrator |
 | Pi4 / spare PCs | future ggml-rpc workers | `llama_serve --rpc <ip>:50052` | proto-5.0.0 pin `f5b9bd39` |
 
 ## Hub-side must-haves
@@ -94,8 +127,9 @@ point-to-point.
   `jobs` / `health` GET-only). `login` / `vm` / `users` stay 404. JSON key
   redaction on the way out (`token` / `password` / `bot_token` / …). Health
   carries `edge_proxy`; VDC card shows the proxy line.
-- Service account replacing poolAI `admin/admin123` for Telenetis remains
-  open (`t-1789392387275733400` / `t-1789360414663375700`).
+- Service account replacing poolAI `admin/admin123` for Telenetis **and** the
+  APK peer remains open (`t-1789392387275733400` / `t-1789360414663375700`).
+  Those clients call hub `/api/edge`, never `:8091`.
 
 ### 7. Connection stability (OpenCode ⇄ hub) — DONE 2026-09-14, keep
 - Watchdog `--no-lockstep` / `GSV_WATCHDOG_LOCKSTEP=0`: ticket-drain rebuilds
@@ -125,3 +159,6 @@ point-to-point.
 - Node OmniRoute stays down by policy (Rust gateway role = GSV hub).
 - Rewards/credits mirroring while poolAI credits are dormant.
 - GPU-VRAM accounting inside poolAI itself (hub-side until upstream lands).
+- Telenetis as control plane / “do everything from the Mini App.”
+- APK as a second Telenetis (no ticket board, no bot, no KVM inside the APK).
+- Termux workers on phones.

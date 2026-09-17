@@ -72,8 +72,8 @@ fn discover_includes_gsv_kit() {
     let rows = products::discover(&root);
     assert!(
         rows.iter()
-            .any(|r| r.id == "gsv" && r.kind == "rust" && r.registered),
-        "gsv rust registered missing: {rows:?}"
+            .any(|r| r.id == "gsv" && r.kind == "rust" && r.registered && r.role == "host"),
+        "gsv rust registered host missing: {rows:?}"
     );
 }
 
@@ -168,6 +168,26 @@ async fn products_select_then_list_and_scan() {
     assert_eq!(json["handoff_exists"], true);
     assert_eq!(json["next_exists"], true);
     assert_eq!(json["cargo_name"], "gsv");
+    assert_eq!(json["role"], "host");
+    assert_eq!(json["nested"], false);
+    assert!(
+        json["target_dir"]
+            .as_str()
+            .unwrap_or("")
+            .replace('\\', "/")
+            .ends_with("/GSV/target"),
+        "{}",
+        json["target_dir"]
+    );
+    assert!(
+        json["live_dir"]
+            .as_str()
+            .unwrap_or("")
+            .replace('\\', "/")
+            .ends_with("/GSV/target/live"),
+        "{}",
+        json["live_dir"]
+    );
     assert!(!json["git_head"].as_str().unwrap_or_default().is_empty());
 }
 
@@ -215,6 +235,7 @@ fn render_products_has_select_and_open_actions() {
     assert!(html.contains("data-action='product-select'"), "{html}");
     assert!(html.contains("data-product-id='gsv'"), "{html}");
     assert!(html.contains("data-action='product-open'"), "{html}");
+    assert!(html.contains("role"), "{html}");
 }
 
 #[test]

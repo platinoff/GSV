@@ -2252,6 +2252,13 @@ a follow-up ticket.
 | **PH-S3017** | Docs | VDC §6 · SERVER · BOXES · plan checklist · EDGE_PLAN — **✅** |
 | **PH-S3018** | Close | fmt · clippy 0 · full `cargo test` exit 0 · stretch-96 **99.50%** · record-rust 0/0 · bump **0.237.0** · fingerprint grok-4.6 · sync last PH-S3018 next PH-S3019 — **✅** |
 
+Owner 2026-09-17 (after band 237): **AGI path** canon is `GSV_AGI_PATH.md`
+(`gsv://docs/agi-path`) — rust folder is the host; every other project is a
+portable plugin; environment security first; maximum Rust; `agi` is the
+session rule. Telenetis = shell plugin; APK = edge plugin via `/api/edge`.
+Next gsv drain = owner pick among APK peer, Telenetis freeze, service-account
+`t-1789392387275733400`, Godfather free-text ingest. Scenario `hub-agi-path`.
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

@@ -1,10 +1,12 @@
 # Product registry (GSV VDT kit)
 
-Registered products the host skill [`abracadabra`](../../.agents/skills/abracadabra/SKILL.md) can **drain** (HANDOFF, tests, ratio). Node rows are enrichment only — no PH-S* invent, no GSV loc-audit.
+Registered **plugins** the host skill [`abracadabra`](../../.agents/skills/abracadabra/SKILL.md) can **drain** (HANDOFF, tests, ratio). Node rows are enrichment only — no PH-S* invent, no GSV loc-audit.
+
+**Host vs plugin:** the rust folder that contains GSV is the host (`S:/rust/GSV`). Every other row is a **portable plugin** (own git tree, own `target/`). Canon: [`GSV_AGI_PATH.md`](./GSV_AGI_PATH.md).
 
 **Discovery is not this table.** When the owner writes `абракадабра` or `abrakadabra`, the agent runs
 [`cargo xtask products`](../../src/boxes/xtask.rs) and asks about
-**projects visible in the environment** (workspace folders + sibling git repos).
+**projects visible in the environment** (workspace folders + sibling git repos under the rust folder).
 This file only **enriches** a pick that is already registered.
 
 **Open Cursor on `S:\rust\GSV`** (or `gsv.code-workspace`). The window being GSV does **not** pick the product — the environment list + AskQuestion does.
@@ -24,20 +26,22 @@ Keep-live (band 225): llama-rs writes `target/live/llama_heartbeat.json` when ru
 
 Discovered but **not** in this table → S0 + git in that tree; no PH-S* drain until a row is added. OmniRoute is registered (band 149, owner-opt-in).
 
-## Shared vs product
+## Shared vs plugin
 
-| Lives in GSV (this kit) | Lives in the product repo |
+| Lives in GSV (host kit) | Lives in the plugin repo |
 |-------------------------|---------------------------|
 | `.agents/skills/` (except product-only skills) | FM / concept / DIGEST |
 | Generic `.cursor/rules/` (S0, MSYS2, git, rust style) | Product test aliases (`test-ci`, Playwright admin, OpenAPI gap) |
-| `абракадабра` / `abrakadabra` router (discover → ask) | Product HANDOFF / NEXT / roadmap journal |
+| `абракадабра` / `abrakadabra` / `agi` router (discover → ask) | Plugin HANDOFF / NEXT / roadmap journal |
+| MCP sandbox, edge proxy, tickets, keep-live | Plugin runtime (`target/`, ports, secrets) |
 
-## New product checklist
+## New plugin checklist
 
-1. Sibling git repo under `S:/rust/<name>` (discovery will list it automatically).
+1. Sibling git repo under the rust folder (`S:/rust/<name>` on this box). Discovery lists it. Nested under GSV is an exception (Telenetis), not the pattern.
 2. Row in this table **only if** it should get a registered drain (Rust: HANDOFF + PH-S*; node: AGENTS + `npm test`, no PH-S*).
 3. Optional folder in `gsv.code-workspace` so it also appears as a workspace root.
-4. Do **not** copy this whole kit into the new repo.
+4. Do **not** copy this whole kit into the plugin. Do **not** absorb plugin rules into GSV `AGENTS.md`.
 5. Do **not** add a hardcoded option in the abracadabra skill — the scan is the list.
+6. Plugin talks to the hub (`/mcp`, `/api/edge`, keep-live). Unplug = fail-open. Environment security first (sandbox stays GSV; no User MCP; no `:8091` off-box).
 
-Canon: [`GSV_VDT_KIT.md`](./GSV_VDT_KIT.md).
+Canon: [`GSV_VDT_KIT.md`](./GSV_VDT_KIT.md) · [`GSV_AGI_PATH.md`](./GSV_AGI_PATH.md).

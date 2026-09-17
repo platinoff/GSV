@@ -363,10 +363,12 @@ pub fn mcp_run(repo_root: &Path, task: &str) -> Result<Value, String> {
 
 /// TSV for abracadabra Step 0 (same columns as the retired shell script).
 pub fn products_tsv(kit_root: &Path) -> String {
-    let mut out = String::from("id\tname\tpath\tkind\tregistered\tsource\tgit\tcargo\n");
+    let mut out = String::from(
+        "id\tname\tpath\tkind\tregistered\tsource\tgit\tcargo\trole\tnested\ttarget_dir\tlive_dir\n",
+    );
     for row in products::discover(kit_root) {
         out.push_str(&format!(
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
             row.id,
             row.name,
             row.path,
@@ -375,6 +377,10 @@ pub fn products_tsv(kit_root: &Path) -> String {
             row.source,
             if row.git { "yes" } else { "no" },
             if row.cargo { "yes" } else { "no" },
+            row.role,
+            if row.nested { "yes" } else { "no" },
+            row.target_dir,
+            row.live_dir.as_deref().unwrap_or(""),
         ));
     }
     out
@@ -1059,6 +1065,12 @@ mod tests {
         let tsv = products_tsv(&root);
         assert!(tsv.starts_with("id\tname\tpath\tkind\tregistered"));
         assert!(tsv.contains("gsv\t"), "{tsv}");
+        assert!(tsv.contains("\thost\t"), "{tsv}");
+        assert!(tsv.contains("target_dir"), "{tsv}");
+        assert!(
+            tsv.contains("/GSV/target/live") || tsv.contains("GSV/target/live"),
+            "{tsv}"
+        );
     }
 
     #[test]
