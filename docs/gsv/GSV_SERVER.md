@@ -73,7 +73,7 @@
 | POST | `/mcp` | MCP JSON-RPC (initialize / tools/* / resources/* including subscribe/unsubscribe / prompts/* / logging/setLevel / completion/complete); skips browser CSRF (bots); `initialize` issues `Mcp-Session-Id` and queues `list_changed`; JSON POST **keeps** the notification queue for the GET hold; unknown id → 404; `Accept: text/event-stream` → SSE notifications then result; stdio twin is `target/live/gsv-mcp.exe` |
 | DELETE | `/mcp` | End HTTP MCP session (`Mcp-Session-Id` required; missing → 400; unknown → 404) |
 | GET | `/api/ui/layout` | grouped IA (ops/vision/sprint/studio) + `chrome` (8) + `html` (sidebar nav) + `header` (About/GPU/Auto/Power) + per-card blurbs/icons |
-| GET | `/api/ui/card/:name` | Rust-rendered card body HTML (`CARD_NAMES` **43**, incl. `about` + `tickets` + `telegram` + `settings` + `usage` + `watchdog` + `sw` + `products` + `fingerprints` + `keep-live`) |
+| GET | `/api/ui/card/:name` | Rust-rendered card body HTML (`CARD_NAMES` **44**, incl. `about` + `tickets` + `telegram` + `settings` + `usage` + `watchdog` + `sw` + `products` + `fingerprints` + `keep-live` + `vdc`) |
 | GET | `/api/ui/icon/:name` | 16×16 SVG glyph for a card id (optional `.svg` suffix) |
 | GET | `/api/ui/icons.svg` | About legend sheet (all card glyphs) |
 | GET | `/api/ui/load-palette` | live Galaxy `:root` CSS (`GalaxyPalette::as_css_root`) |
@@ -116,7 +116,7 @@ cargo run --manifest-path GSV/Cargo.toml --bin gsv-http-stand-smoke
 cargo run --manifest-path GSV/Cargo.toml --bin gsv-http-stand-smoke -- --base-url http://127.0.0.1:9999 --json
 ```
 
-- Перевіряє core boxes (`/api/health`, `/api/tracker`, `/api/sli`, `/api/toolchain`, `/api/update`, `/api/ratio`, `/api/omni/status`), усі `/api/vision*` (ok-гейт), SVG-ассети та **усі 43 зареєстрованих карток** `/api/ui/card/:name` (non-empty `html`).
+- Перевіряє core boxes (`/api/health`, `/api/tracker`, `/api/sli`, `/api/toolchain`, `/api/update`, `/api/ratio`, `/api/omni/status`), усі `/api/vision*` (ok-гейт), SVG-ассети та **усі 44 зареєстрованих карток** `/api/ui/card/:name` (non-empty `html`).
 - Keep-live: `health_keep_live` кейс — `/api/health` має `keep_live.{gsv,telenetis,llama_rs,omniroute}.alive` + `hint`; спектри підтверджені контрактом `health_keep_live_shape_has_four_peers_and_hint`.
 - Layout: `GET /api/ui/layout` — 4 групи (ops / vision / sprint / studio), default `sprint`, `chrome` (8 fragments: galaxy-backdrop / starfield / rss-ticker / gpu-mode / power-menu / panel-dock / fullscreen / node-search), `html` (sidebar nav inner HTML with `data-card-jump`), `header` (GPU / Auto / Resync / Power `data-action`).
 - **Band 143 chrome:** header stacking `z-index ≥ 40`, `.power-menu` `z-index:80` (no `body>header,.workspace{z-index:2}`); collapse removes the card from the grid (dock chip restore); at most one `.fullscreen` card below sticky chrome (`--fs-top`, workspace z-index 60 while open); Esc calls `exitFullscreen()` via `data-action='card-fs'`. Type scale `--ui:14px` (A−/A+ 12–18) drives `--fs-ui/card/meta/chart`; card body `max-height:420px`; speed/rust SVG canvas height 168, `ui-monospace` stack.

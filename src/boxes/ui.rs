@@ -258,6 +258,7 @@ pub const UI_GROUPS: [UiGroup; 4] = [
             "speed-index",
             "rust-diagnostics",
             "keep-live",
+            "vdc",
         ],
     },
 ];
@@ -2396,6 +2397,133 @@ pub fn render_keep_live(d: &Value) -> String {
     out
 }
 
+/// Virtual-DC card: poolAI fleet topology + layer tiers + seats + health
+/// history from the grid mirror wire (`GET /api/grid` shape). Text tables,
+/// no SVG graph — the Galaxy canvas stays light; placement truth lives
+/// in the plan rows.
+pub fn render_vdc(d: &Value) -> String {
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let counts = &d["counts"];
+    let cap_rows = arr(&d["capacity"]["rows"]);
+    let plan = &d["plan"];
+    let plan_rows = arr(&plan["rows"]);
+    let browser = arr(&plan["browser_peers"]);
+    let history = arr(&d["history"]);
+    if cap_rows.is_empty() && plan_rows.is_empty() && browser.is_empty() && history.is_empty() {
+        return empty_html("vdc");
+    }
+    let mut out = String::new();
+    let alive = b(&d["poolai_alive"]);
+    out.push_str(&format!(
+        "<div class='dim'>VDC {} nodes · {} workers · {} virtual · seats {}/{} {}</div>",
+        u(&counts["nodes"]),
+        u(&counts["workers"]),
+        u(&counts["virtual_nodes"]),
+        u(&counts["seats_used"]),
+        u(&counts["seat_limit"]),
+        pill(
+            if alive { "ok" } else { "warn" },
+            if alive { "poolai up" } else { "poolai down" }
+        ),
+    ));
+    if b(&d["stale"]) {
+        out.push_str(&format!(
+            "<div class='dim'>stale mirror — {}</div>",
+            esc(s(&d["last_error"]).as_str())
+        ));
+    }
+    if !cap_rows.is_empty() {
+        let rows: Vec<Vec<String>> = cap_rows
+            .iter()
+            .map(|r| {
+                let eff = &r["effective"];
+                let hub = &r["hub"];
+                vec![
+                    s(&r["id"]),
+                    s(&eff["class"]),
+                    format!("{} MB", u(&eff["ram_mb"])),
+                    format!("{} MB", u(&eff["gpu_mb"])),
+                    esc(s(&hub["rpc_endpoint"]).as_str()),
+                    s(&r["source"]),
+                ]
+            })
+            .collect();
+        out.push_str("<div class='dim'>topology</div>");
+        out.push_str(&tab(&["node", "class", "ram", "vram", "rpc", "via"], rows));
+    }
+    if !plan_rows.is_empty() || !browser.is_empty() {
+        out.push_str(&format!(
+            "<div class='dim'>tiers {} layers · uncovered {} {}</div>",
+            u(&plan["model_layers"]),
+            u(&plan["uncovered_layers"]),
+            pill(
+                if b(&plan["feasible"]) { "ok" } else { "warn" },
+                if b(&plan["feasible"]) {
+                    "fits"
+                } else {
+                    "short"
+                }
+            ),
+        ));
+    }
+    if !plan_rows.is_empty() {
+        let rows: Vec<Vec<String>> = plan_rows
+            .iter()
+            .map(|r| {
+                vec![
+                    s(&r["id"]),
+                    s(&r["layers"]),
+                    format!("{}", u(&r["take"])),
+                    format!("{} MB", u(&r["share_mb"])),
+                ]
+            })
+            .collect();
+        out.push_str(&tab(&["device", "layers", "take", "share"], rows));
+    }
+    if !browser.is_empty() {
+        let rows: Vec<Vec<String>> = browser
+            .iter()
+            .map(|r| {
+                vec![
+                    s(&r["id"]),
+                    s(&r["layers"]),
+                    esc(s(&r["note"]).as_str()),
+                    esc(s(&r["endpoint"]).as_str()),
+                ]
+            })
+            .collect();
+        out.push_str("<div class='dim'>browser peers (path b)</div>");
+        out.push_str(&tab(&["peer", "layers", "adapter", "task"], rows));
+    }
+    let advice = s(&plan["advice"]);
+    if !advice.is_empty() {
+        out.push_str(&format!("<div class='dim'>advice: {}</div>", esc(&advice)));
+    }
+    if !history.is_empty() {
+        let dots: String = history
+            .iter()
+            .rev()
+            .take(12)
+            .rev()
+            .map(|h| {
+                let up = b(&h["alive"]);
+                format!(
+                    "<span class='{}' title='{}'>●</span>",
+                    if up { "ok" } else { "dim" },
+                    esc(s(&h["ts"]).as_str()),
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("");
+        out.push_str(&format!(
+            "<div class='dim'>health history (last 12): {dots}</div>"
+        ));
+    }
+    out
+}
+
 /// Service Worker shell-cache card (`/api/sw`).
 pub fn render_sw(d: &Value) -> String {
     if let Some(msg) = not_ok(d) {
@@ -2866,12 +2994,13 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
         "node-search" => Some(render_node_search(d)),
         "about" => Some(crate::boxes::guide::render_about(d)),
         "keep-live" => Some(render_keep_live(d)),
+        "vdc" => Some(render_vdc(d)),
         _ => None,
     }
 }
 
 /// Server-rendered card names (stable contract for `/api/ui/card/:name`).
-pub const CARD_NAMES: [&str; 43] = [
+pub const CARD_NAMES: [&str; 44] = [
     "tracker",
     "sli",
     "toolchain",
@@ -2915,6 +3044,7 @@ pub const CARD_NAMES: [&str; 43] = [
     "node-search",
     "about",
     "keep-live",
+    "vdc",
 ];
 
 /// Galaxy backdrop card body (SVG-backed visual).
@@ -3296,6 +3426,46 @@ mod tests {
     }
 
     #[test]
+    fn render_vdc_shows_topology_tiers_and_history() {
+        let d = serde_json::json!({
+            "ok": true,
+            "poolai_alive": true,
+            "counts": {"nodes": 2, "workers": 1, "virtual_nodes": 1, "seats_used": 1, "seat_limit": 5},
+            "capacity": {"rows": [
+                {"id": "edge-pc-01", "poolai": {}, "hub": {"rpc_endpoint": ""},
+                 "effective": {"class": "cpu", "ram_mb": 7561, "gpu_mb": 7560}, "source": "hub"},
+                {"id": "a54-01-valhall", "poolai": {}, "hub": {"rpc_endpoint": ""},
+                 "effective": {"class": "webgpu", "ram_mb": 4096, "gpu_mb": 0}, "source": "hub"}
+            ]},
+            "plan": {
+                "model_layers": 64, "feasible": false, "uncovered_layers": 23,
+                "advice": "profile more",
+                "rows": [{"id": "edge-pc-01", "layers": "0-40", "take": 41, "share_mb": 4510}],
+                "browser_peers": [{"id": "a54-01-valhall", "layers": "41-60", "take": 20,
+                    "note": "webgpu valhall", "endpoint": "mini-app task (peer a54-01-valhall)"}],
+                "llama_serve_args": []
+            },
+            "history": [
+                {"ts": "t1", "alive": true},
+                {"ts": "t2", "alive": false}
+            ]
+        });
+        let html = render_vdc(&d);
+        assert!(html.contains("edge-pc-01"), "{html}");
+        assert!(html.contains("a54-01-valhall"), "{html}");
+        assert!(html.contains("0-40"), "{html}");
+        assert!(html.contains("41-60"), "{html}");
+        assert!(html.contains("browser peers"), "{html}");
+        assert!(html.contains("profile more"), "{html}");
+        assert!(html.contains("●"), "{html}");
+        assert!(html.contains("seats 1/5"), "{html}");
+        let empty = serde_json::json!({"ok": true});
+        assert!(render_vdc(&empty).contains("vdc — no data"));
+        let err = serde_json::json!({"ok": false, "error": "down"});
+        assert!(render_vdc(&err).contains("down"));
+    }
+
+    #[test]
     fn render_card_dispatch_known_and_unknown() {
         let d = serde_json::json!({ "ok": true, "revision": "472", "open_count": 0, "closed_count": 0, "planned_count": 0, "total": 0, "progress_pct": 0.0, "layers": [] });
         assert!(render_card("sprint-progress", &d).is_some());
@@ -3317,8 +3487,9 @@ mod tests {
         assert!(render_card("fingerprints", &d).is_some());
         assert!(render_card("about", &d).is_some());
         assert!(render_card("keep-live", &d).is_some());
+        assert!(render_card("vdc", &d).is_some());
         assert!(render_card("nope", &d).is_none());
-        assert_eq!(CARD_NAMES.len(), 43);
+        assert_eq!(CARD_NAMES.len(), 44);
         assert!(CARD_NAMES.contains(&"about"));
         assert!(CARD_NAMES.contains(&"ranks"));
         let chrome = chrome_controls_stylesheet();

@@ -229,5 +229,5 @@ fn render_keep_live_empty_and_error() {
 #[test]
 fn card_names_include_keep_live() {
     assert!(CARD_NAMES.contains(&"keep-live"));
-    assert_eq!(CARD_NAMES.len(), 43);
+    assert_eq!(CARD_NAMES.len(), 44);
 }

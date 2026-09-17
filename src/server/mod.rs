@@ -1384,6 +1384,10 @@ async fn card_wire(state: &AppState, name: &str, q: &CardQuery) -> Result<Value,
             q.layer.as_deref().filter(|s| !s.is_empty()),
         ),
         "about" => json!({ "ok": true, "locale": "en" }),
+        "vdc" => {
+            state.grid.refresh().await;
+            state.grid.wire().await
+        }
         _ => return Err(()),
     };
     Ok(wire)

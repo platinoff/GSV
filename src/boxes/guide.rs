@@ -283,6 +283,13 @@ pub const CARD_GUIDE: &[GuideEntry] = &[
             "Orange bars are warnings, red bars are errors. Latest clippy command in the footer.",
     },
     GuideEntry {
+        id: "vdc",
+        title: "VDC",
+        group: "studio",
+        r#use: "device cloud",
+        blurb: "poolAI fleet topology, layer tiers, seats, and health history from the grid mirror.",
+    },
+    GuideEntry {
         id: "gpu-mode",
         title: "GPU",
         group: "chrome",
@@ -495,6 +502,9 @@ fn icon_inner(id: &str) -> &'static str {
         }
         "node-search" => {
             "<circle cx='7' cy='7' r='4'/><path d='M10.2 10.2 14 14'/>"
+        }
+        "vdc" => {
+            "<rect x='2' y='3' width='12' height='5' rx='1'/><rect x='2' y='9' width='12' height='4' rx='1'/><circle cx='5' cy='5.5' r='0.8' fill='currentColor' stroke='none'/><circle cx='11' cy='11' r='0.8' fill='currentColor' stroke='none'/>"
         }
         _ => "<rect x='3' y='3' width='10' height='10' rx='2'/>",
     }
