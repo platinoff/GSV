@@ -32,23 +32,25 @@
     </div>
     <script>
     // Deep-link entry: t.me startapp links always open this default page,
-    // so a `probe` start_param hops straight to the WebGPU probe page.
+    // so a `probe`/`tensor` start_param hops straight to its page.
     // Runs on load AND on return from background: a minimized WebView keeps
     // stale DOM (no reload), so resume re-checks the param too.
     (function () {
-        function maybeProbe() {
+        function maybeDeepLink() {
             try {
                 var w = window.Telegram && window.Telegram.WebApp;
                 var p = w && w.initDataUnsafe && w.initDataUnsafe.start_param;
-                if (String(p || "").toLowerCase() === "probe" &&
-                    location.pathname !== "/probe") {
+                p = String(p || "").toLowerCase();
+                if (p === "probe" && location.pathname !== "/probe") {
                     location.replace("/probe");
+                } else if (p === "tensor" && location.pathname !== "/tensor") {
+                    location.replace("/tensor");
                 }
             } catch (e) {}
         }
-        maybeProbe();
+        maybeDeepLink();
         document.addEventListener("visibilitychange", function () {
-            if (!document.hidden) { maybeProbe(); }
+            if (!document.hidden) { maybeDeepLink(); }
         });
     })();
     </script>

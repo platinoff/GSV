@@ -3432,6 +3432,8 @@ mod tests {
         let html = String::from_utf8_lossy(&body);
         assert!(html.contains("start_param"));
         assert!(html.contains("/probe"));
+        // T23.2: `tensor` start_param hops the same way.
+        assert!(html.contains("/tensor"));
     }
 
     #[tokio::test]

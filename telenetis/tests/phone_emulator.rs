@@ -56,7 +56,15 @@ fn mock_gsv_router() -> axum::Router {
 /// Spawn the FULL Telenetis app (mirror of main.rs routes, incl `/tracker`)
 /// on an ephemeral loopback port. Returns `(http_base, state)`.
 async fn spawn_telenetis(gsv_url: String) -> (String, AppState) {
-    let state = AppState::new(phone_config(gsv_url));
+    // Isolated roles dir per spawn: the consent/roles files ride along as
+    // siblings, so live repo data (e.g. a real phone opt-in) can never leak
+    // into hermetic scenarios — the emulator caught exactly that.
+    static SRV_DIR_CTR: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let n = SRV_DIR_CTR.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let dir = std::env::temp_dir().join(format!("emu_srv_{}_{}", std::process::id(), n));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let state = AppState::new_with_roles_file(phone_config(gsv_url), dir.join("roles.jsonl"));
     let app = telenetis::ui::router(state.clone())
         .merge(telenetis::bot::webhook::router(state.clone()))
         .merge(telenetis::stream::ws::router(state.clone()))
