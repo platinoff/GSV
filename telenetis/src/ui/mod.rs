@@ -45,6 +45,11 @@ pub fn router(state: AppState) -> Router {
         .route("/api/tickets", get(api_tickets))
         .route("/api/roles", get(api_roles).post(api_roles_assign))
         .route("/api/roles/remove", post(api_roles_remove))
+        .route(
+            "/api/testmode",
+            get(api_testmode_get).post(api_testmode_set),
+        )
+        .route("/api/edge/testmode/peers", get(api_testmode_peers))
         .route("/api/flows", get(api_flows))
         .route("/static/app.css", get(serve_css))
         .route("/static/app.js", get(serve_js))
@@ -511,6 +516,96 @@ async fn api_roles_remove(
     let had = state.get_role(&jail_id).await.is_some();
     state.remove_role(&jail_id).await;
     Json(json!({ "ok": true, "removed": had, "jail_id": jail_id })).into_response()
+}
+
+/// Verify the Mini App handshake for the consent surface (same bar as board
+/// actions). Returns the verified Telegram user id — identity always comes
+/// from the checked `initData`, never from the body.
+fn testmode_caller(token: &str, q: &ActionQuery) -> Result<String, (StatusCode, Json<Value>)> {
+    if token.is_empty() {
+        return Err((
+            StatusCode::BAD_GATEWAY,
+            Json(crate::actions::err_json("bot token not configured")),
+        ));
+    }
+    let now = freshness_now(q.auth_date);
+    if let Err(e) = crate::security::verify_init_data(
+        &q.init_data,
+        token,
+        now,
+        crate::security::initdata::DEFAULT_MAX_AGE_SECS,
+    ) {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(crate::actions::err_json(&format!("initData: {e}"))),
+        ));
+    }
+    crate::security::initdata::user_id(&q.init_data).ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(crate::actions::err_json("initData has no user id")),
+        )
+    })
+}
+
+/// POST /api/testmode — the Mini App consent toggle ("allow tests from
+/// host"). Body: `{"on": true|false}`. Revocation (`on=false`) deletes the
+/// record; absence always means no consent.
+async fn api_testmode_set(
+    State(state): State<AppState>,
+    Query(q): Query<ActionQuery>,
+    Json(body): Json<serde_json::Value>,
+) -> Response {
+    let user_id = match testmode_caller(&state.config().bot_token, &q) {
+        Ok(id) => id,
+        Err(resp) => return resp.into_response(),
+    };
+    let on = body
+        .get("on")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+    state.testmode_set(&user_id, on).await;
+    Json(json!({ "ok": true, "on": on })).into_response()
+}
+
+/// GET /api/testmode — the caller's own switch position.
+async fn api_testmode_get(State(state): State<AppState>, Query(q): Query<ActionQuery>) -> Response {
+    let user_id = match testmode_caller(&state.config().bot_token, &q) {
+        Ok(id) => id,
+        Err(resp) => return resp.into_response(),
+    };
+    Json(json!({ "ok": true, "on": state.testmode_opted_in(&user_id).await })).into_response()
+}
+
+/// GET /api/edge/testmode/peers — opted-in user ids for the host test
+/// harness. Operator surface: a valid `initData` handshake, or a direct
+/// LAN/loopback caller (same gate as the upstream proxy POSTs). Numeric ids
+/// never reach chat surfaces; the harness needs them to bind peers.
+async fn api_testmode_peers(
+    State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<std::net::SocketAddr>,
+    headers: axum::http::HeaderMap,
+    Query(gate): Query<ActionQuery>,
+) -> Response {
+    let forwarded =
+        headers.contains_key("x-forwarded-for") || headers.contains_key("x-forwarded-proto");
+    let now = freshness_now(gate.auth_date);
+    if !proxy_post_allowed(
+        &state.config().bot_token,
+        &gate.init_data,
+        now,
+        Some(peer.ip()),
+        forwarded,
+    ) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(crate::actions::err_json(
+                "testmode peers denied: initData or direct LAN required",
+            )),
+        )
+            .into_response();
+    }
+    Json(json!({ "ok": true, "peers": state.testmode_list().await })).into_response()
 }
 
 /// HTML page with `Cache-Control: no-store` — Telegram WebView caches
@@ -1862,6 +1957,165 @@ mod tests {
         assert_eq!(json["ok"], false);
     }
 
+    // ---- host-test consent surface (T16.1) ----
+
+    static TM_DIR_CTR: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+    /// AppState with an isolated roles dir (the consent file rides along as
+    /// a sibling, so no test touches the repo `data/` tree).
+    fn tm_state() -> (AppState, std::path::PathBuf) {
+        let n = TM_DIR_CTR.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let dir = std::env::temp_dir().join(format!("tns-tm-http-{}-{n}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let cfg = Config {
+            bot_token: "test".to_string(),
+            gsv_url: "http://127.0.0.1:1".to_string(),
+            poolai_url: "http://127.0.0.1:9".to_string(),
+            port: 9800,
+            jail_id: "test-jail".to_string(),
+            godfather_channel_id: 0,
+            webhook_url: None,
+            webhook_secret: None,
+            public_url: None,
+            tunnel_enabled: false,
+            ngrok_bin: None,
+        };
+        let state = AppState::new_with_roles_file(cfg, dir.join("roles.jsonl"));
+        (state, dir)
+    }
+
+    async fn post_testmode(
+        app: axum::Router,
+        on: bool,
+        init_raw: &str,
+    ) -> axum::response::Response {
+        let init_q = percent_encode_query(init_raw);
+        app.oneshot(
+            Request::builder()
+                .uri(format!(
+                    "/api/testmode?initData={init_q}&authDate=1750000010"
+                ))
+                .method("POST")
+                .header("content-type", "application/json")
+                .body(Body::from(format!("{{\"on\":{on}}}")))
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn testmode_opt_in_out_roundtrip() {
+        let (state, dir) = tm_state();
+        let app = router(state.clone());
+        let init_q = percent_encode_query(&test_init_data(TEST_USER_RAW));
+
+        // Opt in with the verified handshake (user 279058397).
+        let resp = post_testmode(app.clone(), true, &test_init_data(TEST_USER_RAW)).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json, serde_json::json!({"ok": true, "on": true}));
+        assert!(state.testmode_opted_in("279058397").await);
+
+        // Persisted next to the roles file (reload keeps consent).
+        let file = dir.join("testmode.jsonl");
+        assert!(file.is_file());
+        let reloaded = AppState::new_with_roles_file(
+            Config {
+                bot_token: "test".to_string(),
+                gsv_url: "http://127.0.0.1:1".to_string(),
+                poolai_url: "http://127.0.0.1:9".to_string(),
+                port: 9800,
+                jail_id: "test-jail".to_string(),
+                godfather_channel_id: 0,
+                webhook_url: None,
+                webhook_secret: None,
+                public_url: None,
+                tunnel_enabled: false,
+                ngrok_bin: None,
+            },
+            dir.join("roles.jsonl"),
+        );
+        assert!(reloaded.testmode_opted_in("279058397").await);
+
+        // Status read-back + revoke.
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(format!(
+                        "/api/testmode?initData={init_q}&authDate=1750000010"
+                    ))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json, serde_json::json!({"ok": true, "on": true}));
+
+        let resp = post_testmode(app, false, &test_init_data(TEST_USER_RAW)).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert!(!state.testmode_opted_in("279058397").await);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn testmode_rejects_tampered_handshake() {
+        let (state, dir) = tm_state();
+        let app = router(state.clone());
+        let resp = post_testmode(app, true, &test_init_data(TEST_TAMPERED_USER_RAW)).await;
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+        assert!(state.testmode_list().await.is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn testmode_peers_operator_gate() {
+        use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+        let (state, dir) = tm_state();
+        state.testmode_set("279058397", true).await;
+        let app = router(state);
+
+        // Direct loopback caller, no handshake — harness on the host passes.
+        let lan = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 55555);
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/edge/testmode/peers")
+                    .extension(ConnectInfo(lan))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["peers"], serde_json::json!(["279058397"]));
+
+        // Forwarded (tunnel-shaped) caller without handshake — refused.
+        let wan = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(203, 0, 113, 7)), 55555);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/edge/testmode/peers")
+                    .header("x-forwarded-for", "203.0.113.7")
+                    .extension(ConnectInfo(wan))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[tokio::test]
     async fn board_action_done_endpoint_registered() {
         // Same trust path for the done verb: tampered handshake is refused.
@@ -3007,6 +3261,9 @@ mod tests {
         assert!(js.contains("trackerUrl")); // T7.2: own WS tracker announce
         assert!(js.contains("/tracker")); // T7.2: tracker endpoint
         assert!(js.contains("downloadUrl")); // T13.2: same-origin Save URL
+        assert!(js.contains("testModeOn")); // T16.2: consent toggle
+        assert!(js.contains("serveTestPing")); // T16.2: test_ping execution
+        assert!(js.contains("tensor-testmode")); // T16.2: toggle button
         assert!(js.contains("autoUseSaved")); // T5.1: saved model back, no tap
         assert!(js.contains("chainMessages")); // T5.2: worker-side chain
         assert!(js.contains("payload.history")); // T5.2: host seeds the chain

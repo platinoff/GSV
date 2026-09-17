@@ -1262,6 +1262,7 @@ function serveTask(task) {
     });
 }
 
+var TEST_SKIP_LOGGED = false;
 function pollOnce() {
     if (S.busy) { return Promise.resolve(); }
     S.busy = true;
@@ -1273,6 +1274,15 @@ function pollOnce() {
             var task = data && data.task;
             if (!task) { return 'idle'; }
             if (task.task_type === 'llama_chat') { return serveTask(task); }
+            // T16.2: host test tasks run only with the owner's consent toggle
+            // on; without it they requeue exactly like foreign tasks.
+            if (task.task_type === 'test_ping') {
+                if (testModeOn()) { return serveTestPing(task); }
+                if (!TEST_SKIP_LOGGED) {
+                    TEST_SKIP_LOGGED = true;
+                    logRow('test', 'test_ping skipped (consent off) — requeued');
+                }
+            }
             // Not ours (bootstrap/pc tasks): put back, keep looking briefly.
             if (requeued < MAX_REQUEUE_PER_TICK) {
                 requeued++;
@@ -1403,6 +1413,58 @@ el('tensor-autosave').addEventListener('click', function () {
     logRow('sys', 'auto-save to Downloads ' + (on ? 'on' : 'off'));
 });
 setAutoSave(autoSaveOn());
+el('tensor-testmode').addEventListener('click', function () {
+    var on = !testModeOn();
+    setTestMode(on);
+});
+setTestModeLabel();
+function setTestModeLabel() {
+    var on = testModeOn();
+    var b = el('tensor-testmode');
+    if (b) { b.textContent = 'Host tests: ' + (on ? 'on' : 'off'); }
+}
+// T16.2: host-test consent ("allow tests from host" checkbox). Persisted
+// locally AND registered server-side (POST /api/testmode, initData-authed)
+// under the verified Telegram user id. The worker executes `test_ping`
+// tasks only while this is on; the host harness enqueues only to opted-in
+// peers. v1 allowlist: test_ping alone — no model, no downloads.
+var TESTMODE_KEY = 'tensor-testmode';
+function testModeOn() {
+    try { return localStorage.getItem(TESTMODE_KEY) === '1'; } catch (e) { return false; }
+}
+function setTestMode(on) {
+    try {
+        if (on) { localStorage.setItem(TESTMODE_KEY, '1'); }
+        else { localStorage.removeItem(TESTMODE_KEY); }
+    } catch (e) {}
+    var b = el('tensor-testmode');
+    if (b) { b.textContent = 'Host tests: ' + (on ? 'on' : 'off'); }
+    var w = (window.Telegram && window.Telegram.WebApp) || null;
+    var initData = (w && w.initData) || '';
+    var authDate = Math.floor(Date.now() / 1000);
+    timed('/api/testmode?initData=' + encodeURIComponent(initData) +
+        '&authDate=' + authDate, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ on: !!on })
+        }, 15000).then(function (r) { return r.json(); }).then(function (data) {
+            logRow('sys', 'host tests ' + (on ? 'allowed' : 'revoked') +
+                ((data && data.ok) ? ' (server confirmed)' : ' (server NOT confirmed)'));
+        }).catch(function () {
+            logRow('sys', 'consent sync failed — server not updated');
+        });
+}
+function serveTestPing(task) {
+    // No model needed: proves the phone↔host loop (queue → worker → result).
+    var ans = JSON.stringify({
+        pong: true,
+        peer: S.peer || '',
+        model: S.modelKey || '',
+        ts: Date.now()
+    });
+    logRow('test', 'test_ping -> pong');
+    return completeTask(task.id, ans).then(function () {});
+}
 el('tensor-self').addEventListener('click', selfTest);
 window.__tensorReady = true;
 // Catalog first (host vendor + GGUF library), so the list reflects what

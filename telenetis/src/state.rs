@@ -69,6 +69,9 @@ pub struct AppState {
     roles_file: PathBuf,
     /// WS-tracker swarms (T7): info-hash → peers for phone-to-phone P2P.
     tracker: Arc<RwLock<crate::tracker::SwarmRegistry>>,
+    /// Host-test consent (T16): Telegram user ids opted into host testing.
+    testmode: Arc<RwLock<crate::testmode::ConsentStore>>,
+    testmode_file: PathBuf,
 }
 
 impl AppState {
@@ -85,9 +88,15 @@ impl AppState {
     }
 
     /// Variant with an explicit roles JSONL path (used by tests to isolate
-    /// the persisted role directory per test).
+    /// the persisted role directory per test). The consent file lives next
+    /// to it (`testmode.jsonl` sibling), so tests stay isolated as well.
     pub fn new_with_roles_file(config: Config, roles_file: PathBuf) -> Self {
         let roles = RoleStore::load_jsonl(&roles_file);
+        let testmode_file = roles_file
+            .parent()
+            .map(|p| p.join("testmode.jsonl"))
+            .unwrap_or_else(Self::default_testmode_file);
+        let testmode = crate::testmode::ConsentStore::load_jsonl(&testmode_file);
         let (flows_tx, _) = broadcast::channel(256);
         Self {
             config,
@@ -101,7 +110,19 @@ impl AppState {
             roles: Arc::new(RwLock::new(roles)),
             roles_file,
             tracker: Arc::new(RwLock::new(crate::tracker::SwarmRegistry::new())),
+            testmode: Arc::new(RwLock::new(testmode)),
+            testmode_file,
         }
+    }
+
+    /// Default consent JSONL path: `{crate}/data/testmode.jsonl`,
+    /// overridable with `TELENETIS_TESTMODE_FILE` (gitignored runtime data).
+    pub fn default_testmode_file() -> PathBuf {
+        std::env::var_os("TELENETIS_TESTMODE_FILE")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| {
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/testmode.jsonl")
+            })
     }
 
     pub async fn set_tunnel_url(&self, url: String) {
@@ -212,6 +233,24 @@ impl AppState {
             store.remove_role(jail_id);
         }
         let _ = self.roles.read().await.save_jsonl(&self.roles_file);
+    }
+
+    /// Set host-test consent for a verified Telegram user id and persist it.
+    /// `on=false` revokes (the entry is removed — absence means no consent).
+    pub async fn testmode_set(&self, user_id: &str, on: bool) {
+        {
+            let mut store = self.testmode.write().await;
+            store.set(user_id, on);
+        }
+        let _ = self.testmode.read().await.save_jsonl(&self.testmode_file);
+    }
+
+    pub async fn testmode_opted_in(&self, user_id: &str) -> bool {
+        self.testmode.read().await.opted_in(user_id)
+    }
+
+    pub async fn testmode_list(&self) -> Vec<String> {
+        self.testmode.read().await.list_opted_in()
     }
 }
 

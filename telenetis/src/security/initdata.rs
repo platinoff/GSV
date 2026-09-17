@@ -93,6 +93,19 @@ pub fn verify_init_data(
     Ok(())
 }
 
+/// Telegram user id from an `initData` string (the `user.id` field, numeric
+/// or string). No signature check — callers MUST run [`verify_init_data`]
+/// first and only use this to locate identity; the id itself is not proof.
+pub fn user_id(init_data: &str) -> Option<String> {
+    let pairs = parse_pairs(init_data).ok()?;
+    let user = pairs.iter().find(|(k, _)| k == "user")?.1.clone();
+    let v: serde_json::Value = serde_json::from_str(&user).ok()?;
+    v.get("id")
+        .and_then(|id| id.as_i64())
+        .map(|id| id.to_string())
+        .or_else(|| v.get("id").and_then(|id| id.as_str()).map(str::to_string))
+}
+
 /// Parse an `initData` query string into `(key, value)` pairs. The input is
 /// URL-encoded; values are decoded with the same decoding the Telegram client
 /// applies (percent-decode). Pair order is preserved but does not matter for
@@ -370,5 +383,23 @@ mod tests {
         assert_eq!(percent_decode("a%7Bb%7Dc"), "a{b}c");
         assert_eq!(percent_decode("plain"), "plain");
         assert_eq!(percent_decode("sp%20ace"), "sp ace");
+    }
+
+    #[test]
+    fn user_id_extracts_numeric_id() {
+        // T16.1: identity locator (verification stays mandatory upstream).
+        let init = crate::emu::sign_init_data(
+            "test",
+            "{\"id\":279058397,\"first_name\":\"Vlad\"}",
+            1_750_000_000,
+        );
+        assert_eq!(super::user_id(&init), Some("279058397".to_string()));
+    }
+
+    #[test]
+    fn user_id_missing_without_user() {
+        assert_eq!(super::user_id("auth_date=1&hash=x"), None);
+        assert_eq!(super::user_id(""), None);
+        assert_eq!(super::user_id("auth_date=1&user=notjson&hash=x"), None);
     }
 }

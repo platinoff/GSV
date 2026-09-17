@@ -67,9 +67,12 @@ async fn spawn_telenetis(gsv_url: String) -> (String, AppState) {
         .expect("bind emulator server");
     let port = listener.local_addr().unwrap().port();
     tokio::spawn(async move {
-        axum::serve(listener, app.into_make_service())
-            .await
-            .unwrap();
+        axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+        )
+        .await
+        .unwrap();
     });
     (format!("http://127.0.0.1:{port}"), state)
 }
@@ -385,4 +388,76 @@ async fn unbound_probe_fails_open_never_500() {
     let body: serde_json::Value = resp.json().await.unwrap();
     assert_eq!(body["ok"], false);
     let _ = std::fs::remove_dir_all(emu_dir("probe"));
+}
+
+#[tokio::test]
+async fn consent_harness_loop() {
+    // T16.3: the host-harness loop headlessly — phone opts in, harness sees
+    // it on the operator list, phone revokes, list empties. test_ping itself
+    // executes on the real phone (needs the toggle + worker there).
+    let gsv = spawn_mock_gsv().await;
+    let (base, _state) = spawn_telenetis(gsv).await;
+    let http = reqwest::Client::new();
+    let phone = EmuPhone::new("emu-a", emu_dir("consent"), USER_A).unwrap();
+    let auth = now_unix();
+    let init = transport_encode(&phone.init_data(BOT_TOKEN, auth));
+
+    let peers: serde_json::Value = http
+        .get(format!("{base}/api/edge/testmode/peers"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(peers["peers"].as_array().unwrap().len(), 0);
+
+    // Opt in like the Mini App toggle does.
+    let set: serde_json::Value = http
+        .post(format!(
+            "{base}/api/testmode?initData={init}&authDate={auth}"
+        ))
+        .json(&serde_json::json!({"on": true}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(set, serde_json::json!({"ok": true, "on": true}));
+
+    // Harness now sees exactly this phone.
+    let peers: serde_json::Value = http
+        .get(format!("{base}/api/edge/testmode/peers"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(peers["peers"], serde_json::json!(["279058397"]));
+
+    // Revoke like the toggle off.
+    let set: serde_json::Value = http
+        .post(format!(
+            "{base}/api/testmode?initData={init}&authDate={auth}"
+        ))
+        .json(&serde_json::json!({"on": false}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(set, serde_json::json!({"ok": true, "on": false}));
+    let peers: serde_json::Value = http
+        .get(format!("{base}/api/edge/testmode/peers"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(peers["peers"].as_array().unwrap().len(), 0);
+    let _ = std::fs::remove_dir_all(emu_dir("consent"));
 }
