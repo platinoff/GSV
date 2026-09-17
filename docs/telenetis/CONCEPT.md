@@ -142,3 +142,4 @@ phone → Telenetis :9800 → Hub :9999 / PoolAI :8091 / llama :8080
 14. ✅ T11 done 2026-09-17: live-дрейф доведено (live pre-T1: tracker/status 404, tensor.js без T4+; debug свіжий — маркери на місці). Респаун live — тільки у вікні власника; ранбук вимагає перевірки свіжості перед телефонами.
 15. ✅ T12 done 2026-09-17 (вікно дано): респаун live — воркер 6208→4860, health ok, tracker/status 200, tensor.js свіжий, бінарь з маркерами. Живий збігається з емулятором.
 16. ✅ T13 done 2026-09-17: Save-аудит (host same-origin ok, HF cross-origin ліміт) + `attachment` на /models + same-origin хелпер; prime-підозра — WebView без DownloadListener (ранбук дає обхід через Chrome).
+17. ✅ T14 done 2026-09-17 (вікно дано): респаун live — воркер →13456, health ok, tracker 200, tensor.js T13, каталог 5 моделей, attachment наживо доведено Range-запитом 1 байта.
