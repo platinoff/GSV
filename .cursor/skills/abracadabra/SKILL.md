@@ -54,7 +54,12 @@ Example from this machine (changes when new repos appear):
 |----|------|------|------|------------|
 | gsv | GSV | `S:/rust/GSV` | rust | yes |
 | poolai | poolAI | `S:/rust/poolAI` | rust | yes |
-| omniroute | omniroute | `S:/rust/omniroute` | node | no |
+| linfs | LinFS | `S:/rust/LinFS` | rust | yes |
+| telenetis | telenetis | `S:/rust/GSV/telenetis` | rust | yes |
+| llama-rs | llama-rs | `S:/rust/llama-rs` | rust | yes |
+| rebook | rebook | `S:/rust/rebook` | rust | yes |
+| orr_desktop | ORR_DESKTOP | `S:/rust/ORR_DESKTOP` | rust | yes |
+| omniroute | omniroute | `S:/rust/omniroute` | node | yes |
 
 If the script fails, fall back: read `gsv.code-workspace` + `ls` the parent of
 GSV for directories that contain `.git`. Still do **not** invent a fixed pair.

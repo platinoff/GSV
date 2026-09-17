@@ -19,9 +19,11 @@ rebalance, burst seats, security): see [GSV_VDC.md](GSV_VDC.md).
 
 ## 2. Settings inventory
 
-- `llama_serve`: model `models/Qwen3.8-27B-UD-IQ2_XXS.gguf`, `LLAMA_RS_HEARTBEAT=1`,
-  `--log-file`, MinGW DLLs beside exe (0xC0000135 otherwise), `--host` loopback
-  (LAN mode = `0.0.0.0`, needs firewall rule).
+- `llama_serve`: deep `:8080` model `models/Qwen3-30B-A3B-UD-IQ2_XXS.gguf`
+  (band 235 MoE swap; 27B dense reserved), fast `:8082`
+  `models/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf`, `LLAMA_RS_HEARTBEAT=1`,
+  `--log-file`, MinGW DLLs beside exe (0xC0000135 otherwise), `--host 0.0.0.0`
+  (band 233 LAN-first default).
 - `llama_edge`: `--coordinator http://127.0.0.1:8091`, operator signing key
   via `LLAMA_EDGE_SIGNING_KEY` (dev `[7;32]` retired), `LLAMA_SERVE_URL` → `:8080`.
 - poolAI: `POOLAI_HTTP_PORT=8091` (`:8080` is llama!), `POOLAI_VIRTUAL_NODE_DATA_DIR`

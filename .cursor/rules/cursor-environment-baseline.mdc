@@ -6,18 +6,19 @@ alwaysApply: false
 
 # Cursor environment baseline
 
-Verified on this machine (2026-08-18):
+Verified on this machine (2026-09-17):
 
-- **Cursor** **3.16.29** (`C:\Program Files\cursor\resources\app\package.json`)
+- **Cursor** **3.20.21** (`C:\Program Files\cursor\resources\app\package.json`; was 3.16.29 at band 164)
 - **rustc / cargo** 1.92.0 (`1.92.0-x86_64-pc-windows-gnu`; `rust-toolchain.toml` names the gnu host)
 - **git** 2.50.0 (MSYS2 UCRT64)
 
-## MCP / tools / sync (3.16)
+## MCP / tools / sync (3.20)
 
-- Folder MCP only: [`.cursor/mcp.json`](../mcp.json) `type: http` + `url: http://127.0.0.1:9999/mcp` (Streamable HTTP to live `gsv-server`). Cursor 3.16 docs still accept `url` without `type`; keep `type: http`.
+- Folder MCP only: [`.cursor/mcp.json`](../mcp.json) `type: http` + `url: http://127.0.0.1:9999/mcp` (Streamable HTTP to live `gsv-server`). Keep `type: http`. Do **not** write `streamable-http` — `cursor-agent` drops the whole `mcp.json` on that alias.
 - **Never** User MCP (`%USERPROFILE%/.cursor/mcp.json`) — it leaks `gsv_mcp_openbot` into PoolAI windows.
 - Do **not** Origin-host this kit; GitHub `platinoff/GSV` stays the source of truth.
-- Skills canon: [`.agents/skills/`](../../.agents/skills/). After skill edits: `cargo xtask mirrors`.
+- Cursor **Projects** (cloud coordinator, Sep 2026) and cloud `/goal` swarms are **not** the VDT board. Drain stays `абракадабра` + GSV tickets + marshal-orchestrator on this box.
+- Skills canon: [`.agents/skills/`](../../.agents/skills/). After skill edits: `cargo xtask mirrors`. Custom Mode (skill pinned with Alt+Enter) is optional; the drain skill stays Agent chat.
 - Vision: `cargo xtask sync` then `cargo xtask sync --check`. MCP `gsv_xtask` `{task:sync}` is `--check` only; remirror is `gsv_vision_sync`.
 
 ## Drain settings

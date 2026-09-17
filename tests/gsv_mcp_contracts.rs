@@ -382,15 +382,19 @@ fn cursor_mcp_uses_live_http_url() {
 }
 
 #[test]
-fn cursor_environment_baseline_pins_316() {
+fn cursor_environment_baseline_pins_320() {
     let text = std::fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/.cursor/rules/cursor-environment-baseline.mdc"
     ))
     .expect("cursor-environment-baseline.mdc");
     assert!(
-        text.contains("**3.16.29**"),
+        text.contains("**3.20.21**"),
         "baseline must pin installed Cursor: {text}"
+    );
+    assert!(
+        !text.contains("**3.16.29**"),
+        "stale Cursor 3.16.29 pin: {text}"
     );
     assert!(
         !text.contains("3.13.21"),
@@ -698,6 +702,7 @@ async fn logging_and_completion_over_http() {
     assert!(values
         .iter()
         .any(|v| v.as_str() == Some("gsv://docs/rules-check")));
+    assert!(values.iter().any(|v| v.as_str() == Some("gsv://docs/vdc")));
 
     let (status, rejected) = mcp_post(
         &app,
@@ -1432,8 +1437,11 @@ async fn drain_prompt_names_always_on_tools() {
     assert!(text.contains("locksteps the vision queue"), "{text}");
     assert!(text.contains("close of N"), "{text}");
     assert!(text.contains("mid-drain"), "{text}");
-    assert!(text.contains("3.16"), "{text}");
+    assert!(text.contains("3.20"), "{text}");
     assert!(text.contains("type=http"), "{text}");
+    assert!(text.contains("gsv_grid"), "{text}");
+    assert!(text.contains("gsv://docs/vdc"), "{text}");
+    assert!(text.contains("tool_count (59)"), "{text}");
 }
 
 #[tokio::test]

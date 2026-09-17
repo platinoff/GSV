@@ -20,7 +20,7 @@ point-to-point.
 | PC 5500U | fast interactive | `llama_serve :8082` (`lama-1.5`) | ~4 s E2E head |
 | PC 5500U | hub + MCP + watchdog | `gsv-server :9999`, `gsv-mcp` stdio, `gsv-watchdog` | `--no-lockstep` during drains |
 | PC 5500U | coordinator | poolAI `:8091` (admin/admin123 dev) | telegram seats + virtual nodes |
-| A54 | edge-worker (tasks, not tensors) | `llama_edge` → telenetis/poolAI | **no Termux**, so no ggml-rpc |
+| A54 | edge-worker (tasks, not tensors) | `llama_edge` → telenetis/poolAI | **no Termux** ⇒ no ggml-rpc; **browser-WebGPU slice peer = path (b), §3, probe pending** |
 | telenetis | bot + edge UI | `:9800` | LAN-only when Telegram is down |
 | Pi4 / spare PCs | future ggml-rpc workers | `llama_serve --rpc <ip>:50052` | proto-5.0.0 pin `f5b9bd39` |
 
@@ -56,9 +56,20 @@ point-to-point.
   mirror ⇒ a dead device is rebalanced away on the very next plan call (poolAI
   itself still has no auto-migration for *running* jobs — planner fixes the
   map, not the in-flight task).
-- No Termux ⇒ phones (class `edge`) never receive ranges; only Linux
-  ggml-rpc boxes shard the 27B. A54 stays a task worker (draft holder,
-  probes, side jobs).
+- **Two swarm paths, two rules.** (a) *Native* ggml-rpc sharding needs a
+  `ggml-rpc-server` binary per host — Linux boxes only (Pi4 / spare PC); phones
+  would need Termux, which the owner forbids ⇒ phones never join path (a).
+  (b) *Browser* swarm (Nehanth/swarmllm: WebGPU + WebRTC, 10 KB activations/token)
+  runs **inside the Telenetis mini-app**, so the A54's **Adreno GPU + RAM can
+  host a contiguous IQ2 layer slice with zero Termux** — gated only on
+  `chrome://gpu` WebGPU being enabled on the device. This is path (b) and is
+  the intended hybrid: PC `:8080` mmap core + N browser/phone GPU slices chained
+  pipeline-style. LlamaWeb (llama.cpp WebGPU, arXiv 2605.20706) / WebLLM /
+  wllama are the in-browser engines. enapt/SwarmLLM (Rust p2p) stays rejected
+  (Q4–Q8 only, no IQ2 27B, public-swarm default). Reuse poolAI
+  virtual-nodes/seats/capability-doc services for orchestration; the browser
+  peer registers via the existing `telegram_edge`/`virtual_node` plane, not a
+  new protocol.
 
 ### 4. Hybrid routing — DONE 2026-09-14, keep
 - `data/omni.toml`: cloud free-tier chain first, `bunke-rock` last;

@@ -125,10 +125,12 @@ or keep `max_tokens` tiny.
 |--------|------|-------|------------|-----------|------|
 | **omni** | proxy | per-provider `reset_secs` | Grok 4.6, Codex, Kimi K2.7, Qwen Coder | Grok 4.6, Sonnet 4.6, Gemini 3 Pro | Groq / OpenRouter `:free` / NIM / Zen pickle |
 | **cursor** | IDE | **monthly billing cycle** (two pools) | Grok 4.6, Composer 2.5, Codex, Sonnet 4.6 | same + Gemini 3 Pro / Opus 4.6 | none (Pro Other Models ≥$20) |
-| **opencode** | IDE | Zen free anti-abuse 429; Go monthly caps | GPT-5.3 Codex, Grok 4.6, Kimi K2.7 | Sonnet 4.6, Gemini 3.1 Pro, MiniMax M2.7 | Big Pickle, DeepSeek V4 Flash Free, Nemotron 3 Ultra Free |
+| **opencode** | IDE | Zen free anti-abuse 429; Go monthly caps | GPT-5.3 Codex, Grok 4.6, Kimi K2.7, Qwen3.8 Flash | Sonnet 4.6, Gemini 3.1 Pro, MiniMax M2.7, Muse Spark 1.3 | Big Pickle, Muse Spark 1.3 Contributor Free, DeepSeek V4 Flash Free, Nemotron 3 Ultra Free |
 | **grok** | CLI/bot | paid xAI RPS/TPM (T0 Grok 4.6 ~150 RPS / 50M TPM) | Grok 4.6, Grok Build 0.1 | Grok 4.6 / 4.5 | use Omni free chain via MCP |
 
 Cursor **Cursor Models** pool: Grok 4.6, Grok 4.5, Composer 2.5. **Other Models** pool is token-priced (Pro includes ≥$20/mo).
+
+OpenCode Zen (probed 2026-09-17 after Cursor tokens ran out): **Qwen3.8 Flash** (`qwen3.8-flash`, paid Zen), **Muse Spark 1.3** (`muse-spark-1.3`, paid; `muse-spark-1.3-contributor-free` limited), **Big Pickle** (`big-pickle`, stealth free). These are **OpenCode-only Zen endpoints** (`https://opencode.ai/zen/v1/…`), not OmniRouter upstreams and not local llama. Omni still reaches Zen only via the existing `opencode-zen` provider row when that base URL is configured. Do not invent Omni `model=` ids for them.
 
 ## Free-tier timers (Omni upstreams)
 

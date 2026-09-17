@@ -2214,8 +2214,23 @@ wgpu-rewrite — відхилено з цифрами.
 |--------|-------|-------------------|
 | **PH-S2989** | Deep-tier MoE swap | :8080 serve → `Qwen3-30B-A3B-UD-IQ2_XXS` (new `--model-name lama-2.9`, 0.497 проти 0.045); GSV catalog row + `tier_model(deep)` ремап; vbs/HKCU-запис + respawn; LAN E2E чат A54; 27B-fallback не видаляється; gate: fmt/clippy/test + record + rules-check |
 | **PH-S2990** | Transport modes | `security::transport_mode` (loopback\|lan\|tunnel за Host; fail-closed tunnel) → `/api/health` + `GET /mcp`; Galaxy badge `view-only · tunnel` + `TRANSPORT_MUTATE`-гард + 3× сповільнений silent-resync; gzip `tower-http` CompressionLayer+DefaultPredicate з response-predicate (SSE text/event-stream не стискається); юніт transport_mode 10 + contracts (transport-mode/gzip/sse-no-gzip) + UI-маркери; повний suite 858/0; ngrok смоук з телефону — ручний крок власника — **✅** |
-| **PH-S2991** | Vulkan spike | llama-cpp-sys `-DGGML_VULKAN=ON` на our .154-патчах; `llama_speed` дельта (1.5B tg/pp; 30B attention/shared); документ-рядок у BENCHMARKS; **без** prod-зміни до результату |
+| **PH-S2991** | Vulkan spike | MSYS2-toolchain без LunarG SDK (pacman: vulkan-headers/loader/glslang/spirv-tools/shaderc/spirv-headers + `VULKAN_SDK=C:/msys64/ucrt64`); feature `vulkan` у llama-rs, `--n-gpu-layers` у speed+serve (дефолт 0 = prod без змін). Vega7 uma: 1.5B pp 45.6→**160.4** (TTFT ×3.4), 30B-A3B tg 0.497→**0.865 (×1.74, ngl=15)**; promo→serve = owner-рішення — **✅** | 
 | **PH-S2992** | WASM 0.5–0.8B у Mini App | deltanet.wasm-клас рантайм (Qwen3.5 0.8B Q4, ~1GB peak) як локальний pre-fill/підказки; A54-measurement; після PH-S2990 |
+
+## Спринти (band 236) — Cursor 3.20.21 kit + OpenBot catalog lockstep
+
+Owner pick (`абракадабра` gsv / return from OpenCode): desktop jumped **3.16.29 → 3.20.21**. Live MCP already had 59 tools + 15 resources; kit pin, drain prompt, and BOXES/ARCHITECTURE/MCP_OPENBOT still said 3.16 / 58 / 13. Changelog since pin: custom modes, `/goal`, Cursor Projects (cloud coordinator — **rejected** as VDT board), Origin hosting (already forbidden), MCP Apps (later). OpenCode Zen models used after Cursor tokens ran out: Qwen3.8 Flash, Muse Spark 1.3, Big Pickle (Zen-only, not Omni upstreams).
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S2993** | Probe | Cursor `package.json` **3.20.21**; User MCP absent; folder `type:http` still live; `GET /mcp` 59 tools — **✅** |
+| **PH-S2994** | Rules | `.cursor/rules/cursor-environment-baseline.mdc` pin 3.20.21 + never `streamable-http` + Projects/Origin out of VDT — **✅** |
+| **PH-S2995** | MCP prompt | `gsv_drain` + `initialize` instructions name 3.20 / type=http / tool_count 59 / `gsv_grid` / `gsv://docs/{rules-check,vdc}` — **✅** |
+| **PH-S2996** | Catalog docs | BOXES / ARCHITECTURE / MCP_OPENBOT / AGENTS / RUST_DEV: 59 tools + 15 resources — **✅** |
+| **PH-S2997** | Omni / OpenCode | `GSV_OMNI_CATALOG.md` Clients + Zen note (Qwen3.8 Flash / Muse Spark 1.3 / Big Pickle) — **✅** |
+| **PH-S2998** | Contracts | baseline 3.20.21 · drain prompt 3.20 · toolchain parse fixture — **✅** |
+| **PH-S2999** | Permissions / skill | `.cursor/permissions.json` registered trees; abracadabra example table matches `gsv_products` — **✅** |
+| **PH-S3000** | Close | fmt · clippy 0 · full `cargo test` exit 0 · stretch-96 **99.50%** · record-rust 0/0 · bump **0.236.0** · fingerprint grok-4.6 · sync last PH-S3008 next PH-S3009 — **✅** |
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

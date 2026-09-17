@@ -1,9 +1,11 @@
 {
   "autoRun": {
     "allow_instructions": [
-      "Allow MSYS2 bash under C:\\msys64\\usr\\bin\\bash.exe for git, cargo, and scripts in GSV and registered product trees (S:\\rust\\GSV, S:\\rust\\poolAI).",
+      "Allow MSYS2 bash under C:\\msys64\\usr\\bin\\bash.exe for git, cargo, and scripts in GSV and registered product trees (S:\\rust\\GSV, S:\\rust\\poolAI, S:\\rust\\LinFS, S:\\rust\\llama-rs, S:\\rust\\rebook, S:\\rust\\ORR_DESKTOP, S:\\rust\\omniroute, S:\\rust\\GSV\\telenetis).",
       "Allow cargo fmt, cargo test, cargo clippy, cargo check, and cargo run --bin gsv-server / gsv-vision-sync / gsv-loc-audit / gsv-http-stand-smoke in the GSV repo.",
       "Allow cargo test-ci and cargo run --bin poolai-vision-sync in S:\\rust\\poolAI when draining product poolai.",
+      "Allow cargo fmt, cargo test, and cargo clippy in other registered Rust product trees when that product is the drain pick.",
+      "Allow npm test in S:\\rust\\omniroute when draining product omniroute.",
       "Allow git fetch, git status, git diff, git log, git add of scoped paths, git commit, and git push when a remote exists.",
       "Allow reading and editing files under src/, tests/, ui/, docs/, .agents/, .cursor/, .opencode/, and scripts/ for VDT drain."
     ],
