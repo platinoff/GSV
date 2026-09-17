@@ -492,6 +492,7 @@ pub fn wire(data_dir: &Path) -> Value {
         "telenetis": r.telenetis,
         "llama_rs": r.llama_rs,
         "omniroute": r.omniroute,
+        "seat_queue": seat_queue(data_dir),
     })
 }
 
@@ -507,7 +508,16 @@ pub async fn wire_async(data_dir: &Path) -> Value {
         "telenetis": r.telenetis,
         "llama_rs": r.llama_rs,
         "omniroute": r.omniroute,
+        "seat_queue": seat_queue(data_dir),
     })
+}
+
+/// Burst-seat queue depth for the hub (grid waitlist length): join intents
+/// that hit poolAI 409 `seat_exhausted`. Non-empty means join demand
+/// exceeds seats — the grid mirror carries the rows, keep-live the depth.
+pub fn seat_queue(data_dir: &Path) -> Value {
+    let depth = crate::boxes::grid::load_waitlist(data_dir).len() as u64;
+    json!({ "depth": depth, "pressured": depth > 0 })
 }
 
 /// Inject the server's own uptime into the GSV entry (self-probe is TCP-only).
@@ -614,6 +624,26 @@ mod tests {
             "lan-only",
             "relay off → LAN-only"
         );
+    }
+
+    #[test]
+    fn seat_queue_depth_mirrors_waitlist_file() {
+        // Burst-seat pressure signal: depth follows the grid waitlist.
+        let dir = std::env::temp_dir().join(format!("gsv-keep-live-queue-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        assert_eq!(seat_queue(&dir)["depth"], 0);
+        assert_eq!(seat_queue(&dir)["pressured"], false);
+        fs::write(
+            dir.join("grid_waitlist.json"),
+            r#"[{"peer_id":"redmi-01","telegram_id":"","note":"mate","since_secs":1}]"#,
+        )
+        .unwrap();
+        assert_eq!(seat_queue(&dir)["depth"], 1);
+        assert_eq!(seat_queue(&dir)["pressured"], true);
+        let wire = wire(&dir);
+        assert_eq!(wire["seat_queue"]["depth"], 1);
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

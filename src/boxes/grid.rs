@@ -105,6 +105,106 @@ fn save_profiles(
     std::fs::rename(&tmp, profiles_path(data_dir)).map_err(|e| e.to_string())
 }
 
+/// Burst-seat waitlist: edge join intents that hit poolAI 409
+/// `seat_exhausted`. The hub cannot mint signed registrations, so it
+/// tracks intent here (durable) while workers self-retry on 409; a
+/// non-empty list means join demand exceeds seats. Presence in the queue
+/// IS the pressure signal — entries leave via DELETE once seated.
+pub const WAITLIST_FILE: &str = "grid_waitlist.json";
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct WaitEntry {
+    pub peer_id: String,
+    pub telegram_id: String,
+    pub note: String,
+    pub since_secs: u64,
+}
+
+fn waitlist_path(data_dir: &Path) -> PathBuf {
+    data_dir.join(WAITLIST_FILE)
+}
+
+/// Load the waitlist (empty when absent/corrupt — never fails the grid).
+pub fn load_waitlist(data_dir: &Path) -> Vec<WaitEntry> {
+    std::fs::read_to_string(waitlist_path(data_dir))
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+fn save_waitlist(data_dir: &Path, rows: &[WaitEntry]) -> Result<(), String> {
+    let raw = serde_json::to_string_pretty(rows).map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(data_dir).map_err(|e| e.to_string())?;
+    let tmp = waitlist_path(data_dir).with_extension("json.tmp");
+    std::fs::write(&tmp, raw).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, waitlist_path(data_dir)).map_err(|e| e.to_string())
+}
+
+fn wait_wire(e: &WaitEntry, position: usize, depth: usize) -> Value {
+    json!({
+        "peer_id": e.peer_id, "telegram_id": e.telegram_id,
+        "note": e.note, "since_secs": e.since_secs,
+        "position": position, "depth": depth,
+    })
+}
+
+/// Enqueue a join intent (dedupe by `peer_id`: refresh note/telegram_id,
+/// keep the original `since_secs` so queue age stays honest).
+pub fn waitlist_add(
+    data_dir: &Path,
+    peer_id: &str,
+    telegram_id: &str,
+    note: &str,
+    now_secs: u64,
+) -> Result<Value, String> {
+    let peer_id = peer_id.trim();
+    if peer_id.is_empty()
+        || peer_id.contains('/')
+        || peer_id.contains('\\')
+        || peer_id == "."
+        || peer_id == ".."
+    {
+        return Err("bad peer id".into());
+    }
+    let mut rows = load_waitlist(data_dir);
+    if let Some(pos) = rows.iter().position(|e| e.peer_id == peer_id) {
+        {
+            let entry = &mut rows[pos];
+            entry.telegram_id = telegram_id.trim().to_string();
+            entry.note = note.trim().to_string();
+        }
+        save_waitlist(data_dir, &rows)?;
+        let depth = rows.len();
+        let row = rows[pos].clone();
+        return Ok(wait_wire(&row, pos + 1, depth));
+    }
+    rows.push(WaitEntry {
+        peer_id: peer_id.to_string(),
+        telegram_id: telegram_id.trim().to_string(),
+        note: note.trim().to_string(),
+        since_secs: now_secs,
+    });
+    save_waitlist(data_dir, &rows)?;
+    let depth = rows.len();
+    let row = rows[depth - 1].clone();
+    Ok(wait_wire(&row, depth, depth))
+}
+
+/// Dequeue a join intent (no-op `deleted:false` when absent — never 404s
+/// the caller for an already-seated peer).
+pub fn waitlist_remove(data_dir: &Path, peer_id: &str) -> Result<Value, String> {
+    let peer_id = peer_id.trim();
+    let mut rows = load_waitlist(data_dir);
+    let before = rows.len();
+    rows.retain(|e| e.peer_id != peer_id);
+    let deleted = rows.len() != before;
+    if deleted {
+        save_waitlist(data_dir, &rows)?;
+    }
+    Ok(json!({"peer_id": peer_id, "deleted": deleted, "depth": rows.len()}))
+}
+
 /// Upsert (`delete:true` removes) one profile; returns its wire row.
 pub fn upsert_profile(data_dir: &Path, id: &str, patch: &Value) -> Result<Value, String> {
     let id = id.trim();
@@ -570,6 +670,12 @@ impl GridBox {
         let store = self.store.read().await;
         let profiles = load_profiles(&self.data_dir);
         let (nodes, workers, vnodes, used) = counts(&store);
+        let waitlist = load_waitlist(&self.data_dir);
+        let limit = store.seats.get("seat_limit").and_then(Value::as_u64);
+        let pressured = match limit {
+            Some(l) if l > 0 => used >= l,
+            _ => !waitlist.is_empty(),
+        };
         json!({
             "ok": true,
             "base_url": self.base_url,
@@ -586,6 +692,8 @@ impl GridBox {
                 "seats_used": used,
                 "seat_limit": store.seats.get("seat_limit").and_then(Value::as_u64),
             },
+            "waitlist": waitlist.iter().enumerate().map(|(i, e)| wait_wire(e, i + 1, waitlist.len())).collect::<Vec<_>>(),
+            "seat_pressure": {"used": used, "limit": limit, "pressured": pressured, "queue_depth": waitlist.len()},
             "nodes": store.nodes,
             "workers": store.workers,
             "virtual_nodes": store.virtual_nodes,
@@ -865,6 +973,35 @@ mod tests {
         upsert_profile(&dir, "edge-pc-01", &json!({"delete": true})).expect("del");
         assert!(load_profiles(&dir).is_empty());
         assert!(upsert_profile(&dir, "../evil", &json!({})).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn waitlist_add_dedupe_remove_roundtrip() {
+        let dir = std::env::temp_dir().join(format!("gsv-grid-wait-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        assert!(load_waitlist(&dir).is_empty());
+        let a = waitlist_add(&dir, "redmi-01", "42", "mate", 100).expect("add");
+        assert_eq!(a["position"], 1);
+        assert_eq!(a["depth"], 1);
+        // Re-enqueue refreshes note, keeps original since, stays position 1.
+        let b = waitlist_add(&dir, "redmi-01", "42", "mate retry", 200).expect("re-add");
+        assert_eq!(b["position"], 1);
+        assert_eq!(b["depth"], 1);
+        let rows = load_waitlist(&dir);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].since_secs, 100);
+        assert_eq!(rows[0].note, "mate retry");
+        // Bad ids rejected, never persisted.
+        assert!(waitlist_add(&dir, "../x", "", "", 0).is_err());
+        assert!(waitlist_add(&dir, "  ", "", "", 0).is_err());
+        assert_eq!(load_waitlist(&dir).len(), 1);
+        let del = waitlist_remove(&dir, "redmi-01").expect("del");
+        assert_eq!(del["deleted"], true);
+        assert_eq!(del["depth"], 0);
+        let del2 = waitlist_remove(&dir, "redmi-01").expect("del again");
+        assert_eq!(del2["deleted"], false);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

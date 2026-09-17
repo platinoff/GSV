@@ -2501,6 +2501,19 @@ pub fn render_vdc(d: &Value) -> String {
     if !advice.is_empty() {
         out.push_str(&format!("<div class='dim'>advice: {}</div>", esc(&advice)));
     }
+    let waitlist = arr(&d["waitlist"]);
+    if !waitlist.is_empty() {
+        let ids: Vec<String> = waitlist
+            .iter()
+            .map(|w| s(&w["peer_id"]))
+            .filter(|id| !id.is_empty())
+            .collect();
+        out.push_str(&format!(
+            "<div class='dim'>seat waitlist {}: {}</div>",
+            waitlist.len(),
+            esc(&ids.join(", "))
+        ));
+    }
     if !history.is_empty() {
         let dots: String = history
             .iter()
@@ -3448,6 +3461,10 @@ mod tests {
             "history": [
                 {"ts": "t1", "alive": true},
                 {"ts": "t2", "alive": false}
+            ],
+            "waitlist": [
+                {"peer_id": "redmi-01", "telegram_id": "", "note": "mate",
+                 "since_secs": 1, "position": 1, "depth": 1}
             ]
         });
         let html = render_vdc(&d);
@@ -3459,6 +3476,8 @@ mod tests {
         assert!(html.contains("profile more"), "{html}");
         assert!(html.contains("●"), "{html}");
         assert!(html.contains("seats 1/5"), "{html}");
+        assert!(html.contains("seat waitlist 1"), "{html}");
+        assert!(html.contains("redmi-01"), "{html}");
         let empty = serde_json::json!({"ok": true});
         assert!(render_vdc(&empty).contains("vdc — no data"));
         let err = serde_json::json!({"ok": false, "error": "down"});

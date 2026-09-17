@@ -9,7 +9,7 @@ use axum::http::{header, HeaderMap, HeaderName, HeaderValue, Method, StatusCode}
 use axum::middleware::{self, Next};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{Html, IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use futures_util::stream::{self, StreamExt};
 use serde_json::{json, Value};
@@ -115,6 +115,11 @@ pub fn router(state: AppState) -> Router {
         .route("/api/grid", get(api_grid))
         .route("/api/grid/plan", get(api_grid_plan))
         .route("/api/grid/profile", post(api_grid_profile_post))
+        .route("/api/grid/waitlist", post(api_grid_waitlist_post))
+        .route(
+            "/api/grid/waitlist/{peer_id}",
+            delete(api_grid_waitlist_delete),
+        )
         .route("/api/watchdog", get(api_watchdog))
         .route("/api/usage", get(api_usage))
         .route("/api/settings", get(api_settings).post(api_settings_post))
@@ -425,6 +430,39 @@ async fn api_grid_profile_post(
     }
     match crate::boxes::grid::upsert_profile(&state.data_dir, id, &body) {
         Ok(row) => Json(json!({ "ok": true, "profile": row })),
+        Err(e) => Json(json!({ "ok": false, "error": e })),
+    }
+}
+
+/// Enqueue a burst-seat join intent (`{peer_id, telegram_id?, note?}`).
+/// Dedupe by peer_id; position + depth guide the owner queue.
+async fn api_grid_waitlist_post(
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> Json<Value> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let peer = body.get("peer_id").and_then(Value::as_str).unwrap_or("");
+    let tg = body
+        .get("telegram_id")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    let note = body.get("note").and_then(Value::as_str).unwrap_or("");
+    match crate::boxes::grid::waitlist_add(&state.data_dir, peer, tg, note, now) {
+        Ok(row) => Json(json!({ "ok": true, "waitlist": row })),
+        Err(e) => Json(json!({ "ok": false, "error": e })),
+    }
+}
+
+/// Dequeue a join intent (already-seated peers report `deleted:false`).
+async fn api_grid_waitlist_delete(
+    State(state): State<AppState>,
+    Path(peer_id): Path<String>,
+) -> Json<Value> {
+    match crate::boxes::grid::waitlist_remove(&state.data_dir, &peer_id) {
+        Ok(row) => Json(json!({ "ok": true, "waitlist": row })),
         Err(e) => Json(json!({ "ok": false, "error": e })),
     }
 }

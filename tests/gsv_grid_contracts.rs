@@ -128,6 +128,79 @@ async fn grid_profile_post_feeds_capacity_view() {
 }
 
 #[tokio::test]
+async fn grid_waitlist_enqueue_dedupe_remove() {
+    let dir = temp_data("waitlist");
+    let (tx, _rx) = broadcast::channel(32);
+    let mut app_state = AppState::new(
+        Some(PathBuf::from(env!("CARGO_MANIFEST_DIR"))),
+        Some(dir.clone()),
+        tx,
+    );
+    app_state.grid = std::sync::Arc::new(GridBox::with_base(&dir, &dead_base()));
+    let app = router(app_state);
+
+    async fn delete_json(app: &axum::Router, path: &str) -> (StatusCode, Value) {
+        let res = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(path)
+                    .method(Method::DELETE)
+                    .body(Body::empty())
+                    .expect("req"),
+            )
+            .await
+            .expect("resp");
+        let status = res.status();
+        let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+            .await
+            .expect("body");
+        (status, serde_json::from_slice(&bytes).unwrap_or_default())
+    }
+
+    // Enqueue → position 1, depth 1, visible on /api/grid + keep-live depth.
+    let (status, added) = post_json(
+        &app,
+        "/api/grid/waitlist",
+        json!({ "peer_id": "redmi-01", "note": "mate" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{added}");
+    assert_eq!(added["ok"], true);
+    assert_eq!(added["waitlist"]["position"], 1);
+    // Re-enqueue dedupes (position stays 1).
+    let (_s, added2) = post_json(
+        &app,
+        "/api/grid/waitlist",
+        json!({ "peer_id": "redmi-01", "note": "mate retry" }),
+    )
+    .await;
+    assert_eq!(added2["waitlist"]["position"], 1);
+    assert_eq!(added2["waitlist"]["depth"], 1);
+    // Bad peer id → ok:false.
+    let (_s, bad) = post_json(&app, "/api/grid/waitlist", json!({ "peer_id": "../x" })).await;
+    assert_eq!(bad["ok"], false);
+    let grid = get_json(&app, "/api/grid").await.1;
+    let waitlist = grid["waitlist"].as_array().unwrap();
+    assert_eq!(waitlist.len(), 1);
+    assert_eq!(waitlist[0]["peer_id"], "redmi-01");
+    assert_eq!(grid["seat_pressure"]["queue_depth"], 1);
+    let keep = get_json(&app, "/api/keep-live").await.1;
+    assert_eq!(keep["seat_queue"]["depth"], 1);
+    assert_eq!(keep["seat_queue"]["pressured"], true);
+    // Remove → deleted; second remove reports false; grid empties.
+    let (_s, del) = delete_json(&app, "/api/grid/waitlist/redmi-01").await;
+    assert_eq!(del["waitlist"]["deleted"], true);
+    let (_s, del2) = delete_json(&app, "/api/grid/waitlist/redmi-01").await;
+    assert_eq!(del2["waitlist"]["deleted"], false);
+    let grid2 = get_json(&app, "/api/grid").await.1;
+    assert_eq!(grid2["waitlist"].as_array().unwrap().len(), 0);
+    let keep2 = get_json(&app, "/api/keep-live").await.1;
+    assert_eq!(keep2["seat_queue"]["depth"], 0);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
 async fn grid_box_keeps_last_topology_when_poolai_down() {
     let dir = temp_data("stale");
     // Seed a durable snapshot so refresh-failure must preserve it.
