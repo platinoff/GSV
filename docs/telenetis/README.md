@@ -127,7 +127,15 @@ cargo clippy --all-targets
 cargo test
 ```
 
-**256** unit tests + **4** integration tests (`tests/integration_test.rs`) = **260** total.
+**290** unit tests + **4** live-supervisor tests + **4** integration tests
+(`tests/integration_test.rs`) + **6** phone-emulator scenarios
+(`tests/phone_emulator.rs`, `src/emu.rs`) = **304** total.
+
+Phone emulator (T8): headless double of the Mini App client — lifecycle
+(foreground/background/killed), disk-vs-cache storage, fresh `initData`
+signer. Gate before real phones:
+`cargo test --test phone_emulator`. It covers server contracts and byte
+flows, NOT real WebView taps.
 
 ## Support / Donate
 

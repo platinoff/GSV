@@ -29,6 +29,9 @@ sha2 = "0.11"
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
+# WS client for the phone-emulator P2P scenario (already in the lock file
+# via axum's ws stack — no new native deps).
+tokio-tungstenite = "0.29"
 
 [[bin]]
 name = "telenetis-live"
