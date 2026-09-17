@@ -2819,6 +2819,7 @@ mod tests {
         assert!(html.contains("tensor-torrent"));
         assert!(html.contains("tensor-wpause"));
         assert!(html.contains("tensor-models"));
+        assert!(html.contains("tensor-file"));
         assert!(html.contains("gsv-card"));
     }
 
@@ -2859,6 +2860,8 @@ mod tests {
         assert!(js.contains("startTorrent")); // torrent path, HTTP fallback
         assert!(js.contains("httpFallback")); // fallback stays working
         assert!(js.contains("authedPool")); // initData on proxied POSTs
+        assert!(js.contains("saveToDevice")); // real files via Download Manager
+        assert!(js.contains("pickFileFor")); // load saved GGUF from disk
         assert!(js.contains("/api/edge/tensor/config"));
     }
 

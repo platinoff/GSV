@@ -41,6 +41,7 @@
                    placeholder="Self-test prompt (no queue)..." aria-label="prompt">
             <button type="submit" id="tensor-self">Run</button>
         </form>
+        <input id="tensor-file" type="file" accept=".gguf" style="display:none" aria-hidden="true">
         <p id="tensor-status" class="dim" aria-live="polite">Not started.</p>
         <p id="tensor-torrent" class="dim stat-line"></p>
         <p id="tensor-lan" class="dim"></p>

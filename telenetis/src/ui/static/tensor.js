@@ -454,7 +454,11 @@ function renderRows() {
             card.appendChild(stat);
             var grid = document.createElement('div');
             grid.className = 'btn-grid';
-            var acts = ['download', 'pause', 'cancel', 'use'];
+            var acts = ['download', 'pause', 'cancel', 'save', 'file', 'use'];
+            var labels = {
+                download: 'Download', pause: 'Pause', cancel: 'Cancel',
+                save: 'Save', file: 'File…', use: 'Use'
+            };
             for (var j = 0; j < acts.length; j++) {
                 (function (act) {
                     var b = document.createElement('button');
@@ -463,7 +467,7 @@ function renderRows() {
                     b.id = 'btn-' + act + '-' + key;
                     b.textContent = act === 'pause' && DLS[key].status === 'paused'
                         ? 'Resume'
-                        : act[0].toUpperCase() + act.slice(1);
+                        : (labels[act] || act);
                     b.addEventListener('click', function () { rowAction(key, act); });
                     grid.appendChild(b);
                 })(acts[j]);
@@ -484,7 +488,51 @@ function rowAction(key, act) {
         else { pauseDownload(key); }
     }
     else if (act === 'cancel') { cancelDownload(key); }
+    else if (act === 'save') { saveToDevice(key); }
+    else if (act === 'file') { pickFileFor(key); }
     else if (act === 'use') { useModel(key); }
+}
+
+// Real disk storage via the system Download Manager: the file lands in
+// the phone's Download folder and survives app/browser restarts, unlike
+// any WebView storage. Pair with "File" to load it back.
+function saveToDevice(key) {
+    var entry = MODELS[key];
+    if (!entry) { return; }
+    var url = entry.hf
+        ? 'https://huggingface.co/' + entry.repo + '/resolve/main/' + entry.file + '?download=true'
+        : entry.url;
+    try {
+        var a = document.createElement('a');
+        a.href = url;
+        a.setAttribute('download', fnameOf(entry));
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        logRow('sys', 'saving ' + entry.label + ' to device Downloads…');
+        setStatus('saving to Downloads — then File… to load it back');
+    } catch (e) {
+        setStatus('save failed: ' + esc(String((e && e.message) || e)));
+    }
+}
+
+// Load a previously saved GGUF straight from phone storage (file picker):
+// no download, no cache involved — the file the owner already has.
+function pickFileFor(key) {
+    var entry = MODELS[key];
+    if (!entry) { return; }
+    var input = el('tensor-file');
+    if (!input) { setStatus('file picker unavailable'); return; }
+    input.onchange = function () {
+        var file = input.files && input.files[0];
+        input.value = '';
+        if (!file) { return; }
+        logRow('sys', 'picked file: ' + file.name + ' (' + (file.size / 1048576).toFixed(1) + 'MB)');
+        loadIntoWllama(key, entry, file);
+    };
+    try { input.click(); } catch (e) {
+        setStatus('file picker failed: ' + esc(String((e && e.message) || e)));
+    }
 }
 
 function refreshRows() {
@@ -518,6 +566,8 @@ function refreshRows() {
             }
             if (stat) { stat.textContent = line; }
             show('download', dl.status === 'idle' || dl.status === 'error');
+            show('save', true);
+            show('file', true);
             var pauseBtn = el('btn-pause-' + key);
             if (pauseBtn) {
                 pauseBtn.style.display = (dl.status === 'active' || dl.status === 'paused') ? '' : 'none';
