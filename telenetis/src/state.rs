@@ -55,6 +55,20 @@ pub struct FlowEvent {
     pub detail: String,
 }
 
+/// One served file download (T30.1): who pulled what, how much, how.
+/// Answers "which IP downloaded the model" without touching access logs.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DownloadEvent {
+    pub ts: DateTime<Utc>,
+    /// Direct TCP peer IP (`?` when the extractor is absent, e.g. tests).
+    pub peer: String,
+    pub file: String,
+    pub bytes: u64,
+    /// Raw `Range` header when the client resumed (`None` = full body).
+    pub range: Option<String>,
+    pub status: u16,
+}
+
 #[derive(Clone)]
 pub struct AppState {
     config: Config,
@@ -62,6 +76,7 @@ pub struct AppState {
     presence: Arc<RwLock<HashMap<String, WorkerPresence>>>,
     tickets: Arc<RwLock<Vec<TicketRow>>>,
     flows: Arc<RwLock<Vec<FlowEvent>>>,
+    downloads: Arc<RwLock<Vec<DownloadEvent>>>,
     flows_tx: broadcast::Sender<FlowEvent>,
     online: Arc<std::sync::atomic::AtomicBool>,
     tunnel_url: Arc<RwLock<Option<String>>>,
@@ -104,6 +119,7 @@ impl AppState {
             presence: Arc::new(RwLock::new(HashMap::new())),
             tickets: Arc::new(RwLock::new(Vec::new())),
             flows: Arc::new(RwLock::new(Vec::new())),
+            downloads: Arc::new(RwLock::new(Vec::new())),
             flows_tx,
             online: Arc::new(std::sync::atomic::AtomicBool::new(true)),
             tunnel_url: Arc::new(RwLock::new(None)),
@@ -203,6 +219,20 @@ impl AppState {
     pub async fn recent_flows(&self, limit: usize) -> Vec<FlowEvent> {
         let flows = self.flows.read().await;
         flows.iter().rev().take(limit).cloned().collect()
+    }
+
+    /// Record a served file download (T30.1). Capped like flows.
+    pub async fn push_download(&self, event: DownloadEvent) {
+        let mut downloads = self.downloads.write().await;
+        downloads.push(event);
+        if downloads.len() > 1000 {
+            downloads.drain(0..500);
+        }
+    }
+
+    pub async fn recent_downloads(&self, limit: usize) -> Vec<DownloadEvent> {
+        let downloads = self.downloads.read().await;
+        downloads.iter().rev().take(limit).cloned().collect()
     }
 
     pub async fn list_roles(&self) -> Vec<crate::roles::store::RoleEntry> {

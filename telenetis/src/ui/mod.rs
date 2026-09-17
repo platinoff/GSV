@@ -53,6 +53,7 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/edge/testmode/peers", get(api_testmode_peers))
         .route("/api/flows", get(api_flows))
+        .route("/api/edge/downloads", get(api_edge_downloads))
         .route("/static/app.css", get(serve_css))
         .route("/static/app.js", get(serve_js))
         .route("/static/probe.js", get(serve_probe_js))
@@ -1487,6 +1488,14 @@ async fn api_flows(State(state): State<AppState>) -> Json<serde_json::Value> {
     Json(json!({"flows": flows}))
 }
 
+/// Download journal (T30.1): who pulled what, how much, full or resumed.
+/// Read-only like `/api/flows` — this is how the owner sees which IP is
+/// downloading a model right now.
+async fn api_edge_downloads(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let downloads = state.recent_downloads(50).await;
+    Json(json!({"downloads": downloads}))
+}
+
 async fn serve_css() -> impl IntoResponse {
     (
         StatusCode::OK,
@@ -1588,6 +1597,8 @@ async fn api_tensor_config() -> Json<serde_json::Value> {
 /// Self-hosted vendor bytes (wllama ESM + wasm): same-origin, so no CDN
 /// and no CORS. Streams from disk with single-range support.
 async fn serve_vendor(
+    State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<std::net::SocketAddr>,
     axum::extract::Path(tail): axum::extract::Path<String>,
     headers: axum::http::HeaderMap,
 ) -> Response {
@@ -1596,6 +1607,8 @@ async fn serve_vendor(
         &tail,
         headers.get(header::RANGE).and_then(|v| v.to_str().ok()),
         None,
+        &state,
+        Some(peer.ip()),
     )
     .await
 }
@@ -1604,6 +1617,8 @@ async fn serve_vendor(
 /// the worker. 404 JSON when the dir is unconfigured (the page then uses
 /// its HuggingFace fallback).
 async fn serve_models(
+    State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<std::net::SocketAddr>,
     axum::extract::Path(tail): axum::extract::Path<String>,
     headers: axum::http::HeaderMap,
 ) -> Response {
@@ -1620,6 +1635,8 @@ async fn serve_models(
         &tail,
         headers.get(header::RANGE).and_then(|v| v.to_str().ok()),
         attach,
+        &state,
+        Some(peer.ip()),
     )
     .await
 }
@@ -1629,11 +1646,15 @@ async fn serve_models(
 /// `attach` (a bare file name) adds `Content-Disposition: attachment` so a
 /// plain navigation to the file also lands in the Download Manager (T13.2:
 /// the Mini App Save path); vendor runtime stays inline (fetched, not saved).
+/// Successful serves are recorded in the downloads journal (T30.1: who/what/
+/// how much) with the direct TCP peer.
 async fn serve_disk(
     root: &std::path::Path,
     tail: &str,
     range: Option<&str>,
     attach: Option<&str>,
+    state: &AppState,
+    peer: Option<std::net::IpAddr>,
 ) -> Response {
     use std::io::SeekFrom;
     use tokio::io::{AsyncReadExt, AsyncSeekExt};
@@ -1708,6 +1729,18 @@ async fn serve_disk(
             format!("bytes {start}-{end}/{len}").parse().unwrap(),
         );
     }
+    state
+        .push_download(crate::state::DownloadEvent {
+            ts: chrono::Utc::now(),
+            peer: peer
+                .map(|ip| ip.to_string())
+                .unwrap_or_else(|| "?".to_string()),
+            file: tail.to_string(),
+            bytes: left,
+            range: range.map(str::to_string),
+            status: status.as_u16(),
+        })
+        .await;
     resp
 }
 
@@ -3609,6 +3642,86 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    // ---- download journal (T30.1) ----
+
+    /// Loopback peer for file-serve tests (ConnectInfo is required input —
+    /// production wires it, tests insert it explicitly like the proxy tests).
+    fn loopback_conn() -> ConnectInfo<std::net::SocketAddr> {
+        ConnectInfo("127.0.0.1:55555".parse().unwrap())
+    }
+
+    #[tokio::test]
+    async fn downloads_journal_roundtrip_and_cap() {
+        let state = test_state();
+        assert!(state.recent_downloads(10).await.is_empty());
+        for i in 0..1005 {
+            state
+                .push_download(crate::state::DownloadEvent {
+                    ts: chrono::Utc::now(),
+                    peer: "192.168.2.5".to_string(),
+                    file: format!("m{i}.gguf"),
+                    bytes: 100,
+                    range: None,
+                    status: 200,
+                })
+                .await;
+        }
+        let recent = state.recent_downloads(2000).await;
+        assert!(recent.len() <= 1000);
+        assert_eq!(recent[0].file, "m1004.gguf"); // newest first
+    }
+
+    #[tokio::test]
+    async fn models_serve_records_download_with_peer() {
+        // T30.1: the journal answers "which IP downloaded the model".
+        let _guard = crate::ui::vendor::ENV_GUARD.lock().await;
+        let dir = std::env::temp_dir().join(format!("tns-mdl-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("tiny.gguf"), vec![7u8; 2048]).unwrap();
+        let prev = std::env::var_os("TELENETIS_MODEL_DIR");
+        std::env::set_var("TELENETIS_MODEL_DIR", &dir);
+        let state = test_state();
+        let peer: std::net::SocketAddr = "127.0.0.1:55555".parse().unwrap();
+        let app = router(state.clone());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/models/tiny.gguf")
+                    .extension(ConnectInfo(peer))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let resp = router(state)
+            .oneshot(
+                Request::builder()
+                    .uri("/api/edge/downloads")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 16 * 1024)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let rows = json["downloads"].as_array().unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0]["peer"], "127.0.0.1");
+        assert_eq!(rows[0]["file"], "tiny.gguf");
+        assert_eq!(rows[0]["bytes"], 2048);
+        assert_eq!(rows[0]["status"], 200);
+        match prev {
+            Some(v) => std::env::set_var("TELENETIS_MODEL_DIR", v),
+            None => std::env::remove_var("TELENETIS_MODEL_DIR"),
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[tokio::test]
     async fn models_serve_sends_attachment_disposition() {
         // T13.2: navigation-to-file must also land in Downloads (not render).
@@ -3620,7 +3733,16 @@ mod tests {
         std::fs::write(dir.join("tiny.gguf"), vec![7u8; 512]).unwrap();
         let prev = std::env::var_os("TELENETIS_MODEL_DIR");
         std::env::set_var("TELENETIS_MODEL_DIR", &dir);
-        let resp = get_uri(router(test_state()), "/models/tiny.gguf").await;
+        let resp = router(test_state())
+            .oneshot(
+                Request::builder()
+                    .uri("/models/tiny.gguf")
+                    .extension(loopback_conn())
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let disp = resp
             .headers()
@@ -3644,7 +3766,16 @@ mod tests {
         std::fs::write(vdir.join("wllama/index.js"), b"var x=1;").unwrap();
         let vprev = std::env::var_os("TELENETIS_VENDOR_DIR");
         std::env::set_var("TELENETIS_VENDOR_DIR", &vdir);
-        let vresp = get_uri(router(test_state()), "/vendor/wllama/index.js").await;
+        let vresp = router(test_state())
+            .oneshot(
+                Request::builder()
+                    .uri("/vendor/wllama/index.js")
+                    .extension(loopback_conn())
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(vresp.status(), StatusCode::OK);
         assert!(vresp.headers().get(header::CONTENT_DISPOSITION).is_none());
         match vprev {
@@ -3665,7 +3796,16 @@ mod tests {
         let prev = std::env::var_os("TELENETIS_VENDOR_DIR");
         std::env::set_var("TELENETIS_VENDOR_DIR", &dir);
         let app = router(test_state());
-        let full = get_uri(app, "/vendor/wllama/index.js").await;
+        let full = app
+            .oneshot(
+                Request::builder()
+                    .uri("/vendor/wllama/index.js")
+                    .extension(loopback_conn())
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(full.status(), StatusCode::OK);
         assert!(full
             .headers()
@@ -3680,6 +3820,7 @@ mod tests {
                 Request::builder()
                     .uri("/vendor/wllama/index.js")
                     .header("Range", "bytes=0-3")
+                    .extension(loopback_conn())
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -3689,7 +3830,16 @@ mod tests {
         let body = axum::body::to_bytes(resp.into_body(), 1024).await.unwrap();
         assert_eq!(&body[..], b"var ");
         let app = router(test_state());
-        let evil = get_uri(app, "/vendor/../secret").await;
+        let evil = app
+            .oneshot(
+                Request::builder()
+                    .uri("/vendor/../secret")
+                    .extension(loopback_conn())
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(evil.status(), StatusCode::NOT_FOUND);
         match prev {
             Some(v) => std::env::set_var("TELENETIS_VENDOR_DIR", v),

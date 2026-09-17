@@ -107,6 +107,7 @@ Details: [`ops.md`](ops.md), concept [`CONCEPT.md`](CONCEPT.md) §1.
 - `GET /api/edge/testmode/peers` → opted-in user ids for the host harness (initData or direct LAN)
 - `GET /devices` → web management: opted-in phones with bound peers (SSR table)
 - `POST /api/edge/test/ping` → enqueue `test_ping` to an opted-in user's peer (initData or direct LAN)
+- `GET /api/edge/downloads` → download journal: peer IP, file, bytes, Range
 
 ## Windows keep-live (band 228)
 

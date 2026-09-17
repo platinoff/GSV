@@ -40,6 +40,7 @@
 ## Що прислати назад (мінімум для дебага)
 
 - `peers` з `/api/edge/tracker/status` до/після.
+- Хто що качає: `GET /api/edge/downloads` на хості (IP, файл, байти, Range).
 - Рядки лога `torrent …`, `auto-saved …`, `restoring saved model`, `cache evicted`.
 - tok/s self-test кожного.
 - Hub-профілі (`class=webgpu`, mode) — з'явились чи ні.

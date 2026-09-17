@@ -50,6 +50,7 @@ poolAI і шину GSV як control plane.
 | `/torrents/*.torrent` + `/models/*` | Роздача байтів (webseed; `attachment` для сейву) |
 | `/tracker` + `/api/edge/tracker/status` | WS-сигналінг phone-to-phone; статус роїв без ідентифікаторів |
 | `/api/testmode`, `/api/edge/testmode/peers` | Згода на тести; список для харнеса |
+| `/api/edge/downloads` | Журнал скачувань: хто (IP), що, скільки, Range чи цілком |
 | `/devices`, `/api/edge/test/ping` | Вебкерування: SSR-таблиця opted-in девайсів + Ping (`test_ping` у чергу bound-вира) |
 | `/ws`, `/events` | Живі потоки (WS primary, SSE fallback) |
 
@@ -91,4 +92,5 @@ llama_edge чинить requeue чужих задач (було complete-ignored
 поллери перезапущено, лог доводить 9 requeue / 0 ignored. · T27 KVM: ADB
 стоїть на хості (`target/adb`), чекаємо пейринг телефонів. · T28 Save-дебаг:
 роздача ідеальна, guard >2GB PC only, вбито флап env-тестів. · T29 0.5B
-побайтово: SHA1 роздачі = SHA1 оригіналу, хост чистий — брейк на телефоні.
+побайтово: SHA1 роздачі = SHA1 оригіналу, хост чистий — брейк на телефоні. · T30
+журнал скачувань: IP/файл/байти/Range в `/api/edge/downloads`.
