@@ -23,6 +23,8 @@ pub fn router(state: AppState) -> Router {
         .route("/roles", get(roles_page))
         .route("/workers", get(workers_page))
         .route("/api/edge/workers", get(api_edge_workers))
+        .route("/devices", get(devices_page))
+        .route("/api/edge/test/ping", post(api_edge_test_ping))
         .route("/vm", get(vm_page))
         .route("/api/edge/vm", get(api_edge_vm))
         .route("/api/edge/vm/ensure", post(api_edge_vm_ensure))
@@ -690,6 +692,125 @@ async fn workers_page(State(state): State<AppState>) -> impl IntoResponse {
             .to_string()
             .replace("<!--WORKERS_ROWS-->", &rows),
     )
+}
+
+/// Server-rendered test-device rows (T21.1, same no-JS guarantee as
+/// workers): every opted-in Telegram user with its bound poolAI peer
+/// (`n/a` when poolAI is unreachable — the consent itself is local truth).
+/// Ping buttons POST `test_ping` through the operator-gated endpoint below.
+async fn devices_rows(state: &AppState) -> String {
+    use crate::edge::PoolClient;
+
+    let users = state.testmode_list().await;
+    if users.is_empty() {
+        return "<tr><td colspan=\"4\">(none opted in — toggle Host tests on /tensor)</td></tr>"
+            .to_string();
+    }
+    let pool = PoolClient::new(state.config());
+    let mut rows = Vec::new();
+    for user in &users {
+        let peer = pool
+            .peer_for_user(user)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "n/a".to_string());
+        rows.push(format!(
+            "<tr><td>{}</td><td>{}</td><td>on</td><td><button type=\"button\" data-ping-user=\"{}\" class=\"board-btn\">Ping</button></td></tr>",
+            esc_html(user),
+            esc_html(&peer),
+            esc_html(user),
+        ));
+    }
+    rows.join("")
+}
+
+async fn devices_page(State(state): State<AppState>) -> impl IntoResponse {
+    let rows = devices_rows(&state).await;
+    page(
+        include_str!("templates/devices.html")
+            .to_string()
+            .replace("<!--DEVICES_ROWS-->", &rows),
+    )
+}
+
+/// POST /api/edge/test/ping — operator enqueues a `test_ping` task to one
+/// opted-in user's bound peer. Body: `{"user": "<telegram id>"}`. Same
+/// operator gate as the peers list (valid initData or direct LAN); the phone
+/// answers only while its own toggle is on, otherwise it requeues. poolAI
+/// unreachable or user not opted in / unbound → structured error, never 500.
+async fn api_edge_test_ping(
+    State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<std::net::SocketAddr>,
+    headers: axum::http::HeaderMap,
+    Query(gate): Query<ActionQuery>,
+    Json(body): Json<serde_json::Value>,
+) -> Response {
+    let forwarded =
+        headers.contains_key("x-forwarded-for") || headers.contains_key("x-forwarded-proto");
+    let now = freshness_now(gate.auth_date);
+    if !proxy_post_allowed(
+        &state.config().bot_token,
+        &gate.init_data,
+        now,
+        Some(peer.ip()),
+        forwarded,
+    ) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(crate::actions::err_json(
+                "test ping denied: initData or direct LAN required",
+            )),
+        )
+            .into_response();
+    }
+    let user = match body.get("user").and_then(serde_json::Value::as_str) {
+        Some(u) if !u.trim().is_empty() => u.trim().to_string(),
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(crate::actions::err_json("missing user")),
+            )
+                .into_response();
+        }
+    };
+    if !state.testmode_opted_in(&user).await {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(crate::actions::err_json("user not opted into host tests")),
+        )
+            .into_response();
+    }
+    let pool = crate::edge::PoolClient::new(state.config());
+    let peer_id = match pool.peer_for_user(&user).await {
+        Ok(Some(p)) => p,
+        _ => {
+            return (
+                StatusCode::BAD_GATEWAY,
+                Json(crate::actions::err_json(
+                    "no bound peer (poolAI unreachable?)",
+                )),
+            )
+                .into_response();
+        }
+    };
+    match pool
+        .enqueue_task(
+            &peer_id,
+            "test_ping",
+            serde_json::json!({"from": "telenetis-devices"}),
+        )
+        .await
+    {
+        Ok(task_id) => {
+            Json(json!({"ok": true, "task_id": task_id, "peer": peer_id})).into_response()
+        }
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            Json(crate::actions::err_json(&format!("enqueue failed: {e}"))),
+        )
+            .into_response(),
+    }
 }
 
 /// Server-rendered VM + shard rows (same no-JS guarantee as workers).
@@ -2113,6 +2234,130 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ---- host web-management (T21.1) ----
+
+    #[tokio::test]
+    async fn devices_page_lists_opted_in_with_peer_fallback() {
+        // poolAI unreachable (127.0.0.1:9): peer reads fail open as n/a,
+        // the consent itself still renders with a Ping button.
+        let (state, dir) = tm_state();
+        state.testmode_set("279058397", true).await;
+        let resp = router(state)
+            .oneshot(
+                Request::builder()
+                    .uri("/devices")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+            .await
+            .unwrap();
+        let html = String::from_utf8_lossy(&body);
+        assert!(!html.contains("<!--DEVICES_ROWS-->"));
+        assert!(html.contains("279058397"));
+        assert!(html.contains("n/a"));
+        assert!(html.contains("data-ping-user"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn devices_page_empty_without_consent() {
+        let (state, dir) = tm_state();
+        let resp = router(state)
+            .oneshot(
+                Request::builder()
+                    .uri("/devices")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+            .await
+            .unwrap();
+        assert!(String::from_utf8_lossy(&body).contains("none opted in"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    async fn post_test_ping(
+        app: axum::Router,
+        peer: std::net::SocketAddr,
+        headers: Vec<(&str, &str)>,
+        body: serde_json::Value,
+    ) -> axum::response::Response {
+        let mut req = Request::builder()
+            .uri("/api/edge/test/ping")
+            .method("POST")
+            .header("content-type", "application/json")
+            .extension(ConnectInfo(peer));
+        for (k, v) in headers {
+            req = req.header(k, v);
+        }
+        app.oneshot(req.body(Body::from(body.to_string())).unwrap())
+            .await
+            .unwrap()
+    }
+
+    fn lan_peer() -> std::net::SocketAddr {
+        "127.0.0.1:55555".parse().unwrap()
+    }
+
+    fn wan_peer() -> std::net::SocketAddr {
+        "203.0.113.7:55555".parse().unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_ping_needs_opted_in_user() {
+        let (state, _dir) = tm_state();
+        let resp = post_test_ping(
+            router(state),
+            lan_peer(),
+            vec![],
+            serde_json::json!({"user": "nobody"}),
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_ping_rejects_forwarded_anonymous() {
+        let (state, dir) = tm_state();
+        state.testmode_set("279058397", true).await;
+        let resp = post_test_ping(
+            router(state),
+            wan_peer(),
+            vec![("x-forwarded-for", "203.0.113.7")],
+            serde_json::json!({"user": "279058397"}),
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn test_ping_poolai_down_fails_open() {
+        // Opted in, direct LAN, but poolAI dead (127.0.0.1:9): structured
+        // gateway error, never a 500.
+        let (state, dir) = tm_state();
+        state.testmode_set("279058397", true).await;
+        let resp = post_test_ping(
+            router(state),
+            lan_peer(),
+            vec![],
+            serde_json::json!({"user": "279058397"}),
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["ok"], false);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

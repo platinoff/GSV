@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title data-i18n="app.title">Telenetis - Test Devices</title>
+    <link rel="stylesheet" href="/static/app.css">
+    <script defer src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body class="platform-unknown">
+    <div id="app">
+        <nav class="nav">
+            <a href="/" data-i18n="nav.home">Home</a>
+            <a href="/board" data-i18n="nav.board">Board</a>
+            <a href="/flows" data-i18n="nav.flows">Flows</a>
+            <a href="/roles" data-i18n="nav.roles">Roles</a>
+            <a href="/workers" data-i18n="nav.workers">Workers</a>
+            <a href="/vm" data-i18n="nav.vm">My VM</a>
+            <a href="/chat" data-i18n="nav.chat">Chat</a>
+            <a href="/probe">Probe</a>
+            <a href="/tensor">Tensor</a>
+        </nav>
+        <h1>Test Devices</h1>
+        <p class="dim">Phones opted into host testing (consent toggle on /tensor).
+        Ping enqueues a <code>test_ping</code> task to the bound peer — the phone
+        answers only while its toggle is on. Server-rendered, no JS needed to read.</p>
+        <table id="devices">
+            <thead>
+                <tr>
+                    <th>Telegram</th>
+                    <th>Peer</th>
+                    <th>Consent</th>
+                    <th>Ping</th>
+                </tr>
+            </thead>
+            <tbody id="devices-body" aria-busy="true">
+                <!--DEVICES_ROWS-->
+            </tbody>
+        </table>
+        <p id="devices-dbg" class="dim"></p>
+    </div>
+    <script>
+    (function () {
+        function tg() {
+            try { return (window.Telegram && window.Telegram.WebApp) || null; }
+            catch (e) { return null; }
+        }
+        function dbg(msg) {
+            try { document.getElementById("devices-dbg").textContent = msg; } catch (e) {}
+        }
+        document.querySelectorAll("[data-ping-user]").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                var user = btn.getAttribute("data-ping-user");
+                var w = tg();
+                var initData = (w && w.initData) ? w.initData : "";
+                var authDate = Math.floor(Date.now() / 1000);
+                btn.disabled = true;
+                btn.textContent = "pinging…";
+                fetch("/api/edge/test/ping?initData=" + encodeURIComponent(initData) +
+                    "&authDate=" + authDate, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ user: user })
+                    })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        btn.disabled = false;
+                        btn.textContent = "Ping";
+                        dbg((data && data.ok)
+                            ? ("task " + data.task_id + " → " + data.peer)
+                            : ("ping failed: " + ((data && data.error) || "?")));
+                    })
+                    .catch(function (e) {
+                        btn.disabled = false;
+                        btn.textContent = "Ping";
+                        dbg("ping failed: " + String((e && e.message) || e));
+                    });
+            });
+        });
+    })();
+    </script>
+</body>
+</html>

@@ -50,6 +50,7 @@ poolAI і шину GSV як control plane.
 | `/torrents/*.torrent` + `/models/*` | Роздача байтів (webseed; `attachment` для сейву) |
 | `/tracker` + `/api/edge/tracker/status` | WS-сигналінг phone-to-phone; статус роїв без ідентифікаторів |
 | `/api/testmode`, `/api/edge/testmode/peers` | Згода на тести; список для харнеса |
+| `/devices`, `/api/edge/test/ping` | Вебкерування: SSR-таблиця opted-in девайсів + Ping (`test_ping` у чергу bound-вира) |
 | `/ws`, `/events` | Живі потоки (WS primary, SSE fallback) |
 
 ## Гарантії та не-цілі
@@ -82,4 +83,5 @@ T4 Download як накопичувач · T5 липкий вибір + чейн
 T15 KVM-вердикт (ні) · T16 згода на тести · T18 вердикт pipeline-промту
 (Petals так/телефони ні, PIA → шарінг заборонено) · T19 VM-аудит · T20
 відкат WSL-лаби (вигадка агента, скасовано): тільки харнес, ніяких VM/WSL
-([`LAB.md`](LAB.md)).
+([`LAB.md`](LAB.md)) · T21 вебкерування `/devices` + Ping (маленька
+аплікація-емулятор на хості, без WSL/Docker).

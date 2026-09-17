@@ -105,6 +105,8 @@ Details: [`ops.md`](ops.md), concept [`CONCEPT.md`](CONCEPT.md) §1.
 - `GET /tracker` → WS torrent signaling relay (WebTorrent announce/offer/answer for phone-to-phone P2P)
 - `POST /api/testmode` + `GET /api/testmode` → host-test consent toggle (initData; identity from verified `user.id`)
 - `GET /api/edge/testmode/peers` → opted-in user ids for the host harness (initData or direct LAN)
+- `GET /devices` → web management: opted-in phones with bound peers (SSR table)
+- `POST /api/edge/test/ping` → enqueue `test_ping` to an opted-in user's peer (initData or direct LAN)
 
 ## Windows keep-live (band 228)
 

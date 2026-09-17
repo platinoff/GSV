@@ -307,6 +307,29 @@ impl PoolClient {
         Ok(resp.json().await?)
     }
 
+    /// Enqueue any task type for a peer. Returns the task id.
+    pub async fn enqueue_task(
+        &self,
+        peer_id: &str,
+        task_type: &str,
+        payload: Value,
+    ) -> Result<String, TelenetisError> {
+        let body = self
+            .post_json(
+                &format!("/api/v1/virtual-nodes/{peer_id}/tasks"),
+                &serde_json::json!({
+                    "task_type": task_type,
+                    "payload": payload,
+                }),
+            )
+            .await?;
+        body.get("task")
+            .and_then(|t| t.get("id"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .ok_or_else(|| TelenetisError::Pool("enqueue: no task id".to_string()))
+    }
+
     /// Enqueue a `llama_chat` task for a peer. Returns the task id.
     /// `model` is `"fast"` (interactive) or `"deep"` (27B).
     pub async fn enqueue_chat(
@@ -316,20 +339,12 @@ impl PoolClient {
         max_tokens: u64,
         model: &str,
     ) -> Result<String, TelenetisError> {
-        let body = self
-            .post_json(
-                &format!("/api/v1/virtual-nodes/{peer_id}/tasks"),
-                &serde_json::json!({
-                    "task_type": "llama_chat",
-                    "payload": {"prompt": prompt, "max_tokens": max_tokens, "model": model},
-                }),
-            )
-            .await?;
-        body.get("task")
-            .and_then(|t| t.get("id"))
-            .and_then(Value::as_str)
-            .map(str::to_string)
-            .ok_or_else(|| TelenetisError::Pool("enqueue: no task id".to_string()))
+        self.enqueue_task(
+            peer_id,
+            "llama_chat",
+            serde_json::json!({"prompt": prompt, "max_tokens": max_tokens, "model": model}),
+        )
+        .await
     }
 
     /// Read a chat answer: `Ok(Some(text))` when completed,
