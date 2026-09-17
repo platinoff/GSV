@@ -549,15 +549,34 @@ function rowAction(key, act) {
 // Real disk storage via the system Download Manager: the file lands in
 // the phone's Download folder and survives app/browser restarts, unlike
 // any WebView storage. Pair with "File" to load it back.
-function saveToDevice(key) {
-    var entry = MODELS[key];
-    if (!entry) { return; }
-    var url = entry.hf
+//
+// T13.2: the `download` attribute is honored ONLY same-origin. Host-catalog
+// entries are relative (/models/x) — always same-origin. HF entries are
+// cross-origin — the attribute is ignored there and the WebView just
+// navigates, so we say so instead of failing silently.
+function downloadUrl(entry) {
+    var u = entry.hf
         ? 'https://huggingface.co/' + entry.repo + '/resolve/main/' + entry.file + '?download=true'
         : entry.url;
     try {
+        var abs = new URL(u, window.location.href);
+        if (abs.origin === window.location.origin) {
+            return { url: abs.toString(), sameOrigin: true };
+        }
+    } catch (e) {}
+    return { url: u, sameOrigin: false };
+}
+function saveToDevice(key) {
+    var entry = MODELS[key];
+    if (!entry) { return; }
+    var d = downloadUrl(entry);
+    if (!d.sameOrigin) {
+        setStatus('remote file opens in browser — host-catalog models Save one-tap');
+        logRow('sys', 'cross-origin Save (download attr ignored): ' + esc(entry.label));
+    }
+    try {
         var a = document.createElement('a');
-        a.href = url;
+        a.href = d.url;
         a.setAttribute('download', fnameOf(entry));
         document.body.appendChild(a);
         a.click();

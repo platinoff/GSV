@@ -1379,6 +1379,7 @@ async fn serve_vendor(
         &crate::ui::vendor::vendor_dir(),
         &tail,
         headers.get(header::RANGE).and_then(|v| v.to_str().ok()),
+        None,
     )
     .await
 }
@@ -1397,17 +1398,27 @@ async fn serve_models(
         )
             .into_response();
     };
+    let attach = tail.rsplit('/').next().filter(|n| !n.is_empty());
     serve_disk(
         &root,
         &tail,
         headers.get(header::RANGE).and_then(|v| v.to_str().ok()),
+        attach,
     )
     .await
 }
 
 /// Stream a file from `root` with single-range support. Traversal escapes
 /// and missing files are 404 (no path leak); unsatisfiable ranges are 416.
-async fn serve_disk(root: &std::path::Path, tail: &str, range: Option<&str>) -> Response {
+/// `attach` (a bare file name) adds `Content-Disposition: attachment` so a
+/// plain navigation to the file also lands in the Download Manager (T13.2:
+/// the Mini App Save path); vendor runtime stays inline (fetched, not saved).
+async fn serve_disk(
+    root: &std::path::Path,
+    tail: &str,
+    range: Option<&str>,
+    attach: Option<&str>,
+) -> Response {
     use std::io::SeekFrom;
     use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
@@ -1464,6 +1475,17 @@ async fn serve_disk(root: &std::path::Path, tail: &str, range: Option<&str>) -> 
     headers.insert(header::CONTENT_TYPE, ctype.parse().unwrap());
     headers.insert(header::ACCEPT_RANGES, "bytes".parse().unwrap());
     headers.insert(header::CONTENT_LENGTH, left.to_string().parse().unwrap());
+    if let Some(name) = attach {
+        let safe: String = name
+            .chars()
+            .filter(|c| *c != '"' && *c != '\r' && *c != '\n')
+            .collect();
+        if !safe.is_empty() {
+            if let Ok(v) = format!("attachment; filename=\"{safe}\"").parse() {
+                headers.insert(header::CONTENT_DISPOSITION, v);
+            }
+        }
+    }
     if status == StatusCode::PARTIAL_CONTENT {
         headers.insert(
             header::CONTENT_RANGE,
@@ -2984,6 +3006,7 @@ mod tests {
         assert!(js.contains("tensor-autosave")); // T4.1: on/off toggle
         assert!(js.contains("trackerUrl")); // T7.2: own WS tracker announce
         assert!(js.contains("/tracker")); // T7.2: tracker endpoint
+        assert!(js.contains("downloadUrl")); // T13.2: same-origin Save URL
         assert!(js.contains("autoUseSaved")); // T5.1: saved model back, no tap
         assert!(js.contains("chainMessages")); // T5.2: worker-side chain
         assert!(js.contains("payload.history")); // T5.2: host seeds the chain
@@ -3078,6 +3101,51 @@ mod tests {
             None => std::env::remove_var("TELENETIS_MODEL_DIR"),
         }
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn models_serve_sends_attachment_disposition() {
+        // T13.2: navigation-to-file must also land in Downloads (not render).
+        // Vendor runtime stays inline (the page fetches it, never saves it).
+        let _guard = crate::ui::vendor::ENV_GUARD.lock().await;
+        let dir = std::env::temp_dir().join(format!("tns-matt-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("tiny.gguf"), vec![7u8; 512]).unwrap();
+        let prev = std::env::var_os("TELENETIS_MODEL_DIR");
+        std::env::set_var("TELENETIS_MODEL_DIR", &dir);
+        let resp = get_uri(router(test_state()), "/models/tiny.gguf").await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let disp = resp
+            .headers()
+            .get(header::CONTENT_DISPOSITION)
+            .expect("models serve attachment")
+            .to_str()
+            .unwrap()
+            .to_string();
+        assert!(disp.contains("attachment"), "{disp}");
+        assert!(disp.contains("tiny.gguf"), "{disp}");
+        match prev {
+            Some(v) => std::env::set_var("TELENETIS_MODEL_DIR", v),
+            None => std::env::remove_var("TELENETIS_MODEL_DIR"),
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+
+        // Vendor runtime stays inline: no attachment on its bytes.
+        let vdir = std::env::temp_dir().join(format!("tns-matt-v-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&vdir);
+        std::fs::create_dir_all(vdir.join("wllama")).unwrap();
+        std::fs::write(vdir.join("wllama/index.js"), b"var x=1;").unwrap();
+        let vprev = std::env::var_os("TELENETIS_VENDOR_DIR");
+        std::env::set_var("TELENETIS_VENDOR_DIR", &vdir);
+        let vresp = get_uri(router(test_state()), "/vendor/wllama/index.js").await;
+        assert_eq!(vresp.status(), StatusCode::OK);
+        assert!(vresp.headers().get(header::CONTENT_DISPOSITION).is_none());
+        match vprev {
+            Some(v) => std::env::set_var("TELENETIS_VENDOR_DIR", v),
+            None => std::env::remove_var("TELENETIS_VENDOR_DIR"),
+        }
+        let _ = std::fs::remove_dir_all(&vdir);
     }
 
     #[tokio::test]

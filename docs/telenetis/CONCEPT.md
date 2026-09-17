@@ -47,6 +47,8 @@
 | IndexedDB `tensor-worker/models` | готові GGUF (швидкий кеш) | ✅ | ❌ (best-effort; `persist()` просимо після збереження) |
 | Download (auto-save T4.1, toggle) | готові GGUF (накопичувач) | ✅ | ✅ |
 | File-пікер | вантажить з Download назад без скачування/кешу | — | — |
+| Save host-каталог (T13) | `/models/x` same-origin + `attachment` з ім'ям — качає і кліком, і навігацією | ✅ | ✅ |
+| Save HF (T13) | cross-origin: `download`-атрибут ігнориться — нема one-tap Save, тільки host-каталог | ❌ (ліміт платформи) | — |
 | Вибір моделі (T5.1) | пам'ятається (localStorage), авто-Use з кешу при старті; Start лишається ручним | ✅ | — |
 | Чейн (T5.2) | воркер пам'ятає останні 6 ходів (localStorage); `payload.history` сідає з хоста; complete лишається answer | ✅ | — |
 
@@ -139,3 +141,4 @@ phone → Telenetis :9800 → Hub :9999 / PoolAI :8091 / llama :8080
 13. ✅ T10 done 2026-09-17: показовий тур емулятора (8 кроків, гонка знайдена і вбита); телефони — наступні.
 14. ✅ T11 done 2026-09-17: live-дрейф доведено (live pre-T1: tracker/status 404, tensor.js без T4+; debug свіжий — маркери на місці). Респаун live — тільки у вікні власника; ранбук вимагає перевірки свіжості перед телефонами.
 15. ✅ T12 done 2026-09-17 (вікно дано): респаун live — воркер 6208→4860, health ok, tracker/status 200, tensor.js свіжий, бінарь з маркерами. Живий збігається з емулятором.
+16. ✅ T13 done 2026-09-17: Save-аудит (host same-origin ok, HF cross-origin ліміт) + `attachment` на /models + same-origin хелпер; prime-підозра — WebView без DownloadListener (ранбук дає обхід через Chrome).
