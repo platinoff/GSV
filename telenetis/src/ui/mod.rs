@@ -3214,6 +3214,7 @@ mod tests {
         assert!(html.contains("tensor-autosave")); // T4.1: auto-save toggle
         assert!(html.contains("tensor-models"));
         assert!(html.contains("tensor-file"));
+        assert!(html.contains("tensor-privacy")); // T18.1: no-sharing notice
         assert!(html.contains("gsv-card"));
     }
 

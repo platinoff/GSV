@@ -26,6 +26,9 @@
         serves <code>llama_chat</code> tasks from your bound poolAI peer.
         Each model below is torrent-style: Download / Pause / Cancel / Use.
         PC pollers race for the same queue during the PoC.</p>
+        <p class="dim" id="tensor-privacy">Privacy: this phone runs whole models locally and never
+        shares weights or activations with peers (shared activations leak
+        prompts — prompt inversion reaches ~88% token accuracy).</p>
         <div class="gsv-card">
         <div id="tensor-models"></div>
         </div>
