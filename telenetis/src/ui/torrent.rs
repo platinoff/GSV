@@ -217,7 +217,7 @@ mod tests {
 
     #[test]
     fn sha1_hex_known_vector() {
-        assert_eq!(sha1_hex(b"abc"),             "a9993e364706816aba3e25717850c26c9cd0d89d");
+        assert_eq!(sha1_hex(b"abc"), "a9993e364706816aba3e25717850c26c9cd0d89d");
     }
 
     #[test]
