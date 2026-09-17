@@ -445,6 +445,13 @@ function fmtSpeed(bps) {
         : Math.round(bps / 1024) + 'KB/s';
 }
 
+// T28.2: wllama caps a single file at 2GB (ArrayBuffer) — anything above
+// ~1900MB can never load in a phone browser. Such rows are PC-only.
+function tooBigForPhone(entry) {
+    var mb = (entry && entry.size_mb) || 0;
+    return mb > 1900;
+}
+
 function fnameOf(entry) {
     if (!entry) { return 'model.gguf'; }
     if (entry.url) {
@@ -494,9 +501,9 @@ function renderRows() {
             nm.textContent = entry.label;
             title.appendChild(nm);
             var tag = document.createElement('span');
-            tag.className = 'pill pill-warn';
+            tag.className = 'pill ' + (tooBigForPhone(entry) ? 'pill-err' : 'pill-warn');
             tag.id = 'tag-' + key;
-            tag.textContent = 'new';
+            tag.textContent = tooBigForPhone(entry) ? 'PC only' : 'new';
             tag.style.marginLeft = '8px';
             title.appendChild(tag);
             card.appendChild(title);
@@ -534,6 +541,14 @@ function renderRows() {
 }
 
 function rowAction(key, act) {
+    var entry = MODELS[key];
+    // T28.2: over-2GB models can never load in a phone browser (wllama
+    // ArrayBuffer cap) — answer instead of hanging on gigabytes.
+    if ((act === 'download' || act === 'use') && tooBigForPhone(entry)) {
+        setStatus('PC only: over 2GB, wllama cap — pick a model under 1.5GB');
+        logRow('sys', 'refused ' + act + ' for oversize model ' + (entry && entry.label));
+        return;
+    }
     if (act === 'download') { startDownload(key); }
     else if (act === 'pause') {
         var dl = DLS[key];

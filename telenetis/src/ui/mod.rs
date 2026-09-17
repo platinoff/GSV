@@ -3509,6 +3509,7 @@ mod tests {
         assert!(js.contains("trackerUrl")); // T7.2: own WS tracker announce
         assert!(js.contains("/tracker")); // T7.2: tracker endpoint
         assert!(js.contains("downloadUrl")); // T13.2: same-origin Save URL
+        assert!(js.contains("tooBigForPhone")); // T28.2: >2GB PC-only guard
         assert!(js.contains("testModeOn")); // T16.2: consent toggle
         assert!(js.contains("serveTestPing")); // T16.2: test_ping execution
         assert!(js.contains("tensor-testmode")); // T16.2: toggle button

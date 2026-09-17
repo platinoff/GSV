@@ -78,8 +78,13 @@ impl Config {
 mod tests {
     use super::*;
 
+    /// Process env is shared across test threads: the tests below mutate it,
+    /// so they serialize on this lock (otherwise parallel runs flake).
+    static ENV_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn config_from_env_reads_vars() {
+        let _guard = ENV_GUARD.lock().unwrap();
         std::env::set_var("TELENETIS_BOT_TOKEN", "test_token_123");
         std::env::set_var("TELENETIS_GSV_URL", "http://127.0.0.1:9999");
         std::env::set_var("TELENETIS_POOLAI_URL", "http://127.0.0.1:8091");
@@ -96,8 +101,7 @@ mod tests {
     #[test]
     fn config_bad_port_falls_back_instead_of_panicking() {
         // Bug-hunt: a garbage TELENETIS_PORT must not kill the service.
-        // Guarded: no other test mutates this var concurrently... (single
-        // setter here; from_env reads are independent.)
+        let _guard = ENV_GUARD.lock().unwrap();
         std::env::set_var("TELENETIS_PORT", "not-a-port");
         let cfg = Config::from_env();
         assert_eq!(cfg.port, 9800);
@@ -106,6 +110,7 @@ mod tests {
 
     #[test]
     fn config_defaults_when_optional_missing() {
+        let _guard = ENV_GUARD.lock().unwrap();
         std::env::set_var("TELENETIS_BOT_TOKEN", "tok");
         std::env::remove_var("TELENETIS_GSV_URL");
         std::env::remove_var("TELENETIS_POOLAI_URL");
