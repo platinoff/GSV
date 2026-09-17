@@ -1,0 +1,49 @@
+# Два телефони в чаті — ранбук сесії (після зеленого емулятора)
+
+Передумова: `cargo test --test phone_emulator` зелений. Інакше телефони тикатимуть всліпу.
+
+## Передумови на хості
+
+- Live `:9800` піднято (`cargo xtask telenetis-live`), health `ok`.
+- Телефони і хост: або один Wi-Fi (LAN-URL з `/app`), або тунель (повільний — тільки для кнопок, великі файли качати по LAN).
+- `TELENETIS_BOT_TOKEN` бойовий (після rotate-тікету), бот відповідає на `/start` в приваті.
+- Відкрита ця сторінка спостерігача на хості: `GET /api/edge/tracker/status` (рой формується — видно).
+
+## Телефон A (A54, WebGPU)
+
+1. Відкрий Mini App → `/probe` → Run. Очікуєш: SUPPORTED + mode core.
+2. `/tensor` → у моделі Download → дочекайся done → **автосейв сам покладе файл у Download** (дивись лог сторінки).
+3. File… не чіпай (це шлях B). Use → модель в движку → Start.
+4. Пришли хосту: скрін лога + tok/s self-test.
+
+## Телефон B (Redmi 9, Mali)
+
+1. `/probe` → Run. Очікуєш: SUPPORTED + mode **compatibility** (або UNSUPPORTED — теж результат, записати).
+2. `/tensor` → Download меншої моделі (0.5B) → done → автосейв у Download.
+3. **Видали кеш перевірки**: закрий Mini App повністю, відкрий знову → має бути авто-Use з кешу (лог "restoring saved model").
+4. **Перевірка накопичувача**: очисти кеш браузера/дані WebView → відкрий → кешу нема → File… → вибери GGUF з Download → Use без скачування.
+5. Use → Start. Пришли хосту tok/s.
+
+## P2P-вимір (обидва з моделями, воркери запущені)
+
+1. На хості дивись `/api/edge/tracker/status`: має з'явитись 1 swarm, `peers: 2`.
+2. На сторінках `/tensor` в лозі шукай `via torrent · peers N` (замість `via http`).
+3. Швидкість і паузи: Pause → Resume (докачка), Cancel (скидання).
+4. Пришли хосту: скріни логів обох + `peers` зі status + чи рій розпався після done.
+
+## Що прислати назад (мінімум для дебага)
+
+- `peers` з `/api/edge/tracker/status` до/після.
+- Рядки лога `torrent …`, `auto-saved …`, `restoring saved model`, `cache evicted`.
+- tok/s self-test кожного.
+- Hub-профілі (`class=webgpu`, mode) — з'явились чи ні.
+
+## Траблшутинг
+
+| Симптом | Дія |
+|---|---|
+| Тунель повільний, закачка висить | Той же Wi-Fi → відкрий LAN-URL з `/app` |
+| Кнопки мовчать / 403 | Mini App старий хендшейк — закрий і перевідкрий (reopen-підказка) |
+| Кеш порожній після чистки | Так і має бути — File… з Download, качати заново не треба |
+| `via http` замість torrent | Трекер не бачить рій — перевір `/api/edge/tracker/status`; нема рою — логи сюди |
+| WebGPU UNSUPPORTED на Redmi | Норма для старого WebView — CPU fallback, записати і йти далі |

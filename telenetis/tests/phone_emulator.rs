@@ -328,6 +328,19 @@ async fn two_phones_signal_through_tracker() {
     let answer: serde_json::Value = serde_json::from_str(&answer).unwrap();
     assert_eq!(answer["peer_id"], peer_b);
     assert_eq!(answer["answer"]["sdp"], "v=0 fake-answer");
+
+    // T9.1: the owner watches swarm formation here during the session.
+    let http = reqwest::Client::new();
+    let status: serde_json::Value = http
+        .get(format!("{base}/api/edge/tracker/status"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(status["swarms"].as_array().unwrap().len(), 1);
+    assert_eq!(status["swarms"][0]["peers"], 2);
 }
 
 async fn read_text<S>(sock: &mut S) -> String

@@ -131,6 +131,19 @@ impl SwarmRegistry {
             .map(|s| s.peers.len())
             .unwrap_or(0)
     }
+
+    /// Read-only snapshot for `GET /api/edge/tracker/status` (T9.1): one row
+    /// per live swarm — info-hash hex plus peer count. Peer ids stay inside:
+    /// they are internal names, never chat surfaces.
+    pub fn status_snapshot(&self) -> Value {
+        let mut swarms: Vec<Value> = self
+            .swarms
+            .iter()
+            .map(|(info_hash, swarm)| json!({"info_hash": info_hash, "peers": swarm.peers.len()}))
+            .collect();
+        swarms.sort_by(|a, b| a["info_hash"].as_str().cmp(&b["info_hash"].as_str()));
+        json!({"swarms": swarms})
+    }
 }
 
 /// Frames the socket task must emit: replies to the sender over its own
@@ -264,7 +277,19 @@ pub fn handle_frame(
 pub fn router(state: crate::state::AppState) -> axum::Router {
     axum::Router::new()
         .route("/tracker", axum::routing::get(tracker_handler))
+        .route(
+            "/api/edge/tracker/status",
+            axum::routing::get(tracker_status),
+        )
         .with_state(state)
+}
+
+/// Read-only swarm overview (T9.1): lets the owner watch a two-phone P2P
+/// session form without touching the signaling flow. No auth like
+/// `/api/status` — counts only, no peer ids.
+async fn tracker_status(State(state): State<crate::state::AppState>) -> axum::Json<Value> {
+    let snapshot = state.tracker_state().read().await.status_snapshot();
+    axum::Json(snapshot)
 }
 
 async fn tracker_handler(
@@ -598,5 +623,67 @@ mod tests {
         }
         assert_eq!(owned.len(), 1);
         assert_eq!(reg.swarm_size(HASH_HEX), 1);
+    }
+
+    #[test]
+    fn status_snapshot_lists_swarms_without_peer_ids() {
+        // T9.1: the status surface counts, never identities.
+        let mut reg = SwarmRegistry::new();
+        let (tx_a, _rx_a) = inbox();
+        let (tx_b, _rx_b) = inbox();
+        let mut owned = Vec::new();
+        handle_frame(
+            &mut reg,
+            &mut owned,
+            &announce_frame("-WW0001-aaaaaaaaaa", json!([])),
+            &tx_a,
+        );
+        handle_frame(
+            &mut reg,
+            &mut owned,
+            &announce_frame("-WW0002-bbbbbbbbbb", json!([])),
+            &tx_b,
+        );
+        let snap = reg.status_snapshot();
+        assert_eq!(snap["swarms"].as_array().unwrap().len(), 1);
+        assert_eq!(snap["swarms"][0]["info_hash"], HASH_HEX);
+        assert_eq!(snap["swarms"][0]["peers"], 2);
+        let flat = snap.to_string();
+        assert!(!flat.contains("-WW0001-aaaaaaaaaa"), "{flat}");
+        assert!(!flat.contains("-WW0002-bbbbbbbbbb"), "{flat}");
+    }
+
+    #[tokio::test]
+    async fn tracker_status_route_serves_empty_swarms() {
+        use axum::body::Body;
+        use axum::http::{Request, StatusCode};
+        use tower::ServiceExt;
+
+        let state = crate::state::AppState::new(crate::config::Config {
+            bot_token: "test".to_string(),
+            gsv_url: "http://127.0.0.1:9999".to_string(),
+            poolai_url: "http://127.0.0.1:8091".to_string(),
+            port: 9800,
+            jail_id: "test-jail".to_string(),
+            godfather_channel_id: 0,
+            webhook_url: None,
+            webhook_secret: None,
+            public_url: None,
+            tunnel_enabled: false,
+            ngrok_bin: None,
+        });
+        let resp = super::router(state)
+            .oneshot(
+                Request::builder()
+                    .uri("/api/edge/tracker/status")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["swarms"].as_array().unwrap().len(), 0);
     }
 }

@@ -130,3 +130,4 @@ phone → Telenetis :9800 → Hub :9999 / PoolAI :8091 / llama :8080
 9. ✅ T6.1 done 2026-09-17: вердикт `answerWebAppQuery` (білдер так, проводка ні — нема keyboard-flow) + аудит: worker-controls код готовий (pause/cancel/44px), лишився phone-verify.
 10. ✅ T7 done 2026-09-17: WS-трекер `/tracker` (announce/offer/answer relay, latin1, cap 5, 10 тестів) + announce з tensor.js (webseed fallback цілий); вимір P2P — гейт на телефонах.
 11. ✅ T8 done 2026-09-17: емулятор телефона (ядро + 6 сценаріїв, 304 тести зелені); два телефони — тільки після нього.
+12. ✅ T9 done 2026-09-17: `/api/edge/tracker/status` (рой видно без peer id) + ранбук `TWO_PHONES.md`; телефони йдуть по ньому.

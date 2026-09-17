@@ -7,7 +7,9 @@
    (`t-1789606660639448500`), group ownership (`t-1789606667836911200`),
    phone verify — worker-controls, tensor PoC, P2P byte measure, compat probe.
    Two phones in the chat only after a green emulator
-   (`cargo test --test phone_emulator`).
+   (`cargo test --test phone_emulator`), following
+   [`TWO_PHONES.md`](../../docs/telenetis/TWO_PHONES.md) (watch
+   `/api/edge/tracker/status` while they tap).
 3. Follow-ups: host-side chat sessions (poolAI repo, payload already supports
    `history`); Bot API 10.x origin-hardening watch vs tunnel URL (CONCEPT §1).
 4. One commit in the GSV repo (this crate lives in the kit tree), message style:
