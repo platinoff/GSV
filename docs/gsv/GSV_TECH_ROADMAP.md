@@ -2256,8 +2256,8 @@ Owner 2026-09-17 (after band 237): **AGI path** canon is `GSV_AGI_PATH.md`
 (`gsv://docs/agi-path`) — rust folder is the host; every other project is a
 portable plugin; environment security first; maximum Rust; `agi` is the
 session rule. Telenetis = shell plugin; APK = edge plugin via `/api/edge`.
-Next gsv drain = owner pick among APK peer, Telenetis freeze, service-account
-`t-1789392387275733400`, Godfather free-text ingest. Scenario `hub-agi-path`.
+Next gsv drain = APK LAN peer (`hub-apk-client`) after Godfather free-text
+ingest landed. Scenario `hub-agi-path`.
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 

@@ -7,7 +7,7 @@
 //! use an in-process stub (no sockets). Live Bot API is enabled only from
 //! `gsv-server` / `gsv-mcp` via [`enable_live_api`]. Poller default off — no boot probe.
 //! Band **179**: `gsv-server` runs [`spawn_poll_loop`] when live API is on;
-//! `getUpdates` classifies `/ticket` / hook / bus JSON. Offset persists in
+//! `getUpdates` classifies `/ticket` / hook / bus JSON / allowlisted chat. Offset persists in
 //! `data/telegram_offset.json` (gitignored). Cargo tests stay dry-run.
 //!
 //! Band 169 bus: JSON envelopes on the Godfather channel. No public webhook,
@@ -1801,6 +1801,7 @@ pub fn parse_channel_ticket(text: &str) -> Option<(String, String)> {
 ///
 /// MCP JSON envelopes (plain, `GSV1 `, or dual line+JSON) are `bus`. Hook
 /// phrases win over tickets. Legacy plain session lines stay `skip` (echo).
+/// Remaining non-command text is `chat` (allowlisted free-text → ticket).
 pub fn classify_inbound(text: &str) -> &'static str {
     let t = text.trim();
     if t.is_empty() {
@@ -1828,7 +1829,44 @@ pub fn classify_inbound(text: &str) -> &'static str {
     if parse_channel_ticket(t).is_some() {
         return "ticket";
     }
-    "skip"
+    if t.starts_with('/') {
+        return "skip";
+    }
+    "chat"
+}
+
+/// Free-text → ticket only when Godfather allowlist is set and `from`
+/// (numeric id or username) is on it. Empty allowlist keeps plain chat skipped.
+/// Returns the allowlist identity to pass into ticket ingest (exact match).
+pub fn freetext_from(file: &SettingsFile, from: &str, from_username: &str) -> Option<String> {
+    if file.godfather.allowed_user_ids.is_empty() {
+        return None;
+    }
+    let from = from.trim();
+    if from.is_empty() || from.eq_ignore_ascii_case("godfather") {
+        return None;
+    }
+    let user = from_username.trim().trim_start_matches('@');
+    if user.to_ascii_lowercase().ends_with("bot") {
+        return None;
+    }
+    for cand in [from, user] {
+        if cand.is_empty() {
+            continue;
+        }
+        if let Some(id) = file.godfather.allowed_user_ids.iter().find(|id| {
+            let id = id.trim().trim_start_matches('@');
+            !id.is_empty() && (id == cand || id.eq_ignore_ascii_case(cand))
+        }) {
+            return Some(id.trim().trim_start_matches('@').to_string());
+        }
+    }
+    None
+}
+
+/// True when leftover Godfather chat may become a ticket.
+pub fn freetext_ok(file: &SettingsFile, from: &str, from_username: &str) -> bool {
+    freetext_from(file, from, from_username).is_some()
 }
 
 /// Outbound Godfather session lines must not be re-ingested (echo loop).
@@ -1934,7 +1972,7 @@ pub fn spawn_poll_loop(
 
 /// One inbound pass: dry-run stub queue or live `getUpdates`.
 ///
-/// Classifies Godfather posts into bus / ticket / hook. Never returns `bot_token`.
+/// Classifies Godfather posts into bus / ticket / hook / allowlisted chat. Never returns `bot_token`.
 pub async fn poll_once(
     repo_root: &Path,
     data_dir: &Path,
@@ -2083,9 +2121,20 @@ pub async fn poll_once(
                 }
                 Err(_) => n_skip += 1,
             },
-            "ticket" | "hook" => {
+            "ticket" | "hook" | "chat" => {
+                let from = if kind == "chat" {
+                    match freetext_from(&file, &item.from, &item.from_username) {
+                        Some(id) => id,
+                        None => {
+                            n_skip += 1;
+                            continue;
+                        }
+                    }
+                } else {
+                    item.from.clone()
+                };
                 let args = json!({
-                    "from": item.from,
+                    "from": from,
                     "body": item.text,
                 });
                 let v = ingest_channel_body(repo_root, data_dir, dry, &args, presence).await;
@@ -2097,10 +2146,10 @@ pub async fn poll_once(
                     .unwrap_or("")
                     .to_string();
                 if ok {
-                    if kind == "ticket" {
-                        n_ticket += 1;
-                    } else {
+                    if kind == "hook" {
                         n_hook += 1;
+                    } else {
+                        n_ticket += 1;
                     }
                     ingested.push(json!({ "kind": kind, "id": id, "ok": true }));
                     {
@@ -2910,7 +2959,8 @@ mod tests {
             classify_inbound(r#"{"v":1,"kind":"ticket","body":"Join"}"#),
             "ticket"
         );
-        assert_eq!(classify_inbound("hello channel"), "skip");
+        assert_eq!(classify_inbound("hello channel"), "chat");
+        assert_eq!(classify_inbound("/start"), "skip");
         assert_eq!(classify_inbound("solo claimed Session: S0 disk"), "skip");
         assert_eq!(
             classify_inbound("bench gsv_dev create=1 walk=2 mds=3 enqueue=4 session=5 ns"),
@@ -2928,6 +2978,23 @@ mod tests {
             ),
             "bus"
         );
+    }
+
+    #[test]
+    fn freetext_ok_requires_nonempty_allowlist() {
+        let empty = SettingsFile::default();
+        assert!(!freetext_ok(&empty, "42", "platinofff"));
+        let mut file = SettingsFile::default();
+        file.godfather.allowed_user_ids = vec!["42".into(), "platinofff".into()];
+        assert!(freetext_ok(&file, "42", ""));
+        assert_eq!(
+            freetext_from(&file, "5035500793", "platinofff").as_deref(),
+            Some("platinofff")
+        );
+        assert!(freetext_ok(&file, "5035500793", "Platinofff"));
+        assert!(!freetext_ok(&file, "99", "other"));
+        assert!(!freetext_ok(&file, "godfather", ""));
+        assert!(!freetext_ok(&file, "42", "gsv_godfather_bot"));
     }
 
     #[test]

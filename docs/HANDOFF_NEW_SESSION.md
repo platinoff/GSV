@@ -1,6 +1,6 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-09-17 (band **237 ✅** hub `/api/edge`; crate **0.237.0**; **canon** [`gsv/GSV_AGI_PATH.md`](gsv/GSV_AGI_PATH.md) `gsv://docs/agi-path` — rust-folder host, portable plugins, env security first, max Rust, `agi`. **Owner product pick: telenetis**. Redmi 9 = Wi-Fi debug rabbit. Queue last PH-S3018 next PH-S3019)
+**Оновлено:** 2026-09-17 (band **237 ✅** hub `/api/edge`; crate **0.237.0**; Godfather allowlisted free-text ingest landed. **Canon** [`gsv/GSV_AGI_PATH.md`](gsv/GSV_AGI_PATH.md). **Owner product pick: telenetis**. Redmi 9 = Wi-Fi debug rabbit. Queue last PH-S3018 next PH-S3019)
 
 **Wi-Fi debug (Redmi 9):** ADB on box `target/adb/platform-tools/adb.exe`; `adb devices` empty until pair. Phone: Developer → Wireless debugging → pair by code → send `IP:port` + 6 digits. Then `adb pair` + `adb connect`. Play from GSV hub + Telenetis `:9800` (LAN `192.168.2.238`). Runbook [`telenetis/TWO_PHONES.md`](telenetis/TWO_PHONES.md) §KVM. Open: T23.1 ping · T26.1 pong · T32.1 download.
 
@@ -153,7 +153,7 @@ Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 - **Band 182:** MCP-readable Godfather envelopes — dual human line + JSON `data` (`hint` / `next` / disk / crate) · `POST /api/telegram/decode` · MCP `gsv_telegram_decode` (**54** tools) · Galaxy MCP signal row (tickets do not repeat envelope) · walk/hook/bench refresh Telegram · `syncVision` glue. `CARD_NAMES` **40**.
 - **Band 181:** Galaxy glue + S0 disk on health — `selectProduct` / `reclaimTicket` in `ui/index.html`; `/api/health` `disk_ok` / `disk_violation` (process `ok` stays true). `CARD_NAMES` **40**.
 - **Band 180:** Watchdog process lockstep — `debug_newer_server` (POST apply only when **gsv-server** debug is newer) · `hop_successor` each tick · stop stale peer on `bin_version` lag · wire `server_debug_newer` / `watchdog_debug_newer`. `CARD_NAMES` **40**.
-- **Band 179:** Godfather inbound poller — `classify_inbound` · `poll_once` / `spawn_poll_loop` (`gsv-server` only) · `data/telegram_offset.json` · `POST /api/telegram/poll` · MCP `gsv_telegram_poll` (**53** tools) · Galaxy poll now. `CARD_NAMES` **40**.
+- **Band 179:** Godfather inbound poller — `classify_inbound` · `poll_once` / `spawn_poll_loop` (`gsv-server` only) · `data/telegram_offset.json` · `POST /api/telegram/poll` · MCP `gsv_telegram_poll` (**53** tools) · Galaxy poll now. Allowlisted leftover chat → ticket (`freetext_ok`; empty allowlist still skips). `CARD_NAMES` **40**.
 - **Band 178:** Scenario benchmark — Instant `abrakadabra-session` create+walk → `docs/gsv/scenario_bench.json` · `GET`/`POST /api/tickets/bench` · MCP `gsv_tickets_bench` (**52** tools) · Godfather `session=` ns · Galaxy record button · `cargo xtask record-scenario-bench` · `gsv_dev` `session_walk_abrakadabra`. `CARD_NAMES` **40**.
 - **Band 177:** Roadmap/plan hook-up — phrase `run mcp bot hook up scenario <id|band N|plan stem> [walk]` · `POST /api/tickets/hook` · MCP `gsv_tickets_hook` · parse `GSV_TECH_ROADMAP.md` + superpowers `- [ ]` · idempotent · Godfather `hook … n=` · Galaxy hook button · `CARD_NAMES` **40**.
 - **Band 176:** Visible MCP session walk — scenario `abrakadabra-session` (6) · session lines (`solo claimed` / `squad assigned … to {worker}` / `bench gsv_dev … ns`) · live `sendMessage` 1/s · dry-run queue · `CARD_NAMES` **40**.

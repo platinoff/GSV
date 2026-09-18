@@ -1030,6 +1030,30 @@ async fn poll_once_classifies_ticket_bus_hook_and_skip() {
 }
 
 #[tokio::test]
+async fn poll_once_ingests_allowlisted_freetext() {
+    let _g = bus_guard().await;
+    telegram::bus_reset();
+    let kit = temp_kit("poll-freetext");
+    let data = kit.join("data");
+    save_solo_relay(&data, "-100ft", "123:ft-secret", &["42"]);
+    telegram::push_inbound_stub(11, "hello channel", "-100ft", "", "42");
+    telegram::push_inbound_stub(12, "hello stranger", "-100ft", "", "99");
+    telegram::push_inbound_stub(13, "/start", "-100ft", "", "42");
+    let v = telegram::poll_once(&kit, &data, true, None).await;
+    assert_eq!(v["ok"], true, "{v}");
+    assert_eq!(v["ticket"], 1, "{v}");
+    assert_eq!(v["skip"], 2, "{v}");
+    let ingested = v["ingested"].as_array().expect("ingested");
+    assert!(
+        ingested
+            .iter()
+            .any(|m| m["kind"] == "chat" && m["ok"] == true),
+        "{v}"
+    );
+    assert_no_secret(&v, "123:ft-secret");
+}
+
+#[tokio::test]
 async fn poll_once_dry_run_does_not_persist_offset_file() {
     let _g = bus_guard().await;
     telegram::bus_reset();

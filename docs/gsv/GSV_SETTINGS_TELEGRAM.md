@@ -197,7 +197,7 @@ Owner pick (`абракадабра` gsv): `poller_wanted` was status-only. Alwa
 
 | Piece | Acceptance |
 |-------|------------|
-| Classify | `classify_inbound`: hook phrase · bus/sync JSON · `/ticket` / `{kind:ticket}`. Skip plain chat and outbound session lines (`solo claimed …`, `bench gsv_dev …`, `hook … n=`). |
+| Classify | `classify_inbound`: hook phrase · bus/sync JSON · `/ticket` / `{kind:ticket}` · leftover chat. Allowlisted non-bot chat → ticket (`freetext_ok`; empty allowlist skips). Skip unknown `/command` and outbound session lines (`solo claimed …`, `bench gsv_dev …`, `hook … n=`). |
 | Loop | `spawn_poll_loop` from `gsv-server` after `enable_live_api`. 1/s. No-op when live API is off (cargo test). |
 | Offset | `data/telegram_offset.json` (gitignored). |
 | HTTP / MCP | `POST /api/telegram/poll`. MCP `gsv_telegram_poll` → **53** tools. CSRF. Never `bot_token`. |

@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-09-17 (**band 237 ✅** hub `/api/edge`; crate **0.237.0**. **Canon** [`gsv/GSV_AGI_PATH.md`](gsv/GSV_AGI_PATH.md) `gsv://docs/agi-path`. **Owner product pick: telenetis** — Redmi 9 Wi-Fi debug rabbit from GSV hub. last PH-S3018 next PH-S3019)
+**Оновлено:** 2026-09-17 (**band 237 ✅** hub `/api/edge`; crate **0.237.0**. Godfather allowlisted free-text ingest landed. **Canon** [`gsv/GSV_AGI_PATH.md`](gsv/GSV_AGI_PATH.md) `gsv://docs/agi-path`. **Owner product pick: telenetis** — Redmi 9 Wi-Fi debug rabbit from GSV hub. last PH-S3018 next PH-S3019)
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).

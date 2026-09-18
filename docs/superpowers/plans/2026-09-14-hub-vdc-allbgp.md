@@ -34,9 +34,9 @@ landed 2026-09-14), and **OpenCode ⇄ hub never drops on ticket drains** (watch
 - [ ] ui: VDC dashboard card — topology graph + seats + tiers + health history in Galaxy
 - [x] ops: offline mode signal — telegram-relay auto-degrade to LAN-only surfaced in keep-live + health hint — landed 2026-09-14: wire mode online|lan-only (relay ∧ offset-mtime ≤90s) + hint suffix, durable cross-process signal
 - [x] docs: GSV_VDC.md canon — must-have list + EDGE_PLAN matrix; **AGI path 2026-09-17** (GSV brain, Telenetis shell, APK peer via `/api/edge`)
+- [x] telenetis: freeze feature surface — identity + Mini App chrome only
+- [x] gsv: Godfather allowlisted free-text ingest (allowlisted leftover chat → ticket; empty allowlist still skips)
 - [ ] phone: APK + WiFi debug registers as `virtual_node` via hub `/api/edge` (not a second Telenetis)
-- [ ] telenetis: freeze feature surface — identity + Mini App chrome only
-- [ ] gsv: Godfather allowlisted free-text ingest (`/ticket` today; plain chat skipped)
 
 ## Non-goals
 

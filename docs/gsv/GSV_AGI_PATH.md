@@ -169,8 +169,10 @@ Keep-live (`gsv_keep_live`): GSV + Telenetis + llama-rs **up**; OmniRoute **down
 
 - Channel `@GSV_OFFICIAL`, workflow `telegram-relay` (enables the inbound loop).
 - Allowlist includes owner Telegram id + `platinofff` + session words.
-- Inbound classifies `/ticket`, hook phrases, bus JSON. **Plain chat is skipped**
-  until free-text ingest lands (`hub-agi-path` ticket). Until then: `/ticket gsv …`.
+- Inbound classifies `/ticket`, hook phrases, bus JSON, and leftover chat.
+  Allowlisted non-bot text becomes a ticket (`freetext_ok`). Empty allowlist
+  still skips plain chat so the channel cannot flood the board. `/ticket gsv …`
+  still works.
 
 ### Edge plugins (Telenetis / APK)
 
@@ -209,8 +211,9 @@ Trigger `agi` in the GSV (rust-folder) workspace: discover plugins → keep-live
 hub → tickets → S0 disk → warnings-first → drain the **picked** tree (not
 “GSV because the window is GSV”) → one commit + push.
 
-Board scenario `hub-agi-path` is APK peer, Telenetis freeze, and Godfather
-free-text ingest. Scenario `hub-agi-plugins` is the plugin-contract band
+Board scenario `hub-agi-path` is APK peer, Telenetis freeze, service-account
+edge token, and Godfather allowlisted free-text ingest. Scenario
+`hub-agi-plugins` is the plugin-contract band
 (host vs plugin scan, MCP sandbox, keep-live fail-open, kit-not-copied,
 per-plugin `target/`).
 

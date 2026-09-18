@@ -41,9 +41,9 @@ Service-account rotation for Telenetis/APK (`t-1789392387275733400`) is the
 security leftover so those clients stop using `admin/admin123`.
 
 Godfather inbound (`gsv_telegram_poll`) classifies `/ticket`, hook phrases,
-and bus JSON only — plain channel chat is skipped. Owner commands in
-`@GSV_OFFICIAL` must use `/ticket gsv …` until an allowlisted free-text ingest
-lands.
+bus JSON, and leftover chat. Allowlisted non-bot text in `@GSV_OFFICIAL`
+becomes a ticket; empty allowlist still skips plain chat. Unknown `/command`
+and outbound session lines stay skip.
 
 ## Fleet today (2026-09-14)
 

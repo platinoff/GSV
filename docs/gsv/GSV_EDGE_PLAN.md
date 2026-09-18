@@ -39,8 +39,9 @@ rebalance, burst seats, security): see [GSV_VDC.md](GSV_VDC.md).
   `TELENETIS_PUBLIC_URL` unset (auto via tunnel).
 - GSV Godfather: channel `@GSV_OFFICIAL`, `allowed_user_ids` includes owner
   Telegram id `5035500793` + `platinofff` + session words (`solo`/`squad`/
-  `local`/`telenetis-01`); chat role host, squad_cap 3. Inbound poller skips
-  plain chat — owner commands use `/ticket gsv …`.
+  `local`/`telenetis-01`); chat role host, squad_cap 3. Inbound poller ingests
+  allowlisted leftover chat as tickets (`classify_inbound` `chat`); empty
+  allowlist still skips plain chat. `/ticket` and hooks unchanged.
 - Telegram↔poolAI: binding `5035500793 ↔ a54-01`, VM `a54-01-vm` Running.
   Proto pin for workers: `f5b9bd39` (5.0.0; master is 6.0, no handshake).
 
@@ -69,8 +70,9 @@ rebalance, burst seats, security): see [GSV_VDC.md](GSV_VDC.md).
     `TELENETIS_EDGE_TOKEN` (`gsv-apk service-account --json`;
     `edge.service.kind=edge_token`; Telenetis no longer compiles
     `admin/admin123`). poolAI login is opt-in env only.
-13. Godfather allowlisted free-text ingest (gsv, open) — plain owner chat in
-    `@GSV_OFFICIAL` is skipped today.
+13. Godfather allowlisted free-text ingest (gsv) — **landed**: leftover
+    non-slash chat from an allowlisted sender becomes a ticket. Empty
+    allowlist still skips (no flood). Unknown `/command` and session lines skip.
 
 ## 4. Cross-project settings matrix (research 2026-09-14)
 
