@@ -11,6 +11,7 @@ use serde_json::{json, Value};
 use super::edge;
 use super::xtask::{self, DiskReport};
 use crate::net;
+use std::path::{Path, PathBuf};
 
 /// Default hub (loopback). Phones override with the LAN `:9999`.
 pub const DEFAULT_HUB: &str = "http://127.0.0.1:9999";
@@ -24,6 +25,32 @@ pub const ROLE: &str = "virtual_node";
 pub const DEFAULT_PEER: &str = "redmi-01";
 /// Legacy Mini App / bot origin. Proxy/shell only — never the phone worker.
 pub const TELEGRAM_ORIGIN: &str = "telegram_edge";
+/// Android package id (generated manifest; not a Java/gradle product).
+pub const PACKAGE_ID: &str = "org.gsv.apk";
+/// Launcher label.
+pub const PACKAGE_LABEL: &str = "GSV";
+/// Redmi 9 is Android 10; 24 covers 7+.
+pub const MIN_SDK: u32 = 24;
+pub const TARGET_SDK: u32 = 34;
+/// Pipeline output name under `target/live/apk/` (not product source).
+pub const MANIFEST_NAME: &str = "AndroidManifest.xml";
+
+const NATIVE_FORBID: &[&str] = &[
+    "webview",
+    "chrome",
+    "mini-app",
+    "miniapp",
+    "tensor",
+    "webgpu",
+    "kvm",
+    "board",
+    "bot",
+    "host-tests",
+    "start-worker",
+    "wllama",
+    "gguf",
+    "screenshot",
+];
 
 /// Why a hub URL is rejected.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -446,6 +473,88 @@ pub fn report(repo_root: &std::path::Path, hub: &str, peer: &str) -> ApkReport {
     }
 }
 
+/// Surfaces allowed inside the native APK (join / disk / settings / wifi-debug).
+pub fn native_ok(kind: &str) -> Result<(), HubReject> {
+    let k = canon_kind(kind);
+    if k.is_empty() {
+        return Err(HubReject {
+            error: "native kind empty",
+        });
+    }
+    if NATIVE_FORBID.iter().any(|f| k == *f || k.contains(f)) {
+        return Err(HubReject {
+            error: "native apk forbids webview/board/bot/kvm/tensor",
+        });
+    }
+    match k.as_str() {
+        "join" | "register" | "disk" | "settings" | "wifi-debug" | "adb" | "health" | "auth"
+        | "command" | "open_apk" | "lan" => Ok(()),
+        _ => Err(HubReject {
+            error: "native apk forbids webview/board/bot/kvm/tensor",
+        }),
+    }
+}
+
+/// Android process entry: same LAN join as `gsv-apk join`. Never a WebView.
+pub fn android_entry() -> &'static str {
+    "join_lan"
+}
+
+/// Native package contract (no secrets, no gradle/Java product files).
+pub fn native_package_wire() -> Value {
+    json!({
+        "ok": true,
+        "native": true,
+        "webview": false,
+        "chrome": false,
+        "mini_app": false,
+        "package": PACKAGE_ID,
+        "label": PACKAGE_LABEL,
+        "min_sdk": MIN_SDK,
+        "target_sdk": TARGET_SDK,
+        "origin": ORIGIN,
+        "role": ROLE,
+        "class": CLASS_EDGE,
+        "hub": "/api/edge",
+        "entry": android_entry(),
+        "activities": ["join", "disk", "settings"],
+        "forbid": NATIVE_FORBID,
+        "gradle": false,
+        "java": false,
+        "manifest": MANIFEST_NAME,
+    })
+}
+
+/// AndroidManifest.xml generated from Rust. Pipeline output, not product source.
+pub fn android_manifest() -> String {
+    format!(
+        r#"<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="{PACKAGE_ID}">
+    <uses-sdk android:minSdkVersion="{MIN_SDK}" android:targetSdkVersion="{TARGET_SDK}" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <application android:label="{PACKAGE_LABEL}" android:usesCleartextTraffic="true">
+        <activity android:name="{PACKAGE_ID}.JoinActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
+"#
+    )
+}
+
+/// Write the generated manifest under `dir` (typically `target/live/apk`).
+pub fn write_manifest(dir: &Path) -> std::io::Result<PathBuf> {
+    std::fs::create_dir_all(dir)?;
+    let path = dir.join(MANIFEST_NAME);
+    std::fs::write(&path, android_manifest())?;
+    Ok(path)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -593,5 +702,44 @@ mod tests {
         let w = telenetis_surface_wire();
         assert_eq!(w["surface"], "shell");
         assert_eq!(w["phone_worker"], ORIGIN);
+    }
+
+    #[test]
+    fn native_package_is_not_webview() {
+        assert_eq!(android_entry(), "join_lan");
+        assert!(native_ok("join").is_ok());
+        assert!(native_ok("disk").is_ok());
+        assert!(native_ok("settings").is_ok());
+        assert!(native_ok("wifi-debug").is_ok());
+        assert!(native_ok("webview").is_err());
+        assert!(native_ok("Chrome").is_err());
+        assert!(native_ok("mini-app").is_err());
+        assert!(native_ok("tensor").is_err());
+        assert!(native_ok("board").is_err());
+        assert!(native_ok("kvm").is_err());
+        let w = native_package_wire();
+        assert_eq!(w["native"], true);
+        assert_eq!(w["webview"], false);
+        assert_eq!(w["chrome"], false);
+        assert_eq!(w["mini_app"], false);
+        assert_eq!(w["gradle"], false);
+        assert_eq!(w["java"], false);
+        assert_eq!(w["package"], PACKAGE_ID);
+        assert_eq!(w["entry"], "join_lan");
+        let xml = android_manifest();
+        assert!(xml.contains(PACKAGE_ID));
+        assert!(xml.contains("INTERNET"));
+        assert!(!xml.to_ascii_lowercase().contains("webview"));
+        assert!(!xml.contains("8091"));
+        assert!(!xml.contains("screenshot"));
+        let dir = std::env::temp_dir().join(format!("gsv-apk-manifest-{}", std::process::id()));
+        let path = write_manifest(&dir).expect("write");
+        assert_eq!(
+            path.file_name().and_then(|n| n.to_str()),
+            Some(MANIFEST_NAME)
+        );
+        let on_disk = std::fs::read_to_string(&path).expect("read");
+        assert_eq!(on_disk, xml);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

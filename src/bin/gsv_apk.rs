@@ -12,6 +12,8 @@
 //! cargo run --bin gsv-apk -- check-hub http://192.168.2.238:9999
 //! cargo run --bin gsv-apk -- telegram auth --json
 //! cargo run --bin gsv-apk -- service-account --json
+//! cargo run --bin gsv-apk -- package --json
+//! cargo run --bin gsv-apk -- package --write
 //! cargo run --bin gsv-apk -- freeze --json
 //! ```
 
@@ -52,9 +54,12 @@ fn skip_kind(s: &str) -> bool {
             | "service-account"
             | "freeze"
             | "join"
+            | "package"
             | "--json"
             | "-j"
             | "--live"
+            | "--write"
+            | "--manifest"
     ) || s.starts_with("http://")
         || s.starts_with("https://")
 }
@@ -254,6 +259,41 @@ fn main() -> ExitCode {
             "gsv-apk freeze surface={} phone_worker={}",
             v["surface"].as_str().unwrap_or("shell"),
             v["phone_worker"].as_str().unwrap_or("apk_edge")
+        );
+        return ExitCode::SUCCESS;
+    }
+
+    if args.iter().any(|a| a == "package") {
+        let v = apk::native_package_wire();
+        if args.iter().any(|a| a == "--write") {
+            let dir = root.join("target").join("live").join("apk");
+            match apk::write_manifest(&dir) {
+                Ok(path) => {
+                    if json {
+                        let mut out = v;
+                        out["written"] = json!(path.display().to_string());
+                        return print_json(&out);
+                    }
+                    println!(
+                        "gsv-apk package write ok package={} path={}",
+                        apk::PACKAGE_ID,
+                        path.display()
+                    );
+                    return ExitCode::SUCCESS;
+                }
+                Err(e) => {
+                    eprintln!("gsv-apk package write fail error={e}");
+                    return ExitCode::FAILURE;
+                }
+            }
+        }
+        if json {
+            return print_json(&v);
+        }
+        println!(
+            "gsv-apk package ok native=true webview=false package={} entry={} gradle=false java=false",
+            v["package"].as_str().unwrap_or(apk::PACKAGE_ID),
+            v["entry"].as_str().unwrap_or("join_lan")
         );
         return ExitCode::SUCCESS;
     }

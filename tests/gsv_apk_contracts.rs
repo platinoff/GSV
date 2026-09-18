@@ -234,3 +234,47 @@ async fn join_live_without_token_refuses_sockets() {
         .expect_err("token");
     assert_eq!(err.error, "edge token not set");
 }
+
+#[test]
+fn native_package_rejects_webview_and_java_product() {
+    assert_eq!(apk::android_entry(), "join_lan");
+    assert!(apk::native_ok("join").is_ok());
+    assert!(apk::native_ok("webview").is_err());
+    assert!(apk::native_ok("chrome").is_err());
+    let v = apk::native_package_wire();
+    assert_eq!(v["webview"], false);
+    assert_eq!(v["gradle"], false);
+    assert_eq!(v["java"], false);
+    assert_eq!(v["package"], "org.gsv.apk");
+    let xml = apk::android_manifest();
+    assert!(xml.contains("org.gsv.apk"));
+    assert!(!xml.to_ascii_lowercase().contains("webview"));
+    assert!(!xml.contains("8091"));
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    for walk in [root.join("src"), root.join("tests")] {
+        let it = walkdir_names(&walk);
+        assert!(
+            !it.iter().any(|n| n.ends_with(".java")
+                || n.ends_with(".kt")
+                || n.ends_with(".gradle")
+                || n == "AndroidManifest.xml"),
+            "product tree must not contain java/gradle/manifest: {it:?}"
+        );
+    }
+}
+
+fn walkdir_names(dir: &std::path::Path) -> Vec<String> {
+    let mut out = Vec::new();
+    let Ok(rd) = std::fs::read_dir(dir) else {
+        return out;
+    };
+    for e in rd.flatten() {
+        let path = e.path();
+        if path.is_dir() {
+            out.extend(walkdir_names(&path));
+        } else if let Some(n) = path.file_name().and_then(|s| s.to_str()) {
+            out.push(n.to_string());
+        }
+    }
+    out
+}

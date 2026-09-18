@@ -62,7 +62,9 @@ rebalance, burst seats, security): see [GSV_VDC.md](GSV_VDC.md).
     plans GET `/api/edge/health` + POST `discovery/register-remote` +
     `virtual-nodes/{peer}/pool/join`. `--live` POSTs `X-Gsv-Edge-Token` (never
     echoed). WiFi debug stays on-device disk/settings/debug. Do not clone
-    Telenetis into the APK. Native Android package is later (`hub-apk-client`).
+    Telenetis into the APK. Native package contract **landed**: `gsv-apk
+    package --json` (`org.gsv.apk`, no WebView/Java/gradle in product;
+    manifest generated into `target/live/apk/`). NDK/cargo-apk binary is later.
 11. Freeze Telenetis feature surface (telenetis) — **landed**: identity + Mini App
     chrome + LAN only (`gsv-apk freeze --json`, surface=shell). Tensor/WebGPU
     is probe. No new KVM/swarm-as-OS. Telegram proxy to APK.
