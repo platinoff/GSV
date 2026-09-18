@@ -203,6 +203,8 @@ Keep-live (`gsv_keep_live`): GSV + Telenetis + llama-rs **up**; OmniRoute **down
    Native package: `cargo run --bin gsv-apk -- package --json` (`org.gsv.apk`,
    no WebView). `--write` emits `AndroidManifest.xml` under `target/live/apk/`
    (pipeline output, not product source).
+   Disk/settings: `GET /api/apk` or `gsv-apk disk --json` (WiFi ADB plan,
+   no screencap). `GSV_APK_CACHE` / `GSV_APK_ADB` optional.
 4. Telegram stays a **proxy/passthrough to the APK only** (forward auth/commands
    / open the APK). Hub policy: `cargo run --bin gsv-apk -- telegram auth`
    (also `command`, `open_apk`). Mini App chrome (`dashboard`/`board`) may stay

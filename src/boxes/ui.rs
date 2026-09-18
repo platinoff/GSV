@@ -2438,6 +2438,10 @@ pub fn render_vdc(d: &Value) -> String {
             .and_then(|e| e.get("ok"))
             .and_then(Value::as_bool)
             != Some(true)
+        && d.get("apk")
+            .and_then(|e| e.get("wifi_debug"))
+            .and_then(Value::as_bool)
+            != Some(true)
     {
         return empty_html("vdc");
     }
@@ -2467,6 +2471,18 @@ pub fn render_vdc(d: &Value) -> String {
             ),
             n,
             esc(s(&edge["poolai_base"]).as_str()),
+        ));
+    }
+    let apk = &d["apk"];
+    if apk.get("wifi_debug").and_then(Value::as_bool) == Some(true) {
+        let disk_ok = b(&apk["disk_ok"]);
+        out.push_str(&format!(
+            "<div class='dim'>apk wifi-debug {} · no screenshot · disk {}</div>",
+            pill("ok", "wifi-debug"),
+            pill(
+                if disk_ok { "ok" } else { "warn" },
+                if disk_ok { "disk ok" } else { "disk" }
+            ),
         ));
     }
     if b(&d["stale"]) {
@@ -3532,6 +3548,22 @@ mod tests {
         let edge_html = render_vdc(&with_edge);
         assert!(edge_html.contains("edge proxy"), "{edge_html}");
         assert!(edge_html.contains("token set"), "{edge_html}");
+        let with_apk = serde_json::json!({
+            "ok": true,
+            "apk": {
+                "ok": true,
+                "wifi_debug": true,
+                "screenshot": false,
+                "disk_ok": true
+            }
+        });
+        let apk_html = render_vdc(&with_apk);
+        assert!(apk_html.contains("apk wifi-debug"), "{apk_html}");
+        assert!(apk_html.contains("no screenshot"), "{apk_html}");
+        assert!(
+            !apk_html.to_ascii_lowercase().contains("screencap"),
+            "{apk_html}"
+        );
         let empty = serde_json::json!({"ok": true});
         assert!(render_vdc(&empty).contains("vdc — no data"));
         let err = serde_json::json!({"ok": false, "error": "down"});

@@ -465,12 +465,142 @@ pub fn report(repo_root: &std::path::Path, hub: &str, peer: &str) -> ApkReport {
             peer_id: id.peer_id.clone(),
             telegram_proxy: id.telegram_proxy,
             wifi_debug: true,
-            model_cache: None,
+            model_cache: model_cache(),
         },
         hub,
         identity: id,
         disk,
     }
+}
+
+/// Hub URL the APK / host report advertises (`http://<local>:9999`).
+pub fn hub_url() -> String {
+    format!(
+        "http://{}:{}",
+        crate::net::local_addr(),
+        crate::DEFAULT_PORT
+    )
+}
+
+/// Optional on-device model cache path (`GSV_APK_CACHE`). Native APK does not use IDB.
+pub fn model_cache() -> Option<String> {
+    std::env::var("GSV_APK_CACHE")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+/// Wireless ADB serial (`host:port`) from `GSV_APK_ADB`. Empty until paired.
+pub fn adb_serial() -> String {
+    std::env::var("GSV_APK_ADB")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_default()
+}
+
+/// Host ADB binary (WiFi debug). Never a screenshot tool.
+pub fn adb_bin(repo_root: &Path) -> PathBuf {
+    let name = if cfg!(windows) { "adb.exe" } else { "adb" };
+    repo_root
+        .join("target")
+        .join("adb")
+        .join("platform-tools")
+        .join(name)
+}
+
+/// WiFi-debug ADB verbs. `screencap` / `screenshot` are never allowed.
+pub const ADB_ALLOW: &[&str] = &[
+    "devices",
+    "connect",
+    "pair",
+    "disconnect",
+    "logcat",
+    "shell",
+    "push",
+    "pull",
+    "reverse",
+];
+
+/// True when `verb` is a WiFi-debug hop (pair/connect/logcat/df). No screenshot loops.
+pub fn adb_ok(verb: &str) -> Result<(), HubReject> {
+    let lower = verb.trim().to_ascii_lowercase();
+    if lower.is_empty() {
+        return Err(HubReject {
+            error: "adb verb empty",
+        });
+    }
+    if lower.contains("screencap") || lower.contains("screenshot") {
+        return Err(HubReject {
+            error: "adb forbids screenshot loops",
+        });
+    }
+    let head = lower.split_whitespace().next().unwrap_or("");
+    if ADB_ALLOW.contains(&head) {
+        Ok(())
+    } else {
+        Err(HubReject {
+            error: "adb verb not on wifi-debug allowlist",
+        })
+    }
+}
+
+/// Planned ADB hops (no sockets). Hub reads JSON; do not pull PNGs.
+pub fn adb_plan(repo_root: &Path, serial: &str) -> Value {
+    let bin = adb_bin(repo_root);
+    json!({
+        "ok": true,
+        "wifi_debug": true,
+        "screenshot": false,
+        "kvm": false,
+        "bin": bin.display().to_string(),
+        "bin_exists": bin.is_file(),
+        "serial": serial,
+        "verbs": ADB_ALLOW,
+        "forbid": ["screencap", "screenshot"],
+        "hops": [
+            {"verb": "devices", "argv": ["devices"]},
+            {"verb": "shell", "argv": ["shell", "df", "-h", "/data"]},
+            {"verb": "logcat", "argv": ["logcat", "-d", "-t", "20", "GSV:I", "*:S"]},
+        ],
+    })
+}
+
+/// Compact health line (no secrets, no screenshots).
+pub fn health_wire(repo_root: &Path) -> Value {
+    let r = report(repo_root, &hub_url(), &peer_id());
+    json!({
+        "ok": r.ok,
+        "wifi_debug": true,
+        "screenshot": false,
+        "kvm": false,
+        "package": PACKAGE_ID,
+        "origin": ORIGIN,
+        "disk_ok": r.disk.ok,
+        "free_mb": r.disk.free_mb,
+        "model_cache_set": r.settings.model_cache.is_some(),
+    })
+}
+
+/// Hub-readable disk + settings + ADB plan. Replaces screenshot loops.
+pub fn disk_settings_wire(repo_root: &Path) -> Value {
+    let r = report(repo_root, &hub_url(), &peer_id());
+    json!({
+        "ok": r.ok,
+        "origin": ORIGIN,
+        "role": ROLE,
+        "class": CLASS_EDGE,
+        "package": PACKAGE_ID,
+        "wifi_debug": true,
+        "screenshot": false,
+        "kvm": false,
+        "hub": r.hub,
+        "peer_id": r.identity.peer_id,
+        "disk": r.disk,
+        "settings": r.settings,
+        "identity": r.identity,
+        "adb": adb_plan(repo_root, &adb_serial()),
+    })
 }
 
 /// Surfaces allowed inside the native APK (join / disk / settings / wifi-debug).
@@ -638,12 +768,18 @@ mod tests {
         std::env::set_var("GSV_APK_PEER", "  phone-x  ");
         std::env::set_var("GSV_HUB_URL", "http://192.168.2.238:9999/");
         std::env::set_var("GSV_APK_ADDR", "  192.168.2.89  ");
+        std::env::set_var("GSV_APK_CACHE", "  /data/gsv/models  ");
+        std::env::set_var("GSV_APK_ADB", "  192.168.2.89:46147  ");
         assert_eq!(peer_id(), "phone-x");
         assert_eq!(hub_from_env(), "http://192.168.2.238:9999");
         assert_eq!(peer_addr(), "192.168.2.89");
+        assert_eq!(model_cache().as_deref(), Some("/data/gsv/models"));
+        assert_eq!(adb_serial(), "192.168.2.89:46147");
         std::env::remove_var("GSV_APK_PEER");
         std::env::remove_var("GSV_HUB_URL");
         std::env::remove_var("GSV_APK_ADDR");
+        std::env::remove_var("GSV_APK_CACHE");
+        std::env::remove_var("GSV_APK_ADB");
     }
 
     #[test]
@@ -741,5 +877,38 @@ mod tests {
         let on_disk = std::fs::read_to_string(&path).expect("read");
         assert_eq!(on_disk, xml);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn wifi_debug_disk_settings_not_screenshots() {
+        assert!(adb_ok("devices").is_ok());
+        assert!(adb_ok("pair").is_ok());
+        assert!(adb_ok("connect").is_ok());
+        assert!(adb_ok("shell").is_ok());
+        assert!(adb_ok("logcat").is_ok());
+        assert!(adb_ok("screencap").is_err());
+        assert!(adb_ok("exec-out screencap").is_err());
+        assert!(adb_ok("screenshot").is_err());
+        let plan = adb_plan(&root(), "192.168.2.89:46147");
+        assert_eq!(plan["wifi_debug"], true);
+        assert_eq!(plan["screenshot"], false);
+        assert_eq!(plan["kvm"], false);
+        let hops = plan["hops"].as_array().expect("hops");
+        assert!(hops.iter().any(|h| h["verb"] == "shell"));
+        let hops_s = serde_json::to_string(&plan["hops"]).expect("hops json");
+        assert!(!hops_s.contains("screencap"), "{hops_s}");
+        let w = disk_settings_wire(&root());
+        assert_eq!(w["wifi_debug"], true);
+        assert_eq!(w["screenshot"], false);
+        assert_eq!(w["kvm"], false);
+        assert_eq!(w["settings"]["wifi_debug"], true);
+        let hops_s = serde_json::to_string(&w["adb"]["hops"]).expect("adb hops");
+        assert!(!hops_s.contains("screencap"), "{hops_s}");
+        let s = w.to_string();
+        assert!(!s.contains("8091"));
+        assert!(!s.contains("bot_token"));
+        let h = health_wire(&root());
+        assert_eq!(h["screenshot"], false);
+        assert_eq!(h["wifi_debug"], true);
     }
 }

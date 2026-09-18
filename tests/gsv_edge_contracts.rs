@@ -145,6 +145,25 @@ async fn health_lists_edge_proxy_without_secret() {
     assert_eq!(json["edge_proxy"]["ok"], true);
     assert!(json["edge_proxy"]["allowlist"].as_array().is_some());
     assert!(!json.to_string().contains("bot_token"));
+    assert_eq!(json["apk"]["wifi_debug"], true);
+    assert_eq!(json["apk"]["screenshot"], false);
+}
+
+#[tokio::test]
+async fn apk_disk_settings_json_has_no_screenshots() {
+    let dir = temp_data("apk-disk");
+    let app = app_with(dir, &dead_base());
+    let (st, json) = get_json(&app, "/api/apk").await;
+    assert_eq!(st, StatusCode::OK);
+    assert_eq!(json["wifi_debug"], true);
+    assert_eq!(json["screenshot"], false);
+    assert_eq!(json["kvm"], false);
+    assert_eq!(json["adb"]["screenshot"], false);
+    let hops = json["adb"]["hops"].to_string();
+    assert!(!hops.contains("screencap"), "{hops}");
+    let raw = json.to_string();
+    assert!(!raw.contains("bot_token"), "{raw}");
+    assert!(!raw.contains("8091"), "{raw}");
 }
 
 #[tokio::test]

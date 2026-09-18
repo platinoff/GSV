@@ -83,6 +83,7 @@ fn health(state: &AppState) -> Value {
             "fingerprint_version": latest.map(|f| f.version.as_str()),
             "client_errors": crate::boxes::ui_errors::count(&state.data_dir),
             "edge_proxy": crate::boxes::edge::status_wire(&state.data_dir),
+            "apk": crate::boxes::apk::health_wire(&state.repo_root),
         }),
         &state.repo_root,
     )
@@ -115,6 +116,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/keep-live", get(api_keep_live))
         .route("/api/grid", get(api_grid))
         .route("/api/edge", get(api_edge))
+        .route("/api/apk", get(api_apk))
         .route(
             "/api/edge/{*path}",
             get(api_edge_proxy).post(api_edge_proxy),
@@ -409,6 +411,11 @@ async fn api_grid(State(state): State<AppState>) -> Json<Value> {
 /// Hub edge-proxy status (redacted; never the token).
 async fn api_edge(State(state): State<AppState>) -> Json<Value> {
     Json(crate::boxes::edge::status_wire(&state.data_dir))
+}
+
+/// Phone APK disk + settings + WiFi-debug ADB plan (no screenshots, no secrets).
+async fn api_apk(State(state): State<AppState>) -> Json<Value> {
+    Json(crate::boxes::apk::disk_settings_wire(&state.repo_root))
 }
 
 /// Allowlisted reverse proxy onto the poolAI edge plane.
@@ -966,7 +973,7 @@ async fn api_index() -> Json<Value> {
         "categories": [
             "/api/vision/", "/api/ui/", "/api/ratio/", "/api/toolchain/",
             "/api/ide/", "/api/omni/", "/api/sli", "/api/tracker", "/api/products",
-            "/api/fingerprints", "/api/ranks", "/api/sw", "/api/watchdog", "/api/usage", "/api/settings", "/api/telegram", "/api/telegram/bus", "/api/telegram/ticket", "/api/telegram/poll", "/api/telegram/decode", "/api/tickets", "/api/mds", "/api/xtask", "/api/disk", "/api/grid", "/api/edge", "/sw.js",
+            "/api/fingerprints", "/api/ranks", "/api/sw", "/api/watchdog", "/api/usage", "/api/settings", "/api/telegram", "/api/telegram/bus", "/api/telegram/ticket", "/api/telegram/poll", "/api/telegram/decode", "/api/tickets", "/api/mds", "/api/xtask", "/api/disk", "/api/grid", "/api/edge", "/api/apk", "/sw.js",
             "/api/hooks/", "/api/preview", "/api/terminal", "/data/", "/mcp"
         ],
         "example": "/api/vision",
@@ -1479,6 +1486,7 @@ async fn card_wire(state: &AppState, name: &str, q: &CardQuery) -> Result<Value,
             state.grid.refresh().await;
             let mut w = state.grid.wire().await;
             w["edge_proxy"] = crate::boxes::edge::status_wire(&state.data_dir);
+            w["apk"] = crate::boxes::apk::health_wire(&state.repo_root);
             w
         }
         _ => return Err(()),

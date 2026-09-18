@@ -14,6 +14,9 @@
 //! cargo run --bin gsv-apk -- service-account --json
 //! cargo run --bin gsv-apk -- package --json
 //! cargo run --bin gsv-apk -- package --write
+//! cargo run --bin gsv-apk -- disk --json
+//! cargo run --bin gsv-apk -- settings --json
+//! cargo run --bin gsv-apk -- adb --json
 //! cargo run --bin gsv-apk -- freeze --json
 //! ```
 
@@ -55,6 +58,9 @@ fn skip_kind(s: &str) -> bool {
             | "freeze"
             | "join"
             | "package"
+            | "disk"
+            | "settings"
+            | "adb"
             | "--json"
             | "-j"
             | "--live"
@@ -294,6 +300,45 @@ fn main() -> ExitCode {
             "gsv-apk package ok native=true webview=false package={} entry={} gradle=false java=false",
             v["package"].as_str().unwrap_or(apk::PACKAGE_ID),
             v["entry"].as_str().unwrap_or("join_lan")
+        );
+        return ExitCode::SUCCESS;
+    }
+
+    if args.iter().any(|a| a == "disk" || a == "settings") {
+        let v = apk::disk_settings_wire(&root);
+        if json {
+            return print_json(&v);
+        }
+        println!(
+            "gsv-apk {} ok={} wifi_debug=true screenshot=false disk_ok={} free_mb={:?} model_cache={:?} adb_serial={}",
+            if args.iter().any(|a| a == "settings") {
+                "settings"
+            } else {
+                "disk"
+            },
+            v["ok"],
+            v["disk"]["ok"],
+            v["disk"]["free_mb"],
+            v["settings"]["model_cache"],
+            v["adb"]["serial"].as_str().unwrap_or("")
+        );
+        return if v.get("ok").and_then(Value::as_bool) == Some(true) {
+            ExitCode::SUCCESS
+        } else {
+            ExitCode::FAILURE
+        };
+    }
+
+    if args.iter().any(|a| a == "adb") {
+        let v = apk::adb_plan(&root, &apk::adb_serial());
+        if json {
+            return print_json(&v);
+        }
+        println!(
+            "gsv-apk adb ok={} wifi_debug=true screenshot=false serial={} bin_exists={}",
+            v["ok"],
+            v["serial"].as_str().unwrap_or(""),
+            v["bin_exists"]
         );
         return ExitCode::SUCCESS;
     }

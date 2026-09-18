@@ -1,6 +1,6 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-09-18 (band **237 ✅** hub `/api/edge`; crate **0.237.0**; Godfather free-text + APK LAN join + native package `org.gsv.apk` landed. **Canon** [`gsv/GSV_AGI_PATH.md`](gsv/GSV_AGI_PATH.md). **Owner product pick: telenetis**. Redmi 9 = Wi-Fi debug rabbit. Queue last PH-S3018 next PH-S3019)
+**Оновлено:** 2026-09-18 (band **237 ✅** hub `/api/edge`; crate **0.237.0**; APK disk/settings over WiFi debug landed (`GET /api/apk`). **Canon** [`gsv/GSV_AGI_PATH.md`](gsv/GSV_AGI_PATH.md). **Owner product pick: telenetis**. Redmi 9 = Wi-Fi debug rabbit. Queue last PH-S3018 next PH-S3019)
 
 **Wi-Fi debug (Redmi 9):** ADB on box `target/adb/platform-tools/adb.exe`; `adb devices` empty until pair. Phone: Developer → Wireless debugging → pair by code → send `IP:port` + 6 digits. Then `adb pair` + `adb connect`. Play from GSV hub + Telenetis `:9800` (LAN `192.168.2.238`). Runbook [`telenetis/TWO_PHONES.md`](telenetis/TWO_PHONES.md) §KVM. Open: T23.1 ping · T26.1 pong · T32.1 download.
 

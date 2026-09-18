@@ -64,7 +64,9 @@ rebalance, burst seats, security): see [GSV_VDC.md](GSV_VDC.md).
     echoed). WiFi debug stays on-device disk/settings/debug. Do not clone
     Telenetis into the APK. Native package contract **landed**: `gsv-apk
     package --json` (`org.gsv.apk`, no WebView/Java/gradle in product;
-    manifest generated into `target/live/apk/`). NDK/cargo-apk binary is later.
+    manifest generated into `target/live/apk/`). Disk/settings **landed**:
+    `GET /api/apk` + `gsv-apk disk|settings|adb --json` (WiFi ADB
+    pair/connect/logcat/`df`; never screencap). NDK/cargo-apk binary is later.
 11. Freeze Telenetis feature surface (telenetis) — **landed**: identity + Mini App
     chrome + LAN only (`gsv-apk freeze --json`, surface=shell). Tensor/WebGPU
     is probe. No new KVM/swarm-as-OS. Telegram proxy to APK.

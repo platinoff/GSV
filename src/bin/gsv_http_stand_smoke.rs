@@ -260,6 +260,23 @@ async fn check_health_keep_live(client: &Client, base: &str) -> Result<(), Strin
         .get("ok")
         .and_then(Value::as_bool)
         .ok_or_else(|| format!("{url}: edge_proxy.ok missing"))?;
+    let apk = body
+        .get("apk")
+        .ok_or_else(|| format!("{url}: missing apk"))?;
+    let wifi = apk
+        .get("wifi_debug")
+        .and_then(Value::as_bool)
+        .ok_or_else(|| format!("{url}: apk.wifi_debug missing"))?;
+    if !wifi {
+        return Err(format!("{url}: apk.wifi_debug must be true"));
+    }
+    let shot = apk
+        .get("screenshot")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
+    if shot {
+        return Err(format!("{url}: apk.screenshot must be false"));
+    }
     Ok(())
 }
 
@@ -361,6 +378,12 @@ async fn run_smokes(cli: &Cli) -> SmokeReport {
         &mut cases,
         "edge",
         check_ok(&client, &cli.base_url, "/api/edge"),
+    )
+    .await;
+    record(
+        &mut cases,
+        "apk",
+        check_ok(&client, &cli.base_url, "/api/apk"),
     )
     .await;
     record(&mut cases, "mcp", check_ok(&client, &cli.base_url, "/mcp")).await;

@@ -29,7 +29,7 @@
 //! | Xtask | `xtask` | `/api/xtask` · `/api/disk` | `cargo xtask` product automation (no `.sh`) |
 //! | Grid (ALLBGP) | `grid` | `/api/grid` | durable mirror of poolAI `:8091` topology/workers/virtual-nodes/seats + history ring (`data/gsv_grid.json`, canon `GSV_VDC.md`) |
 //! | Edge proxy | `edge` | `/api/edge` · `/api/edge/{*path}` | hub single-entry to the poolAI edge plane: token + rate limit + allowlist (canon `GSV_VDC.md` §6) |
-//! | APK client | `apk` | bin `gsv-apk` | Rust-ratio phone peer: register JSON `origin=apk_edge` / `role=virtual_node` / `class=edge` via `/api/edge`; never `:8091` |
+//! | APK client | `apk` | `/api/apk` · bin `gsv-apk` | Rust-ratio phone peer: disk/settings JSON + WiFi-debug ADB plan (no screenshots); join via `/api/edge`; never `:8091` |
 
 pub mod apk;
 pub mod edge;

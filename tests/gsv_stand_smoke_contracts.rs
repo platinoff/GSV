@@ -156,6 +156,11 @@ async fn health_keep_live_shape_has_four_peers_and_hint() {
         json["edge_proxy"]["allowlist"].as_array().is_some(),
         "edge_proxy.allowlist"
     );
+    assert_eq!(
+        json["apk"]["wifi_debug"], true,
+        "health must list apk wifi-debug"
+    );
+    assert_eq!(json["apk"]["screenshot"], false, "apk must not screenshot");
 }
 
 /// SVG/status-only routes — the `check_status` set.
