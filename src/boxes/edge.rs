@@ -233,6 +233,19 @@ pub fn status_wire(data_dir: &Path) -> Value {
         "allowlist": ALLOW_PREFIXES,
         "rate": { "window_ms": RATE_WINDOW.as_millis() as u64, "cap": RATE_CAP },
         "poolai_base": grid::poolai_base(),
+        "service": service_account_wire(),
+    })
+}
+
+/// How Telenetis / APK authenticate onto the edge plane.
+/// Never poolAI `/login` with compiled `admin` / `admin123`.
+pub fn service_account_wire() -> Value {
+    json!({
+        "kind": "edge_token",
+        "header": TOKEN_HEADER,
+        "hub": "/api/edge",
+        "login_blocked": true,
+        "poolai_admin_default": false,
     })
 }
 
@@ -456,6 +469,10 @@ mod tests {
         assert_eq!(w["source"], "file");
         let raw = serde_json::to_string(&w).expect("json");
         assert!(!raw.contains("file-secret-edge"), "{raw}");
+        assert_eq!(w["service"]["kind"], "edge_token");
+        assert_eq!(w["service"]["login_blocked"], true);
+        assert_eq!(w["service"]["poolai_admin_default"], false);
+        assert!(!raw.contains("admin123"), "{raw}");
         assert!(w["allowlist"]
             .as_array()
             .unwrap()

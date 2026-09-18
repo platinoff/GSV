@@ -90,3 +90,15 @@ fn telegram_is_proxy_not_phone_worker() {
     assert!(apk::telegram_passthrough("Host tests").is_err());
     assert!(apk::telegram_passthrough("Start worker").is_err());
 }
+
+#[test]
+fn service_account_is_edge_token_not_poolai_admin() {
+    let v = gsv::boxes::edge::service_account_wire();
+    assert_eq!(v["kind"], "edge_token");
+    assert_eq!(v["header"], "x-gsv-edge-token");
+    assert_eq!(v["login_blocked"], true);
+    assert_eq!(v["poolai_admin_default"], false);
+    let s = v.to_string();
+    assert!(!s.contains("admin123"));
+    assert!(!s.contains("admin/admin"));
+}

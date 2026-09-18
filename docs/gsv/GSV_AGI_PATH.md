@@ -178,8 +178,9 @@ Keep-live (`gsv_keep_live`): GSV + Telenetis + llama-rs **up**; OmniRoute **down
 - Base: `http://<lan>:9999/api/edge/{*path}` — topology / workers / discovery /
   virtual-nodes / grid / jobs / health GET. Not `login` / `vm` / `users`.
 - Telenetis `GSV_URL=:9999`. Grid calls through the hub, not `POOLAI_URL=:8091`
-  off-box. Service account replacing `admin/admin123` stays a P0 leftover
-  (`t-1789392387275733400`).
+  off-box. Service account is the edge token (`gsv-apk service-account`):
+  `GSV_EDGE_TOKEN` / `TELENETIS_EDGE_TOKEN`. poolAI `admin/admin123` is not a
+  client credential.
 
 ### Join a plugin (open ecosystem)
 

@@ -101,20 +101,45 @@ pub fn service_endpoints(config: &Config, public_base: Option<&str>) -> serde_js
     })
 }
 
-/// poolAI service credentials for VM calls (operator's own box).
-/// Env overrides; dev defaults match poolAI's bootstrap admin.
-pub fn poolai_user() -> String {
+/// poolAI login credentials. **No compiled admin/admin123.**
+/// Clients use hub `/api/edge` + `GSV_EDGE_TOKEN` / `TELENETIS_EDGE_TOKEN`.
+/// Direct poolAI login is opt-in via `TELENETIS_POOLAI_USER` + `TELENETIS_POOLAI_PASS`.
+pub fn poolai_user() -> Option<String> {
     std::env::var("TELENETIS_POOLAI_USER")
         .ok()
-        .filter(|s| !s.trim().is_empty())
-        .unwrap_or_else(|| "admin".to_string())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
 }
 
-pub fn poolai_pass() -> String {
+pub fn poolai_pass() -> Option<String> {
     std::env::var("TELENETIS_POOLAI_PASS")
         .ok()
-        .filter(|s| !s.trim().is_empty())
-        .unwrap_or_else(|| "admin123".to_string())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+/// Hub edge token (never log the value). Env `GSV_EDGE_TOKEN` wins, else
+/// `TELENETIS_EDGE_TOKEN`.
+pub fn edge_token() -> Option<String> {
+    std::env::var("GSV_EDGE_TOKEN")
+        .ok()
+        .or_else(|| std::env::var("TELENETIS_EDGE_TOKEN").ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+/// Prefer hub `/api/edge` whenever an edge token is present.
+pub fn prefers_hub_edge() -> bool {
+    edge_token().is_some()
+}
+
+/// Strip `/api/v1` so the same PoolClient paths work on hub `/api/edge`.
+pub fn rewrite_for_hub(path: &str) -> String {
+    let p = path.trim();
+    let p = p.strip_prefix('/').unwrap_or(p);
+    let p = p.strip_prefix("api/v1/").unwrap_or(p);
+    let p = p.strip_prefix("api/v1").unwrap_or(p);
+    format!("/{p}")
 }
 
 /// poolAI HTTP client (5s whole-request budget, same as [`crate::gsv::client`]).
@@ -123,6 +148,7 @@ pub struct PoolClient {
     http: reqwest::Client,
     base_url: String,
     token: Arc<RwLock<Option<String>>>,
+    hub_edge: bool,
 }
 
 /// Allowlisted reverse-proxy target: phones talk to Telenetis, Telenetis
@@ -142,10 +168,17 @@ impl PoolClient {
             .connect_timeout(Duration::from_secs(3))
             .build()
             .unwrap_or_else(|_| reqwest::Client::new());
+        let hub_edge = prefers_hub_edge();
+        let base_url = if hub_edge {
+            format!("{}/api/edge", config.gsv_url.trim_end_matches('/'))
+        } else {
+            config.poolai_url.trim_end_matches('/').to_string()
+        };
         Self {
             http,
-            base_url: config.poolai_url.trim_end_matches('/').to_string(),
+            base_url,
             token: Arc::new(RwLock::new(None)),
+            hub_edge,
         }
     }
 
@@ -153,9 +186,27 @@ impl PoolClient {
         &self.base_url
     }
 
+    pub fn hub_edge(&self) -> bool {
+        self.hub_edge
+    }
+
+    fn request_url(&self, path: &str) -> String {
+        let p = if self.hub_edge {
+            rewrite_for_hub(path)
+        } else {
+            path.to_string()
+        };
+        format!("{}{p}", self.base_url)
+    }
+
     async fn get_json(&self, path: &str) -> Result<Value, TelenetisError> {
-        let url = format!("{}{}", self.base_url, path);
-        let resp = self.http.get(&url).send().await?;
+        let url = self.request_url(path);
+        let mut req = self.http.get(&url);
+        if self.hub_edge {
+            let t = edge_token().ok_or_else(|| TelenetisError::Pool("edge token unset".into()))?;
+            req = req.header("x-gsv-edge-token", t);
+        }
+        let resp = req.send().await?;
         let status = resp.status();
         if !status.is_success() {
             return Err(TelenetisError::Pool(format!("HTTP {status} from {url}")));
@@ -182,13 +233,24 @@ impl PoolClient {
     }
 
     async fn login(&self) -> Result<String, TelenetisError> {
+        if self.hub_edge {
+            return Err(TelenetisError::Pool(
+                "poolAI login blocked; use GSV_EDGE_TOKEN on /api/edge".into(),
+            ));
+        }
+        let user = poolai_user().ok_or_else(|| {
+            TelenetisError::Pool("TELENETIS_POOLAI_USER unset; use GSV_EDGE_TOKEN".into())
+        })?;
+        let pass = poolai_pass().ok_or_else(|| {
+            TelenetisError::Pool("TELENETIS_POOLAI_PASS unset; use GSV_EDGE_TOKEN".into())
+        })?;
         let url = format!("{}/api/v1/login", self.base_url);
         let resp = self
             .http
             .post(&url)
             .json(&serde_json::json!({
-                "username": poolai_user(),
-                "password": poolai_pass(),
+                "username": user,
+                "password": pass,
             }))
             .send()
             .await?;
@@ -210,6 +272,9 @@ impl PoolClient {
     }
 
     async fn token(&self) -> Result<String, TelenetisError> {
+        if self.hub_edge {
+            return edge_token().ok_or_else(|| TelenetisError::Pool("edge token unset".into()));
+        }
         if let Some(t) = self.token.read().await.clone() {
             return Ok(t);
         }
@@ -226,14 +291,18 @@ impl PoolClient {
     ) -> Result<Value, TelenetisError> {
         for attempt in 0..2 {
             let t = self.token().await?;
-            let url = format!("{}{}", self.base_url, path);
+            let url = self.request_url(path);
             let mut req = match method {
                 "POST" => self.http.post(&url),
                 "PUT" => self.http.put(&url),
                 "DELETE" => self.http.delete(&url),
                 _ => self.http.get(&url),
             };
-            req = req.bearer_auth(&t);
+            req = if self.hub_edge {
+                req.header("x-gsv-edge-token", &t)
+            } else {
+                req.bearer_auth(&t)
+            };
             if let Some(b) = body {
                 req = req.json(b);
             }
@@ -885,5 +954,60 @@ mod tests {
         assert!(text.contains("a54-01"), "{text}");
         assert!(text.contains("Running"), "{text}");
         assert!(render_vms(&[]).contains("(none"));
+    }
+
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    #[test]
+    fn rewrite_for_hub_strips_api_v1() {
+        assert_eq!(rewrite_for_hub("/api/v1/health"), "/health");
+        assert_eq!(
+            rewrite_for_hub("/api/v1/virtual-nodes/redmi-01/pool/join"),
+            "/virtual-nodes/redmi-01/pool/join"
+        );
+        assert_eq!(rewrite_for_hub("health"), "/health");
+        assert!(!rewrite_for_hub("/api/v1/login").contains("8091"));
+    }
+
+    #[test]
+    fn no_compiled_poolai_admin_password() {
+        let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let old_u = std::env::var("TELENETIS_POOLAI_USER").ok();
+        let old_p = std::env::var("TELENETIS_POOLAI_PASS").ok();
+        std::env::remove_var("TELENETIS_POOLAI_USER");
+        std::env::remove_var("TELENETIS_POOLAI_PASS");
+        assert!(poolai_user().is_none());
+        assert!(poolai_pass().is_none());
+        match old_u {
+            Some(v) => std::env::set_var("TELENETIS_POOLAI_USER", v),
+            None => std::env::remove_var("TELENETIS_POOLAI_USER"),
+        }
+        match old_p {
+            Some(v) => std::env::set_var("TELENETIS_POOLAI_PASS", v),
+            None => std::env::remove_var("TELENETIS_POOLAI_PASS"),
+        }
+    }
+
+    #[test]
+    fn hub_edge_when_token_set() {
+        let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let old_g = std::env::var("GSV_EDGE_TOKEN").ok();
+        let old_t = std::env::var("TELENETIS_EDGE_TOKEN").ok();
+        std::env::remove_var("TELENETIS_EDGE_TOKEN");
+        std::env::set_var("GSV_EDGE_TOKEN", "test-edge-token");
+        assert!(prefers_hub_edge());
+        let c = PoolClient::new(&test_config());
+        assert!(c.hub_edge());
+        assert!(c.base_url().ends_with("/api/edge"));
+        assert!(!c.base_url().contains("8091"));
+        std::env::remove_var("GSV_EDGE_TOKEN");
+        match old_g {
+            Some(v) => std::env::set_var("GSV_EDGE_TOKEN", v),
+            None => std::env::remove_var("GSV_EDGE_TOKEN"),
+        }
+        match old_t {
+            Some(v) => std::env::set_var("TELENETIS_EDGE_TOKEN", v),
+            None => std::env::remove_var("TELENETIS_EDGE_TOKEN"),
+        }
     }
 }

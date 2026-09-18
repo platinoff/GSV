@@ -127,9 +127,9 @@ lands.
   `jobs` / `health` GET-only). `login` / `vm` / `users` stay 404. JSON key
   redaction on the way out (`token` / `password` / `bot_token` / …). Health
   carries `edge_proxy`; VDC card shows the proxy line.
-- Service account replacing poolAI `admin/admin123` for Telenetis **and** the
-  APK peer remains open (`t-1789392387275733400` / `t-1789360414663375700`).
-  Those clients call hub `/api/edge`, never `:8091`.
+- Service account for Telenetis **and** the APK peer: hub `/api/edge` +
+  `GSV_EDGE_TOKEN` (`edge.service.kind=edge_token`). poolAI `admin/admin123`
+  is not a client credential. Clients never dial `:8091` off-box.
 
 ### 7. Connection stability (OpenCode ⇄ hub) — DONE 2026-09-14, keep
 - Watchdog `--no-lockstep` / `GSV_WATCHDOG_LOCKSTEP=0`: ticket-drain rebuilds

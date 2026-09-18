@@ -128,8 +128,12 @@ async fn status_is_open_and_redacted() {
     assert_eq!(json["ok"], true);
     assert_eq!(json["token_set"], true);
     assert_eq!(json["source"], "file");
+    assert_eq!(json["service"]["kind"], "edge_token");
+    assert_eq!(json["service"]["login_blocked"], true);
+    assert_eq!(json["service"]["poolai_admin_default"], false);
     let raw = json.to_string();
     assert!(!raw.contains("file-edge-secret"), "{raw}");
+    assert!(!raw.contains("admin123"), "{raw}");
 }
 
 #[tokio::test]

@@ -65,8 +65,11 @@ rebalance, burst seats, security): see [GSV_VDC.md](GSV_VDC.md).
     only; Telegram = **proxy/passthrough to the APK** (hub policy landed:
     `gsv-apk telegram <kind>`; tensor/Host-tests/KVM rejected). No new
     tensor/KVM/swarm-as-OS (Telenetis freeze ticket still open).
-12. Service account for Telenetis/APK replacing `admin/admin123` (gsv, open;
-    `t-1789392387275733400`).
+12. Service account for Telenetis/APK replacing `admin/admin123` (gsv) —
+    **landed**: clients use hub `/api/edge` + `GSV_EDGE_TOKEN` /
+    `TELENETIS_EDGE_TOKEN` (`gsv-apk service-account --json`;
+    `edge.service.kind=edge_token`; Telenetis no longer compiles
+    `admin/admin123`). poolAI login is opt-in env only.
 13. Godfather allowlisted free-text ingest (gsv, open) — plain owner chat in
     `@GSV_OFFICIAL` is skipped today.
 

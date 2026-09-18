@@ -9,6 +9,7 @@
 //! cargo run --bin gsv-apk -- register --json
 //! cargo run --bin gsv-apk -- check-hub http://192.168.2.238:9999
 //! cargo run --bin gsv-apk -- telegram auth --json
+//! cargo run --bin gsv-apk -- service-account --json
 //! ```
 
 use std::env;
@@ -125,6 +126,7 @@ fn main() -> ExitCode {
                 s != "telegram"
                     && s != "register"
                     && s != "check-hub"
+                    && s != "service-account"
                     && s != "--json"
                     && s != "-j"
                     && !s.starts_with("http://")
@@ -164,6 +166,20 @@ fn main() -> ExitCode {
                 }
             }
         };
+    }
+
+    if args.iter().any(|a| a == "service-account") {
+        let v = gsv::boxes::edge::service_account_wire();
+        if json {
+            return print_json(&v);
+        }
+        println!(
+            "gsv-apk service-account kind={} header={} hub={} login_blocked=true",
+            v["kind"].as_str().unwrap_or("edge_token"),
+            v["header"].as_str().unwrap_or("x-gsv-edge-token"),
+            v["hub"].as_str().unwrap_or("/api/edge")
+        );
+        return ExitCode::SUCCESS;
     }
 
     let r = apk::report(&root, &hub, &peer);
