@@ -102,3 +102,12 @@ fn service_account_is_edge_token_not_poolai_admin() {
     assert!(!s.contains("admin123"));
     assert!(!s.contains("admin/admin"));
 }
+
+#[test]
+fn telenetis_surface_is_frozen_shell() {
+    assert!(apk::telenetis_may_grow("identity").is_ok());
+    assert!(apk::telenetis_may_grow("tensor").is_err());
+    let v = apk::telenetis_surface_wire();
+    assert_eq!(v["surface"], "shell");
+    assert_eq!(v["phone_worker"], ORIGIN);
+}

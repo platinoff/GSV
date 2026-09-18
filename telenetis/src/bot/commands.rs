@@ -132,7 +132,7 @@ pub fn command_response(cmd: &Command) -> String {
              /sync — Force sync from GSV\n\
              /app — Open Mini App\n\
               /probe — WebGPU adapter probe (phone GPU → hub profile)\n\
-              /tensor — Browser tensor worker (phone LLM, tasks from poolAI)\n\
+              /tensor — Probe only (Mini App GGUF). Phone worker is the APK.\n\
              /tunnel — Show / refresh public tunnel URL\n\
              /reconnect — Reconnect bot to channel\n\
              /help — This message"
@@ -158,7 +158,7 @@ pub fn command_response(cmd: &Command) -> String {
         Command::Sync => "Syncing from GSV...".to_string(),
         Command::App => "Opening Mini App...".to_string(),
         Command::Probe => "Opening WebGPU probe...".to_string(),
-        Command::Tensor => "Opening tensor worker...".to_string(),
+        Command::Tensor => "Opening tensor probe (not the phone worker)...".to_string(),
         Command::Tunnel => "Tunnel".to_string(),
         Command::Reconnect => "Reconnect".to_string(),
         Command::Unknown(cmd) => format!("Unknown command: /{cmd}"),
@@ -754,6 +754,7 @@ mod tests {
         assert!(r.contains("/app"));
         assert!(r.contains("/probe"));
         assert!(r.contains("/tensor"));
+        assert!(r.contains("Probe only"));
     }
 
     #[test]

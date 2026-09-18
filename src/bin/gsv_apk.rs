@@ -10,6 +10,7 @@
 //! cargo run --bin gsv-apk -- check-hub http://192.168.2.238:9999
 //! cargo run --bin gsv-apk -- telegram auth --json
 //! cargo run --bin gsv-apk -- service-account --json
+//! cargo run --bin gsv-apk -- freeze --json
 //! ```
 
 use std::env;
@@ -127,6 +128,7 @@ fn main() -> ExitCode {
                     && s != "register"
                     && s != "check-hub"
                     && s != "service-account"
+                    && s != "freeze"
                     && s != "--json"
                     && s != "-j"
                     && !s.starts_with("http://")
@@ -178,6 +180,19 @@ fn main() -> ExitCode {
             v["kind"].as_str().unwrap_or("edge_token"),
             v["header"].as_str().unwrap_or("x-gsv-edge-token"),
             v["hub"].as_str().unwrap_or("/api/edge")
+        );
+        return ExitCode::SUCCESS;
+    }
+
+    if args.iter().any(|a| a == "freeze") {
+        let v = apk::telenetis_surface_wire();
+        if json {
+            return print_json(&v);
+        }
+        println!(
+            "gsv-apk freeze surface={} phone_worker={}",
+            v["surface"].as_str().unwrap_or("shell"),
+            v["phone_worker"].as_str().unwrap_or("apk_edge")
         );
         return ExitCode::SUCCESS;
     }

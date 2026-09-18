@@ -3496,6 +3496,9 @@ mod tests {
         assert!(html.contains("tensor-file"));
         assert!(html.contains("tensor-privacy")); // T18.1: no-sharing notice
         assert!(html.contains("gsv-card"));
+        assert!(html.contains("tensor-freeze"));
+        assert!(html.contains("apk_edge"));
+        assert!(html.contains("Probe only"));
     }
 
     #[tokio::test]

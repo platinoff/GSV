@@ -61,10 +61,9 @@ rebalance, burst seats, security): see [GSV_VDC.md](GSV_VDC.md).
     hub edge-proxy (`cargo run --bin gsv-apk -- register --json`, origin
     `apk_edge`); WiFi debug is on-device disk/settings/debug; do not clone
     Telenetis into the APK (open; scenario `hub-apk-client`).
-11. Freeze Telenetis feature surface (telenetis) — identity + Mini App chrome
-    only; Telegram = **proxy/passthrough to the APK** (hub policy landed:
-    `gsv-apk telegram <kind>`; tensor/Host-tests/KVM rejected). No new
-    tensor/KVM/swarm-as-OS (Telenetis freeze ticket still open).
+11. Freeze Telenetis feature surface (telenetis) — **landed**: identity + Mini App
+    chrome + LAN only (`gsv-apk freeze --json`, surface=shell). Tensor/WebGPU
+    is probe. No new KVM/swarm-as-OS. Telegram proxy to APK.
 12. Service account for Telenetis/APK replacing `admin/admin123` (gsv) —
     **landed**: clients use hub `/api/edge` + `GSV_EDGE_TOKEN` /
     `TELENETIS_EDGE_TOKEN` (`gsv-apk service-account --json`;

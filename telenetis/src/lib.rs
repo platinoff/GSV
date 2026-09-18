@@ -11,6 +11,7 @@ pub mod roles;
 pub mod security;
 pub mod state;
 pub mod stream;
+pub mod surface;
 pub mod testmode;
 pub mod tracker;
 pub mod tunnel;

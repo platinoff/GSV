@@ -255,7 +255,7 @@ pub fn telegram_passthrough(kind: &str) -> Result<TelegramForward, HubReject> {
             origin: ORIGIN,
             action: "open_apk",
         }),
-        "shell" | "chrome" | "dashboard" | "board" => Ok(TelegramForward {
+        "shell" | "chrome" | "dashboard" | "board" | "identity" | "lan" => Ok(TelegramForward {
             ok: true,
             kind: k,
             to: "shell",
@@ -266,6 +266,30 @@ pub fn telegram_passthrough(kind: &str) -> Result<TelegramForward, HubReject> {
             error: "telegram is proxy to APK only",
         }),
     }
+}
+
+/// Telenetis Mini App is frozen at identity + chrome + LAN. Tensor/KVM/swarm
+/// are probes, not growth. Phone worker stays [`ORIGIN`].
+pub fn telenetis_may_grow(kind: &str) -> Result<(), HubReject> {
+    let k = canon_kind(kind);
+    match k.as_str() {
+        "identity" | "chrome" | "shell" | "dashboard" | "board" | "lan" | "webhook" => Ok(()),
+        _ => Err(HubReject {
+            error: "telenetis surface frozen: shell only",
+        }),
+    }
+}
+
+/// Hub freeze wire (no secrets).
+pub fn telenetis_surface_wire() -> Value {
+    json!({
+        "ok": true,
+        "surface": "shell",
+        "grow": ["identity", "chrome", "lan"],
+        "probe_only": ["tensor", "webgpu"],
+        "frozen": ["kvm", "swarm", "start-worker", "host-tests"],
+        "phone_worker": ORIGIN,
+    })
 }
 
 /// Disk + identity (WiFi-debug / APK settings page). Hub reads this JSON
@@ -401,5 +425,13 @@ mod tests {
         assert!(telegram_passthrough("kvm").is_err());
         assert!(telegram_passthrough("start-worker").is_err());
         assert!(telegram_passthrough("wllama").is_err());
+        assert!(telenetis_may_grow("identity").is_ok());
+        assert!(telenetis_may_grow("chrome").is_ok());
+        assert!(telenetis_may_grow("tensor").is_err());
+        assert!(telenetis_may_grow("swarm").is_err());
+        assert!(telenetis_may_grow("kvm").is_err());
+        let w = telenetis_surface_wire();
+        assert_eq!(w["surface"], "shell");
+        assert_eq!(w["phone_worker"], ORIGIN);
     }
 }
