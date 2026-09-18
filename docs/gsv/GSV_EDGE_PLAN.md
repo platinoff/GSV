@@ -66,7 +66,9 @@ rebalance, burst seats, security): see [GSV_VDC.md](GSV_VDC.md).
     package --json` (`org.gsv.apk`, no WebView/Java/gradle in product;
     manifest generated into `target/live/apk/`). Disk/settings **landed**:
     `GET /api/apk` + `gsv-apk disk|settings|adb --json` (WiFi ADB
-    pair/connect/logcat/`df`; never screencap). NDK/cargo-apk binary is later.
+    pair/connect/logcat/`df`; never screencap). Mini App/Chrome **403** as
+    phone worker (`gsv-apk worker --json`; origin must be `apk_edge`).
+    NDK/cargo-apk binary is later.
 11. Freeze Telenetis feature surface (telenetis) — **landed**: identity + Mini App
     chrome + LAN only (`gsv-apk freeze --json`, surface=shell). Tensor/WebGPU
     is probe. No new KVM/swarm-as-OS. Telegram proxy to APK.

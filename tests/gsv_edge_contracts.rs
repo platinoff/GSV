@@ -167,6 +167,44 @@ async fn apk_disk_settings_json_has_no_screenshots() {
 }
 
 #[tokio::test]
+async fn mini_app_origin_cannot_register_as_phone_worker() {
+    let dir = temp_data("apk-origin");
+    let file = SettingsFile {
+        edge: EdgeSettings {
+            token: "apk-origin-tokenxx".into(),
+        },
+        ..Default::default()
+    };
+    settings::save(&dir, &file).expect("save");
+    let app = app_with(dir, &dead_base());
+    let (st, json) = call(
+        &app,
+        Method::POST,
+        "/api/edge/discovery/register-remote",
+        Some("apk-origin-tokenxx"),
+        Some(json!({"metadata": {"origin": "telegram_edge"}})),
+    )
+    .await;
+    assert_eq!(st, StatusCode::FORBIDDEN, "{json}");
+    assert_eq!(json["error"], "mini app/chrome is not the phone worker");
+    let (st, json) = call(
+        &app,
+        Method::POST,
+        "/api/edge/discovery/register-remote",
+        Some("apk-origin-tokenxx"),
+        Some(json!({"origin": "chrome"})),
+    )
+    .await;
+    assert_eq!(st, StatusCode::FORBIDDEN, "{json}");
+    let (st, json) = get_json(&app, "/api/apk").await;
+    assert_eq!(st, StatusCode::OK);
+    assert_eq!(json["worker"]["phone_worker"], "apk_edge");
+    assert_eq!(json["worker"]["mini_app"], false);
+    assert_eq!(json["worker"]["chrome"], false);
+    assert_eq!(json["worker"]["webgpu"], "probe");
+}
+
+#[tokio::test]
 async fn unset_token_refuses_forward() {
     let dir = temp_data("unset");
     let app = app_with(dir, &dead_base());

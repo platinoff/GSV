@@ -17,6 +17,7 @@
 //! cargo run --bin gsv-apk -- disk --json
 //! cargo run --bin gsv-apk -- settings --json
 //! cargo run --bin gsv-apk -- adb --json
+//! cargo run --bin gsv-apk -- worker --json
 //! cargo run --bin gsv-apk -- freeze --json
 //! ```
 
@@ -61,6 +62,7 @@ fn skip_kind(s: &str) -> bool {
             | "disk"
             | "settings"
             | "adb"
+            | "worker"
             | "--json"
             | "-j"
             | "--live"
@@ -339,6 +341,19 @@ fn main() -> ExitCode {
             v["ok"],
             v["serial"].as_str().unwrap_or(""),
             v["bin_exists"]
+        );
+        return ExitCode::SUCCESS;
+    }
+
+    if args.iter().any(|a| a == "worker") {
+        let v = apk::worker_policy_wire();
+        if json {
+            return print_json(&v);
+        }
+        println!(
+            "gsv-apk worker phone_worker={} mini_app=false chrome=false webgpu=probe tasks={}",
+            v["phone_worker"].as_str().unwrap_or(ORIGIN),
+            v["tasks"].as_str().unwrap_or("virtual_node")
         );
         return ExitCode::SUCCESS;
     }

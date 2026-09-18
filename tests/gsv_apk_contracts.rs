@@ -81,6 +81,20 @@ fn report_json_is_disk_and_settings_not_kvm() {
 }
 
 #[test]
+fn worker_policy_is_apk_edge_not_mini_app() {
+    let p = apk::worker_policy_wire();
+    assert_eq!(p["phone_worker"], ORIGIN);
+    assert_eq!(p["mini_app"], false);
+    assert_eq!(p["chrome"], false);
+    assert_eq!(p["webview"], false);
+    assert_eq!(p["webgpu"], "probe");
+    assert_eq!(p["telenetis_freeze"], true);
+    assert_eq!(p["tasks"], "virtual_node");
+    assert!(apk::phone_worker_edge_ok(Some(&json!({"task": "x"}))).is_ok());
+    assert!(apk::phone_worker_edge_ok(Some(&json!({"origin": "chrome"}))).is_err());
+}
+
+#[test]
 fn telegram_is_proxy_not_phone_worker() {
     assert!(!apk::telegram_may_be_phone_worker());
     assert!(!apk::is_phone_worker_origin(apk::TELEGRAM_ORIGIN));

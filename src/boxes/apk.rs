@@ -452,6 +452,69 @@ pub fn telenetis_surface_wire() -> Value {
     })
 }
 
+fn extract_origin(body: &Value) -> String {
+    body.pointer("/metadata/origin")
+        .or_else(|| body.get("origin"))
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string()
+}
+
+fn blocked_phone_origin(origin: &str) -> bool {
+    let o = origin.trim().to_ascii_lowercase().replace(['_', ' '], "-");
+    if o.is_empty() {
+        return false;
+    }
+    matches!(
+        o.as_str(),
+        "telegram-edge"
+            | "chrome"
+            | "webview"
+            | "mini-app"
+            | "miniapp"
+            | "wllama"
+            | "webgpu"
+            | "host-tests"
+            | "start-worker"
+            | "gguf"
+    ) || o.contains("telegram")
+        || o.contains("webview")
+        || o.contains("mini-app")
+}
+
+/// Mini App / Chrome / WebView must not register as the phone worker.
+/// Empty origin is allowed (PC edge workers). Hub tasks stay [`ORIGIN`].
+pub fn phone_worker_edge_ok(body: Option<&Value>) -> Result<(), HubReject> {
+    let Some(body) = body else {
+        return Ok(());
+    };
+    let origin = extract_origin(body);
+    if blocked_phone_origin(&origin) {
+        return Err(HubReject {
+            error: "mini app/chrome is not the phone worker",
+        });
+    }
+    Ok(())
+}
+
+/// Intended phone worker policy (WebGPU remains probe-only).
+pub fn worker_policy_wire() -> Value {
+    json!({
+        "ok": true,
+        "phone_worker": ORIGIN,
+        "role": ROLE,
+        "class": CLASS_EDGE,
+        "mini_app": false,
+        "chrome": false,
+        "webview": false,
+        "webgpu": "probe",
+        "telegram_proxy": true,
+        "telenetis_freeze": true,
+        "tasks": "virtual_node",
+    })
+}
+
 /// Disk + identity (WiFi-debug / APK settings page). Hub reads this JSON
 /// instead of screenshot loops.
 pub fn report(repo_root: &std::path::Path, hub: &str, peer: &str) -> ApkReport {
@@ -579,6 +642,10 @@ pub fn health_wire(repo_root: &Path) -> Value {
         "disk_ok": r.disk.ok,
         "free_mb": r.disk.free_mb,
         "model_cache_set": r.settings.model_cache.is_some(),
+        "phone_worker": ORIGIN,
+        "mini_app_worker": false,
+        "chrome_worker": false,
+        "webgpu": "probe",
     })
 }
 
@@ -600,6 +667,7 @@ pub fn disk_settings_wire(repo_root: &Path) -> Value {
         "settings": r.settings,
         "identity": r.identity,
         "adb": adb_plan(repo_root, &adb_serial()),
+        "worker": worker_policy_wire(),
     })
 }
 
@@ -838,6 +906,35 @@ mod tests {
         let w = telenetis_surface_wire();
         assert_eq!(w["surface"], "shell");
         assert_eq!(w["phone_worker"], ORIGIN);
+    }
+
+    #[test]
+    fn mini_app_chrome_cannot_be_phone_worker() {
+        assert!(!telegram_may_be_phone_worker());
+        assert!(phone_worker_edge_ok(None).is_ok());
+        assert!(phone_worker_edge_ok(Some(&json!({"task": "x"}))).is_ok());
+        assert!(phone_worker_edge_ok(Some(&json!({"metadata": {"origin": ORIGIN}}))).is_ok());
+        assert!(phone_worker_edge_ok(Some(&json!({"origin": "edge-pc-01"}))).is_ok());
+        assert!(
+            phone_worker_edge_ok(Some(&json!({"metadata": {"origin": "telegram_edge"}}))).is_err()
+        );
+        assert!(phone_worker_edge_ok(Some(&json!({"origin": "chrome"}))).is_err());
+        assert!(phone_worker_edge_ok(Some(&json!({"origin": "webview"}))).is_err());
+        assert!(phone_worker_edge_ok(Some(&json!({"origin": "mini-app"}))).is_err());
+        assert!(phone_worker_edge_ok(Some(&json!({"origin": "webgpu"}))).is_err());
+        let p = worker_policy_wire();
+        assert_eq!(p["phone_worker"], ORIGIN);
+        assert_eq!(p["mini_app"], false);
+        assert_eq!(p["chrome"], false);
+        assert_eq!(p["webview"], false);
+        assert_eq!(p["webgpu"], "probe");
+        assert_eq!(p["telenetis_freeze"], true);
+        assert_eq!(p["tasks"], "virtual_node");
+        let h = health_wire(&root());
+        assert_eq!(h["phone_worker"], ORIGIN);
+        assert_eq!(h["mini_app_worker"], false);
+        assert_eq!(h["chrome_worker"], false);
+        assert_eq!(h["webgpu"], "probe");
     }
 
     #[test]

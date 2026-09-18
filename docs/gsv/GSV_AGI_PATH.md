@@ -205,7 +205,11 @@ Keep-live (`gsv_keep_live`): GSV + Telenetis + llama-rs **up**; OmniRoute **down
    (pipeline output, not product source).
    Disk/settings: `GET /api/apk` or `gsv-apk disk --json` (WiFi ADB plan,
    no screencap). `GSV_APK_CACHE` / `GSV_APK_ADB` optional.
-4. Telegram stays a **proxy/passthrough to the APK only** (forward auth/commands
+4. Mini App / Chrome is **not** the phone worker. Hub `POST /api/edge` with
+   origin `telegram_edge` / `chrome` / `webview` is **403**. Tasks go to
+   `apk_edge` (`gsv-apk worker --json`). WebGPU stays probe-only. Telenetis
+   freeze stays.
+5. Telegram stays a **proxy/passthrough to the APK only** (forward auth/commands
    / open the APK). Hub policy: `cargo run --bin gsv-apk -- telegram auth`
    (also `command`, `open_apk`). Mini App chrome (`dashboard`/`board`) may stay
    a shell. `tensor` / `host-tests` / `kvm` / `start-worker` are rejected.

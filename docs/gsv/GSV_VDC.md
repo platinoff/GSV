@@ -38,7 +38,8 @@ Path (b) in §3 (WebGPU **inside** the Mini App) stays a probe, not the
 control plane. The intended phone join is the **APK peer**: WiFi debug already
 exists; the APK talks to the hub edge-proxy with a token, never to `:8091`
 (`gsv-apk join --json` dry-run; `join --live` POSTs). Hub reads disk/settings
-via `GET /api/apk` (WiFi ADB; no screenshot loops).
+via `GET /api/apk` (WiFi ADB; no screenshot loops). Mini App/Chrome cannot
+register as the phone worker (`POST /api/edge` origin gate → 403).
 Service-account rotation for Telenetis/APK (`t-1789392387275733400`) is the
 security leftover so those clients stop using `admin/admin123`.
 

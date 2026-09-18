@@ -439,6 +439,11 @@ async fn api_edge_proxy(
     } else {
         serde_json::from_slice::<Value>(&body).ok()
     };
+    if method == Method::POST {
+        if let Err(e) = crate::boxes::apk::phone_worker_edge_ok(json_body.as_ref()) {
+            return err_json(StatusCode::FORBIDDEN, e.error);
+        }
+    }
     match crate::boxes::edge::dispatch(
         &state.data_dir,
         &state.grid.base_url,
