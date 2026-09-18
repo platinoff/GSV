@@ -1,12 +1,13 @@
 //! Phone APK client contract (hub-apk-client).
 //!
-//! Host-side JSON only. No gradle, no Java, no `:8091`.
+//! Host-side JSON + LAN join through `/api/edge`. No gradle, no Java, no `:8091`.
 
 use std::path::PathBuf;
 
 use gsv::boxes::apk::{self, CLASS_EDGE, DEFAULT_HUB, ORIGIN, ROLE};
 use gsv::boxes::edge;
 use gsv::boxes::xtask;
+use serde_json::json;
 
 #[test]
 fn cargo_declares_gsv_apk_bin() {
@@ -110,4 +111,126 @@ fn telenetis_surface_is_frozen_shell() {
     let v = apk::telenetis_surface_wire();
     assert_eq!(v["surface"], "shell");
     assert_eq!(v["phone_worker"], ORIGIN);
+}
+
+#[test]
+fn join_dry_run_plans_hops_without_sockets() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let disk = xtask::disk_report(&root, false);
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("rt");
+    let v = rt
+        .block_on(apk::join_lan(
+            DEFAULT_HUB,
+            "redmi-01",
+            "192.168.2.89",
+            &disk,
+            true,
+            Some("edge-secret-must-not-leak"),
+        ))
+        .expect("dry");
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["dry_run"], true);
+    assert_eq!(v["origin"], ORIGIN);
+    assert_eq!(v["steps"].as_array().expect("steps").len(), 3);
+    let raw = v.to_string();
+    assert!(!raw.contains("edge-secret-must-not-leak"), "{raw}");
+    assert!(!raw.contains("8091"), "{raw}");
+    assert!(raw.contains("/api/edge/health"), "{raw}");
+}
+
+#[tokio::test]
+async fn join_live_posts_token_header_and_redacts() {
+    use std::sync::{Arc, Mutex};
+
+    use axum::extract::State;
+    use axum::http::HeaderMap;
+    use axum::routing::{get, post};
+    use axum::{Json, Router};
+    use serde_json::Value;
+
+    #[derive(Clone)]
+    struct Seen {
+        header: Arc<Mutex<Option<String>>>,
+        origin: Arc<Mutex<Option<String>>>,
+    }
+
+    async fn health() -> Json<Value> {
+        Json(json!({ "ok": true, "token": "upstream-leak" }))
+    }
+
+    async fn register(
+        State(seen): State<Seen>,
+        headers: HeaderMap,
+        Json(body): Json<Value>,
+    ) -> Json<Value> {
+        let h = headers
+            .get(edge::TOKEN_HEADER)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_string);
+        *seen.header.lock().expect("h") = h;
+        *seen.origin.lock().expect("o") = body
+            .pointer("/metadata/origin")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        Json(json!({ "ok": true, "password": "nope" }))
+    }
+
+    async fn join() -> Json<Value> {
+        Json(json!({ "ok": true }))
+    }
+
+    let seen = Seen {
+        header: Arc::new(Mutex::new(None)),
+        origin: Arc::new(Mutex::new(None)),
+    };
+    let app = Router::new()
+        .route("/api/edge/health", get(health))
+        .route("/api/edge/discovery/register-remote", post(register))
+        .route("/api/edge/virtual-nodes/redmi-01/pool/join", post(join))
+        .with_state(seen.clone());
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind");
+    let addr = listener.local_addr().expect("addr");
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.expect("serve");
+    });
+    let hub = format!("http://127.0.0.1:{}/api/edge", addr.port());
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let disk = xtask::disk_report(&root, false);
+    let v = apk::join_lan(
+        &hub,
+        "redmi-01",
+        "192.168.2.89",
+        &disk,
+        false,
+        Some("edge-secret-must-not-leak"),
+    )
+    .await
+    .expect("join");
+    assert_eq!(v["ok"], true, "{v}");
+    assert_eq!(v["dry_run"], false, "{v}");
+    let raw = v.to_string();
+    assert!(!raw.contains("edge-secret-must-not-leak"), "{raw}");
+    assert!(!raw.contains("upstream-leak"), "{raw}");
+    assert!(!raw.contains("nope"), "{raw}");
+    assert!(!raw.contains("8091"), "{raw}");
+    assert_eq!(
+        seen.header.lock().expect("h").as_deref(),
+        Some("edge-secret-must-not-leak")
+    );
+    assert_eq!(seen.origin.lock().expect("o").as_deref(), Some(ORIGIN));
+}
+
+#[tokio::test]
+async fn join_live_without_token_refuses_sockets() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let disk = xtask::disk_report(&root, false);
+    let err = apk::join_lan(DEFAULT_HUB, "redmi-01", "127.0.0.1", &disk, false, None)
+        .await
+        .expect_err("token");
+    assert_eq!(err.error, "edge token not set");
 }

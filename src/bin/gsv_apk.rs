@@ -7,6 +7,8 @@
 //! cargo run --bin gsv-apk
 //! cargo run --bin gsv-apk -- --json
 //! cargo run --bin gsv-apk -- register --json
+//! cargo run --bin gsv-apk -- join --json
+//! cargo run --bin gsv-apk -- join --live --json
 //! cargo run --bin gsv-apk -- check-hub http://192.168.2.238:9999
 //! cargo run --bin gsv-apk -- telegram auth --json
 //! cargo run --bin gsv-apk -- service-account --json
@@ -41,6 +43,30 @@ fn print_json(v: &Value) -> ExitCode {
     }
 }
 
+fn skip_kind(s: &str) -> bool {
+    matches!(
+        s,
+        "telegram"
+            | "register"
+            | "check-hub"
+            | "service-account"
+            | "freeze"
+            | "join"
+            | "--json"
+            | "-j"
+            | "--live"
+    ) || s.starts_with("http://")
+        || s.starts_with("https://")
+}
+
+fn block_on<F: std::future::Future<Output = T>, T>(fut: F) -> T {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("tokio")
+        .block_on(fut)
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().skip(1).collect();
     let json = want_json(&args);
@@ -73,6 +99,56 @@ fn main() -> ExitCode {
         };
     }
 
+    if args.iter().any(|a| a == "join") {
+        let dry = !args.iter().any(|a| a == "--live");
+        let disk = gsv::boxes::xtask::disk_report(&root, false);
+        let addr = apk::peer_addr();
+        let token = gsv::boxes::edge::env_token();
+        let v = match block_on(apk::join_lan(
+            &hub,
+            &peer,
+            &addr,
+            &disk,
+            dry,
+            token.as_deref(),
+        )) {
+            Ok(v) => v,
+            Err(e) => {
+                if json {
+                    let _ = print_json(&json!({
+                        "ok": false,
+                        "hub": hub,
+                        "dry_run": dry,
+                        "error": e.error
+                    }));
+                    return ExitCode::FAILURE;
+                }
+                eprintln!("gsv-apk join fail hub={hub} error={}", e.error);
+                return ExitCode::FAILURE;
+            }
+        };
+        let ok = v.get("ok").and_then(Value::as_bool) == Some(true);
+        if json {
+            let code = print_json(&v);
+            return if ok { code } else { ExitCode::FAILURE };
+        }
+        println!(
+            "gsv-apk join ok={} dry_run={} origin={} peer={} hub={} token_set={} steps={}",
+            ok,
+            v["dry_run"],
+            ORIGIN,
+            peer,
+            hub,
+            v["token_set"],
+            v["steps"].as_array().map(|a| a.len()).unwrap_or(0)
+        );
+        return if ok {
+            ExitCode::SUCCESS
+        } else {
+            ExitCode::FAILURE
+        };
+    }
+
     if args.iter().any(|a| a == "register") {
         let disk = gsv::boxes::xtask::disk_report(&root, false);
         match apk::check_hub(&hub) {
@@ -82,11 +158,7 @@ fn main() -> ExitCode {
                 return ExitCode::FAILURE;
             }
         }
-        let addr = env::var("GSV_APK_ADDR")
-            .ok()
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| "192.168.2.89".into());
+        let addr = apk::peer_addr();
         let mut urls = Vec::new();
         for rel in apk::register_paths(&peer) {
             match apk::edge_url(&hub, &rel) {
@@ -122,18 +194,7 @@ fn main() -> ExitCode {
     if args.iter().any(|a| a == "telegram") {
         let kind = args
             .iter()
-            .find(|a| {
-                let s = a.as_str();
-                s != "telegram"
-                    && s != "register"
-                    && s != "check-hub"
-                    && s != "service-account"
-                    && s != "freeze"
-                    && s != "--json"
-                    && s != "-j"
-                    && !s.starts_with("http://")
-                    && !s.starts_with("https://")
-            })
+            .find(|a| !skip_kind(a))
             .cloned()
             .unwrap_or_default();
         return match apk::telegram_passthrough(&kind) {

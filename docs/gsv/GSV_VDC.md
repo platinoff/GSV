@@ -36,7 +36,8 @@ Environment security first.**
 
 Path (b) in §3 (WebGPU **inside** the Mini App) stays a probe, not the
 control plane. The intended phone join is the **APK peer**: WiFi debug already
-exists; the APK talks to the hub edge-proxy with a token, never to `:8091`.
+exists; the APK talks to the hub edge-proxy with a token, never to `:8091`
+(`gsv-apk join --json` dry-run; `join --live` POSTs).
 Service-account rotation for Telenetis/APK (`t-1789392387275733400`) is the
 security leftover so those clients stop using `admin/admin123`.
 

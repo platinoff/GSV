@@ -10,6 +10,7 @@ use serde_json::{json, Value};
 
 use super::edge;
 use super::xtask::{self, DiskReport};
+use crate::net;
 
 /// Default hub (loopback). Phones override with the LAN `:9999`.
 pub const DEFAULT_HUB: &str = "http://127.0.0.1:9999";
@@ -185,6 +186,138 @@ pub fn pool_join_body() -> Value {
         "max_memory_mb": 256,
         "max_concurrent_requests": 2,
     })
+}
+
+/// One LAN join hop through hub `/api/edge` (no secrets).
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct JoinStep {
+    pub method: &'static str,
+    pub path: String,
+    pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body: Option<Value>,
+}
+
+/// Phone LAN address advertised in `register-remote`.
+/// `GSV_APK_ADDR` wins; otherwise [`net::local_addr`] (loopback under cargo test).
+pub fn peer_addr() -> String {
+    std::env::var("GSV_APK_ADDR")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(net::local_addr)
+}
+
+/// GET health, then POST register-remote + pool/join. Never `:8091`.
+pub fn join_steps(
+    hub: &str,
+    peer: &str,
+    addr: &str,
+    disk: &DiskReport,
+) -> Result<Vec<JoinStep>, HubReject> {
+    check_hub(hub)?;
+    let health = edge_url(hub, "health")?;
+    let register = edge_url(hub, "discovery/register-remote")?;
+    let join_path = format!("virtual-nodes/{peer}/pool/join");
+    let join = edge_url(hub, &join_path)?;
+    Ok(vec![
+        JoinStep {
+            method: "GET",
+            path: "health".into(),
+            url: health,
+            body: None,
+        },
+        JoinStep {
+            method: "POST",
+            path: "discovery/register-remote".into(),
+            url: register,
+            body: Some(registration_body(peer, addr, 0, disk)),
+        },
+        JoinStep {
+            method: "POST",
+            path: join_path,
+            url: join,
+            body: Some(pool_join_body()),
+        },
+    ])
+}
+
+fn token_present(token: Option<&str>) -> bool {
+    token.map(str::trim).is_some_and(|s| !s.is_empty())
+}
+
+/// Redacted join wire. Never includes the edge token value.
+pub fn join_wire(dry: bool, token: Option<&str>, steps: &[JoinStep], replies: &[Value]) -> Value {
+    json!({
+        "ok": true,
+        "dry_run": dry,
+        "origin": ORIGIN,
+        "role": ROLE,
+        "class": CLASS_EDGE,
+        "token_header": token_header(),
+        "token_set": token_present(token),
+        "steps": steps,
+        "replies": replies,
+    })
+}
+
+/// LAN peer join. Default `dry` plans the hops and opens no sockets.
+/// Live POSTs `X-Gsv-Edge-Token` and redacts upstream JSON. Never `:8091`.
+pub async fn join_lan(
+    hub: &str,
+    peer: &str,
+    addr: &str,
+    disk: &DiskReport,
+    dry: bool,
+    token: Option<&str>,
+) -> Result<Value, HubReject> {
+    let steps = join_steps(hub, peer, addr, disk)?;
+    if dry {
+        return Ok(join_wire(true, token, &steps, &[]));
+    }
+    if !token_present(token) {
+        return Err(HubReject {
+            error: "edge token not set",
+        });
+    }
+    let tok = token.map(str::trim).unwrap_or("");
+    let client = reqwest::Client::builder()
+        .timeout(edge::FORWARD_TIMEOUT)
+        .no_proxy()
+        .build()
+        .map_err(|_| HubReject {
+            error: "http client",
+        })?;
+    let mut replies = Vec::new();
+    for step in &steps {
+        let mut req = match step.method {
+            "GET" => client.get(&step.url),
+            _ => client.post(&step.url),
+        };
+        req = req.header(token_header(), tok);
+        if let Some(body) = &step.body {
+            req = req.json(body);
+        }
+        let resp = match req.send().await {
+            Ok(r) => r,
+            Err(_) => {
+                return Err(HubReject {
+                    error: "hub unreachable",
+                });
+            }
+        };
+        let status = resp.status().as_u16();
+        let raw: Value = resp.json().await.unwrap_or_else(|_| json!({ "ok": false }));
+        let body = edge::redact_json(&raw);
+        replies.push(json!({ "status": status, "body": body }));
+        if status >= 400 {
+            let mut out = join_wire(false, token, &steps, &replies);
+            out["ok"] = json!(false);
+            out["error"] = json!("hub join failed");
+            return Ok(out);
+        }
+    }
+    Ok(join_wire(false, token, &steps, &replies))
 }
 
 /// Telegram → APK (or Mini App chrome shell). Never a tensor/KVM worker.
@@ -395,10 +528,37 @@ mod tests {
         let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         std::env::set_var("GSV_APK_PEER", "  phone-x  ");
         std::env::set_var("GSV_HUB_URL", "http://192.168.2.238:9999/");
+        std::env::set_var("GSV_APK_ADDR", "  192.168.2.89  ");
         assert_eq!(peer_id(), "phone-x");
         assert_eq!(hub_from_env(), "http://192.168.2.238:9999");
+        assert_eq!(peer_addr(), "192.168.2.89");
         std::env::remove_var("GSV_APK_PEER");
         std::env::remove_var("GSV_HUB_URL");
+        std::env::remove_var("GSV_APK_ADDR");
+    }
+
+    #[test]
+    fn join_steps_are_hub_edge_not_8091() {
+        let disk = xtask::disk_report(&root(), false);
+        let steps = join_steps(DEFAULT_HUB, "redmi-01", "192.168.2.89", &disk).expect("steps");
+        assert_eq!(steps.len(), 3);
+        assert_eq!(steps[0].method, "GET");
+        assert_eq!(steps[0].path, "health");
+        assert_eq!(steps[1].path, "discovery/register-remote");
+        assert_eq!(steps[2].path, "virtual-nodes/redmi-01/pool/join");
+        for s in &steps {
+            assert!(s.url.contains("/api/edge/"), "{}", s.url);
+            assert!(!s.url.contains("8091"), "{}", s.url);
+            assert!(!s.url.contains(":9800"), "{}", s.url);
+        }
+        let origin = steps[1].body.as_ref().unwrap()["metadata"]["origin"].as_str();
+        assert_eq!(origin, Some(ORIGIN));
+        let wire = join_wire(true, Some("edge-secret-must-not-leak"), &steps, &[]);
+        let raw = wire.to_string();
+        assert_eq!(wire["dry_run"], true);
+        assert_eq!(wire["token_set"], true);
+        assert!(!raw.contains("edge-secret-must-not-leak"), "{raw}");
+        assert!(!raw.contains("8091"), "{raw}");
     }
 
     #[test]

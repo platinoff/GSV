@@ -36,7 +36,7 @@ landed 2026-09-14), and **OpenCode ⇄ hub never drops on ticket drains** (watch
 - [x] docs: GSV_VDC.md canon — must-have list + EDGE_PLAN matrix; **AGI path 2026-09-17** (GSV brain, Telenetis shell, APK peer via `/api/edge`)
 - [x] telenetis: freeze feature surface — identity + Mini App chrome only
 - [x] gsv: Godfather allowlisted free-text ingest (allowlisted leftover chat → ticket; empty allowlist still skips)
-- [ ] phone: APK + WiFi debug registers as `virtual_node` via hub `/api/edge` (not a second Telenetis)
+- [x] phone: APK LAN peer registers as `virtual_node` via hub `/api/edge` (`gsv-apk join`; not a second Telenetis). Native Android package remains `hub-apk-client`.
 
 ## Non-goals
 
