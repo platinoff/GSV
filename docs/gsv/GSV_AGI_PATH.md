@@ -190,9 +190,17 @@ Keep-live (`gsv_keep_live`): GSV + Telenetis + llama-rs **up**; OmniRoute **down
 
 ### Join a phone (APK path)
 
-1. WiFi debug already exists on the device.
-2. APK registers as `virtual_node` through hub `/api/edge` with the edge token.
-3. Do not ship ticket board, bot, or KVM inside the APK.
+1. WiFi debug already exists on the device (configure, debug, disk, logcat).
+2. The phone client is a **Rust-ratio APK** (95–100%), not Chrome and not a
+   Telegram Mini App tensor worker. Mini App / WebView GGUF is a crutch/probe.
+3. APK registers as `virtual_node` through hub `/api/edge` with the edge token.
+   Host-side contract: `cargo run --bin gsv-apk -- register --json` (origin
+   `apk_edge`, class `edge`). Never `:8091`.
+4. Telegram stays a **proxy/passthrough to the APK only** (forward auth/commands
+   / open the APK). Hub policy: `cargo run --bin gsv-apk -- telegram auth`
+   (also `command`, `open_apk`). Mini App chrome (`dashboard`/`board`) may stay
+   a shell. `tensor` / `host-tests` / `kvm` / `start-worker` are rejected.
+   Do not ship ticket board, bot, tensor, or KVM inside the APK.
 
 ## AGI session shape
 

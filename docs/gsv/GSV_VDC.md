@@ -53,7 +53,7 @@ lands.
 | PC 5500U | fast interactive | `llama_serve :8082` (`lama-1.5`) | ~4 s E2E head |
 | PC 5500U | hub + MCP + watchdog | `gsv-server :9999`, `gsv-mcp` stdio, `gsv-watchdog` | `--no-lockstep` during drains |
 | PC 5500U | coordinator | poolAI `:8091` (admin/admin123 dev) | telegram seats + virtual nodes |
-| A54 | edge-worker (tasks, not tensors) | `llama_edge` → hub `/api/edge` (not `:8091`) | **no Termux** ⇒ no ggml-rpc; Mini App WebGPU = path (b) probe; **APK + WiFi debug = intended peer** |
+| A54 | edge-worker (tasks, not tensors) | `llama_edge` → hub `/api/edge` (not `:8091`) | **no Termux** ⇒ no ggml-rpc; Mini App WebGPU = path (b) **probe only** (Start worker / Host tests / KVM superseded); intended peer = **Rust APK** `gsv-apk` `origin=apk_edge` + WiFi debug |
 | telenetis | Telegram identity + Mini App shell | `:9800` | LAN-only when Telegram is down; **not** the orchestrator |
 | Pi4 / spare PCs | future ggml-rpc workers | `llama_serve --rpc <ip>:50052` | proto-5.0.0 pin `f5b9bd39` |
 

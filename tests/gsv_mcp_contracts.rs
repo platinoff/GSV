@@ -680,7 +680,7 @@ async fn logging_and_completion_over_http() {
     let values = complete["result"]["completion"]["values"]
         .as_array()
         .expect("values");
-    assert_eq!(values.len(), 12);
+    assert_eq!(values.len(), 13);
     assert!(values
         .iter()
         .all(|v| v.as_str().unwrap_or("").starts_with("gsv://docs/")));

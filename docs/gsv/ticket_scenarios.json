@@ -206,6 +206,31 @@
       ]
     },
     {
+      "id": "hub-apk-client",
+      "title": "APK client: Rust-ratio phone peer, Telegram proxy-only",
+      "body": "Owner 2026-09-17: Mini App / Chrome tensor on the phone is crutches (model already downloaded in Chrome). The phone client is a Rust-ratio APK. Telegram stays a proxy/passthrough to that APK only. WiFi debug stays the on-device configure/debug/disk path. Canon GSV_AGI_PATH.md. Do not grow Telenetis as the worker.",
+      "workflow": "ticket-claim",
+      "product": "gsv",
+      "tickets": [
+        {
+          "title": "apk: Rust-ratio native client (not WebView)",
+          "body": "Phone worker is a native APK, Rust 95–100% (gsv-loc-audit stretch, wasm 0–5%). Registers as virtual_node via hub GET/POST /api/edge/{*path} + edge token. Never :8091. No ticket board, bot, or KVM inside the APK. Disk space, settings, and debug go through the APK + WiFi ADB (already on). Chrome/Mini App GGUF download is not the client. EDGE_PLAN gap 10."
+        },
+        {
+          "title": "telenetis: Telegram is proxy/passthrough to APK only",
+          "body": "When the APK is on the device, Telegram only forwards (auth, commands, deep-link/open APK). No tensor worker, Host tests, or KVM as the phone client in Mini App/WebView. Mini App chrome may stay as a shell. Product telenetis; hub owns policy. EDGE_PLAN gap 11."
+        },
+        {
+          "title": "apk: on-device disk + settings over WiFi debug",
+          "body": "Redmi 9 rabbit: ADB wireless stays the debug path (pair/connect, logcat, storage). APK exposes disk free, model cache, and settings so the hub can read them without screenshot loops. Do not drive Telegram WebView as a KVM OS."
+        },
+        {
+          "title": "gsv: stop Mini App/Chrome as the phone worker",
+          "body": "Supersedes Telenetis Mini App tensor Start/Host-tests/KVM (T23/T26/T27) as the intended path. Path (b) WebGPU stays a probe only. Hub tasks go to the APK virtual_node. Leave Telenetis freeze ticket in place."
+        }
+      ]
+    },
+    {
       "id": "roadmap-hook",
       "title": "Hook tickets from roadmap or plan",
       "body": "run mcp bot hook up scenario <id|band N|plan stem> [walk]. Parses GSV_TECH_ROADMAP.md PH-S* rows or superpowers plan checkboxes into ≤10 board rows. MCP gsv_tickets_hook.",

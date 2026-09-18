@@ -1,5 +1,11 @@
 # Два телефони в чаті — ранбук сесії (після зеленого емулятора)
 
+**Не шлях воркера:** Mini App / Chrome tensor (Host tests, Start worker, KVM
+скріни) — костиль. Phone peer = **Rust-ratio APK** (`cargo run --bin gsv-apk --
+register --json`, `origin=apk_edge`). Telegram лише проксі до APK. Диск/settings
+хаб читає JSON (`gsv-apk --json`), не PNG. Нижче Mini App кроки лишаються як
+probe path (b).
+
 Передумова: `cargo test --test phone_emulator` зелений. Інакше телефони тикатимуть всліпу.
 
 ## Передумови на хості
@@ -47,17 +53,24 @@
 
 ## KVM-доступ хоста (ADB, одноразовий сетап)
 
-Хост вміє ADB (`target/adb/platform-tools/adb.exe`). **Зараз пристроїв 0** —
-чекаємо пейринг. **Піддослідний кролик наступної `agi`:** Redmi 9 (Mali).
-Агент грає з GSV-хаба (`:9999` + Telenetis `:9800` + `/api/edge`), не з другого мозку.
+Хост вміє ADB (`target/adb/platform-tools/adb.exe`). **Піддослідний кролик:**
+Redmi 9 Mali, `product=galahad_global` `model=M2004J19C`, LAN **`192.168.2.89`**,
+екран 1080×2340 @440dpi. Ping з `/devices` зараз іде в bound peer **`a54-01`**
+(той самий Telegram id), не в окремий `redmi-01`. Агент грає з GSV-хаба
+(`:9999` + Telenetis `:9800` + `/api/edge`).
 
-Щоб я сам тикав і бачив екран, один раз на телефоні:
+**Wi-Fi debug 2026-09-17 ~20:43:** paired `192.168.2.89:37643` code `349305`
+(guid `adb-f83c90810410-LQiMeQ`). Connect-порт потім став **`192.168.2.89:33223`**
+(mdns `_adb-tls-connect`; `:46147` після reconnect відмовив). `plati@PLATINOV`
+Currently connected. Екран 1080×2340 @440dpi.
 
-1. Налаштування → Про телефон → 7 раз тапнути **Номер збірки** (режим розробника).
-2. Налаштування → Система → Для розробників → увімкнути **Бездротове налагодження**.
-3. Увійти в нього → **Підключити пристрій за кодом** — покаже `IP:port` + 6 цифр.
-4. Прислати мені IP:port + код (діє кілька хвилин).
-5. Далі я: `adb pair` + `adb connect` → скріншоти, тапи, logcat, Ping — ти тільки тримаєш телефон у Wi-Fi.
+KVM-сесія Mini App/Chrome tensor **не шлях**: модель у Chrome — костиль.
+Phone client = **Rust-ratio APK**; Telegram = проксі/проброс до APK; Wi-Fi ADB
+лишається debug/disk/settings. Контракт на хабі: `cargo run --bin gsv-apk --
+register --json` (`origin=apk_edge`). Тікети `hub-apk-client`. T27.2 / T23.1 blocked.
+
+Щоб знову підключитись після disconnect: Wireless debugging лишай увімкненим;
+connect-порт дивись на екрані (зараз `:33223`). Пейринг уже є (`plati@PLATINOV`).
 
 Без бездротового налагодження (стара прошивка) — той же результат кабелем USB.
 

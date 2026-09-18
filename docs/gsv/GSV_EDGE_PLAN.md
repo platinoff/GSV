@@ -57,10 +57,14 @@ rebalance, burst seats, security): see [GSV_VDC.md](GSV_VDC.md).
 8. Teach prompt + initData audit (gsv/telenetis, open).
 9. AGI path lockstep (gsv) — 2026-09-17: VDC “AGI path” table; Telenetis = shell;
    APK + WiFi debug = `virtual_node` via `/api/edge`; no second hub in Mini App.
-10. APK LAN peer (gsv × phone) — register through hub edge-proxy; WiFi debug
-    already exists; do not clone Telenetis into the APK (open).
+10. APK LAN peer (gsv × phone) — **Rust-ratio native APK** registers through
+    hub edge-proxy (`cargo run --bin gsv-apk -- register --json`, origin
+    `apk_edge`); WiFi debug is on-device disk/settings/debug; do not clone
+    Telenetis into the APK (open; scenario `hub-apk-client`).
 11. Freeze Telenetis feature surface (telenetis) — identity + Mini App chrome
-    only; no new tensor/KVM/swarm-as-OS (open).
+    only; Telegram = **proxy/passthrough to the APK** (hub policy landed:
+    `gsv-apk telegram <kind>`; tensor/Host-tests/KVM rejected). No new
+    tensor/KVM/swarm-as-OS (Telenetis freeze ticket still open).
 12. Service account for Telenetis/APK replacing `admin/admin123` (gsv, open;
     `t-1789392387275733400`).
 13. Godfather allowlisted free-text ingest (gsv, open) — plain owner chat in
