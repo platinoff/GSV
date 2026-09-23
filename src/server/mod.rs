@@ -3,7 +3,7 @@
 use std::convert::Infallible;
 use std::time::Duration;
 
-use axum::body::Bytes;
+use axum::body::{Body, Bytes};
 use axum::extract::{DefaultBodyLimit, Path, Query, Request, State};
 use axum::http::{header, HeaderMap, HeaderName, HeaderValue, Method, StatusCode};
 use axum::middleware::{self, Next};
@@ -25,6 +25,9 @@ use crate::boxes::{hooks, sli, toolchain};
 use crate::state::AppState;
 use crate::tracker::{TrackerRecord, TrackerStore};
 use crate::vision;
+
+mod serve;
+pub use serve::serve;
 
 /// Embedded single-page UI (canon file: `GSV/ui/index.html`).
 pub const INDEX_HTML: &str = include_str!("../../ui/index.html");
@@ -102,7 +105,9 @@ fn tracker_wire(state: &AppState) -> Value {
 
 /// Build the full axum router with `AppState`.
 pub fn router(state: AppState) -> Router {
-    Router::new()
+    // Gzip UI/API (band 235). `/mcp` is merged *after* this layer: Cursor
+    // Streamable HTTP (3.21.18) sees 0 tools if RPC is gzip+chunked.
+    let pages = Router::new()
         .route("/", get(index))
         .route("/sw.js", get(api_sw_js))
         .route("/api/sw", get(api_sw))
@@ -266,12 +271,6 @@ pub fn router(state: AppState) -> Router {
             "/mcp",
             get(api_mcp_get).post(api_mcp_post).delete(api_mcp_delete),
         )
-        .layer(DefaultBodyLimit::max(crate::security::MAX_BODY_BYTES))
-        .layer(middleware::from_fn(security_gate))
-        // Band 235 PH-S2990: gzip JSON/HTML/UI for the ngrok view-only path
-        // (bandwidth economy). Response predicate: keep the default rules
-        // (size + content-type) and never compress live SSE streams
-        // (`/events`, MCP Streamable-HTTP GET holds).
         .layer(
             CompressionLayer::new()
                 .gzip(true)
@@ -283,11 +282,18 @@ pub fn router(state: AppState) -> Router {
                         headers
                             .get(header::CONTENT_TYPE)
                             .and_then(|v| v.to_str().ok())
-                            .map(|ct| !ct.starts_with("text/event-stream"))
+                            .map(|ct| {
+                                !ct.starts_with("text/event-stream")
+                                    && !ct.starts_with("application/json")
+                            })
                             .unwrap_or(true)
                     },
                 )),
-        )
+        );
+    Router::new()
+        .merge(pages)
+        .layer(DefaultBodyLimit::max(crate::security::MAX_BODY_BYTES))
+        .layer(middleware::from_fn(security_gate))
         .with_state(state)
 }
 
@@ -314,6 +320,7 @@ fn secured(mut res: Response) -> Response {
 /// `cursor:` origins or `cross-site`). Body cap still applies. Bind stays
 /// loopback unless `--allow-lan`.
 async fn security_gate(req: Request, next: Next) -> Response {
+    let mcp = req.uri().path() == "/mcp";
     if req.method() == Method::POST {
         let content_length = req
             .headers()
@@ -323,8 +330,7 @@ async fn security_gate(req: Request, next: Next) -> Response {
         if let Err(msg) = crate::security::gate_content_length(content_length) {
             return secured(err_json(StatusCode::PAYLOAD_TOO_LARGE, msg));
         }
-        let mcp_rpc = req.uri().path() == "/mcp";
-        if !mcp_rpc {
+        if !mcp {
             let site = req
                 .headers()
                 .get("sec-fetch-site")
@@ -345,7 +351,15 @@ async fn security_gate(req: Request, next: Next) -> Response {
             "request body too large",
         ));
     }
-    secured(res)
+    let mut res = secured(res);
+    if mcp {
+        // tower-http gzip honors no-transform; Cursor MCP cannot parse gzip+chunked /mcp.
+        res.headers_mut().insert(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("no-store, no-transform"),
+        );
+    }
+    res
 }
 
 async fn index() -> Html<&'static str> {
@@ -809,15 +823,20 @@ fn accept_sse(headers: &HeaderMap) -> bool {
 }
 
 fn mcp_sse_reply(notes: Vec<Value>, rpc: Option<Value>) -> Response {
-    (
-        StatusCode::OK,
-        [
-            (header::CONTENT_TYPE, "text/event-stream"),
-            (header::CACHE_CONTROL, "no-cache"),
-        ],
-        crate::mcp::sse_body(notes, rpc),
-    )
-        .into_response()
+    let body = crate::mcp::sse_body(notes, rpc);
+    let len = body.len();
+    let mut res = Response::new(Body::from(body));
+    *res.status_mut() = StatusCode::OK;
+    res.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("text/event-stream"),
+    );
+    res.headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+    if let Ok(n) = HeaderValue::from_str(&len.to_string()) {
+        res.headers_mut().insert(header::CONTENT_LENGTH, n);
+    }
+    res
 }
 
 fn attach_mcp_session(res: &mut Response, session: Option<&str>) {
@@ -832,26 +851,43 @@ fn mcp_unknown_session() -> Response {
     err_json(StatusCode::NOT_FOUND, "mcp session not found")
 }
 
+fn mcp_json(v: Value) -> Response {
+    let body = serde_json::to_vec(&v).unwrap_or_else(|_| b"{\"ok\":false}".to_vec());
+    (
+        [(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json"),
+        )],
+        body,
+    )
+        .into_response()
+}
+
 async fn api_mcp_get(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let session = crate::mcp::mcp_session_id_from_headers(&headers);
+    let accept = headers.get(header::ACCEPT).and_then(|v| v.to_str().ok());
+    let sse = crate::mcp::wants_sse(accept);
+    let json = crate::mcp::wants_json(accept);
     if let Some(id) = session.as_deref() {
         if !state.mcp_session_ok(id) {
             return mcp_unknown_session();
         }
-    }
-    if accept_sse(&headers) {
-        if session.is_some() {
+        if sse {
             let mut res = mcp_sse_hold(state).into_response();
-            attach_mcp_session(&mut res, session.as_deref());
+            attach_mcp_session(&mut res, Some(id));
             return res;
         }
+    } else if sse && !json {
+        // Band 141: SSE-only sessionless GET still finite-flushes the queue.
+        // Cursor 3.21.18 sends `application/json, text/event-stream` on GET
+        // and treats an empty SSE catalog as 0 tools — that path is JSON.
         return mcp_sse_reply(state.drain_mcp_notifications(), None);
     }
     let mut info = crate::mcp::http_info(&state);
     info["transport_mode"] = json!(crate::security::transport_mode(
         host_header(&headers).as_deref()
     ));
-    Json(info).into_response()
+    mcp_json(info)
 }
 
 /// Host header as owned string (band 235).
@@ -901,9 +937,13 @@ async fn api_mcp_post(State(state): State<AppState>, headers: HeaderMap, body: B
             return mcp_unknown_session();
         }
     }
-    let sse = accept_sse(&headers);
+    let accept = headers.get(header::ACCEPT).and_then(|v| v.to_str().ok());
+    // Cursor 3.21.18 Accept is `application/json, text/event-stream`. JSON RPC
+    // keeps the notification queue for the GET hold (band 184). SSE-only Accept
+    // still finite-flushes on POST.
+    let sse = accept_sse(&headers) && !crate::mcp::wants_json(accept);
     if body.is_empty() {
-        return Json(crate::mcp::rpc_error(None, -32700, "empty body")).into_response();
+        return mcp_json(crate::mcp::rpc_error(None, -32700, "empty body"));
     }
     match serde_json::from_slice::<Value>(&body) {
         Ok(v) => {
@@ -933,7 +973,7 @@ async fn api_mcp_post(State(state): State<AppState>, headers: HeaderMap, body: B
                         // Keep the notification queue for the session GET hold
                         // (Cursor Streamable HTTP). JSON POST used to drain-and-drop
                         // `tools/list_changed`, which froze the client catalog at 36.
-                        let mut res = Json(out).into_response();
+                        let mut res = mcp_json(out);
                         attach_mcp_session(&mut res, issued.as_deref());
                         res
                     }
@@ -958,7 +998,7 @@ async fn api_mcp_post(State(state): State<AppState>, headers: HeaderMap, body: B
                 }
             }
         }
-        Err(e) => Json(crate::mcp::rpc_error(None, -32700, format!("parse: {e}"))).into_response(),
+        Err(e) => mcp_json(crate::mcp::rpc_error(None, -32700, format!("parse: {e}"))),
     }
 }
 

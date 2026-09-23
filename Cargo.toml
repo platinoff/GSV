@@ -95,6 +95,11 @@ axum = { version = "0.8" }
 # (gzip). Predicate below keeps SSE/WebSocket/MCP streams uncompressed.
 tower-http = { version = "0.7", features = ["compression-gzip"] }
 
+# Finite HTTP/1 is written by `gsv::server::serve` (real chunks). A local
+# filter rewrites Content-Length on `/mcp` into an unframed chunked header.
+httparse = "1"
+tower = { version = "0.5", features = ["util"] }
+
 # SSE streams
 futures-util = "0.3"
 tokio-stream = { version = "0.1", features = ["sync"] }

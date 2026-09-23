@@ -2,6 +2,10 @@
 //!
 //! Prefer `cargo xtask live`. This bin exists so the listener is not
 //! `target/debug/gsv-server.exe` (Windows file lock during `cargo test`).
+//!
+//! Windows GUI subsystem so a leftover Run key cannot flash cmd.
+
+#![cfg_attr(windows, windows_subsystem = "windows")]
 
 use std::path::PathBuf;
 

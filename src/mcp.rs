@@ -962,6 +962,17 @@ pub fn http_info(state: &AppState) -> Value {
     })
 }
 
+/// True when `Accept` lists `application/json`.
+pub fn wants_json(accept: Option<&str>) -> bool {
+    accept.unwrap_or("").split(',').any(|part| {
+        part.trim()
+            .split(';')
+            .next()
+            .unwrap_or("")
+            .eq_ignore_ascii_case("application/json")
+    })
+}
+
 /// True when `Accept` lists `text/event-stream` (MCP Streamable HTTP).
 pub fn wants_sse(accept: Option<&str>) -> bool {
     accept.unwrap_or("").split(',').any(|part| {
@@ -2317,6 +2328,16 @@ mod tests {
         assert!(wants_sse(Some(
             "application/json, text/event-stream; charset=utf-8"
         )));
+    }
+
+    #[test]
+    fn wants_json_cursor_32118_accept_is_discovery() {
+        assert!(wants_json(Some("application/json")));
+        assert!(wants_json(Some(
+            "application/json, text/event-stream; charset=utf-8"
+        )));
+        assert!(!wants_json(Some("text/event-stream")));
+        assert!(!wants_json(None));
     }
 
     #[test]

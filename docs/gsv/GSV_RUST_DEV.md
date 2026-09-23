@@ -14,7 +14,7 @@ JSON remains **data or host protocol** (vision snapshots, MCP client configs, `C
 | Abracadabra Step 0 | `cargo xtask products` |
 | S0 disk | `cargo xtask disk` (`--enforce`; `--clean` deletes debug cache and **keeps** `target/live`). `/api/health` `disk_ok` / `disk_violation` (process `ok` stays true) |
 | Always-on UI | `cargo build --bin gsv-server --bin gsv-mcp --bin gsv-live --bin gsv-watchdog` then `cargo xtask live` (copies server + mcp + watchdog) |
-| Outer watchdog | `cargo xtask watchdog` / `cargo xtask watchdog-install` (spawn/persist `target/live/gsv-watchdog.exe`; `hop_successor` each tick if that exe is stale; POST apply only when **gsv-server** debug is newer) |
+| Outer watchdog | `cargo xtask watchdog` / `cargo xtask watchdog-install` (spawn/persist `target/live/gsv-watchdog.exe` via hidden `gsv_watchdog_start.vbs` + GUI subsystem — no logon cmd flash; `hop_successor` each tick if that exe is stale; POST apply only when **gsv-server** debug is newer) |
 | Speeds / Clippy panels | `cargo xtask record-speed` / `cargo xtask record-rust` |
 | Rules drift report | `cargo xtask rules-check` (`--no-live`; `GSV_LIVE_URL`; hard gates flip exit 0/1; doc: `GSV_RULES_CHECK.md`) |
 | Scenario bench | `cargo xtask record-scenario-bench` (abrakadabra-session walk → `docs/gsv/scenario_bench.json`) |
@@ -57,7 +57,7 @@ The agent **shell** is still MSYS2 bash (`C:\msys64\usr\bin\bash.exe -lc '…'`)
 | Kind | Why |
 |------|-----|
 | `.mcp.json` / `opencode.json` | Host MCP stdio (live `gsv-mcp`). |
-| `.cursor/mcp.json` | Cursor HTTP MCP (`url` → live `:9999/mcp`). Folder **GSV** only — never User (`%USERPROFILE%/.cursor/mcp.json`). Cursor **3.21.9** still uses Streamable HTTP `type: http` (never `streamable-http`); do not Origin-host this kit. |
+| `.cursor/mcp.json` | Cursor HTTP MCP (`url` → live `:9999/mcp`). Folder **GSV** only — never User (`%USERPROFILE%/.cursor/mcp.json`). Cursor **3.21.18** still uses Streamable HTTP `type: http` (never `streamable-http`); do not Origin-host this kit. |
 | `docs/vision/*.json` | Snapshots written **by** `gsv-vision-sync` / speed-index bins. |
 | `docs/gsv/fingerprints.jsonl` | Append-only data. Writer is Rust. |
 | Marketplace `find-polluter.sh` under skills | Upstream skill copy, not a GSV product script. |

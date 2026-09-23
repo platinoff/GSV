@@ -45,7 +45,7 @@ pub const TASKS: &[(&str, &str)] = &[
     ),
     (
         "watchdog-install",
-        "Persist watchdog (schtasks ONLOGON / HKCU Run)",
+        "Persist watchdog (hidden VBS → schtasks ONLOGON / HKCU Run)",
     ),
     (
         "push",
@@ -514,18 +514,48 @@ pub fn detach_watchdog(repo_root: &Path) -> Result<String, String> {
     ))
 }
 
-/// Persisted task command line. Both paths are double-quoted so repo roots
-/// with spaces survive the `schtasks /TR` / HKCU `Run` command line split.
-fn watchdog_task_tr(win_exe: &str, win_root: &str) -> String {
-    format!("\"{win_exe}\" --repo-root \"{win_root}\"")
+fn watchdog_start_vbs_path(repo_root: &Path) -> PathBuf {
+    repo_root.join("target/live").join("gsv_watchdog_start.vbs")
+}
+
+/// Hidden logon launcher body. Window style 0 — no cmd flash.
+fn watchdog_start_vbs_body(win_exe: &str, win_root: &str) -> String {
+    format!(
+        "' Hidden logon launcher for gsv-watchdog. Written by cargo xtask watchdog-install.\r\n\
+         Set sh = CreateObject(\"Wscript.Shell\")\r\n\
+         sh.CurrentDirectory = \"{win_root}\"\r\n\
+         sh.Run \"\"\"{win_exe}\"\" --repo-root \"\"{win_root}\"\"\", 0, False\r\n"
+    )
+}
+
+fn write_watchdog_start_vbs(
+    repo_root: &Path,
+    win_exe: &str,
+    win_root: &str,
+) -> Result<PathBuf, String> {
+    let live = repo_root.join("target/live");
+    fs::create_dir_all(&live).map_err(|e| e.to_string())?;
+    let path = watchdog_start_vbs_path(repo_root);
+    fs::write(&path, watchdog_start_vbs_body(win_exe, win_root)).map_err(|e| e.to_string())?;
+    Ok(path)
+}
+
+/// Persisted task command line: `wscript.exe` + hidden VBS (never the console exe).
+/// Both paths are double-quoted so roots with spaces survive `schtasks /TR` / HKCU Run.
+fn watchdog_task_tr(win_wscript: &str, win_vbs: &str) -> String {
+    format!("\"{win_wscript}\" \"{win_vbs}\"")
 }
 
 /// Persist watchdog across reboot (current user). Prefers the live copy.
+/// Boot path is a style-0 VBS so logon does not flash a console window.
 pub fn install_watchdog(repo_root: &Path) -> Result<String, String> {
     let exe = watchdog_spawn_exe(repo_root)?;
     let win_exe = native_path(&exe);
     let win_root = native_path(repo_root);
-    let tr = watchdog_task_tr(&win_exe, &win_root);
+    let vbs = write_watchdog_start_vbs(repo_root, &win_exe, &win_root)?;
+    let win_vbs = native_path(&vbs);
+    let wscript = r"C:\Windows\System32\wscript.exe";
+    let tr = watchdog_task_tr(wscript, &win_vbs);
     if try_schtasks(&tr) {
         return Ok(format!(
             "gsv-watchdog-install: schtasks GSV-watchdog (ONLOGON)\nTR={tr}"
@@ -965,17 +995,43 @@ mod tests {
     #[test]
     fn watchdog_task_tr_quotes_paths_with_spaces() {
         let tr = super::watchdog_task_tr(
-            r"C:\My Dir\target\live\gsv-watchdog.exe",
-            r"S:\Rust Dir\GSV",
+            r"C:\Windows\System32\wscript.exe",
+            r"S:\Rust Dir\GSV\target\live\gsv_watchdog_start.vbs",
         );
         assert_eq!(
             tr,
-            r#""C:\My Dir\target\live\gsv-watchdog.exe" --repo-root "S:\Rust Dir\GSV""#
+            r#""C:\Windows\System32\wscript.exe" "S:\Rust Dir\GSV\target\live\gsv_watchdog_start.vbs""#
         );
-        // A space-free root stays quoted too (harmless, one code path).
-        let plain =
-            super::watchdog_task_tr(r"S:\rust\GSV\target\live\gsv-watchdog.exe", "S:\\rust\\GSV");
-        assert!(plain.starts_with('"') && plain.ends_with('"'), "{plain}");
+        let plain = super::watchdog_task_tr(
+            r"C:\Windows\System32\wscript.exe",
+            r"S:\rust\GSV\target\live\gsv_watchdog_start.vbs",
+        );
+        assert!(
+            plain.starts_with('"') && plain.contains("wscript.exe"),
+            "{plain}"
+        );
+        assert!(
+            !plain.to_ascii_lowercase().contains("gsv-watchdog.exe"),
+            "persist TR must not launch the console exe: {plain}"
+        );
+    }
+
+    #[test]
+    fn watchdog_start_vbs_hides_window_and_locksteps() {
+        let body = super::watchdog_start_vbs_body(
+            r"S:\rust\GSV\target\live\gsv-watchdog.exe",
+            r"S:\rust\GSV",
+        );
+        assert!(body.contains(", 0, False"), "{body}");
+        assert!(body.contains("Wscript.Shell"), "{body}");
+        assert!(
+            body.contains(r#"sh.Run """S:\rust\GSV\target\live\gsv-watchdog.exe"" --repo-root ""S:\rust\GSV""", 0, False"#),
+            "{body}"
+        );
+        assert!(
+            !body.contains("--no-lockstep"),
+            "boot watchdog must lockstep: {body}"
+        );
     }
 
     #[test]

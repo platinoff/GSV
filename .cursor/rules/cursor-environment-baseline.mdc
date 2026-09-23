@@ -8,13 +8,13 @@ alwaysApply: false
 
 Verified on this machine (2026-09-22):
 
-- **Cursor** **3.21.9** (`C:\Program Files\cursor\resources\app\package.json`; in-app updater to **3.21.18** failed 2026-09-22 with os error 183 on leftover `Program Files\cursor\_bak` after NTFS index corruption 2026-09-17). Installer staged at `target/cursor-setup-3.21.18.exe` (gitignored). Owner: close Cursor → delete `_bak` (admin) → run that installer.
+- **Cursor** **3.21.18** (`C:\Program Files\cursor\resources\app\package.json`; landed 2026-09-22 night from `target/cursor-setup-3.21.18.exe`). Leftover `Program Files\cursor\_bak` still holds `chrome_200_percent.pak` (owner deferred wipe; next in-app updater may trip on it). Do not treat `_bak` as the live install.
 - **rustc / cargo** 1.92.0 (`1.92.0-x86_64-pc-windows-gnu`; `rust-toolchain.toml` names the gnu host). Do **not** export `RUSTUP_TOOLCHAIN`.
 - **git** 2.50.0 (MSYS2 UCRT64)
 
 ## MCP / tools / sync (3.20)
 
-- Folder MCP only: [`.cursor/mcp.json`](../mcp.json) `type: http` + `url: http://127.0.0.1:9999/mcp` (Streamable HTTP to live `gsv-server`). Keep `type: http`. Do **not** write `streamable-http` — `cursor-agent` drops the whole `mcp.json` on that alias.
+- Folder MCP only: [`.cursor/mcp.json`](../mcp.json) `type: http` + `url: http://127.0.0.1:9999/mcp` (Streamable HTTP to live `gsv-server`). Keep `type: http`. Do **not** write `streamable-http` — `cursor-agent` drops the whole `mcp.json` on that alias. Desktop **3.21.18** still uses this folder file (not User MCP; the `_bak` updater dialog is Inno leftover, not this pin).
 - **Never** User MCP (`%USERPROFILE%/.cursor/mcp.json`) — it leaks `gsv_mcp_openbot` into PoolAI windows.
 - Do **not** Origin-host this kit; GitHub `platinoff/GSV` stays the source of truth.
 - Cursor **Projects** (cloud coordinator, Sep 2026) and cloud `/goal` swarms are **not** the VDT board. Drain stays `абракадабра` + GSV tickets + marshal-orchestrator on this box.

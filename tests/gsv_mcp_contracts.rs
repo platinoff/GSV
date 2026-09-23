@@ -89,6 +89,15 @@ async fn get_mcp_discovers_openbot() {
         .await
         .expect("response");
     assert_eq!(res.status(), StatusCode::OK);
+    let cache = res
+        .headers()
+        .get(header::CACHE_CONTROL)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    assert!(
+        cache.contains("no-transform"),
+        "gzip on /mcp empties Cursor catalog: {cache}"
+    );
     let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
         .await
         .expect("body");
@@ -140,6 +149,228 @@ async fn get_mcp_discovers_openbot() {
     assert_eq!(json["catalog_stale"], false);
     assert_eq!(json["catalog_hint"], "");
     assert_eq!(json["session_listed"], 0);
+}
+
+#[tokio::test]
+async fn get_mcp_cursor_accept_json_and_sse_is_catalog() {
+    let app = app();
+    let res = app
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::GET)
+                .header(
+                    header::ACCEPT,
+                    "application/json, text/event-stream; charset=utf-8",
+                )
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(res.status(), StatusCode::OK);
+    let ctype = res
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    assert!(
+        ctype.starts_with("application/json"),
+        "3.21.18 GET must not be empty SSE: {ctype}"
+    );
+    let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .expect("body");
+    let json: Value = serde_json::from_slice(&bytes).expect("json");
+    assert_eq!(json["ok"], true);
+    assert_eq!(json["name"], SERVER_ID);
+    assert!(json["tool_count"].as_u64().unwrap_or(0) > 0, "{json}");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn get_mcp_http1_has_content_length() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind");
+    let addr = listener.local_addr().expect("addr");
+    let app = app();
+    tokio::spawn(async move {
+        gsv::server::serve(listener, app).await.expect("serve");
+    });
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    let index = http1_headers(
+        addr,
+        b"GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+    );
+    let headers = http1_headers(
+        addr,
+        b"GET /mcp HTTP/1.1\r\nHost: 127.0.0.1\r\nAccept: application/json, text/event-stream\r\nConnection: close\r\n\r\n",
+    );
+    assert!(
+        index.contains("content-length:") || index.contains("transfer-encoding:"),
+        "index control got no HTTP headers:\n{index}"
+    );
+    assert!(
+        headers.starts_with("http/1.1 ")
+            && !headers.contains("gsvconn")
+            && headers.contains("transfer-encoding: chunked")
+            && headers.contains("x-gsv-mcp: length")
+            && headers.contains("x-gsv-framing: chunked-v1"),
+        "Cursor needs framed chunked /mcp, got:\n{headers}"
+    );
+    assert!(
+        !headers.contains("content-length:"),
+        "content-length on /mcp is rewritten to a fake chunked header, got:\n{headers}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn tokio_tcp_http1_length_not_rewritten() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind");
+    let addr = listener.local_addr().expect("addr");
+    tokio::spawn(async move {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let (mut s, _) = listener.accept().await.expect("accept");
+        let mut buf = [0u8; 1024];
+        let _ = s.read(&mut buf).await;
+        let body = b"{\"ok\":true}";
+        let head = format!(
+            "HTTP/1.1 200 GSV\r\ncontent-length: {}\r\nx-gsv-tokio: 1\r\n\r\n",
+            body.len()
+        );
+        s.write_all(head.as_bytes()).await.expect("head");
+        s.write_all(body).await.expect("body");
+    });
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    let got = http1_headers(
+        addr,
+        b"GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+    );
+    assert!(
+        got.contains("x-gsv-tokio: 1") && got.contains("content-length:"),
+        "raw tokio was rewritten, got:\n{got}"
+    );
+    assert!(
+        !got.contains("transfer-encoding"),
+        "raw tokio became chunked:\n{got}"
+    );
+}
+
+#[test]
+fn std_net_http1_length_not_rewritten() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+    let addr = listener.local_addr().expect("addr");
+    let server = std::thread::spawn(move || {
+        use std::io::{Read, Write};
+        let (mut s, _) = listener.accept().expect("accept");
+        let mut buf = [0u8; 1024];
+        let _ = s.read(&mut buf);
+        let body = b"{\"ok\":true}";
+        let head = format!(
+            "HTTP/1.1 200 GSV\r\ncontent-length: {}\r\nx-gsv-raw: 1\r\n\r\n",
+            body.len()
+        );
+        s.write_all(head.as_bytes()).expect("head");
+        s.write_all(body).expect("body");
+    });
+    let got = http1_headers(
+        addr,
+        b"GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+    );
+    let _ = server.join();
+    assert!(
+        got.contains("x-gsv-raw: 1") && got.contains("content-length:"),
+        "raw std::net was rewritten, got:\n{got}"
+    );
+    assert!(
+        !got.contains("transfer-encoding"),
+        "raw std::net became chunked:\n{got}"
+    );
+}
+
+fn http1_headers(addr: std::net::SocketAddr, req: &[u8]) -> String {
+    use std::io::{Read, Write};
+    let mut stream = std::net::TcpStream::connect(addr).expect("connect");
+    stream
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .expect("timeout");
+    stream.write_all(req).expect("write");
+    let mut all = Vec::new();
+    let mut buf = [0u8; 2048];
+    loop {
+        match stream.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => all.extend_from_slice(&buf[..n]),
+            Err(_) => break,
+        }
+        if all.len() >= 8192 {
+            break;
+        }
+        let lower = String::from_utf8_lossy(&all).to_ascii_lowercase();
+        if (lower.contains("content-length:") || lower.contains("x-gsv-framing:"))
+            && all.windows(4).any(|w| w == b"\r\n\r\n")
+        {
+            break;
+        }
+    }
+    String::from_utf8_lossy(&all).to_ascii_lowercase()
+}
+
+#[tokio::test]
+async fn post_initialize_cursor_accept_is_json() {
+    let app = app();
+    let res = app
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::POST)
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(
+                    header::ACCEPT,
+                    "application/json, text/event-stream; charset=utf-8",
+                )
+                .body(Body::from(
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "method": "initialize",
+                        "params": {
+                            "protocolVersion": PROTOCOL_VERSION,
+                            "capabilities": {},
+                            "clientInfo": { "name": "cursor", "version": "3.21.18" }
+                        }
+                    })
+                    .to_string(),
+                ))
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(res.status(), StatusCode::OK);
+    let ctype = res
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    assert!(
+        ctype.starts_with("application/json"),
+        "3.21.18 initialize must be JSON not empty SSE: {ctype}"
+    );
+    assert!(
+        res.headers()
+            .get("mcp-session-id")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| !s.is_empty())
+            .unwrap_or(false),
+        "missing mcp-session-id"
+    );
+    let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .expect("body");
+    let json: Value = serde_json::from_slice(&bytes).expect("json");
+    assert_eq!(json["result"]["serverInfo"]["name"], SERVER_ID);
 }
 
 #[tokio::test]
@@ -389,7 +620,7 @@ fn cursor_environment_baseline_pins_321() {
     ))
     .expect("cursor-environment-baseline.mdc");
     assert!(
-        text.contains("**3.21.9**"),
+        text.contains("**3.21.18**"),
         "baseline must pin installed Cursor: {text}"
     );
     assert!(
@@ -801,9 +1032,13 @@ async fn mcp_post_gets_security_headers() {
             .and_then(|v| v.to_str().ok()),
         Some("nosniff")
     );
-    assert_eq!(
-        headers.get("cache-control").and_then(|v| v.to_str().ok()),
-        Some("no-store")
+    assert!(
+        headers
+            .get("cache-control")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .contains("no-store"),
+        "mcp cache-control"
     );
 }
 
@@ -822,7 +1057,7 @@ async fn mcp_post_sse(app: &axum::Router, body: Value) -> (StatusCode, String, S
                 .uri("/mcp")
                 .method(Method::POST)
                 .header(header::CONTENT_TYPE, "application/json")
-                .header(header::ACCEPT, "application/json, text/event-stream")
+                .header(header::ACCEPT, "text/event-stream")
                 .body(Body::from(body.to_string()))
                 .expect("request"),
         )

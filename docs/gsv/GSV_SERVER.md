@@ -169,7 +169,7 @@ Windows locks a running exe. The canon listener is a **copy**:
 cargo build --bin gsv-server --bin gsv-watchdog --bin gsv-live
 cargo xtask live                 # copies target/debug → target/live, loop restart
 cargo xtask watchdog             # detached health probe + respawn if :9999 dies
-cargo xtask watchdog-install     # ONLOGON scheduled task (survives Cursor)
+cargo xtask watchdog-install     # hidden VBS → ONLOGON / HKCU Run (no cmd flash)
 ```
 
 | Step | What happens |

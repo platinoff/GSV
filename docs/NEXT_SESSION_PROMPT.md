@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-09-22 (**band 238 ✅** env hub lockstep; crate **0.238.0**. Cursor **3.21.9** installed, **3.21.18** installer staged — owner must close Cursor, delete `Program Files\cursor\_bak` (admin), run `S:\rust\GSV\target\cursor-setup-3.21.18.exe`. **Canon** [`gsv/GSV_AGI_PATH.md`](gsv/GSV_AGI_PATH.md) `gsv://docs/agi-path` (global first, PoolAI genetic, workspace auto-wire). **Owner product pick: telenetis** — Redmi 9 Wi-Fi debug rabbit from GSV hub. last PH-S3028 next PH-S3029)
+**Оновлено:** 2026-09-22 night (**band 238 ✅** crate **0.238.0**, live `:9999` lockstep). Cursor **3.21.18** installed (`Program Files\cursor\resources\app\package.json`). Leftover `Program Files\cursor\_bak` still has `chrome_200_percent.pak` — owner deferred the wipe. Uncommitted on `main`: hidden logon watchdog (VBS + GUI subsystem). **Canon** [`gsv/GSV_AGI_PATH.md`](gsv/GSV_AGI_PATH.md) `gsv://docs/agi-path`. **Owner product pick: telenetis** — Redmi 9 Wi-Fi debug rabbit from GSV hub. last PH-S3028 next PH-S3029. Pre-`agi`: commit the sitting GSV hide-console + this lockstep, then `agi` (no AskQuestion if telenetis in scan).
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).

@@ -494,6 +494,16 @@ fn watchdog_bin_declared() {
     let root = kit_root();
     assert!(!root.join("scripts/gsv-watchdog.sh").is_file());
     assert!(!root.join("scripts/gsv-watchdog-install.sh").is_file());
+    let watchdog_src = std::fs::read_to_string(root.join("src/bin/gsv_watchdog.rs")).expect("wd");
+    let live_src = std::fs::read_to_string(root.join("src/bin/gsv_live.rs")).expect("live");
+    assert!(
+        watchdog_src.contains("windows_subsystem = \"windows\""),
+        "gsv-watchdog must not flash a console at logon"
+    );
+    assert!(
+        live_src.contains("windows_subsystem = \"windows\""),
+        "gsv-live must not flash a console at logon"
+    );
     let toml = std::fs::read_to_string(root.join("Cargo.toml")).expect("toml");
     assert!(
         toml.contains("name = \"gsv-watchdog\""),

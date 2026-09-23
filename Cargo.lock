@@ -422,6 +422,7 @@ dependencies = [
  "axum",
  "chrono",
  "futures-util",
+ "httparse",
  "mimalloc",
  "rayon",
  "reqwest",

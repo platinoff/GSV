@@ -121,6 +121,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         state.version.as_ref()
     ));
 
-    axum::serve(listener, app).await?;
+    gsv::server::serve(listener, app).await?;
     Ok(())
 }

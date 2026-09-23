@@ -25,6 +25,11 @@
 //! auto-`/api/update/apply` — ticket drains rebuild `target/debug` and must
 //! not bounce the healthy `:9999` hub mid-session. Respawn-on-failure stays
 //! enabled either way.
+//!
+//! Windows GUI subsystem: logon via HKCU Run / schtasks must not flash a
+//! console. Drain still uses `CREATE_NO_WINDOW`; persist is a hidden VBS.
+
+#![cfg_attr(windows, windows_subsystem = "windows")]
 
 use std::path::PathBuf;
 use std::time::Duration;
