@@ -222,6 +222,26 @@ async fn get_mcp_http1_has_content_length() {
         !headers.contains("content-length:"),
         "content-length on /mcp is rewritten to a fake chunked header, got:\n{headers}"
     );
+    let raw = http1_full(
+        addr,
+        b"GET /mcp HTTP/1.1\r\nHost: 127.0.0.1\r\nAccept: application/json, text/event-stream\r\nConnection: close\r\n\r\n",
+    );
+    let body = raw.split("\r\n\r\n").nth(1).unwrap_or("");
+    assert!(
+        body.as_bytes().first().is_some_and(u8::is_ascii_hexdigit) && !body.starts_with('{'),
+        "chunk must start with hex size, not raw JSON, got:\n{}",
+        &body[..body.len().min(80)]
+    );
+    let json_part = body
+        .split_once("\r\n")
+        .map(|(_, rest)| {
+            rest.rsplit_once('}')
+                .map(|(a, _)| format!("{a}}}"))
+                .unwrap_or_else(|| rest.to_string())
+        })
+        .unwrap_or_default();
+    let json: serde_json::Value = serde_json::from_str(&json_part).unwrap_or_default();
+    assert_eq!(json["ok"], true, "chunk payload:\n{json_part}");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -316,6 +336,31 @@ fn http1_headers(addr: std::net::SocketAddr, req: &[u8]) -> String {
         }
     }
     String::from_utf8_lossy(&all).to_ascii_lowercase()
+}
+
+fn http1_full(addr: std::net::SocketAddr, req: &[u8]) -> String {
+    use std::io::{Read, Write};
+    let mut stream = std::net::TcpStream::connect(addr).expect("connect");
+    stream
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .expect("timeout");
+    stream.write_all(req).expect("write");
+    let mut all = Vec::new();
+    let mut buf = [0u8; 2048];
+    loop {
+        match stream.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => all.extend_from_slice(&buf[..n]),
+            Err(_) => break,
+        }
+        if all.len() >= 64 * 1024 {
+            break;
+        }
+        if all.windows(5).any(|w| w == b"\r\n0\r\n") {
+            break;
+        }
+    }
+    String::from_utf8_lossy(&all).into_owned()
 }
 
 #[tokio::test]
