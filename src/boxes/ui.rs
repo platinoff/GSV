@@ -1441,7 +1441,15 @@ pub fn render_telegram(d: &Value) -> String {
         if dry { "dry-run" } else { "live" },
     ));
     out.push_str(&pill(
-        if polling { "ok" } else { "" },
+        if polling {
+            if s(&d["last_poll_ts"]).is_empty() {
+                "warn"
+            } else {
+                "ok"
+            }
+        } else {
+            ""
+        },
         if polling { "polling on" } else { "polling off" },
     ));
     out.push_str(&pill(
@@ -3308,6 +3316,23 @@ mod tests {
         assert!(
             inner.contains("onmouseover=&#39;"),
             "payload quote must be entity-encoded, not raw: {rss}"
+        );
+    }
+
+    #[test]
+    fn render_telegram_warns_when_polling_without_last_poll_ts() {
+        let html = render_telegram(&serde_json::json!({
+            "ok": true,
+            "token_set": true,
+            "channel_id": "@GSV_OFFICIAL",
+            "dry_run": false,
+            "polling": true,
+            "poll_alive": true,
+            "last_poll_ts": ""
+        }));
+        assert!(
+            html.contains("class='pill warn'>polling on"),
+            "empty last_poll_ts must warn, not stay green: {html}"
         );
     }
 

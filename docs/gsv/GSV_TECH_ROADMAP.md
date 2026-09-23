@@ -2259,6 +2259,23 @@ session rule. Telenetis = shell plugin; APK = edge plugin via `/api/edge`.
 Next gsv drain = owner pick (`hub-apk-client` Mini App worker gate landed).
 NDK/cargo-apk binary remains later. Scenario `hub-agi-path`.
 
+## Спринти (band 238) — env hub lockstep (Cursor leftover + global-first)
+
+Owner pick 2026-09-22: technical session after reboot (NTFS/BitLocker check + Cursor update failed). Desktop is **3.21.9**; current stable download **3.21.18**; in-app updater died on leftover `Program Files\cursor\_bak` (os error 183; NTFS `$I30` corruption 2026-09-17 in the same tree). C: 95% (14G) — `state.vscdb` 12G + OpenCode `opencode.db` 8.4G. Canon: global-first / PoolAI genetic / workspace auto-wire.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S3019** | Cursor leftover | Probe 3.21.9; `_bak` is the updater blocker; installer `target/cursor-setup-3.21.18.exe`; baseline pin 3.21.9; drain prompt 3.21 — **✅** |
+| **PH-S3020** | C: + SSD | NVMe Hynix healthy; BitLocker 24641 then TPM V2 unlock; Event 98 today healthy; Sep 18 wanted SPOTFIX; caches cleaned (~6G); `state.vscdb.backup` 2G dropped — **✅** |
+| **PH-S3021** | Global first | `GSV_AGI_PATH` + `PLUGIN_AGENTS.md` + plugin pointers; PoolAI genetic parent; `gsv.code-workspace` + omniroute/ORR — **✅** |
+| **PH-S3022** | Toolchain pin | `unset RUSTUP_TOOLCHAIN` so `rust-toolchain.toml` 1.92.0-gnu wins (do not export stable-gnu 1.98.1) — **✅** |
+| **PH-S3023** | Poller warn | `getUpdates` Err records `last_poll_ts`; Galaxy pill warn when polling with empty ts — **✅** |
+| **PH-S3024** | Plugin AGENTS | Thin `AGENTS.md` in llama-rs / LinFS / rebook / ORR / telenetis / omniroute prepend; PoolAI pointer — **✅** |
+| **PH-S3025** | Hub board | tickets.jsonl leftover poller-dead + rebook rows from 2026-09-18 — **✅** |
+| **PH-S3026** | MCP lockstep | `gsv_drain` / initialize / contracts pin Cursor 3.21; folder MCP type=http; never User — **✅** |
+| **PH-S3027** | C: remaining | `state.vscdb` 12G and OpenCode `opencode.db` 8.4G **not** deleted (live DBs). Compact after Cursor/OpenCode close — **✅** (documented) |
+| **PH-S3028** | Close | fmt · clippy 0 · full `cargo test` exit 0 · stretch-96 **99.53%** · record-rust 0/0 · bump **0.238.0** · fingerprint grok-4.6 · sync last PH-S3028 next PH-S3029 — **✅** |
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

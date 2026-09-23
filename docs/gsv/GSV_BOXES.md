@@ -39,7 +39,7 @@ Rust модуль: `sli/` → `gsv_sli.json`.
 | clippy / rustfmt | — | toolchain |
 | MSYS2 bash | — | AGENTS.md |
 | Node / Playwright | — | `e2e/` |
-| Cursor / opencode | 3.20.21 | service (desktop `package.json`; toolchain `cursor` entry) |
+| Cursor / opencode | 3.21.9 | service (desktop `package.json`; toolchain `cursor` entry; 3.21.18 installer staged, leftover `_bak` blocks in-app updater) |
 
 Rust модуль: `toolchain/` → `gsv_toolchain.json`.
 

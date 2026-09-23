@@ -2009,7 +2009,19 @@ pub async fn poll_once(
         }
         match fetch_inbound_live(&token, data_dir).await {
             Ok(v) => v,
-            Err(v) => return v,
+            Err(v) => {
+                // Must record or Galaxy stays green: poll_alive + empty last_poll_ts.
+                let err = v
+                    .get("error")
+                    .and_then(Value::as_str)
+                    .unwrap_or("getUpdates failed");
+                {
+                    let mut g = bus();
+                    g.last_poll_ts = now_rfc3339();
+                }
+                record_last(false, err);
+                return v;
+            }
         }
     };
     let mut n_bus = 0usize;

@@ -78,7 +78,7 @@ Every session, in MSYS2 bash:
 
 ```bash
 export PATH="/c/Users/${USER:-${USERNAME}}/.cargo/bin:$HOME/.cargo/bin:/ucrt64/bin:/usr/bin:$PATH"
-export RUSTUP_TOOLCHAIN="stable-x86_64-pc-windows-gnu"
+unset RUSTUP_TOOLCHAIN
 cd /s/rust/GSV
 unset CARGO_TARGET_DIR
 
@@ -92,7 +92,7 @@ cargo xtask live
 
 ```bash
 export PATH="/c/Users/${USER:-${USERNAME}}/.cargo/bin:$HOME/.cargo/bin:/ucrt64/bin:/usr/bin:$PATH"
-export RUSTUP_TOOLCHAIN="stable-x86_64-pc-windows-gnu"
+unset RUSTUP_TOOLCHAIN
 cd /s/rust/GSV
 unset CARGO_TARGET_DIR
 cargo xtask watchdog

@@ -71,7 +71,13 @@ Environment security first. Maximum Rust. Session law: `agi`. Canon: [`GSV_AGI_P
 
 Один відкритий корінь = один кіт. `абракадабра` сканує environment і питає з яким
 проєктом працювати. Multi-root workspace — у сайдбарі продукти; discover бачить і
-workspace folders, і git-сусідів під `S:/rust`.
+workspace folders, і git-сусідів під `S:/rust`. **GSV перший** у `gsv.code-workspace`,
+щоб folder MCP хаба був завжди. Плагін відкритий наодинці в Cursor = без хаб MCP
+(не ставти User-scope MCP).
+
+**Global first / local product only.** Плагін тримає тонкий `AGENTS.md`
+([`PLUGIN_AGENTS.md`](./PLUGIN_AGENTS.md)). PoolAI = генетичний батько multi-agent
+DNA, коли це домінує по релевантності.
 
 ## Consequences
 

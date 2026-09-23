@@ -17,7 +17,9 @@ drain target is GSV — the skill asks first.
 
 ```bash
 export PATH="/c/Users/${USER:-${USERNAME}}/.cargo/bin:$HOME/.cargo/bin:/ucrt64/bin:/usr/bin:$PATH"
-export RUSTUP_TOOLCHAIN="${RUSTUP_TOOLCHAIN:-stable-x86_64-pc-windows-gnu}"
+# rust-toolchain.toml pins 1.92.0-gnu. Do NOT export RUSTUP_TOOLCHAIN here — it
+# overrides the pin (stable-gnu is 1.98.1; a home-dir override can pick 1.87).
+unset RUSTUP_TOOLCHAIN
 cd /s/rust/GSV || cd "S:/rust/GSV"
 unset CARGO_TARGET_DIR
 ```
@@ -86,6 +88,9 @@ These globals hold in **every** session and **every** registered product, whatev
 - Allowed source formats: `.rs`, `.md`, `.mdc`, `.json`, `.js`, `.wasm`. Everything else is **not** allowed except production output of a registered pipeline. Ratio stays Rust-first (Rust **95–100%** / wasm 0–5%); `.wasm`/`.js`/`.json`/`.md` count toward the audited ratio per product row. **Maximum Rust architecture** — runtime/API/tests/benches/scripts in `.rs` (`cargo xtask`); npm / Node is not the hub.
 - Rust toolchain only for what is needed in this kit. **npm / Node is not installed and not used here** — anything needed is done with Rust (`.rs`, `cargo`, `cargo xtask`, `cargo run --bin …`) and MSYS2 bash. npm-based plugin hooks/gates belong to the plugin repo, not to the global kit.
 - Local rules (`AGENTS.md` / `CLAUDE.md` / `.cursorrules` / `rules/`) live **in each registered plugin tree** and must not affect globals. `S:\rust\GSV\AGENTS.md` is the only global rule file; no other plugin's rules are placed inside the GSV tree.
+- **Global first.** In any plugin window, read this file + [`docs/gsv/GSV_AGI_PATH.md`](docs/gsv/GSV_AGI_PATH.md) before product HANDOFF. Local rules cover **product specifics only**. Template: [`docs/gsv/PLUGIN_AGENTS.md`](docs/gsv/PLUGIN_AGENTS.md).
+- **PoolAI is the genetic parent** for multi-agent workflow DNA (roles, PH-S* bands, FM journal, session iteration, marshal/squad). When that pattern dominates relevance, copy the **idea** from `S:/rust/poolAI` — not PoolAI product files into GSV or other plugins.
+- **IDE-agnostic auto-wire.** Open `gsv.code-workspace` (GSV first) so hub MCP, tickets, bands, and sprints stay wired regardless of which plugin is focused. Cursor folder MCP only (never User-scope). OpenCode / Grok: stdio `target/live/gsv-mcp.exe`.
 
 ## Do not
 

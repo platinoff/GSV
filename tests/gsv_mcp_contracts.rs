@@ -382,15 +382,19 @@ fn cursor_mcp_uses_live_http_url() {
 }
 
 #[test]
-fn cursor_environment_baseline_pins_320() {
+fn cursor_environment_baseline_pins_321() {
     let text = std::fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/.cursor/rules/cursor-environment-baseline.mdc"
     ))
     .expect("cursor-environment-baseline.mdc");
     assert!(
-        text.contains("**3.20.21**"),
+        text.contains("**3.21.9**"),
         "baseline must pin installed Cursor: {text}"
+    );
+    assert!(
+        !text.contains("**3.20.21**"),
+        "stale Cursor 3.20.21 pin: {text}"
     );
     assert!(
         !text.contains("**3.16.29**"),
@@ -1440,7 +1444,7 @@ async fn drain_prompt_names_always_on_tools() {
     assert!(text.contains("locksteps the vision queue"), "{text}");
     assert!(text.contains("close of N"), "{text}");
     assert!(text.contains("mid-drain"), "{text}");
-    assert!(text.contains("3.20"), "{text}");
+    assert!(text.contains("3.21"), "{text}");
     assert!(text.contains("type=http"), "{text}");
     assert!(text.contains("gsv_grid"), "{text}");
     assert!(text.contains("gsv://docs/vdc"), "{text}");

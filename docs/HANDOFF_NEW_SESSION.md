@@ -302,7 +302,7 @@ Rust-dev canon: [`gsv/GSV_RUST_DEV.md`](gsv/GSV_RUST_DEV.md).
 
 ```bash
 export PATH="/c/Users/${USER}/.cargo/bin:$HOME/.cargo/bin:/ucrt64/bin:/usr/bin:$PATH"
-export RUSTUP_TOOLCHAIN="stable-x86_64-pc-windows-gnu"
+unset RUSTUP_TOOLCHAIN
 cd GSV
 cargo fmt -- --check && cargo clippy --all-targets && cargo test && cargo run --bin gsv-loc-audit
 ```

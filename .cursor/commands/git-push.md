@@ -6,7 +6,7 @@ Prefer an **external MSYS2 UCRT64** window (Start menu) for push. The Cursor int
 
 ```bash
 export PATH="$HOME/.cargo/bin:/c/msys64/ucrt64/bin:/c/msys64/usr/bin:$PATH"
-export RUSTUP_TOOLCHAIN="${RUSTUP_TOOLCHAIN:-stable-x86_64-pc-windows-gnu}"
+unset RUSTUP_TOOLCHAIN
 cd /s/rust/GSV || cd "S:/rust/GSV"
 unset CARGO_TARGET_DIR
 /c/msys64/usr/bin/rm -f .git/index.lock

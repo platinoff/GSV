@@ -25,6 +25,8 @@ alwaysApply: true
 | S0 диск, MSYS2, git hygiene | PoolAI `cargo test-ci`, GSV `cargo test` |
 | Роутер `абракадабра` / `abrakadabra` / `agi` | HANDOFF / NEXT того продукту |
 
+**Global first.** Plugin `AGENTS.md` is a pointer + product-only rules. Template: [`docs/gsv/PLUGIN_AGENTS.md`](../../docs/gsv/PLUGIN_AGENTS.md). PoolAI is the genetic parent for multi-agent workflow DNA when that pattern dominates. Open `gsv.code-workspace` (GSV first) so hub MCP stays wired.
+
 ## Shell
 
 MSYS2 bash, не PowerShell: `C:\msys64\usr\bin\bash.exe -lc '…'`.

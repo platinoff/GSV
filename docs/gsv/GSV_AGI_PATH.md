@@ -64,7 +64,7 @@ are sibling git roots under `<rust>/`.
 | Own git root + own `target/` | Copy `.agents/skills/` / VDT kit into itself |
 | Be drop-in: clone/move/remove without rewriting GSV | Run a second `gsv-server` / User-scope MCP |
 | Talk to the hub (`/mcp`, `/api/edge`, keep-live) | Call poolAI `:8091` off-box |
-| Keep product rules in **its** tree | Write product rules into `S:\rust\GSV\AGENTS.md` |
+| Keep a thin local `AGENTS.md` that **points at** GSV globals + product-only rules ([`PLUGIN_AGENTS.md`](./PLUGIN_AGENTS.md)) | Restate S0 / MSYS2 / MCP sandbox / copy the VDT kit |
 | Fail-open when down | Abort the hub or steal Godfather tokens |
 
 Registered drain (optional `PRODUCTS.md` row): HANDOFF + test command + ratio
@@ -73,6 +73,48 @@ registered.
 
 APK / Mini App / Telegram client = **edge plugins** (token + path allowlist),
 not git-siblings. Same rule: execute, do not orchestrate.
+
+## Global first, local product only
+
+Every session, every IDE, every model: **read GSV globals first**, then the
+plugin’s local rules.
+
+| Layer | Where | Covers |
+|---|---|---|
+| **Global (mother)** | `S:/rust/GSV/AGENTS.md` + this file + shared `.cursor/rules/` + `.agents/skills/` | Environment, hub MCP, tickets, bands, sprints, plans, keep-live, git hygiene, MSYS2, security |
+| **Local (plugin)** | that plugin’s `AGENTS.md` / product `.cursor/rules/` | **Only** product specifics (FM, test-ci, ratio, HANDOFF, concept) |
+
+Local files must **point at** the globals. They must not restate S0 / MSYS2 /
+`абракадабра` / MCP sandbox. Do **not** copy the VDT kit into a plugin.
+
+## PoolAI as genetic parent
+
+PoolAI (`S:/rust/poolAI`) is the **parent codebase** for multi-agent workflow
+DNA: roles (owner / orchestrator / subagents), PH-S* bands, FM journal,
+session iteration, marshal/squad, vision-sync close. When a workflow question
+is **more relevant** in PoolAI than in the plugin’s local rules, copy the
+**idea / function** from PoolAI — not PoolAI product files into GSV or into
+other plugins.
+
+GSV remains the **mother hub** (MCP, tickets board, keep-live, edge, discovery).
+PoolAI remains a **plugin that executes** (grid `:8091` on-box only). Genetic
+does not mean “drain PoolAI because the window is GSV.”
+
+## IDE-agnostic workflow auto-wire
+
+Regardless of Cursor / OpenCode / Grok, and regardless of which plugin folder
+is focused, inter-app work (tickets, keep-live, plans, bands, sprints,
+iterations) goes through the **GSV hub**:
+
+| Client | Wire |
+|---|---|
+| Cursor | Open `gsv.code-workspace` (**GSV first**) so folder MCP `http://127.0.0.1:9999/mcp` is present. Never User-scope MCP. |
+| OpenCode | `opencode.json` → stdio `target/live/gsv-mcp.exe` |
+| Grok | `.grok/config.toml` → same stdio live copy |
+
+`cargo xtask products` / `gsv_products` lists every rust-folder plugin. Scenario
+`agi` keep-lives the hub, then drains the **picked** tree. Opening a plugin
+folder **alone** loses Cursor folder MCP — that is why the workspace exists.
 
 ## Environment security (first)
 

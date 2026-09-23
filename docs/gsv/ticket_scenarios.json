@@ -202,6 +202,10 @@
         {
           "title": "gsv: per-plugin target/ isolation",
           "body": "Maximum Rust architecture. Drain of a plugin uses that plugin's target/ (poolAI CARGO_TARGET_DIR=/s/rust/poolAI/target). Never two cargo on one target/. products scan should show the plugin target dir. Do not kill GSV target/live/ when draining a plugin."
+        },
+        {
+          "title": "gsv: global-first local AGENTS + PoolAI genetic + workspace auto-wire",
+          "body": "Plugin AGENTS.md is a pointer (PLUGIN_AGENTS.md template) plus product-only rules. Read GSV globals first from any IDE/model/folder. Open gsv.code-workspace (GSV first) so hub MCP/tickets/bands/sprints stay wired. PoolAI is the genetic parent for multi-agent DNA when that pattern dominates — copy the idea, not the files. Do not export RUSTUP_TOOLCHAIN inside a crate (rust-toolchain.toml 1.92.0-gnu wins)."
         }
       ]
     },

@@ -15,7 +15,8 @@ Host workspace is **`S:\rust\GSV`**. Step 0 of `абракадабра` / `abrak
 
 ```bash
 export PATH="/c/Users/${USER:-${USERNAME}}/.cargo/bin:$HOME/.cargo/bin:/ucrt64/bin:/usr/bin:$PATH"
-export RUSTUP_TOOLCHAIN="${RUSTUP_TOOLCHAIN:-stable-x86_64-pc-windows-gnu}"
+# Let rust-toolchain.toml win (GSV pins 1.92.0-gnu). Do not export RUSTUP_TOOLCHAIN.
+unset RUSTUP_TOOLCHAIN
 # GSV product: unset CARGO_TARGET_DIR; PoolAI: CARGO_TARGET_DIR=/s/rust/poolAI/target
 ```
 

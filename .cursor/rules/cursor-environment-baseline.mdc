@@ -6,10 +6,10 @@ alwaysApply: false
 
 # Cursor environment baseline
 
-Verified on this machine (2026-09-17):
+Verified on this machine (2026-09-22):
 
-- **Cursor** **3.20.21** (`C:\Program Files\cursor\resources\app\package.json`; was 3.16.29 at band 164)
-- **rustc / cargo** 1.92.0 (`1.92.0-x86_64-pc-windows-gnu`; `rust-toolchain.toml` names the gnu host)
+- **Cursor** **3.21.9** (`C:\Program Files\cursor\resources\app\package.json`; in-app updater to **3.21.18** failed 2026-09-22 with os error 183 on leftover `Program Files\cursor\_bak` after NTFS index corruption 2026-09-17). Installer staged at `target/cursor-setup-3.21.18.exe` (gitignored). Owner: close Cursor → delete `_bak` (admin) → run that installer.
+- **rustc / cargo** 1.92.0 (`1.92.0-x86_64-pc-windows-gnu`; `rust-toolchain.toml` names the gnu host). Do **not** export `RUSTUP_TOOLCHAIN`.
 - **git** 2.50.0 (MSYS2 UCRT64)
 
 ## MCP / tools / sync (3.20)

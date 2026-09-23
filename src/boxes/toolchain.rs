@@ -228,11 +228,8 @@ mod tests {
 
     #[test]
     fn parse_cursor_package_version_reads_semver() {
-        let raw = r#"{"name":"Cursor","version":"3.20.21","distro":"abc"}"#;
-        assert_eq!(
-            parse_cursor_package_version(raw).as_deref(),
-            Some("3.20.21")
-        );
+        let raw = r#"{"name":"Cursor","version":"3.21.9","distro":"abc"}"#;
+        assert_eq!(parse_cursor_package_version(raw).as_deref(), Some("3.21.9"));
         assert!(parse_cursor_package_version("{}").is_none());
         assert!(parse_cursor_package_version("not-json").is_none());
     }

@@ -34,6 +34,13 @@ Discovered but **not** in this table → S0 + git in that tree; no PH-S* drain u
 | Generic `.cursor/rules/` (S0, MSYS2, git, rust style) | Product test aliases (`test-ci`, Playwright admin, OpenAPI gap) |
 | `абракадабра` / `abrakadabra` / `agi` router (discover → ask) | Plugin HANDOFF / NEXT / roadmap journal |
 | MCP sandbox, edge proxy, tickets, keep-live | Plugin runtime (`target/`, ports, secrets) |
+| Global-first / IDE-agnostic auto-wire / PoolAI genetic pointer | Thin `AGENTS.md` from [`PLUGIN_AGENTS.md`](./PLUGIN_AGENTS.md) |
+
+**Global first.** Any IDE / model / focused folder: read GSV `AGENTS.md` +
+`GSV_AGI_PATH.md` before product HANDOFF. Local rules are product specifics
+only. Open `gsv.code-workspace` (GSV first) so hub MCP stays present. PoolAI
+is the genetic parent for multi-agent workflow DNA when that pattern dominates
+— copy the idea, not the files.
 
 ## New plugin checklist
 

@@ -53,7 +53,7 @@ Tests/bench hooks · **Ratio** · **OmniRouter** (Rust AI-проксі/роут�
 - Terminal — **MSYS2 bash** для `cargo`/`git`; з кореня репо:
   ```
   export PATH="/c/Users/${USER}/.cargo/bin:$HOME/.cargo/bin:/ucrt64/bin:/usr/bin:$PATH"
-  export RUSTUP_TOOLCHAIN="stable-x86_64-pc-windows-gnu"
+  unset RUSTUP_TOOLCHAIN
   cd GSV && cargo build --all-targets && cargo test && cargo clippy --all-targets
   ```
 - Canon listener — `cargo xtask live` (`target/live/gsv-server.exe`). `cargo test`/`build` may overwrite `target/debug/` without os error 5. Do **not** kill the live copy. Only stop `target/debug/gsv-server.exe` if *that* file is the listener.
