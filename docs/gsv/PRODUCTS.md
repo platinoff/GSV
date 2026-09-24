@@ -21,6 +21,7 @@ This file only **enriches** a pick that is already registered.
 | **telenetis** | `S:/rust/GSV/telenetis` | `S:/rust/GSV/telenetis/docs/HANDOFF_NEW_SESSION.md` | `S:/rust/GSV/telenetis/docs/NEXT_SESSION_PROMPT.md` | `cargo fmt -- --check` → `cargo clippy --all-targets` → `cargo test` | Rust **95–100%** |
 | **llama-rs** | `S:/rust/llama-rs` | `S:/rust/llama-rs/docs/HANDOFF_NEW_SESSION.md` (journal: `docs/HANDOFF.md`) | `S:/rust/llama-rs/docs/ROADMAP.md` | `cargo fmt -- --check` → `cargo clippy --all-targets` → `cargo test` | Rust **95–100%** |
 | **rebook** | `S:/rust/rebook` | `S:/rust/rebook/docs/HANDOFF_NEW_SESSION.md` | `S:/rust/rebook/docs/NEXT_SESSION_PROMPT.md` | `cargo fmt -- --check` → `cargo clippy --all-targets` → `cargo test` (EPUB path: `cargo run -- build-epub`) | Rust **95–100%** |
+| **coreboard_labs_shop** | `S:/rust/CoreBoard_Labs_shop` | `S:/rust/CoreBoard_Labs_shop/docs/HANDOFF_NEW_SESSION.md` | `S:/rust/CoreBoard_Labs_shop/docs/NEXT_SESSION_PROMPT.md` | `cargo fmt --all` → `cargo clippy --all-targets` → `cargo test` (proprietary software, **private repo**) | Rust **95–100%** |
 
 Keep-live (band 225): llama-rs writes `target/live/llama_heartbeat.json` when run with `GSV_LIVE=1` or `LLAMA_RS_HEARTBEAT=1` (PID, model, epoch, bin_version, 15s tick); GSV reads it via `keep_live.llama_rs` (fresh = age ≤ 60s). `gsv_products_scan` / `cargo xtask products` enrich this heartbeat path + freshness for llama-rs.
 
