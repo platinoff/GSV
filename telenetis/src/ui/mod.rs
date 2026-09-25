@@ -3410,13 +3410,15 @@ mod tests {
     #[tokio::test]
     async fn proxy_get_stays_open_for_reads() {
         // Same forwarded shape over GET: no gate, unknown service 404.
+        // A known upstream (e.g. `poolai`) would answer 502 against a dead
+        // box — `nosuch` keeps the assertion about the gate, not the peer.
         use std::net::{IpAddr, Ipv4Addr, SocketAddr};
         let app = router(test_state());
         let peer = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 55555);
         let resp = app
             .oneshot(
                 Request::builder()
-                    .uri("/edge/upstream/poolai/api/v1/x")
+                    .uri("/edge/upstream/nosuch/api/v1/x")
                     .header("x-forwarded-for", "203.0.113.7")
                     .extension(ConnectInfo(peer))
                     .body(Body::empty())

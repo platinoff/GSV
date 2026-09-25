@@ -10,6 +10,11 @@
   [`docs/gsv/PRODUCTS.md`](../../docs/gsv/PRODUCTS.md); keep-live band 224
   (Windows parity: watchdog copies debug → live and respawns `:9800`);
   GSV MCP probe `gsv_telenetis_health`.
+- **Latest work (2026-09-24, keep-green)**: fixed test rot in `proxy_get_stays_open_for_reads`
+  (GET `/edge/upstream/poolai/...` asserted 404 but routing changed — a real upstream answers
+  502 against a dead pool; the gate intent is "unknown service → 404", now uses `nosuch`).
+  Toolchain: use `PATH="/c/Users/plati/.cargo/bin:..."` — MSYS2 `rustc 1.87` shadows the
+  rustup 1.92.0-gnu pin otherwise (`encoding_rs`/`icu` need 1.88+). Gate: 330 green.
 - **Latest work (2026-09-17, bands T1–T7, all ticket-driven)**: reopen-hint on stale initData (403),
   `answerWebAppQuery` builder (wiring verdict: no keyboard-flow → none needed),
   probe compatibility-mode, claim/next hints (snapshot + `/board`),
@@ -17,7 +22,7 @@
   (`payload.history`), WS tracker `GET /tracker` + client announce.
   Concept: [`CONCEPT.md`](../../docs/telenetis/CONCEPT.md).
 - **Tests**: `cargo fmt -- --check` → `cargo clippy --all-targets` (0) → `cargo test`
-  (**280** lib + 4 live + 4 integration, green)
+  (**314** lib + 4 live + 4 integration, green)
   (run in `S:/rust/GSV/telenetis`). Do **not** kill the live `:9800` copy before tests.
 - **Health**: `GET http://127.0.0.1:9800/health` (GSV `keep_live.telenetis`, fresh = up).
 - **NEXT pointer**: [`NEXT_SESSION_PROMPT.md`](./NEXT_SESSION_PROMPT.md).
