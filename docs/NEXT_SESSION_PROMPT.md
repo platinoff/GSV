@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-09-22 night (**band 238 ✅** crate **0.238.0**, live `:9999` lockstep). Cursor **3.21.18** installed (`Program Files\cursor\resources\app\package.json`). Leftover `Program Files\cursor\_bak` still has `chrome_200_percent.pak` — owner deferred the wipe. Uncommitted on `main`: hidden logon watchdog (VBS + GUI subsystem). **Canon** [`gsv/GSV_AGI_PATH.md`](gsv/GSV_AGI_PATH.md) `gsv://docs/agi-path`. **Owner product pick: telenetis** — Redmi 9 Wi-Fi debug rabbit from GSV hub. last PH-S3028 next PH-S3029. Pre-`agi`: commit the sitting GSV hide-console + this lockstep, then `agi` (no AskQuestion if telenetis in scan).
+**Оновлено:** 2026-09-29 (**band 238 ✅** crate **0.238.0**, live `:9999` `version_lag=false`, keep-live gsv+telenetis+llama_rs up, omniroute policy-down). Cursor **3.22.12** (`Program Files\cursor\resources\app\package.json`). Two agents may show online (IDE + Agents Window): one writer on the GSV tree; the other uses `/worktree` or cloud. Folder MCP `type: http` unchanged. **Canon** [`gsv/GSV_AGI_PATH.md`](gsv/GSV_AGI_PATH.md). **Owner product pick: rebook** — next session after this GSV tech lockstep. last PH-S3028 next PH-S3029.
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -10,10 +10,8 @@ agi
 ```
 
 `agi` = drain **плюс** keep-live хаба. **Не питати продукт:** NEXT називає
-**Owner product pick: telenetis**, якщо скан його бачить. Telenetis = Telegram-shell
-plugin. Redmi 9 = піддослідний кролик (wireless ADB). Грати з GSV `:9999` +
-`:9800` + `/api/edge`. ADB: `target/adb/platform-tools/adb.exe` (зараз 0 devices —
-власник шле IP:port + код пейрингу). Ранбук [`telenetis/TWO_PHONES.md`](telenetis/TWO_PHONES.md).
+**Owner product pick: rebook**, якщо скан його бачить (`S:/rust/rebook`).
+Telenetis лишається Wi-Fi кроликом з хаба, не ціллю цієї сесії.
 
 або
 
@@ -29,10 +27,9 @@ abrakadabra
 
 `agi` = той самий drain **плюс** keep-live хаба (GSV / Telenetis / llama-rs / grid; OmniRoute policy-down) і тікет-борд.
 
-**Порядок:** `cargo xtask products` → якщо **Owner product pick: telenetis** є в скані, **не AskQuestion** →
-**S0 диск** (`df -h /s` → `cargo xtask disk` → `cargo xtask disk --clean` keeps live) →
-project scan (**warnings first**) у `S:/rust/GSV/telenetis` → drain (**без** mid-push) →
-**один** commit → **`git push` + самарі**.
+**Порядок:** `cargo xtask products` → якщо **Owner product pick: rebook** є в скані, **не AskQuestion** →
+**S0 диск** у `S:/rust/rebook` → HANDOFF того репо → drain (**без** mid-push) →
+**один** commit у **rebook** → **`git push` + самарі**.
 
 Якщо **gsv:** always-on Galaxy (**bands 143–147 ✅**) + SW cache (**band 148 ✅**) + omniroute/semver (**band 149 ✅**) + live watchdog (**band 150 ✅**) + MCP catch-up (**band 151 ✅**) + MCP products select (**band 152 ✅**) + rust-first xtask (**band 153 ✅**) + watchdog ops card (**band 154 ✅**) + session token usage (**band 155 ✅**) + streaming usage / VDT git / owner tunnel (**band 156 ✅**) + OmniRouter catalog / quota timers (**band 157 ✅**) + live MCP stdio / sync check (**band 158 ✅**) + Cursor HTTP MCP / session SSE hold (**band 159 ✅**) + GSV sandbox MCP / no User leak (**band 160 ✅**) + vision lockstep + disk MiB (**band 161 ✅**) + live crate/version lockstep (**band 162 ✅**) + vision queue lockstep + bump auto-advance (**band 163 ✅**) + Cursor 3.16.29 kit lockstep (**band 164 ✅**) + watchdog live copy + lockstep observability (**band 165 ✅**) + settings / Godfather (**band 166 ✅**) + Telegram bind (**band 167 ✅**) + ticket board + MCP claim (**band 168 ✅**) + Telegram bus (**band 169 ✅**) + ticket scenarios / solo-squad (**band 170 ✅**) + ticket lease / stale reclaim (**band 171 ✅**) + live crate lockstep (**band 172 ✅**) + vision queue close-lockstep (**band 173 ✅**) + solo Telegram tickets (**band 174 ✅**) + MDS scenario band / solo walk / Telegram sync (**band 175 ✅**) + visible MCP session walk (**band 176 ✅**) + roadmap/plan hook-up (**band 177 ✅**) + scenario benchmark (**band 178 ✅**) + Godfather inbound poller (**band 179 ✅**) + watchdog process lockstep (**band 180 ✅**) + Galaxy glue + S0 disk on health (**band 181 ✅**) + MCP-readable Godfather envelopes + Galaxy MCP signal (**band 182 ✅**) + squad next-action + MCP catalog lockstep (**band 183 ✅**) + MCP session catalog lockstep (**band 184 ✅**) + Cursor catalog restart lockstep (**band 185 ✅**) + solo/squad/jail (**band 186 ✅**) + live Godfather member_count (**band 187 ✅**) + README SMIL presentations + docs tidy (**band 188 ✅**) + Settings Galaxy polish (**band 189 ✅**) + Galaxy About + type/fullscreen chrome (**band 190 ✅**) + channel roles + GitHub origin lockstep (**band 191 ✅**) + ranks + no CMD flash (**band 192 ✅**) + federated `kind:presence` (**band 193 ✅**) + federated `kind:claim` (**band 194 ✅**) + federated `kind:done` (**band 195 ✅**) + federated `kind:reclaim` (**band 196 ✅**) + logic-audit fixes (**band 197 ✅**) + logic-audit fixes II (**band 198 ✅**) + logic-audit fixes III — omni persist contention / fingerprint tail UTF-8 / version key match (**band 199 ✅**) + logic-audit fixes IV — ranks TG override thread-scope / tickets board write races (**band 200 ✅**) + logic-audit fixes V — products parse_cargo_name / usage SSE tail flush (**band 201 ✅**) + logic-audit fixes VI — ui esc attribute-quote hardening / vision git_head test contract (**band 202 ✅**) + logic-audit VII tests sweep — vacuous-assertion hunt, verdict clean (**band 203 ✅**) are closed.
 **Next drain = owner pick** after a warnings-first scan. Spec [`GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md) · [`GSV_SOLO_SQUAD_JAIL.md`](gsv/GSV_SOLO_SQUAD_JAIL.md).

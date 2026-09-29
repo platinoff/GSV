@@ -39,7 +39,7 @@ Rust модуль: `sli/` → `gsv_sli.json`.
 | clippy / rustfmt | — | toolchain |
 | MSYS2 bash | — | AGENTS.md |
 | Node / Playwright | — | `e2e/` |
-| Cursor / opencode | 3.21.18 | service (desktop `package.json`; toolchain `cursor` entry; leftover `_bak` deferred, not the live install) |
+| Cursor / opencode | 3.22.12 | service (desktop `package.json` 2026-09-29; toolchain `cursor` entry; leftover `_bak` deferred, not the live install). IDE + Agents Window may both show online; one writer on the GSV tree |
 
 Rust модуль: `toolchain/` → `gsv_toolchain.json`.
 

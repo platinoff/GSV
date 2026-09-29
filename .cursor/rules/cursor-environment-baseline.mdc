@@ -6,15 +6,16 @@ alwaysApply: false
 
 # Cursor environment baseline
 
-Verified on this machine (2026-09-22):
+Verified on this machine (2026-09-29):
 
-- **Cursor** **3.21.18** (`C:\Program Files\cursor\resources\app\package.json`; landed 2026-09-22 night from `target/cursor-setup-3.21.18.exe`). Leftover `Program Files\cursor\_bak` still holds `chrome_200_percent.pak` (owner deferred wipe; next in-app updater may trip on it). Do not treat `_bak` as the live install.
+- **Cursor** **3.22.12** (`C:\Program Files\cursor\resources\app\package.json`). Leftover `Program Files\cursor\_bak` may still hold `chrome_200_percent.pak` (owner deferred wipe). Do not treat `_bak` as the live install.
 - **rustc / cargo** 1.92.0 (`1.92.0-x86_64-pc-windows-gnu`; `rust-toolchain.toml` names the gnu host). Do **not** export `RUSTUP_TOOLCHAIN`.
 - **git** 2.50.0 (MSYS2 UCRT64)
 
 ## MCP / tools / sync (3.20)
 
-- Folder MCP only: [`.cursor/mcp.json`](../mcp.json) `type: http` + `url: http://127.0.0.1:9999/mcp` (Streamable HTTP to live `gsv-server`). Keep `type: http`. Do **not** write `streamable-http` — `cursor-agent` drops the whole `mcp.json` on that alias. Desktop **3.21.18** still uses this folder file (not User MCP; the `_bak` updater dialog is Inno leftover, not this pin).
+- Folder MCP only: [`.cursor/mcp.json`](../mcp.json) `type: http` + `url: http://127.0.0.1:9999/mcp` (Streamable HTTP to live `gsv-server`). Keep `type: http`. Do **not** write `streamable-http` — `cursor-agent` drops the whole `mcp.json` on that alias. Desktop **3.22.12** still uses this folder file (not User MCP).
+- **Two agents online:** the IDE chat and the Agents Window can both be up. One writer on this tree (`S:\rust\GSV`). The second agent does not edit the same dirty files; parallel work is `/worktree` or cloud. Do not add a second MCP (User scope) so both windows “see” the hub.
 - **Never** User MCP (`%USERPROFILE%/.cursor/mcp.json`) — it leaks `gsv_mcp_openbot` into PoolAI windows.
 - Do **not** Origin-host this kit; GitHub `platinoff/GSV` stays the source of truth.
 - Cursor **Projects** (cloud coordinator, Sep 2026) and cloud `/goal` swarms are **not** the VDT board. Drain stays `абракадабра` + GSV tickets + marshal-orchestrator on this box.

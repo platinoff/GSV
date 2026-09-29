@@ -1,6 +1,6 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-09-22 (band **238 ✅** env hub lockstep; crate **0.238.0**; live `:9999` `version_lag=false`. Cursor **3.21.18**. Mini App/Chrome is not the phone worker (`apk_edge` only). **Canon** [`gsv/GSV_AGI_PATH.md`](gsv/GSV_AGI_PATH.md). **Owner product pick: telenetis**. Redmi 9 = Wi-Fi debug rabbit. Queue last PH-S3028 next PH-S3029)
+**Оновлено:** 2026-09-29 (band **238 ✅** crate **0.238.0**; live `:9999` `version_lag=false`. Cursor **3.22.12**. IDE + Agents Window may both be online; one writer on this tree. Mini App/Chrome is not the phone worker (`apk_edge` only). **Canon** [`gsv/GSV_AGI_PATH.md`](gsv/GSV_AGI_PATH.md). **Owner product pick: rebook**. Queue last PH-S3028 next PH-S3029)
 
 **Wi-Fi debug (Redmi 9):** ADB on box `target/adb/platform-tools/adb.exe`; `adb devices` empty until pair. Phone: Developer → Wireless debugging → pair by code → send `IP:port` + 6 digits. Then `adb pair` + `adb connect`. Play from GSV hub + Telenetis `:9800` (LAN `192.168.2.238`). Runbook [`telenetis/TWO_PHONES.md`](telenetis/TWO_PHONES.md) §KVM. Open: T23.1 ping · T26.1 pong · T32.1 download.
 

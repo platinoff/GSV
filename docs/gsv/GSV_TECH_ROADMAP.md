@@ -2276,7 +2276,9 @@ Owner pick 2026-09-22: technical session after reboot (NTFS/BitLocker check + Cu
 | **PH-S3027** | C: remaining | `state.vscdb` 12G and OpenCode `opencode.db` 8.4G **not** deleted (live DBs). Compact after Cursor/OpenCode close — **✅** (documented) |
 | **PH-S3028** | Close | fmt · clippy 0 · full `cargo test` exit 0 · stretch-96 **99.53%** · record-rust 0/0 · bump **0.238.0** · fingerprint grok-4.6 · sync last PH-S3028 next PH-S3029 — **✅** |
 
-Post-close 2026-09-22 night (not a new band): desktop **3.21.18**; live `:9999` 0.238.0 `version_lag=false`; logon cmd was HKCU console watchdog (hidden VBS sitting uncommitted); leftover `_bak`/`chrome_200_percent.pak` **deferred** by owner. Next drain = **`agi` telenetis** (PH-S3029) after that GSV commit.
+Post-close 2026-09-22 night (not a new band): desktop **3.21.18**; live `:9999` 0.238.0 `version_lag=false`; logon cmd was HKCU console watchdog (hidden VBS sitting uncommitted); leftover `_bak`/`chrome_200_percent.pak` **deferred** by owner.
+
+2026-09-29 tech check (not a new band): desktop **3.22.12**; hub still **0.238.0** `version_lag=false`; rustc pin **1.92.0-gnu** unchanged. IDE + Agents Window can both show online — one writer on `S:/rust/GSV`. Next drain = **rebook** (owner). GSV queue stays last PH-S3028 next PH-S3029.
 
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
