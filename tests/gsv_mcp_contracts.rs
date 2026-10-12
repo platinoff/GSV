@@ -658,15 +658,19 @@ fn cursor_mcp_uses_live_http_url() {
 }
 
 #[test]
-fn cursor_environment_baseline_pins_321() {
+fn cursor_environment_baseline_pins_322() {
     let text = std::fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/.cursor/rules/cursor-environment-baseline.mdc"
     ))
     .expect("cursor-environment-baseline.mdc");
     assert!(
-        text.contains("**3.21.18**"),
+        text.contains("**3.22.12**"),
         "baseline must pin installed Cursor: {text}"
+    );
+    assert!(
+        !text.contains("**3.21.18**"),
+        "stale Cursor 3.21.18 pin: {text}"
     );
     assert!(
         !text.contains("**3.20.21**"),

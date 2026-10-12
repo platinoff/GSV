@@ -100,7 +100,7 @@ async fn write_length(stream: &mut TcpStream, res: Response) -> std::io::Result<
     let (parts, body) = res.into_parts();
     let bytes = to_bytes(body, MCP_FINITE_MAX)
         .await
-        .map_err(|e| std::io::Error::new(ErrorKind::Other, e))?;
+        .map_err(std::io::Error::other)?;
     let framed = chunk_body(&bytes);
     let mut head = Vec::with_capacity(512);
     push_status(&mut head, parts.status);
@@ -175,7 +175,7 @@ async fn write_sse(stream: &mut TcpStream, res: Response) -> std::io::Result<()>
                 stream.flush().await?;
             }
             Ok(None) => return Ok(()),
-            Err(e) => return Err(std::io::Error::new(ErrorKind::Other, e)),
+            Err(e) => return Err(std::io::Error::other(e)),
         }
     }
 }
@@ -257,10 +257,10 @@ fn find_double_crlf(buf: &[u8]) -> Option<usize> {
     buf.windows(4).position(|w| w == b"\r\n\r\n")
 }
 
-fn parse_head(
-    buf: &[u8],
-    header_end: usize,
-) -> std::io::Result<(Method, String, Vec<(HeaderName, HeaderValue)>, usize, usize)> {
+/// Parsed request head: `(method, path, headers, content_length, consumed)`.
+type ParsedHead = (Method, String, Vec<(HeaderName, HeaderValue)>, usize, usize);
+
+fn parse_head(buf: &[u8], header_end: usize) -> std::io::Result<ParsedHead> {
     let mut headers = [httparse::EMPTY_HEADER; 64];
     let mut req = httparse::Request::new(&mut headers);
     match req.parse(&buf[..header_end + 4]) {

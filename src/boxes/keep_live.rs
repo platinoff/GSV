@@ -179,7 +179,7 @@ pub fn probe_http_blocking(url: &str) -> Probe {
     } else {
         format!("{host_port}:80")
     };
-    let timeout = std::time::Duration::from_millis(800);
+    let timeout = std::time::Duration::from_millis(1200);
     let mut stream = match std::net::TcpStream::connect_timeout(
         &addr
             .parse()
@@ -196,26 +196,116 @@ pub fn probe_http_blocking(url: &str) -> Probe {
     if stream.write_all(req.as_bytes()).is_err() {
         return Probe::default();
     }
-    let mut buf = [0u8; 4096];
-    let n = match stream.read(&mut buf) {
-        Ok(n) => n,
-        Err(_) => return Probe::default(),
+    // The GSV server always answers HTTP/1.1 with `transfer-encoding: chunked`
+    // (`x-gsv-framing: chunked-v1`) and flushes the header block before the
+    // body. A single fixed-buffer read therefore often sees only the headers
+    // (`alive=false`) or a chunk-framed body (`198\r\n{json}\r\n0\r\n`) that
+    // fails `from_str` (`version=n/a`). Read block-by-block until the de-chunked
+    // body parses as a JSON object, the peer closes (EOF), or a few reads time
+    // out (a slow `/api/health` keeps the connection open ~1s while it merges
+    // peer probes).
+    let mut buf: Vec<u8> = Vec::with_capacity(8192);
+    let mut slice = [0u8; 2048];
+    let mut empty_reads = 0u32;
+    let (status, body) = loop {
+        match stream.read(&mut slice) {
+            Ok(0) => break extract_response(&buf),
+            Ok(n) => {
+                buf.extend_from_slice(&slice[..n]);
+                let resp = extract_response(&buf);
+                if body_is_json_object(&resp.1) || buf.len() > 1 << 16 {
+                    break resp;
+                }
+            }
+            Err(_) => {
+                empty_reads += 1;
+                if empty_reads >= 3 {
+                    break extract_response(&buf);
+                }
+            }
+        }
     };
-    let text = String::from_utf8_lossy(&buf[..n]);
-    let alive = text.contains("200")
-        && (text.contains("\"ok\":true")
-            || text.contains("\"ok\": true")
-            || text.contains("\"status\":\"ok\"")
-            || text.contains("\"status\": \"ok\""));
-    // Try to extract version from body after \r\n\r\n
-    let body = text.split("\r\n\r\n").nth(1).unwrap_or("");
-    let (version, uptime_secs) = parse_body(body);
+    let alive = status == 200
+        && (body.contains("\"ok\":true")
+            || body.contains("\"ok\": true")
+            || body.contains("\"status\":\"ok\"")
+            || body.contains("\"status\": \"ok\"")
+            || body.contains("\"alive\":true")
+            || body.contains("\"alive\": true"));
+    let (version, uptime_secs) = parse_body(&body);
     Probe {
         alive,
         version,
         latency_ms: t0.elapsed().as_millis() as u64,
         uptime_secs,
     }
+}
+
+/// Split a raw HTTP/1.x response into `(status, decoded-body-string)`. De-chunks
+/// the payload when the header block advertises `transfer-encoding: chunked`
+/// (the GSV framing); otherwise the body is returned verbatim.
+fn extract_response(raw: &[u8]) -> (u16, String) {
+    let text = String::from_utf8_lossy(raw);
+    let (head, rest) = match text.split_once("\r\n\r\n") {
+        Some(x) => x,
+        None => return (0, String::new()),
+    };
+    let status = head
+        .lines()
+        .next()
+        .and_then(|l| l.split_whitespace().nth(1))
+        .and_then(|s| s.parse::<u16>().ok())
+        .unwrap_or(0);
+    let chunked = head
+        .to_ascii_lowercase()
+        .contains("transfer-encoding: chunked");
+    let body = if chunked {
+        String::from_utf8_lossy(&dechunk(rest.as_bytes())).into_owned()
+    } else {
+        rest.to_string()
+    };
+    (status, body)
+}
+
+/// True when `body` is a complete, non-trivial JSON object — the cheap stop
+/// condition for the read loop (starts `{`, ends `}`).
+fn body_is_json_object(body: &str) -> bool {
+    let t = body.trim_start();
+    t.starts_with('{') && t.ends_with('}') && t.len() > 2
+}
+
+/// Decode `Transfer-Encoding: chunked` bytes, stopping at the zero-size
+/// terminator or the first incomplete/malformed chunk (the caller keeps reading
+/// until more bytes arrive). Ignores chunk extensions (`;name=value`).
+fn dechunk(body: &[u8]) -> Vec<u8> {
+    let mut out = Vec::new();
+    let mut i = 0usize;
+    while i < body.len() {
+        let mut j = i;
+        while j + 1 < body.len() && !(body[j] == b'\r' && body[j + 1] == b'\n') {
+            j += 1;
+        }
+        if j + 1 >= body.len() {
+            break; // size line not complete yet — wait for more bytes
+        }
+        let size = std::str::from_utf8(&body[i..j])
+            .ok()
+            .map(|s| s.split(';').next().unwrap_or("").trim())
+            .and_then(|s| usize::from_str_radix(s, 16).ok());
+        let size = match size {
+            Some(0) => break, // terminal chunk
+            Some(s) => s,
+            None => break, // malformed — stop with what we have
+        };
+        let start = j + 2;
+        let end = start + size;
+        if end + 2 > body.len() {
+            break; // partial chunk data — wait for more bytes
+        }
+        out.extend_from_slice(&body[start..end]);
+        i = end + 2; // skip the trailing CRLF after the chunk data
+    }
+    out
 }
 
 /// Async probe for the axum wire (1s timeout via reqwest).
@@ -708,6 +798,64 @@ mod tests {
         // Use a port that is not listening (fail-open).
         let p = probe_http_blocking("http://127.0.0.1:59999/health");
         assert!(!p.alive);
+    }
+
+    #[test]
+    fn dechunk_round_trips_chunked_framing() {
+        let json = r#"{"ok":true,"version":"0.238.0","alive":true}"#;
+        // Split into two chunks to exercise multi-chunk decoding.
+        let mid = json.len() / 2;
+        let (a, b) = json.split_at(mid);
+        let mut wire = Vec::new();
+        wire.extend_from_slice(format!("{:x}\r\n", a.len()).as_bytes());
+        wire.extend_from_slice(a.as_bytes());
+        wire.extend_from_slice(b"\r\n");
+        wire.extend_from_slice(format!("{:x}\r\n", b.len()).as_bytes());
+        wire.extend_from_slice(b.as_bytes());
+        wire.extend_from_slice(b"\r\n");
+        wire.extend_from_slice(b"0\r\n\r\n");
+        assert_eq!(String::from_utf8(dechunk(&wire)).unwrap(), json);
+    }
+
+    #[test]
+    fn extract_response_dechunks_gsv_framing_and_reads_status() {
+        let json = r#"{"alive":true,"ok":true,"crate_version":"0.238.0"}"#;
+        let raw = format!(
+            "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ntransfer-encoding: chunked\r\nx-gsv-framing: chunked-v1\r\n\r\n{:x}\r\n{json}\r\n0\r\n\r\n",
+            json.len()
+        );
+        let (status, body) = extract_response(raw.as_bytes());
+        assert_eq!(status, 200);
+        assert_eq!(body, json);
+        assert!(body_is_json_object(&body));
+    }
+
+    #[test]
+    fn probe_http_blocking_reads_chunked_body() {
+        // Mirrors the real GSV framing: an HTTP/1.1 `transfer-encoding: chunked`
+        // 200 whose header block is flushed before the body. The old single
+        // 4096-byte read false-negatived this (alive=false, version=n/a).
+        let json = r#"{"alive":true,"ok":true,"version":"0.238.0","uptime_secs":123}"#;
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let wire = json; // &'static str is Copy
+        let handle = std::thread::spawn(move || {
+            let (mut sock, _) = listener.accept().unwrap();
+            let mut sink = [0u8; 1024];
+            let _ = sock.read(&mut sink); // drain the request line
+            use std::io::{Read, Write};
+            let resp = format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ntransfer-encoding: chunked\r\nx-gsv-framing: chunked-v1\r\n\r\n{:x}\r\n{wire}\r\n0\r\n\r\n",
+                wire.len()
+            );
+            let _ = sock.write_all(resp.as_bytes());
+            let _ = sock.flush();
+        });
+        let p = probe_http_blocking(&format!("http://127.0.0.1:{port}/api/watchdog"));
+        handle.join().unwrap();
+        assert!(p.alive, "chunked 200 with ok:true must read as alive");
+        assert_eq!(p.version.as_deref(), Some("0.238.0"));
+        assert_eq!(p.uptime_secs, Some(123));
     }
 
     #[test]
