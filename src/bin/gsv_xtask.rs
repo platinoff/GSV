@@ -379,6 +379,61 @@ fn main() -> ExitCode {
                 }
             }
         }
+        "intel" => {
+            let data = root.join("data");
+            let json = args.iter().any(|a| a == "--json");
+            let dry = args.iter().any(|a| a == "--dry-run")
+                || env::var("GSV_RUSTSEC_DRY_RUN").as_deref() == Ok("1");
+            let rt = match tokio::runtime::Runtime::new() {
+                Ok(rt) => rt,
+                Err(e) => {
+                    eprintln!("intel: runtime: {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            let report = if dry {
+                gsv::boxes::rust_intel::collect_dry()
+            } else {
+                rt.block_on(gsv::boxes::rust_intel::collect_live(&root))
+            };
+            if let Err(e) = gsv::boxes::rust_intel::save(&data, &report) {
+                eprintln!("intel: cache write: {e}");
+            }
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&report).unwrap_or_default()
+                );
+            } else {
+                let c = &report.counts;
+                println!(
+                    "rust-intel: source {} deps {} queries {} advisories {} (crit {} high {} mod {} low {} unk {})",
+                    report.source,
+                    report.deps_total,
+                    report.queries_attempted,
+                    c.total,
+                    c.critical,
+                    c.high,
+                    c.moderate,
+                    c.low,
+                    c.unknown
+                );
+                for a in report.advisories.iter().take(40) {
+                    println!(
+                        "  [{}] {} {} {} — {} {}",
+                        a.severity, a.package, a.version, a.id, a.summary, a.url
+                    );
+                }
+                for h in &report.hints {
+                    eprintln!("  hint: {h}");
+                }
+                println!(
+                    "rust-intel: cached {}",
+                    gsv::boxes::rust_intel::path(&data).display()
+                );
+            }
+            ExitCode::SUCCESS
+        }
         other => {
             eprintln!("gsv-xtask: unknown task '{other}'\n{}", xtask::help_text());
             ExitCode::FAILURE

@@ -240,6 +240,23 @@ pub fn collect(repo_root: &Path, data_dir: &Path, live_url: Option<&str>) -> Rul
         )),
     }
 
+    // rustsec: cached OSV radar report (cargo xtask intel). Soft advisory in #A —
+    // never fails the drain; the HARD CRITICAL/HIGH gate lands in #A.2 once CVSS
+    // base-score bucketing is reliable. Reads only the on-disk cache (no network).
+    let intel = crate::boxes::rust_intel::load(data_dir);
+    let intel_detail = match &intel {
+        Some(r) => {
+            let c = &r.counts;
+            let fresh = crate::boxes::rust_intel::is_fresh(r);
+            format!(
+                "source {} · deps {} · advisories {} (crit {} high {} mod {} low {} unk {}) · fresh {} · {}",
+                r.source, r.deps_total, c.total, c.critical, c.high, c.moderate, c.low, c.unknown, fresh, r.generated_at
+            )
+        }
+        None => "not run (cargo xtask intel)".to_string(),
+    };
+    checks.push(RuleCheck::soft("rustsec", true, intel_detail));
+
     // live: optional running-server version lockstep probe.
     match live_url {
         Some(url) => {
@@ -355,6 +372,12 @@ mod tests {
             .iter()
             .all(|id| r.checks.iter().any(|c| c.id == *id && c.gate && !c.ok)));
         assert!(r.checks.iter().any(|c| c.id == "live" && !c.gate));
+        assert!(
+            r.checks
+                .iter()
+                .any(|c| c.id == "rustsec" && !c.gate && c.ok),
+            "rustsec must be a soft, fail-open gate"
+        );
         let _ = fs::remove_dir_all(&dir);
     }
 

@@ -87,6 +87,10 @@ pub const TASKS: &[(&str, &str)] = &[
     ),
     ("sync", "Vision snapshot sync (`--check` = drift gate)"),
     (
+        "intel",
+        "RustSec/OSV radar over Cargo.lock deps → data/gsv_rustsec.json (`--dry-run` / `--json`; soft rules-check gate)",
+    ),
+    (
         "vault-note",
         "Obsidian vault drain note + index link (--band N --title T --summary S)",
     ),
