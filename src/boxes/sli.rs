@@ -49,8 +49,14 @@ pub struct SliWire {
 }
 
 impl SliCatalog {
-    /// Scan the repo (best effort): read-only, never mutates.
-    pub fn scan(repo_root: &Path) -> Self {
+    /// Scan the repo (best effort): read-only, never mutates. The `used` flag is
+    /// derived from recent commands gathered **once** from both
+    /// `~/.bash_history` and the durable tracker store (`command_labels`) —
+    /// the latter covers non-interactive `bash -lc` / MCP `/api/terminal` runs
+    /// that never touch `~/.bash_history` (fix for the always-`used_count=0` bug).
+    pub fn scan(repo_root: &Path, data_dir: &Path) -> Self {
+        let mut recent = crate::tracker::recent_commands(500);
+        recent.extend(crate::tracker::command_labels(data_dir, 500));
         let mut entries = Vec::new();
         let dir = repo_root.join("src/bin");
         if let Ok(read) = fs::read_dir(&dir) {
@@ -69,7 +75,7 @@ impl SliCatalog {
                     path: format!("src/bin/{name}.rs"),
                     description,
                     name: name.to_string(),
-                    used: is_used(name),
+                    used: is_used(name, &recent),
                 });
             }
         }
@@ -80,7 +86,7 @@ impl SliCatalog {
                 path: "src/boxes/xtask.rs".into(),
                 description: (*desc).into(),
                 name: (*name).into(),
-                used: is_used(name),
+                used: is_used(name, &recent),
             });
         }
         entries.sort_by(|a, b| a.name.cmp(&b.name));
@@ -125,17 +131,22 @@ fn example_for(name: &str) -> String {
     }
 }
 
-/// Whether the command name appears in recent shell history.
-fn is_used(name: &str) -> bool {
-    crate::tracker::recent_commands(500)
-        .into_iter()
-        .any(|cmd| cmd.contains(name))
+/// Whether the command name appears in the recent-commands haystack. The
+/// haystack is gathered once from `~/.bash_history` + the durable tracker
+/// `command_labels`, so non-interactive / MCP-terminal runs still mark `used`.
+/// `rs` bin stems use `_` (`gsv_ui_probe`) but are invoked with `-`
+/// (`cargo run --bin gsv-ui-probe`), so both spellings are matched.
+fn is_used(name: &str, recent: &[String]) -> bool {
+    let hyphen = name.replace('_', "-");
+    recent
+        .iter()
+        .any(|cmd| cmd.contains(name) || cmd.contains(&hyphen))
 }
 
 /// Serve `/api/sli`.
-pub fn wire(repo_root: &Path) -> SliWire {
+pub fn wire(repo_root: &Path, data_dir: &Path) -> SliWire {
     SliWire {
-        catalog: SliCatalog::scan(repo_root),
+        catalog: SliCatalog::scan(repo_root, data_dir),
         generated_at: vision::rfc3339_now(),
     }
 }
@@ -163,12 +174,62 @@ mod tests {
     #[test]
     fn scan_includes_xtask_products() {
         let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let cat = SliCatalog::scan(&root);
+        let data = std::env::temp_dir().join(format!("gsv-sli-empty-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&data);
+        let cat = SliCatalog::scan(&root, &data);
         assert!(cat
             .entries
             .iter()
             .any(|e| e.name == "products" && e.kind == "xtask"));
         assert!(cat.entries.iter().any(|e| e.kind == "rs"));
         assert!(!cat.entries.iter().any(|e| e.kind == "sh"));
+        assert_eq!(
+            cat.used_count + cat.unused_count,
+            cat.entries.len(),
+            "used+unused must equal entries"
+        );
+        let _ = fs::remove_dir_all(&data);
+    }
+
+    #[test]
+    fn is_used_matches_hyphen_invocation_of_underscore_bin() {
+        let recent = vec![
+            "cargo run --bin gsv-ui-probe -- --json".to_string(),
+            "cargo xtask rules-check".to_string(),
+        ];
+        assert!(
+            is_used("gsv_ui_probe", &recent),
+            "underscore bin via hyphen cmd"
+        );
+        assert!(is_used("rules-check", &recent));
+        assert!(is_used("gsv_mcp", &["gsv-mcp".to_string()]));
+    }
+
+    #[test]
+    fn command_labels_reads_durable_tracker_records() {
+        let dir = std::env::temp_dir().join(format!("gsv-sli-cmd-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let json = r#"{"records":[
+            {"id":"a","kind":"command","label":"cargo xtask rules-check","detail":"ok","status":"ok","at":"2026-01-01T00:00:00Z"},
+            {"id":"b","kind":"status","label":"not-a-command","detail":"x","status":"ok","at":"2026-01-01T00:00:00Z"}
+        ],"sprints":{"open":[],"closed":[],"next":null,"total":0},"last_saved":null}"#;
+        fs::write(dir.join("gsv_tracker.json"), json).unwrap();
+        let labels = crate::tracker::command_labels(&dir, 500);
+        assert!(labels.iter().any(|l| l == "cargo xtask rules-check"));
+        assert!(
+            !labels.iter().any(|l| l == "not-a-command"),
+            "only kind==command is returned"
+        );
+        // scan must mark `rules-check` used from the durable store alone.
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let cat = SliCatalog::scan(&root, &dir);
+        assert!(
+            cat.entries
+                .iter()
+                .any(|e| e.name == "rules-check" && e.used),
+            "tracker command feeds the used flag"
+        );
+        let _ = fs::remove_dir_all(&dir);
     }
 }

@@ -1079,7 +1079,7 @@ async fn api_tracker(State(state): State<AppState>) -> Json<Value> {
 }
 
 async fn api_sli(State(state): State<AppState>) -> Json<Value> {
-    Json(json!(sli::wire(&state.repo_root)))
+    Json(json!(sli::wire(&state.repo_root, &state.data_dir)))
 }
 
 async fn api_toolchain(State(state): State<AppState>) -> Json<Value> {
@@ -1425,7 +1425,7 @@ struct CardQuery {
 async fn card_wire(state: &AppState, name: &str, q: &CardQuery) -> Result<Value, ()> {
     let wire = match name {
         "tracker" => tracker_wire(state),
-        "sli" => json!(sli::wire(&state.repo_root)),
+        "sli" => json!(sli::wire(&state.repo_root, &state.data_dir)),
         "toolchain" => json!(toolchain::wire(&state.repo_root)),
         "ratio" => crate::boxes::ratio::wire(&state.data_dir),
         "hooks-tests" => json!(hooks::tests_wire(&state.repo_root)),

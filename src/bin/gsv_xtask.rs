@@ -17,6 +17,19 @@ fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
+/// Record each `cargo xtask <cmd>` into the durable tracker (`data/gsv_tracker.json`,
+/// `kind=="command"`) so the SLI box's `used` flag reflects real invocation.
+/// opencode/Cursor runs are non-interactive `bash -lc` and never touch
+/// `~/.bash_history` — the tracker is the one source that is actually written.
+/// Best-effort: a failed write is ignored and never blocks the task.
+fn record_xtask(root: &std::path::Path, cmd: &str) {
+    use gsv::tracker::{TrackerRecord, TrackerStore};
+    let data = root.join("data");
+    let mut store = TrackerStore::load(root, &data).unwrap_or_default();
+    let rec = TrackerRecord::new("command", format!("cargo xtask {cmd}"), "xtask", "ok");
+    let _ = store.push(&data, rec);
+}
+
 fn main() -> ExitCode {
     let mut args = env::args().skip(1).collect::<Vec<_>>();
     if args.is_empty()
@@ -29,6 +42,7 @@ fn main() -> ExitCode {
     }
     let cmd = args.remove(0);
     let root = repo_root();
+    record_xtask(&root, &cmd);
     match cmd.as_str() {
         "catalog" => {
             println!(

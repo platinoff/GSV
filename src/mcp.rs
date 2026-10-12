@@ -1344,7 +1344,7 @@ async fn call_tool(state: &AppState, params: &Value, session: Option<&str>) -> V
         "gsv_health" => tool_ok(health_payload(state)),
         "gsv_tracker" => tool_ok(tracker_payload(state)),
         "gsv_ratio" => tool_ok(ratio::wire(&state.data_dir)),
-        "gsv_sli" => tool_ok(to_json(sli::wire(&state.repo_root))),
+        "gsv_sli" => tool_ok(to_json(sli::wire(&state.repo_root, &state.data_dir))),
         "gsv_toolchain" => tool_ok(to_json(toolchain::wire(&state.repo_root))),
         "gsv_vision_manifest" => tool_ok(crate::boxes::vision::wire_manifest(
             &state.repo_root,

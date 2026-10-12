@@ -178,6 +178,29 @@ pub fn recent_commands(limit: usize) -> Vec<String> {
         .collect()
 }
 
+/// Read the newest N command labels from the **durable** tracker store
+/// (`{data_dir}/gsv_tracker.json`, `kind == "command"`). This is the record the
+/// `/api/terminal` + `cargo xtask git` paths actually append — unlike
+/// `~/.bash_history` (never written by non-interactive `bash -lc`), so the SLI
+/// used-detector stays truthful for programmatic invocations. Empty when the
+/// store is missing or unparsable (best effort, never panics).
+pub fn command_labels(data_dir: &Path, limit: usize) -> Vec<String> {
+    let Ok(raw) = fs::read_to_string(data_dir.join("gsv_tracker.json")) else {
+        return Vec::new();
+    };
+    let Ok(store) = serde_json::from_str::<TrackerStore>(&raw) else {
+        return Vec::new();
+    };
+    store
+        .records
+        .iter()
+        .rev()
+        .filter(|r| r.kind == "command")
+        .map(|r| r.label.clone())
+        .take(limit)
+        .collect()
+}
+
 fn home_dir() -> Option<PathBuf> {
     std::env::var_os("USERPROFILE")
         .map(PathBuf::from)

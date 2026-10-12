@@ -199,7 +199,7 @@ pub fn collect(repo_root: &Path, data_dir: &Path, live_url: Option<&str>) -> Rul
     }
 
     // sli: unused script candidates are the new-SLI pool, not a hard failure.
-    let sw = sli::wire(repo_root);
+    let sw = sli::wire(repo_root, data_dir);
     let cat = &sw.catalog;
     let unused = cat.unused_count;
     let used = cat.entries.len().saturating_sub(unused);

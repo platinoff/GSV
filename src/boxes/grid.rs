@@ -546,6 +546,34 @@ fn seats_used(v: &Value) -> u64 {
         .unwrap_or(0)
 }
 
+/// Dedup the poolAI worker mirror. The coordinator lists a peer both as a
+/// registered worker (`<id>`) and as a scan entry (`discovered-<id>`), which
+/// double-counts the physical fleet (4 workers for 2 nodes). Drop every
+/// `discovered-<id>` whose base `<id>` is present; keep a lone `discovered-<id>`
+/// (no registered twin) and any entry without an `id`. Non-array input is
+/// returned unchanged.
+fn dedup_workers(v: &Value) -> Value {
+    let Value::Array(arr) = v else {
+        return v.clone();
+    };
+    let ids: Vec<&str> = arr
+        .iter()
+        .filter_map(|w| w.get("id").and_then(Value::as_str))
+        .collect();
+    let out: Vec<Value> = arr
+        .iter()
+        .filter(|w| match w.get("id").and_then(Value::as_str) {
+            Some(id) => match id.strip_prefix("discovered-") {
+                Some(base) => !ids.contains(&base),
+                None => true,
+            },
+            None => true,
+        })
+        .cloned()
+        .collect();
+    Value::Array(out)
+}
+
 /// `{nodes, workers, virtual_nodes}` counts for wire + change key.
 fn counts(store: &GridStore) -> (usize, usize, usize, u64) {
     (
@@ -614,7 +642,7 @@ impl GridBox {
             Err(e) => errors.push(e),
         }
         match self.get_json("workers").await {
-            Ok(v) => next.workers = v,
+            Ok(v) => next.workers = dedup_workers(&v),
             Err(e) => errors.push(e),
         }
         match self.get_json("discovery/virtual-nodes").await {
@@ -912,6 +940,30 @@ mod tests {
             poolai_base_from(Some("http://127.0.0.1:9/api/v1/".into())),
             "http://127.0.0.1:9/api/v1"
         );
+    }
+
+    #[test]
+    fn dedup_workers_drops_registered_twins_keeps_lone() {
+        let arr = json!([
+            {"id": "a54-01"},
+            {"id": "edge-pc-01"},
+            {"id": "discovered-edge-pc-01"},
+            {"id": "discovered-a54-01"},
+            {"id": "discovered-ghost"}
+        ]);
+        let out = dedup_workers(&arr);
+        let ids: Vec<&str> = out
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|w| w["id"].as_str().unwrap())
+            .collect();
+        assert_eq!(ids, vec!["a54-01", "edge-pc-01", "discovered-ghost"]);
+        // id-less entries survive; a lone `discovered-<base>` with no twin stays.
+        let noid = json!([{"name": "x"}, {"id": "a"}, {"id": "discovered-a"}]);
+        assert_eq!(dedup_workers(&noid).as_array().unwrap().len(), 2);
+        // non-array input is returned unchanged (poolAI shape drift tolerant).
+        assert_eq!(dedup_workers(&json!({"x": 1})), json!({"x": 1}));
     }
 
     fn store_stub() -> GridStore {
