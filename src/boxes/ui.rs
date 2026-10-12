@@ -257,6 +257,7 @@ pub const UI_GROUPS: [UiGroup; 4] = [
             "ratio",
             "speed-index",
             "rust-diagnostics",
+            "rust-intel",
             "keep-live",
             "vdc",
         ],
@@ -728,6 +729,61 @@ pub fn render_rust_diagnostics(d: &Value) -> String {
             .map(|c| format!("<kbd>{}</kbd>", esc(&s(c))))
             .collect();
         out.push_str(&format!("<div class='dim'>top: {}</div>", top.join(" ")));
+    }
+    out
+}
+
+/// RustSec/OSV radar card (`/api/ui/card/rust-intel`, GET /api/rust-intel).
+pub fn render_rust_intel(d: &Value) -> String {
+    if let Some(msg) = not_ok(d) {
+        return err_html(&msg);
+    }
+    let c = &d["counts"];
+    let fresh = b(&d["fresh"]);
+    let fcls = if fresh { "ok" } else { "dim" };
+    let mut out = format!(
+        "<div class='dim'>source <kbd>{}</kbd> · deps {} · fresh <span class='{fcls}'>{}</span></div>",
+        esc(&s(&d["source"])),
+        u(&d["deps_total"]),
+        if fresh { "yes" } else { "no" },
+    );
+    out.push_str(&format!(
+        "<div>critical <span class='err'>{}</span> · high <span class='err'>{}</span> · moderate {} · low {} · unknown {}</div>",
+        u(&c["critical"]),
+        u(&c["high"]),
+        u(&c["moderate"]),
+        u(&c["low"]),
+        u(&c["unknown"]),
+    ));
+    let rows = arr(&d["advisories"]);
+    if rows.is_empty() {
+        let hint = s(&d["hint"]);
+        if !hint.is_empty() {
+            out.push_str(&format!("<div class='dim'>{}</div>", esc(&hint)));
+        } else {
+            out.push_str("<div class='ok'>No advisories — Cargo.lock deps clean</div>");
+        }
+    } else {
+        out.push_str(
+            "<table class='intel-tbl'><thead><tr><th>sev</th><th>package</th><th>ver</th><th>id</th><th>summary</th></tr></thead><tbody>",
+        );
+        for a in rows.iter().take(40) {
+            let sev = s(&a["severity"]);
+            let sevcls = match sev.as_str() {
+                "critical" | "high" => "err",
+                "moderate" => "warn",
+                _ => "dim",
+            };
+            out.push_str(&format!(
+                "<tr><td><span class='{sevcls}'>{}</span></td><td>{}</td><td>{}</td><td><kbd>{}</kbd></td><td>{}</td></tr>",
+                esc(&sev),
+                esc(&s(&a["package"])),
+                esc(&s(&a["version"])),
+                esc(&s(&a["id"])),
+                esc(&s(&a["summary"])),
+            ));
+        }
+        out.push_str("</tbody></table>");
     }
     out
 }
@@ -3041,6 +3097,7 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
         "sprint-board" => Some(render_sprint_board(d)),
         "speed-index" => Some(render_speed_index(d)),
         "rust-diagnostics" => Some(render_rust_diagnostics(d)),
+        "rust-intel" => Some(render_rust_intel(d)),
         "omni" => Some(render_omni(d)),
         "health" => Some(render_health(d)),
         "products" => Some(render_products(d)),
@@ -3078,7 +3135,7 @@ pub fn render_card(name: &str, d: &Value) -> Option<String> {
 }
 
 /// Server-rendered card names (stable contract for `/api/ui/card/:name`).
-pub const CARD_NAMES: [&str; 44] = [
+pub const CARD_NAMES: [&str; 45] = [
     "tracker",
     "sli",
     "toolchain",
@@ -3091,6 +3148,7 @@ pub const CARD_NAMES: [&str; 44] = [
     "sprint-board",
     "speed-index",
     "rust-diagnostics",
+    "rust-intel",
     "omni",
     "health",
     "products",
@@ -3618,8 +3676,9 @@ mod tests {
         assert!(render_card("about", &d).is_some());
         assert!(render_card("keep-live", &d).is_some());
         assert!(render_card("vdc", &d).is_some());
+        assert!(render_card("rust-intel", &d).is_some());
         assert!(render_card("nope", &d).is_none());
-        assert_eq!(CARD_NAMES.len(), 44);
+        assert_eq!(CARD_NAMES.len(), 45);
         assert!(CARD_NAMES.contains(&"about"));
         assert!(CARD_NAMES.contains(&"ranks"));
         let chrome = chrome_controls_stylesheet();

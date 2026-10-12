@@ -490,7 +490,11 @@ async fn enrich_severities(client: &reqwest::Client, advisories: &mut [Advisory]
         if sev != "unknown" {
             a.severity = sev;
             if a.summary.is_empty() {
-                a.summary = v.get("summary").and_then(Value::as_str).unwrap_or("").to_string();
+                a.summary = v
+                    .get("summary")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string();
             }
             if a.url.is_empty() {
                 a.url = url;
@@ -537,20 +541,30 @@ pub fn is_fresh(report: &IntelReport) -> bool {
     age_days(&report.generated_at).is_some_and(|d| d <= REPORT_FRESH_DAYS)
 }
 
-/// Read-only wire for `/api/rust-intel` (cached; no network). `ok` is always true.
+/// Read-only wire for `GET /api/rust-intel` and MCP `gsv_rust_updates` (cached;
+/// no network). One flat shape whether or not a cache exists; `ok` always true.
 pub fn wire(data_dir: &Path) -> Value {
     match load(data_dir) {
         Some(r) => json!({
             "ok": true,
             "fresh": is_fresh(&r),
-            "report": r,
+            "source": r.source,
+            "generated_at": r.generated_at,
+            "deps_total": r.deps_total,
+            "queries_attempted": r.queries_attempted,
+            "counts": r.counts,
+            "advisories": r.advisories,
+            "hints": r.hints,
         }),
         None => json!({
             "ok": true,
             "fresh": false,
             "source": "none",
+            "deps_total": 0,
+            "queries_attempted": 0,
             "counts": IntelCounts::default(),
             "advisories": [],
+            "hints": [],
             "hint": "not run — `cargo xtask intel`",
         }),
     }

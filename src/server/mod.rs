@@ -1449,6 +1449,7 @@ async fn card_wire(state: &AppState, name: &str, q: &CardQuery) -> Result<Value,
         "rust-diagnostics" => {
             crate::boxes::vision::wire_rust_diagnostics(&state.repo_root, &state.data_dir)
         }
+        "rust-intel" => crate::boxes::rust_intel::wire(&state.data_dir),
         "sprint-focus" => {
             let theme = crate::boxes::vision::wire_sprint_theme(&state.repo_root, &state.data_dir);
             json!({
