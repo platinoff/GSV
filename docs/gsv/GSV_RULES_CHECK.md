@@ -30,6 +30,7 @@ Report fields: `ok` (sum of hard gates), `at`, `git_head`, `doc`, `checks[]`
 | `ratio` | hard | persisted Rust ratio ≥ formal band 95% (96% stretch advisory) | `src/boxes/ratio.rs` → `audit`/`save`/`load` → `data/rust_ratio.json` |
 | `sli` | soft | SLI catalog used/unused counts (unused = new-SLI candidate pool) | `src/boxes/sli.rs` → `wire`/`SliCatalog::scan` |
 | `bench` | soft | speed index fresh (≤ 31 days; rerun `cargo xtask record-speed`) | `src/boxes/vision.rs` → `read_speed_index` → `docs/vision/speed_index.json` |
+| `rustsec` | hard on fresh crit/high (escape `GSV_RUSTSEC_HARD=off`; else advisory) | cached OSV radar: critical/high advisory on a **fresh** scan fails the drain; stale / unreachable / empty stays advisory | `src/boxes/rust_intel.rs` → `load` + `is_fresh` + `counts` → `data/gsv_rustsec.json` (`cargo xtask intel`) |
 | `live` | soft | running server (`/api/watchdog`) version == crate version (lockstep) | `src/boxes/keep_live.rs` → `probe_http_blocking` |
 
 ## Harness map (what already kept rules pinned)

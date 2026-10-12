@@ -1733,7 +1733,7 @@ async fn drain_prompt_names_always_on_tools() {
     assert!(text.contains("gsv_grid"), "{text}");
     assert!(text.contains("gsv://docs/vdc"), "{text}");
     assert!(text.contains("gsv://docs/agi-path"), "{text}");
-    assert!(text.contains("tool_count (59)"), "{text}");
+    assert!(text.contains("tool_count (60)"), "{text}");
 }
 
 #[tokio::test]

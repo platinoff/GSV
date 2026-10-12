@@ -68,9 +68,14 @@ pub struct IntelReport {
 }
 
 const OSV_BATCH_URL: &str = "https://api.osv.dev/v1/querybatch";
+const OSV_VULN_URL: &str = "https://api.osv.dev/v1/vulns/";
 const OSV_ECOSYSTEM: &str = "crates.io";
 /// Deps per querybatch call (OSV accepts a few hundred; stay modest).
 const BATCH: usize = 128;
+/// Max per-advisory detail fetches to resolve a missing severity (bounds the
+/// blast radius; `querybatch` omits the `severity` CVSS vector that `/v1/vulns`
+/// carries, and most scans surface only a handful).
+const ENRICH_CAP: usize = 40;
 /// Cached report is considered fresh for this many days.
 pub const REPORT_FRESH_DAYS: i64 = 7;
 
@@ -128,9 +133,119 @@ pub fn build_batch_body(deps: &[(String, String)]) -> Value {
     json!({ "queries": queries })
 }
 
+/// Map a CVSS:3.1 base score to a qualitative band (OSV/RustSec thresholds):
+/// <4 low, <7 moderate, <9 high, else critical.
+fn bucket_from_score(score: f64) -> &'static str {
+    if score < 4.0 {
+        "low"
+    } else if score < 7.0 {
+        "moderate"
+    } else if score < 9.0 {
+        "high"
+    } else {
+        "critical"
+    }
+}
+
+/// CVSS v3.1 base-score from a vector string (`CVSS:3.1/AV:N/AC:L/...`). Returns
+/// `None` when the vector is missing metrics or unparsable (fail-open → unknown).
+/// Metric weights per the FIRST.org CVSS v3.1 spec; roundup to 1 decimal.
+pub fn cvss_v3_base_score(vector: &str) -> Option<f64> {
+    let mut av = f64::NAN;
+    let mut ac = f64::NAN;
+    let mut pr = f64::NAN;
+    let mut ui = f64::NAN;
+    let mut scope_changed = false;
+    let mut c = f64::NAN;
+    let mut i = f64::NAN;
+    let mut a = f64::NAN;
+    let metrics = vector.split('/').skip_while(|p| p.starts_with("CVSS:"));
+    for tok in metrics {
+        let mut kv = tok.split(':');
+        let (k, v) = (kv.next()?, kv.next()?);
+        match k {
+            "AV" => {
+                av = match v {
+                    "N" => 0.85,
+                    "A" => 0.62,
+                    "L" => 0.55,
+                    "P" => 0.20,
+                    _ => return None,
+                }
+            }
+            "AC" => {
+                ac = match v {
+                    "L" => 0.77,
+                    "H" => 0.44,
+                    _ => return None,
+                }
+            }
+            "UI" => {
+                ui = match v {
+                    "N" => 0.85,
+                    "R" => 0.62,
+                    _ => return None,
+                }
+            }
+            "S" => scope_changed = v == "C",
+            "C" => {
+                c = match v {
+                    "H" => 0.56,
+                    "L" => 0.22,
+                    "N" => 0.0,
+                    _ => return None,
+                }
+            }
+            "I" => {
+                i = match v {
+                    "H" => 0.56,
+                    "L" => 0.22,
+                    "N" => 0.0,
+                    _ => return None,
+                }
+            }
+            "A" => {
+                a = match v {
+                    "H" => 0.56,
+                    "L" => 0.22,
+                    "N" => 0.0,
+                    _ => return None,
+                }
+            }
+            "PR" => {
+                pr = match (v, scope_changed) {
+                    ("N", _) => 0.85,
+                    ("L", false) => 0.62,
+                    ("L", true) => 0.68,
+                    ("H", false) => 0.27,
+                    ("H", true) => 0.50,
+                    _ => return None,
+                }
+            }
+            _ => {}
+        }
+    }
+    if [av, ac, pr, ui, c, i, a].iter().any(|x| x.is_nan()) {
+        return None;
+    }
+    let iss = 1.0 - ((1.0 - c) * (1.0 - i) * (1.0 - a));
+    let impact = if scope_changed {
+        (7.52 * (iss - 0.029) - 3.25 * (iss - 0.029).powi(15)).max(0.0)
+    } else {
+        6.42 * iss
+    };
+    let exploit = 8.22 * av * ac * pr * ui;
+    Some(roundup((impact + exploit).min(10.0)))
+}
+
+/// CVSS "roundup": smallest number, to one decimal, >= x (first.org Roundup).
+fn roundup(x: f64) -> f64 {
+    (x * 10.0).ceil() / 10.0
+}
+
 /// Severity for an OSV record: `database_specific.severity` when present (GHSA /
-/// many crates.io entries carry it), else `unknown` (CVSS vector bucketing is
-/// #A.2).
+/// many crates.io entries carry it), else the max CVSS v3 base score across the
+/// `severity[]` vectors bucketed, else `unknown`.
 fn severity_from_vuln(v: &Value) -> String {
     let raw = v
         .pointer("/database_specific/severity")
@@ -138,13 +253,26 @@ fn severity_from_vuln(v: &Value) -> String {
         .unwrap_or("")
         .to_ascii_uppercase();
     match raw.as_str() {
-        "CRITICAL" => "critical",
-        "HIGH" => "high",
-        "MODERATE" | "MEDIUM" => "moderate",
-        "LOW" => "low",
-        _ => "unknown",
+        "CRITICAL" => return "critical".into(),
+        "HIGH" => return "high".into(),
+        "MODERATE" | "MEDIUM" => return "moderate".into(),
+        "LOW" => return "low".into(),
+        _ => {}
     }
-    .to_string()
+    if let Some(arr) = v.get("severity").and_then(Value::as_array) {
+        let mut best: Option<f64> = None;
+        for s in arr {
+            if let Some(score_str) = s.get("score").and_then(Value::as_str) {
+                if let Some(sc) = cvss_v3_base_score(score_str) {
+                    best = Some(best.map_or(sc, |b| b.max(sc)));
+                }
+            }
+        }
+        if let Some(sc) = best {
+            return bucket_from_score(sc).to_string();
+        }
+    }
+    "unknown".to_string()
 }
 
 fn bump(counts: &mut IntelCounts, sev: &str) {
@@ -323,6 +451,9 @@ pub async fn collect_live(repo_root: &Path) -> IntelReport {
             Err(msg) => hints.push(msg),
         }
     }
+    // `querybatch` omits the CVSS `severity` vector; resolve any still-unknown
+    // advisory from `/v1/vulns/{id}` (bounded) so critical/high are real, not 0.
+    enrich_severities(&client, &mut advisories).await;
     let source = if hints.len() * 2 >= deps.chunks(BATCH).count() {
         // majority of chunks failed → treat as unreachable but keep whatever parsed
         "unreachable"
@@ -330,6 +461,42 @@ pub async fn collect_live(repo_root: &Path) -> IntelReport {
         "osv"
     };
     finalize(deps.len(), attempted, advisories, source, hints)
+}
+
+/// Resolve missing severities via `/v1/vulns/{id}` for advisories still `unknown`.
+/// Bounded by [`ENRICH_CAP`]; each fetch is best-effort (fail-open → stays
+/// `unknown`). Mutates the `severity`/`summary`/`url` of enriched rows.
+async fn enrich_severities(client: &reqwest::Client, advisories: &mut [Advisory]) {
+    let mut budget = ENRICH_CAP;
+    for a in advisories.iter_mut() {
+        if a.severity != "unknown" || a.id.is_empty() {
+            continue;
+        }
+        if budget == 0 {
+            break;
+        }
+        budget -= 1;
+        let url = format!("{OSV_VULN_URL}{}", a.id);
+        let Ok(resp) = client.get(&url).send().await else {
+            continue;
+        };
+        if !resp.status().is_success() {
+            continue;
+        }
+        let Ok(v) = resp.json::<Value>().await else {
+            continue;
+        };
+        let sev = severity_from_vuln(&v);
+        if sev != "unknown" {
+            a.severity = sev;
+            if a.summary.is_empty() {
+                a.summary = v.get("summary").and_then(Value::as_str).unwrap_or("").to_string();
+            }
+            if a.url.is_empty() {
+                a.url = url;
+            }
+        }
+    }
 }
 
 /// Durable cache path.
@@ -477,11 +644,48 @@ version = "1.0.201"
     }
 
     #[test]
-    fn severity_defaults_unknown_without_database_specific() {
+    fn severity_defaults_unknown_without_database_specific_or_vector() {
         let deps = vec![("x".to_string(), "0.1.0".to_string())];
         let body = json!({ "results": [ { "vulns": [ { "id": "RUSTSEC-1", "summary": "s" } ] } ] });
         let ad = parse_osv(&body, &deps);
         assert_eq!(ad[0].severity, "unknown");
+    }
+
+    #[test]
+    fn cvss_v3_base_score_matches_reference() {
+        // rustls 2026 advisory vector → 5.3 moderate.
+        assert_eq!(
+            cvss_v3_base_score("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N"),
+            Some(5.3)
+        );
+        // full scope-changed critical → 10.0.
+        assert_eq!(
+            cvss_v3_base_score("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H"),
+            Some(10.0)
+        );
+        // malformed metric value → None (fail-open to unknown).
+        assert_eq!(
+            cvss_v3_base_score("CVSS:3.1/AV:Z/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"),
+            None
+        );
+        assert_eq!(bucket_from_score(9.0), "critical");
+        assert_eq!(bucket_from_score(7.0), "high");
+        assert_eq!(bucket_from_score(5.3), "moderate");
+        assert_eq!(bucket_from_score(2.9), "low");
+    }
+
+    #[test]
+    fn parse_osv_buckets_from_cvss_vector_when_no_database_severity() {
+        let deps = vec![("rustls".to_string(), "0.23.44".to_string())];
+        let body = json!({
+            "results": [ { "vulns": [ {
+                "id": "RUSTSEC-2026-0285",
+                "summary": "PKCS#1 parsing panic",
+                "severity": [{ "type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N" }]
+            } ] } ]
+        });
+        let ad = parse_osv(&body, &deps);
+        assert_eq!(ad[0].severity, "moderate");
     }
 
     #[test]

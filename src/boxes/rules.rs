@@ -14,6 +14,9 @@
 //!   formal band (`ratio::load`); the 96% stretch is advisory.
 //! - `sli` — unused script candidates (new-SLI pool) — advisory.
 //! - `bench` — speed-index freshness (re-`record-speed`) — advisory.
+//! - `rustsec` — cached OSV radar (`cargo xtask intel`): HARD when a fresh scan
+//!   finds a critical/high advisory (escape: `GSV_RUSTSEC_HARD=off`) — advisory
+//!   when stale / unreachable / empty.
 //! - `live` — when a live URL is passed, the running server's crate version
 //!   matches this crate (`keep_live::probe_http_blocking`) — advisory.
 //!
@@ -240,22 +243,39 @@ pub fn collect(repo_root: &Path, data_dir: &Path, live_url: Option<&str>) -> Rul
         )),
     }
 
-    // rustsec: cached OSV radar report (cargo xtask intel). Soft advisory in #A —
-    // never fails the drain; the HARD CRITICAL/HIGH gate lands in #A.2 once CVSS
-    // base-score bucketing is reliable. Reads only the on-disk cache (no network).
+    // rustsec: cached OSV radar report (cargo xtask intel). HARD when a **fresh**
+    // scan found a critical/high advisory; soft otherwise (stale / unreachable /
+    // offline never blocks the drain). Owner escape: GSV_RUSTSEC_HARD=off.
     let intel = crate::boxes::rust_intel::load(data_dir);
-    let intel_detail = match &intel {
+    let hard_off = std::env::var("GSV_RUSTSEC_HARD")
+        .map(|v| v.eq_ignore_ascii_case("off"))
+        .unwrap_or(false);
+    let (intel_ok, intel_detail) = match &intel {
         Some(r) => {
             let c = &r.counts;
             let fresh = crate::boxes::rust_intel::is_fresh(r);
-            format!(
-                "source {} · deps {} · advisories {} (crit {} high {} mod {} low {} unk {}) · fresh {} · {}",
-                r.source, r.deps_total, c.total, c.critical, c.high, c.moderate, c.low, c.unknown, fresh, r.generated_at
+            let blocking = !hard_off && fresh && (c.critical > 0 || c.high > 0);
+            (
+                !blocking,
+                format!(
+                    "source {} · deps {} · advisories {} (crit {} high {} mod {} low {} unk {}) · fresh {} · hard {} · {}",
+                    r.source,
+                    r.deps_total,
+                    c.total,
+                    c.critical,
+                    c.high,
+                    c.moderate,
+                    c.low,
+                    c.unknown,
+                    fresh,
+                    if hard_off { "off" } else { "crit+high" },
+                    r.generated_at
+                ),
             )
         }
-        None => "not run (cargo xtask intel)".to_string(),
+        None => (true, "not run (cargo xtask intel)".to_string()),
     };
-    checks.push(RuleCheck::soft("rustsec", true, intel_detail));
+    checks.push(RuleCheck::check(true, "rustsec", intel_ok, intel_detail));
 
     // live: optional running-server version lockstep probe.
     match live_url {
@@ -373,10 +393,8 @@ mod tests {
             .all(|id| r.checks.iter().any(|c| c.id == *id && c.gate && !c.ok)));
         assert!(r.checks.iter().any(|c| c.id == "live" && !c.gate));
         assert!(
-            r.checks
-                .iter()
-                .any(|c| c.id == "rustsec" && !c.gate && c.ok),
-            "rustsec must be a soft, fail-open gate"
+            r.checks.iter().any(|c| c.id == "rustsec" && c.gate && c.ok),
+            "rustsec must be a hard gate, ok on an empty tree (no cache)"
         );
         let _ = fs::remove_dir_all(&dir);
     }

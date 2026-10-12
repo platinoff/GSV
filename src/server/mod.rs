@@ -158,6 +158,7 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/tickets/next", post(api_tickets_next))
         .route("/api/mds", get(api_mds))
+        .route("/api/rust-intel", get(api_rust_intel))
         .route("/api/xtask", get(api_xtask))
         .route("/api/disk", get(api_disk))
         .route("/api/tracker", get(api_tracker))
@@ -1018,7 +1019,7 @@ async fn api_index() -> Json<Value> {
         "categories": [
             "/api/vision/", "/api/ui/", "/api/ratio/", "/api/toolchain/",
             "/api/ide/", "/api/omni/", "/api/sli", "/api/tracker", "/api/products",
-            "/api/fingerprints", "/api/ranks", "/api/sw", "/api/watchdog", "/api/usage", "/api/settings", "/api/telegram", "/api/telegram/bus", "/api/telegram/ticket", "/api/telegram/poll", "/api/telegram/decode", "/api/tickets", "/api/mds", "/api/xtask", "/api/disk", "/api/grid", "/api/edge", "/api/apk", "/sw.js",
+            "/api/fingerprints", "/api/ranks", "/api/sw", "/api/watchdog", "/api/usage", "/api/settings", "/api/telegram", "/api/telegram/bus", "/api/telegram/ticket", "/api/telegram/poll", "/api/telegram/decode", "/api/tickets", "/api/mds", "/api/rust-intel", "/api/xtask", "/api/disk", "/api/grid", "/api/edge", "/api/apk", "/sw.js",
             "/api/hooks/", "/api/preview", "/api/terminal", "/data/", "/mcp"
         ],
         "example": "/api/vision",
@@ -1080,6 +1081,10 @@ async fn api_tracker(State(state): State<AppState>) -> Json<Value> {
 
 async fn api_sli(State(state): State<AppState>) -> Json<Value> {
     Json(json!(sli::wire(&state.repo_root, &state.data_dir)))
+}
+
+async fn api_rust_intel(State(state): State<AppState>) -> Json<Value> {
+    Json(crate::boxes::rust_intel::wire(&state.data_dir))
 }
 
 async fn api_toolchain(State(state): State<AppState>) -> Json<Value> {
