@@ -427,6 +427,18 @@ fn main() -> ExitCode {
                 for h in &report.hints {
                     eprintln!("  hint: {h}");
                 }
+                let uc = &report.update_counts;
+                println!(
+                    "framework: direct {} current {} behind major {} minor {} patch {} unknown {}",
+                    report.deps_direct, uc.current, uc.major, uc.minor, uc.patch, uc.unknown
+                );
+                for u in report
+                    .updates
+                    .iter()
+                    .filter(|u| u.kind == "major" || u.kind == "minor" || u.kind == "patch")
+                {
+                    println!("  [{}] {} {} -> {}", u.kind, u.name, u.installed, u.latest);
+                }
                 println!(
                     "rust-intel: cached {}",
                     gsv::boxes::rust_intel::path(&data).display()

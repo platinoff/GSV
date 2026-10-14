@@ -88,7 +88,7 @@ pub const TASKS: &[(&str, &str)] = &[
     ("sync", "Vision snapshot sync (`--check` = drift gate)"),
     (
         "intel",
-        "RustSec/OSV radar over Cargo.lock deps → data/gsv_rustsec.json (`--dry-run` / `--json`; soft rules-check gate)",
+        "RustSec/OSV security + framework-freshness radar over Cargo.lock/Cargo.toml → data/gsv_rustsec.json (`--dry-run` / `--json`; rustsec HARD + fresh SOFT gates)",
     ),
     (
         "vault-note",

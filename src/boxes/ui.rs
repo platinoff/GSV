@@ -785,6 +785,45 @@ pub fn render_rust_intel(d: &Value) -> String {
         }
         out.push_str("</tbody></table>");
     }
+    // #B framework freshness over direct Cargo.toml deps (crates.io latest).
+    let uc = &d["update_counts"];
+    let behind = u(uc.get("patch").unwrap_or(&Value::Null))
+        + u(uc.get("minor").unwrap_or(&Value::Null))
+        + u(uc.get("major").unwrap_or(&Value::Null));
+    out.push_str(&format!(
+        "<div style='margin-top:8px'>framework: direct {} · current {} · <span class='warn'>behind {}</span> (major <span class='err'>{}</span> minor {} patch {}) unknown {}</div>",
+        u(&d["deps_direct"]),
+        u(uc.get("current").unwrap_or(&Value::Null)),
+        behind,
+        u(uc.get("major").unwrap_or(&Value::Null)),
+        u(uc.get("minor").unwrap_or(&Value::Null)),
+        u(uc.get("patch").unwrap_or(&Value::Null)),
+        u(uc.get("unknown").unwrap_or(&Value::Null)),
+    ));
+    let urows: Vec<Value> = arr(&d["updates"])
+        .into_iter()
+        .filter(|x| {
+            let k = s(&x["kind"]);
+            k == "minor" || k == "major" || k == "patch"
+        })
+        .collect();
+    if !urows.is_empty() {
+        out.push_str(
+            "<table class='fresh-tbl'><thead><tr><th>crate</th><th>installed</th><th>latest</th><th>gap</th></tr></thead><tbody>",
+        );
+        for x in urows.iter().take(30) {
+            let k = s(&x["kind"]);
+            let kcls = if k == "major" { "err" } else { "warn" };
+            out.push_str(&format!(
+                "<tr><td>{}</td><td>{}</td><td>{}</td><td><span class='{kcls}'>{}</span></td></tr>",
+                esc(&s(&x["name"])),
+                esc(&s(&x["installed"])),
+                esc(&s(&x["latest"])),
+                esc(&k),
+            ));
+        }
+        out.push_str("</tbody></table>");
+    }
     out
 }
 

@@ -277,6 +277,27 @@ pub fn collect(repo_root: &Path, data_dir: &Path, live_url: Option<&str>) -> Rul
     };
     checks.push(RuleCheck::check(true, "rustsec", intel_ok, intel_detail));
 
+    // #B framework freshness: direct Cargo.toml deps behind crates.io. Soft /
+    // advisory — never blocks (majors are a human decision, not a build break).
+    let fresh_detail = match &intel {
+        Some(r) => {
+            let uc = &r.update_counts;
+            format!(
+                "source {} · direct {} · current {} · behind major {} minor {} patch {} · unknown {} · fresh {}",
+                r.source,
+                r.deps_direct,
+                uc.current,
+                uc.major,
+                uc.minor,
+                uc.patch,
+                uc.unknown,
+                crate::boxes::rust_intel::is_fresh(r)
+            )
+        }
+        None => "not run (cargo xtask intel)".to_string(),
+    };
+    checks.push(RuleCheck::soft("fresh", true, fresh_detail));
+
     // live: optional running-server version lockstep probe.
     match live_url {
         Some(url) => {

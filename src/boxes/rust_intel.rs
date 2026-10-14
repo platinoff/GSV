@@ -52,6 +52,28 @@ pub struct IntelCounts {
     pub unknown: usize,
 }
 
+/// One direct-dependency freshness row (#B).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CrateUpdate {
+    pub name: String,
+    /// installed version from `Cargo.lock`
+    pub installed: String,
+    /// `max_stable_version` from crates.io (empty when lookup failed)
+    pub latest: String,
+    /// current | patch | minor | major | unknown
+    pub kind: String,
+}
+
+/// Freshness bucket counts (#B).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct UpdateCounts {
+    pub current: usize,
+    pub patch: usize,
+    pub minor: usize,
+    pub major: usize,
+    pub unknown: usize,
+}
+
 /// Full radar report. `ok` is always true (fail-open, like keep-live `disk_ok`).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct IntelReport {
@@ -65,6 +87,13 @@ pub struct IntelReport {
     pub advisories: Vec<Advisory>,
     #[serde(default)]
     pub hints: Vec<String>,
+    /// #B framework freshness over direct `Cargo.toml` deps (crates.io latest).
+    #[serde(default)]
+    pub deps_direct: usize,
+    #[serde(default)]
+    pub updates: Vec<CrateUpdate>,
+    #[serde(default)]
+    pub update_counts: UpdateCounts,
 }
 
 const OSV_BATCH_URL: &str = "https://api.osv.dev/v1/querybatch";
@@ -361,7 +390,157 @@ pub fn finalize(
         counts,
         advisories,
         hints,
+        deps_direct: 0,
+        updates: Vec::new(),
+        update_counts: UpdateCounts::default(),
     }
+}
+
+const CRATES_API: &str = "https://crates.io/api/v1/crates/";
+
+/// Direct dependency names from the `dependencies` / `dev-dependencies` /
+/// `build-dependencies` tables of `Cargo.toml` (excludes workspace/path entries
+/// that have no crates.io identity). Best-effort: empty on a parse miss.
+pub fn parse_cargo_direct_deps(repo_root: &Path) -> Vec<String> {
+    let Ok(raw) = fs::read_to_string(repo_root.join("Cargo.toml")) else {
+        return Vec::new();
+    };
+    let Ok(doc) = raw.parse::<toml::Table>() else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for table in ["dependencies", "dev-dependencies", "build-dependencies"] {
+        if let Some(dep) = doc.get(table).and_then(|v| v.as_table()) {
+            for name in dep.keys() {
+                out.push(name.clone());
+            }
+        }
+    }
+    out.sort();
+    out.dedup();
+    out
+}
+
+/// `name -> installed version` from `Cargo.lock` (first occurrence wins).
+pub fn installed_versions(repo_root: &Path) -> std::collections::HashMap<String, String> {
+    let mut m = std::collections::HashMap::new();
+    for (n, v) in parse_lock_deps(repo_root) {
+        m.entry(n).or_insert(v);
+    }
+    m
+}
+
+/// `.crate.max_stable_version` from a crates.io `/api/v1/crates/{name}` body.
+pub fn latest_from_crates(body: &Value) -> Option<String> {
+    body.get("crate")?
+        .get("max_stable_version")?
+        .as_str()
+        .map(|s| s.to_string())
+}
+
+fn semver(v: &str) -> Option<(u64, u64, u64)> {
+    let core = v.split(['-', '+']).next().unwrap_or(v);
+    let mut it = core.split('.');
+    let a = it.next()?.parse().ok()?;
+    let b = it.next().unwrap_or("0").parse().unwrap_or(0);
+    let c = it.next().unwrap_or("0").parse().unwrap_or(0);
+    Some((a, b, c))
+}
+
+/// Classify an installed→latest gap: current | patch | minor | major | unknown.
+pub fn semver_kind(installed: &str, latest: &str) -> &'static str {
+    let (ia, ib, ic) = match semver(installed) {
+        Some(x) => x,
+        None => return "unknown",
+    };
+    let (la, lb, lc) = match semver(latest) {
+        Some(x) => x,
+        None => return "unknown",
+    };
+    if (ia, ib, ic) >= (la, lb, lc) {
+        "current"
+    } else if ia != la {
+        "major"
+    } else if ib != lb {
+        "minor"
+    } else {
+        "patch"
+    }
+}
+
+/// Pure freshness builder: for each direct dep with an installed version, map
+/// its crates.io latest (via `latest_of`) into a classified `CrateUpdate`. A dep
+/// with no lookup yields kind `unknown`. Testable without network.
+pub fn build_updates<F: Fn(&str) -> Option<String>>(
+    deps: &[String],
+    installed: &std::collections::HashMap<String, String>,
+    latest_of: F,
+) -> (Vec<CrateUpdate>, UpdateCounts) {
+    let mut updates = Vec::new();
+    let mut counts = UpdateCounts::default();
+    for name in deps {
+        let Some(inst) = installed.get(name) else {
+            continue;
+        };
+        let latest = latest_of(name).unwrap_or_default();
+        let kind = if latest.is_empty() {
+            "unknown"
+        } else {
+            semver_kind(inst, &latest)
+        };
+        match kind {
+            "current" => counts.current += 1,
+            "patch" => counts.patch += 1,
+            "minor" => counts.minor += 1,
+            "major" => counts.major += 1,
+            _ => counts.unknown += 1,
+        }
+        updates.push(CrateUpdate {
+            name: name.clone(),
+            installed: inst.clone(),
+            latest,
+            kind: kind.to_string(),
+        });
+    }
+    (updates, counts)
+}
+
+/// Fetch crates.io `max_stable_version` for one crate (best-effort, UA required
+/// by crates.io). None on any failure.
+async fn crates_latest(client: &reqwest::Client, name: &str) -> Option<String> {
+    let url = format!("{CRATES_API}{name}");
+    let resp = client
+        .get(&url)
+        .header(
+            reqwest::header::USER_AGENT,
+            "gsv-radar/1.0 (security radar)",
+        )
+        .send()
+        .await
+        .ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
+    let body = resp.json::<Value>().await.ok()?;
+    latest_from_crates(&body)
+}
+
+/// #B freshness over direct deps: crates.io latest per dep, classified. Bounded
+/// to [`ENRICH_CAP`] lookups (most direct dep sets are well under that).
+async fn collect_freshness(
+    client: &reqwest::Client,
+    repo_root: &Path,
+) -> (Vec<CrateUpdate>, UpdateCounts, usize) {
+    let deps = parse_cargo_direct_deps(repo_root);
+    let installed = installed_versions(repo_root);
+    let mut latests = std::collections::HashMap::new();
+    for name in deps.iter().take(ENRICH_CAP) {
+        if let Some(v) = crates_latest(client, name).await {
+            latests.insert(name.clone(), v);
+        }
+    }
+    let (updates, counts) = build_updates(&deps, &installed, |n| latests.get(n).cloned());
+    (updates, counts, deps.len())
 }
 
 /// Canned dry-run report (2 advisories) so the card / rules-check have a stable
@@ -387,13 +566,42 @@ pub fn collect_dry() -> IntelReport {
             url: "https://osv.dev/vulnerability/RUSTSEC-2022-0000".into(),
         },
     ];
-    finalize(
+    let mut report = finalize(
         advisories.len(),
         advisories.len(),
         advisories,
         "dry-run",
         vec![],
-    )
+    );
+    report.deps_direct = 3;
+    report.updates = vec![
+        CrateUpdate {
+            name: "example-current".into(),
+            installed: "1.2.3".into(),
+            latest: "1.2.3".into(),
+            kind: "current".into(),
+        },
+        CrateUpdate {
+            name: "axum".into(),
+            installed: "0.7.0".into(),
+            latest: "0.8.9".into(),
+            kind: "minor".into(),
+        },
+        CrateUpdate {
+            name: "legacy".into(),
+            installed: "1.0.0".into(),
+            latest: "2.1.0".into(),
+            kind: "major".into(),
+        },
+    ];
+    report.update_counts = UpdateCounts {
+        current: 1,
+        patch: 0,
+        minor: 1,
+        major: 1,
+        unknown: 0,
+    };
+    report
 }
 
 /// Live OSV sweep over `Cargo.lock`. Never panics / never blocks the drain: any
@@ -454,13 +662,19 @@ pub async fn collect_live(repo_root: &Path) -> IntelReport {
     // `querybatch` omits the CVSS `severity` vector; resolve any still-unknown
     // advisory from `/v1/vulns/{id}` (bounded) so critical/high are real, not 0.
     enrich_severities(&client, &mut advisories).await;
+    // #B framework freshness (same client, bounded, fail-open).
+    let (updates, update_counts, deps_direct) = collect_freshness(&client, repo_root).await;
     let source = if hints.len() * 2 >= deps.chunks(BATCH).count() {
         // majority of chunks failed → treat as unreachable but keep whatever parsed
         "unreachable"
     } else {
         "osv"
     };
-    finalize(deps.len(), attempted, advisories, source, hints)
+    let mut report = finalize(deps.len(), attempted, advisories, source, hints);
+    report.updates = updates;
+    report.update_counts = update_counts;
+    report.deps_direct = deps_direct;
+    report
 }
 
 /// Resolve missing severities via `/v1/vulns/{id}` for advisories still `unknown`.
@@ -551,9 +765,12 @@ pub fn wire(data_dir: &Path) -> Value {
             "source": r.source,
             "generated_at": r.generated_at,
             "deps_total": r.deps_total,
+            "deps_direct": r.deps_direct,
             "queries_attempted": r.queries_attempted,
             "counts": r.counts,
+            "update_counts": r.update_counts,
             "advisories": r.advisories,
+            "updates": r.updates,
             "hints": r.hints,
         }),
         None => json!({
@@ -561,9 +778,12 @@ pub fn wire(data_dir: &Path) -> Value {
             "fresh": false,
             "source": "none",
             "deps_total": 0,
+            "deps_direct": 0,
             "queries_attempted": 0,
             "counts": IntelCounts::default(),
+            "update_counts": UpdateCounts::default(),
             "advisories": [],
+            "updates": [],
             "hints": [],
             "hint": "not run — `cargo xtask intel`",
         }),
@@ -710,6 +930,88 @@ version = "1.0.201"
         assert_eq!(r.counts.total, 2);
         assert_eq!(r.counts.high, 1);
         assert_eq!(r.counts.moderate, 1);
+        // #B freshness fixture present + counts add up.
+        assert_eq!(r.deps_direct, 3);
+        assert_eq!(r.updates.len(), 3);
+        assert_eq!(r.update_counts.current, 1);
+        assert_eq!(r.update_counts.minor, 1);
+        assert_eq!(r.update_counts.major, 1);
+    }
+
+    #[test]
+    fn semver_kind_matrix() {
+        assert_eq!(semver_kind("1.2.3", "1.2.3"), "current");
+        assert_eq!(semver_kind("1.2.3", "1.2.9"), "patch");
+        assert_eq!(semver_kind("0.7.0", "0.8.9"), "minor");
+        assert_eq!(semver_kind("1.9.9", "2.0.0"), "major");
+        assert_eq!(semver_kind("2.0.0", "1.9.0"), "current"); // ahead → current
+        assert_eq!(semver_kind("0.8", "0.8.9"), "patch"); // 0.8 == 0.8.0
+        assert_eq!(semver_kind("garbage", "1.0.0"), "unknown");
+        assert_eq!(semver_kind("1.0.0", ""), "unknown");
+    }
+
+    #[test]
+    fn build_updates_classifies_and_counts() {
+        use std::collections::HashMap;
+        let deps = vec![
+            "axum".to_string(),
+            "tokio".to_string(),
+            "mystery".to_string(),
+        ];
+        let mut installed = HashMap::new();
+        installed.insert("axum".to_string(), "0.7.0".to_string());
+        installed.insert("tokio".to_string(), "1.53.0".to_string());
+        installed.insert("mystery".to_string(), "0.1.0".to_string());
+        let (updates, counts) = build_updates(&deps, &installed, |n| match n {
+            "axum" => Some("0.8.9".to_string()),
+            "tokio" => Some("1.53.0".to_string()),
+            _ => None, // mystery → lookup failed → unknown
+        });
+        assert_eq!(updates.len(), 3);
+        assert_eq!(counts.minor, 1); // axum
+        assert_eq!(counts.current, 1); // tokio
+        assert_eq!(counts.unknown, 1); // mystery
+        let axum = updates.iter().find(|u| u.name == "axum").unwrap();
+        assert_eq!(axum.kind, "minor");
+        assert_eq!(axum.latest, "0.8.9");
+    }
+
+    #[test]
+    fn parse_cargo_direct_deps_reads_tables() {
+        let d = tmp("cargo");
+        fs::write(
+            d.join("Cargo.toml"),
+            r#"[package]
+name = "x"
+version = "0.1.0"
+
+[dependencies]
+axum = "0.8"
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+tokio = "1"
+
+[[bin]]
+name = "x"
+path = "src/main.rs"
+"#,
+        )
+        .unwrap();
+        let deps = parse_cargo_direct_deps(&d);
+        assert_eq!(
+            deps,
+            vec!["axum".to_string(), "serde".to_string(), "tokio".to_string()]
+        );
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn latest_from_crates_reads_max_stable() {
+        let body =
+            json!({ "crate": { "max_stable_version": "0.8.9", "newest_version": "0.9.0-beta" } });
+        assert_eq!(latest_from_crates(&body).as_deref(), Some("0.8.9"));
+        assert_eq!(latest_from_crates(&json!({})).as_deref(), None);
     }
 
     #[test]
