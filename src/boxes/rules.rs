@@ -283,7 +283,7 @@ pub fn collect(repo_root: &Path, data_dir: &Path, live_url: Option<&str>) -> Rul
         Some(r) => {
             let uc = &r.update_counts;
             format!(
-                "source {} · direct {} · current {} · behind major {} minor {} patch {} · unknown {} · fresh {}",
+                "source {} · direct {} · current {} · behind major {} minor {} patch {} · unknown {} · proposals {} · fresh {}",
                 r.source,
                 r.deps_direct,
                 uc.current,
@@ -291,6 +291,7 @@ pub fn collect(repo_root: &Path, data_dir: &Path, live_url: Option<&str>) -> Rul
                 uc.minor,
                 uc.patch,
                 uc.unknown,
+                r.proposals.len(),
                 crate::boxes::rust_intel::is_fresh(r)
             )
         }

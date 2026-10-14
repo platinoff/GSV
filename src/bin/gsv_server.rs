@@ -102,6 +102,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         state.ticket_presence.clone(),
     );
     gsv::boxes::grid::spawn_grid_loop(std::sync::Arc::clone(&state.grid), state.events.clone());
+    // #C.1 gated intel cadence tick — no-op unless GSV_RUSTSEC_TICK=1 (offline-first).
+    gsv::boxes::rust_intel::spawn_tick((*state.repo_root).clone(), (*state.data_dir).clone());
 
     let addr: SocketAddr = format!("{host}:{port}").parse()?;
     let app = gsv::server::router(state.clone());

@@ -439,6 +439,12 @@ fn main() -> ExitCode {
                 {
                     println!("  [{}] {} {} -> {}", u.kind, u.name, u.installed, u.latest);
                 }
+                if !report.proposals.is_empty() {
+                    println!("proposals ({}):", report.proposals.len());
+                    for p in &report.proposals {
+                        println!("  [{}] {} :: {}", p.reason, p.crate_name, p.command);
+                    }
+                }
                 println!(
                     "rust-intel: cached {}",
                     gsv::boxes::rust_intel::path(&data).display()

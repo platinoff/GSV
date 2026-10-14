@@ -824,6 +824,24 @@ pub fn render_rust_intel(d: &Value) -> String {
         }
         out.push_str("</tbody></table>");
     }
+    let props = arr(&d["proposals"]);
+    if !props.is_empty() {
+        out.push_str(&format!(
+            "<div style='margin-top:8px'>updates to run ({})</div><table class='patch-tbl'><thead><tr><th>why</th><th>crate</th><th>cmd</th></tr></thead><tbody>",
+            props.len()
+        ));
+        for p in props.iter().take(20) {
+            let why = s(&p["reason"]);
+            let wcls = if why == "security" { "err" } else { "warn" };
+            out.push_str(&format!(
+                "<tr><td><span class='{wcls}'>{}</span></td><td>{}</td><td><kbd>{}</kbd></td></tr>",
+                esc(&why),
+                esc(&s(&p["crate_name"])),
+                esc(&s(&p["command"])),
+            ));
+        }
+        out.push_str("</tbody></table><div class='dim'>proposals only — apply via the command, nothing runs silently.</div>");
+    }
     out
 }
 

@@ -74,6 +74,19 @@ pub struct UpdateCounts {
     pub unknown: usize,
 }
 
+/// An actionable `cargo update` hint (#C.2). Proposal only — never applied
+/// silently; the owner (or a gated tick) decides.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PatchProposal {
+    pub crate_name: String,
+    pub from: String,
+    pub to: String,
+    /// "security" | "patch" | "minor" — why the bump is suggested.
+    pub reason: String,
+    /// Ready-to-run command the owner can paste.
+    pub command: String,
+}
+
 /// Full radar report. `ok` is always true (fail-open, like keep-live `disk_ok`).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct IntelReport {
@@ -94,6 +107,8 @@ pub struct IntelReport {
     pub updates: Vec<CrateUpdate>,
     #[serde(default)]
     pub update_counts: UpdateCounts,
+    #[serde(default)]
+    pub proposals: Vec<PatchProposal>,
 }
 
 const OSV_BATCH_URL: &str = "https://api.osv.dev/v1/querybatch";
@@ -393,6 +408,7 @@ pub fn finalize(
         deps_direct: 0,
         updates: Vec::new(),
         update_counts: UpdateCounts::default(),
+        proposals: Vec::new(),
     }
 }
 
@@ -543,6 +559,73 @@ async fn collect_freshness(
     (updates, counts, deps.len())
 }
 
+/// #C.2 actionable `cargo update` hints derived from the report — proposals
+/// only, never applied silently. A blanket refresh when any security advisory
+/// is present, plus a targeted bump per direct dep that is behind by patch/minor
+/// (majors are a human decision, so excluded here).
+pub fn patch_proposals(report: &IntelReport) -> Vec<PatchProposal> {
+    let mut out = Vec::new();
+    let has_sec =
+        report.counts.critical + report.counts.high + report.counts.moderate + report.counts.low
+            > 0;
+    if has_sec {
+        out.push(PatchProposal {
+            crate_name: "(all)".into(),
+            from: String::new(),
+            to: String::new(),
+            reason: "security".into(),
+            command: "cargo update".into(),
+        });
+    }
+    for u in &report.updates {
+        if u.kind == "patch" || u.kind == "minor" {
+            out.push(PatchProposal {
+                crate_name: u.name.clone(),
+                from: u.installed.clone(),
+                to: u.latest.clone(),
+                reason: u.kind.clone(),
+                command: format!("cargo update -p {}", u.name),
+            });
+        }
+    }
+    out
+}
+
+/// #C.1 cadence tick is opt-in: only runs when `GSV_RUSTSEC_TICK=1` so an
+/// offline-first hub never reaches the network unless the owner enables it.
+pub fn tick_enabled() -> bool {
+    std::env::var("GSV_RUSTSEC_TICK").is_ok_and(|v| v == "1")
+}
+
+/// Tick period from `GSV_RUSTSEC_TICK_SECS` (floor 300s), default 3600s.
+pub fn tick_interval_secs() -> u64 {
+    std::env::var("GSV_RUSTSEC_TICK_SECS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .filter(|n| *n >= 300)
+        .unwrap_or(3600)
+}
+
+/// Spawn the gated background intel sweep (no-op unless [`tick_enabled`]). Runs
+/// inside the server's tokio runtime; refreshes the on-disk cache so `rules-check`
+/// / the card / MCP stay current between drains without a manual `cargo xtask intel`.
+pub fn spawn_tick(repo_root: PathBuf, data_dir: PathBuf) {
+    if !tick_enabled() {
+        return;
+    }
+    let interval = std::time::Duration::from_secs(tick_interval_secs());
+    tokio::spawn(async move {
+        let mut tk = tokio::time::interval(interval);
+        tk.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        loop {
+            tk.tick().await;
+            let mut report = collect_live(&repo_root).await;
+            report.proposals = patch_proposals(&report);
+            let _ = save(&data_dir, &report);
+        }
+    });
+}
+
 /// Canned dry-run report (2 advisories) so the card / rules-check have a stable
 /// offline fixture and `--dry-run` demos without network.
 pub fn collect_dry() -> IntelReport {
@@ -601,6 +684,7 @@ pub fn collect_dry() -> IntelReport {
         major: 1,
         unknown: 0,
     };
+    report.proposals = patch_proposals(&report);
     report
 }
 
@@ -674,6 +758,7 @@ pub async fn collect_live(repo_root: &Path) -> IntelReport {
     report.updates = updates;
     report.update_counts = update_counts;
     report.deps_direct = deps_direct;
+    report.proposals = patch_proposals(&report);
     report
 }
 
@@ -771,6 +856,7 @@ pub fn wire(data_dir: &Path) -> Value {
             "update_counts": r.update_counts,
             "advisories": r.advisories,
             "updates": r.updates,
+            "proposals": r.proposals,
             "hints": r.hints,
         }),
         None => json!({
@@ -784,6 +870,7 @@ pub fn wire(data_dir: &Path) -> Value {
             "update_counts": UpdateCounts::default(),
             "advisories": [],
             "updates": [],
+            "proposals": [],
             "hints": [],
             "hint": "not run — `cargo xtask intel`",
         }),
@@ -1012,6 +1099,84 @@ path = "src/main.rs"
             json!({ "crate": { "max_stable_version": "0.8.9", "newest_version": "0.9.0-beta" } });
         assert_eq!(latest_from_crates(&body).as_deref(), Some("0.8.9"));
         assert_eq!(latest_from_crates(&json!({})).as_deref(), None);
+    }
+
+    #[test]
+    fn patch_proposals_are_security_plus_behind_only() {
+        let mut r = finalize(3, 3, Vec::new(), "osv", vec![]);
+        r.advisories = vec![Advisory {
+            id: "RUSTSEC-1".into(),
+            package: "rustls".into(),
+            version: "0.23.44".into(),
+            severity: "high".into(),
+            summary: "x".into(),
+            aliases: vec![],
+            url: String::new(),
+        }];
+        r.counts.high = 1;
+        r.counts.total = 1;
+        r.updates = vec![
+            CrateUpdate {
+                name: "tower-http".into(),
+                installed: "0.6.0".into(),
+                latest: "0.7.1".into(),
+                kind: "minor".into(),
+            },
+            CrateUpdate {
+                name: "tokio".into(),
+                installed: "1.53.0".into(),
+                latest: "2.0.0".into(),
+                kind: "major".into(),
+            },
+            CrateUpdate {
+                name: "serde".into(),
+                installed: "1.0.2".into(),
+                latest: "1.0.2".into(),
+                kind: "current".into(),
+            },
+        ];
+        let p = patch_proposals(&r);
+        assert_eq!(
+            p.len(),
+            2,
+            "one security + one minor; major/current excluded"
+        );
+        assert_eq!(p[0].reason, "security");
+        assert_eq!(p[0].command, "cargo update");
+        assert_eq!(p[1].crate_name, "tower-http");
+        assert_eq!(p[1].command, "cargo update -p tower-http");
+        assert_eq!(p[1].to, "0.7.1");
+    }
+
+    #[test]
+    fn collect_dry_carries_proposals() {
+        let r = collect_dry();
+        assert!(!r.proposals.is_empty());
+        assert!(r.proposals.iter().any(|p| p.reason == "security"));
+        assert!(r.proposals.iter().any(|p| p.crate_name == "axum"));
+    }
+
+    #[test]
+    fn tick_gating_env_defaults() {
+        let _g = crate::boxes::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        std::env::remove_var("GSV_RUSTSEC_TICK");
+        std::env::remove_var("GSV_RUSTSEC_TICK_SECS");
+        assert!(!tick_enabled(), "default OFF (offline-first)");
+        assert_eq!(tick_interval_secs(), 3600);
+        std::env::set_var("GSV_RUSTSEC_TICK", "1");
+        std::env::set_var("GSV_RUSTSEC_TICK_SECS", "600");
+        assert!(tick_enabled());
+        assert_eq!(tick_interval_secs(), 600);
+        std::env::set_var("GSV_RUSTSEC_TICK_SECS", "5");
+        assert_eq!(
+            tick_interval_secs(),
+            3600,
+            "below 300s floor falls back to default"
+        );
+        std::env::remove_var("GSV_RUSTSEC_TICK");
+        std::env::remove_var("GSV_RUSTSEC_TICK_SECS");
     }
 
     #[test]
