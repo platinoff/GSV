@@ -40,6 +40,12 @@ id is in the scan, **skip AskQuestion** and drain that product. Current pick
 (2026-09-17): **`telenetis`** — Redmi 9 is the Wi-Fi debug rabbit; play from
 the GSV hub (`:9999` + `/api/edge`), not a second brain.
 
+**Step 0r first** (shared rule, abracadabra SKILL.md §0r): if the current
+window folder matches **no** scanned row, ask **«Проєкт не в глобальному списку
+доступних проєктів. Додати його до GSV?»** — yes → register a PRODUCTS.md row
+(+ `gsv.code-workspace` folder when outside `S:/rust/*`), re-scan, continue;
+no → normal pick. If it matches a row, skip 0r silently.
+
 Otherwise AskQuestion / `question` / numbered list: **«Проєкти з цього середовища. З яким працюємо?»**
 
 One option **per discovered row**. Do **not** hardcode `gsv | poolai`.

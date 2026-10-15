@@ -70,6 +70,33 @@ Example from this machine (changes when new repos appear):
 If the script fails, fall back: read `gsv.code-workspace` + `ls` the parent of
 GSV for directories that contain `.git`. Still do **not** invent a fixed pair.
 
+### 0r. Current window not on the list (ALWAYS before the ask)
+
+Compare the **current window folder** (this session's workspace root, e.g. a repo
+outside `S:/rust` or a plain non-git folder) against every scanned row's `path`
+(and the row's product root). If **no row matches**, print first:
+
+> **«Проєкт не в глобальному списку доступних проєктів. Додати його до GSV?»**
+
+- **Yes (owner click)** — register it, then continue the normal pick with the new
+  row pre-selected:
+  1. Collect from the window: `id` = `package.name` from `Cargo.toml` / repo dir
+     name; `kind` = rust (`Cargo.toml`) / node (`package.json`) / git (`.git`) /
+     folder; path; test command from README/AGENTS (rust default:
+     `cargo fmt --all` → `cargo clippy --all-targets` → `cargo test`); ratio row
+     default **95–100%** for rust, honest `—` otherwise; HANDOFF/NEXT paths if the
+     tree has them.
+  2. Append a PRODUCTS.md row (`docs/gsv/PRODUCTS.md`) — registry row **only**;
+     never move the plugin's rules/skills into the GSV tree.
+  3. Discoverability: if the folder is not a sibling of the kit (`S:/rust/*`), add
+     it to `gsv.code-workspace` `folders` so `cargo xtask products` keeps seeing it.
+  4. Re-run `cargo xtask products`; one local commit in GSV (docs/gsv row +
+     workspace) with the registration.
+- **No** — drain one of the registered/discovered rows via the normal 0b pick.
+
+If the window folder DOES match a scanned row, skip 0r silently — the row just
+becomes the suggested pick (NEXT `Owner product pick` still wins).
+
 ### 0b. Ask (one click)
 
 If `docs/NEXT_SESSION_PROMPT.md` names **`Owner product pick: <id>`** and that
@@ -96,7 +123,7 @@ list. A discovered repo that is not registered is still a valid choice.
 |------|------------|
 | **registered rust** (`gsv`, `poolai`, …) | Use that row in PRODUCTS.md: HANDOFF, NEXT, test command, ratio. Then the product flow below. |
 | **registered node** (`omniroute`, …) | Use that row. S0 + git in **that** tree. **No** PH-S* invent. Tests from the row (`npm test`). |
-| **discovered, not registered** | S0 disk + `git fetch` in **that** tree. Do **not** invent PH-S* / FM drain. Report kind (rust/node), ask whether to add a PRODUCTS.md row, or do a narrow owner-stated task in that repo. |
+| **discovered, not registered** | S0 disk + `git fetch` in **that** tree. Do **not** invent PH-S* / FM drain. Report kind (rust/node), run the **0r registration question** («Проєкт не в глобальному списку доступних проєктів. Додати його до GSV?»), or do a narrow owner-stated task in that repo. |
 
 New **registered** products: add a row to PRODUCTS.md (root, handoff, test, ratio).
 Discovery will pick them up automatically from disk / workspace; no need to
