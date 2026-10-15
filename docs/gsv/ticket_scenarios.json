@@ -552,6 +552,57 @@
           "body": "Stage only sprint files (never Cargo.lock, .env*, models/, target/). One commit in S:/rust/llama-rs, push origin master, post Godfather summary (bench numbers, tests ok)."
         }
       ]
+    },
+    {
+      "id": "rusty-engine-bootstrap",
+      "title": "rusty-engine B0 foundation (pure-Rust MoE engine)",
+      "body": "Solo bot drains band B0 for product rusty-engine (S:/rust/rusty-engine, MIT). Cargo workspace scaffold, canon docs, MIT license, UI design tokens, register in GSV, git init + one local commit (no push). cargo xtask check green.",
+      "workflow": "ticket-claim",
+      "product": "rusty-engine",
+      "tickets": [
+        { "title": "B0: cargo workspace + crate rusty-engine + bin rusty + xtask", "body": "Workspace members=[xtask]; lib rusty_engine; bin rusty; .cargo alias; cargo xtask check = fmt -> clippy -D warnings -> test." },
+        { "title": "B0: module scaffold core/gguf/moe/infer/serve/node/hub", "body": "std-only stubs + unit tests; src/lib.rs module map + banner()." },
+        { "title": "B0: MoE top_k router in pure Rust + scaffold-contracts", "body": "src/moe.rs softmax/top_k + tests/scaffold_contracts.rs (8-expert Qwen gate -> top-2 renormalized). 17 tests green." },
+        { "title": "B0: MIT LICENSE + Cargo metadata", "body": "Copyright (c) 2026 platinoff / Madevinc; authors=[platinoff]; repository github.com/platinoff/rusty-engine." },
+        { "title": "B0: docs concept.md + ARCHITECTURE.md", "body": "Rust-MoE core (port not link llama.cpp), GGUF-first, exe/bin/apk, GSV-native master/slave supervisor." },
+        { "title": "B0: docs roadmap.md (B0..B11, PH-<band><seq>) + UI.md", "body": "Band tables + design system (tokens, hotkeys d m i k f s o l, Rust-render pages, chrome-only JS)." },
+        { "title": "B0: HANDOFF + NEXT + README + local AGENTS.md", "body": "Global-first; no restated S0/MSYS2/абракадабра/MCP sandbox." },
+        { "title": "B0: ui shell index.html + css tokens + js chrome-only", "body": "no innerHTML (XSS law); pages render in B10 via src/ui.rs." },
+        { "title": "B0: register rusty-engine in GSV PRODUCTS.md + gsv.code-workspace", "body": "row | **rusty-engine** |; product_allowed() greps it for gsv_tickets_create." },
+        { "title": "B0: git init + one local commit (no push until B11 PH-1105)", "body": "stage only repo files, never data/* except .gitkeep." }
+      ]
+    },
+    {
+      "id": "rusty-engine-gguf",
+      "title": "rusty-engine B1 GGUF-чанкер (pure Rust)",
+      "body": "Read a real GGUF-MoE file without llama.cpp. Drain PH-101..107. First non-std deps (memmap2, opt half) legitimized here.",
+      "workflow": "ticket-claim",
+      "product": "rusty-engine",
+      "tickets": [
+        { "title": "PH-101: GGUF v3 header + KV-metadata parser", "body": "src/gguf.rs read_header/metadata." },
+        { "title": "PH-102: tensor-info table (name/dims/dtype/offset)", "body": "src/gguf.rs TensorEntry list." },
+        { "title": "PH-103: mmap/mlock staged loader (disk->RAM, progress)", "body": "src/gguf/staged.rs; reuse llama-rs staged concept." },
+        { "title": "PH-104: dequant blocks Q4_0/Q4_K/Q5_K/Q6_K/Q8_0", "body": "src/core/quant.rs." },
+        { "title": "PH-105: GGUF tokenizer metadata (BPE) ingest", "body": "src/gguf/tok.rs." },
+        { "title": "PH-106: tiny-GGUF fixture + round-trip test", "body": "tests/gguf_roundtrip.rs." },
+        { "title": "PH-107: CLI rusty inspect model.gguf", "body": "metadata + tensor summary." }
+      ]
+    },
+    {
+      "id": "rusty-engine-moe-core",
+      "title": "rusty-engine B4 MoE core (differentiator)",
+      "body": "Run Qwen3-30B-A3B / Mixtral GGUF natively in Rust (no llama.cpp). Floor: llama-rs ~0.497 tok/s decode. Drain PH-401..407.",
+      "workflow": "ticket-claim",
+      "product": "rusty-engine",
+      "tickets": [
+        { "title": "PH-401: top-k router softmax + sigmoid + noaux_tc group", "body": "src/moe/router.rs." },
+        { "title": "PH-402: expert FFN SwiGLU (ffn_gate/up/down_exps)", "body": "src/moe/ffn.rs." },
+        { "title": "PH-403: shared-expert merge (DeepSeek/Qwen3)", "body": "src/moe/shared.rs." },
+        { "title": "PH-404: expert-cache LRU + RAM/NVMe offload + prefetch", "body": "src/moe/cache.rs; KTransformers/PowerInfer ideas." },
+        { "title": "PH-405: greedy-parity vs llama.cpp ref + perplexity smoke", "body": "tests/moe_parity.rs." },
+        { "title": "PH-406: run Qwen3-30B-A3B / Mixtral GGUF pure-Rust", "body": "src/moe/forward.rs." },
+        { "title": "PH-407: bench tok/s vs llama-rs baseline", "body": "benches/moe.rs." }
+      ]
     }
   ]
 }

@@ -31,6 +31,10 @@
     {
       "name": "omniroute",
       "path": "../omniroute"
+    },
+    {
+      "name": "rusty-engine",
+      "path": "../rusty-engine"
     }
   ],
   "settings": {

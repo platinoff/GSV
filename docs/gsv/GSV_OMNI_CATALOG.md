@@ -81,6 +81,7 @@ so streaming clients work.
       "options": { "baseURL": "http://127.0.0.1:9999/api/omni/v1" },
       "models": {
         "lama-2.8": { "name": "Lama 2.8 (BunkeRock, local 27B)" },
+        "lama-1.5": { "name": "Lama 1.5 (BunkeRock fast, local)" },
         "grok-4.6": { "name": "Grok 4.6 (via hub)" }
       }
     },
@@ -96,9 +97,11 @@ so streaming clients work.
 }
 ```
 
-`lama-1.5` is NOT in the hub catalog (single `bunke-rock` row) — use it
-direct on `:8082`, not through the hub. Paid providers flow through the
-hub with their keys in `GSV/data/omni.toml` (or `OMNI_*_API_KEY` env).
+`lama-1.5` **з 2026-10-15 теж у hub-каталозі** (`GET /api/omni/v1/models` віддає
+`lama-2.8` + `lama-1.5`, `owned_by bunke-rock`/`bunke-rock-fast`, `clients` вкл. `opencode`) —
+через hub працює авто-перемикання local↔cloud з cooldown; прямі `:8080`/`:8082` лишаються
+найшвидшими для довгих генерацій без хаба. Paid providers flow through the hub with their keys
+in `GSV/data/omni.toml` (or `OMNI_*_API_KEY` env).
 
 ### Cursor — Override OpenAI Base URL
 
@@ -162,5 +165,20 @@ Paid APIs (OpenAI, Anthropic, xAI, DeepSeek, Moonshot, MiniMax, Qwen, Z.AI): `re
 - [GitHub Copilot usage-based billing](https://docs.github.com/en/copilot/concepts/billing/usage-based-billing-for-individuals)
 - [Nemotron 3.5 Lightning model card (NIM)](https://build.nvidia.com/nvidia/nemotron-3.5-lightning-30b-a3b/modelcard) — 30B/3B MoE, 1M ctx, tool-calling (addendum 2026-08-21)
 - [Nemotron 3.5 Lightning on OpenRouter](https://openrouter.ai/nvidia/nemotron-3.5-lightning) — 300K ctx, 16K reasoning budget
+
+## Addendum (2026-10-15) — client routing fix + `rusty` provider plan
+
+- **Global OpenCode config** (`~/.config/opencode/opencode.jsonc`) перезалито: provider `gsv`
+  = hub omni з **обома** тієрами (`lama-2.8` deep + `lama-1.5` fast); додано `llama-deep`
+  (`:8080/v1`, bunke-rock direct) поряд з `llama-fast` (`:8082/v1`). Дефолт для дев-сесій —
+  `opencode-go/qwen3.8-flash`; `small_model` теж `qwen3.8-flash`, бо `muse-spark-*` /
+  `deepseek-v4.1-flash` рядки блокує Go Privacy-політика воркспейсу (у логах — тайтл-агент
+  `stream error` + сесійні `Aborted`: чат «ламався», коли локальні моделі були живі). Чат-тест:
+  `gsv/lama-1.5` або `gsv/lama-2.8` (hub сам скидає мертві ланки, offline-first 900 s на local).
+- **Planned (rusty-engine `PH-507`):** `rusty serve` — третій `kind: local` provider-row у
+  цьому каталозі за зразком `bunke-rock`: `host_ready` гейт на
+  `S:/rust/rusty-engine/target/live/rusty_heartbeat.json` (PH-504 already writes it) + gguf
+  presence, OpenAI-compat/SSE через hub, WiFi multi-host (LAN-first band 233). Плейсмент у
+  `src/boxes/omni/catalog.rs` — окремий GSV-зріз, не чіпати раніше за owner-директиву.
 
 Canon code stays in Rust (`catalog.rs`). This file is the human/MCP snapshot of the same data.
