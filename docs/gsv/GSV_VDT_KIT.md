@@ -34,6 +34,16 @@ Environment security first. Maximum Rust. Session law: `agi`. Canon: [`GSV_AGI_P
    - GSV-продукт: `gsv-server`, бокси, 95–100% ratio, порт 9999
 4. Новий **плагін** на цій машині: git-репо-сусід під rust-фолдером `S:/rust/<name>` (discover підхопить).
    Рядок у `PRODUCTS.md` — лише якщо потрібен зареєстрований drain (Rust: HANDOFF + PH-S*; node: AGENTS + `npm test`, без PH-S*). Спільний кіт не копіювати. Безпека середовища (MCP sandbox = цей crate) не розширюється деревом плагіна.
+5. **Проводка кіта по вікнах (kit-wiring band 2026-10-15).** `agi` має вести однаково скрізь:
+   - **Per-window:** кожен зареєстрований плагін тримає кореневий `opencode.json` — `instructions`
+     = GSV `AGENTS.md` → локальний `AGENTS.md` → NEXT/HANDOFF (global-first порядок), `skills.paths`
+     = `S:/rust/GSV/.agents/skills`, `mcp.gsv_mcp_openbot` = stdio `target/live/gsv-mcp.exe --repo-root S:/rust/GSV`.
+   - **User-scope fallback:** глобальний `~/.config/opencode/opencode.jsonc` несе той самий кіт
+     (instructions + skills.paths + MCP stdio) — тож `agi`/Step 0r спрацьовують і в папці **без**
+     власного `opencode.json` (навіть поза `S:/rust`). Folder-config має пріоритет (deep-merge),
+     тому per-plugin pick не ламається. Локальний provider `gsv` перелічує `lama-2.8`/`lama-1.5`/`rusty-05`.
+   - **Крок після правки конфіга:** config читається один раз на старт — перезапустити opencode.
+     Правило «folder MCP only» стосується Cursor User-scope; OpenCode user-config — легітимний шлях для kit-less вікон.
 
 ## Split (що куди)
 
