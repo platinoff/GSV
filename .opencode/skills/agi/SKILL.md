@@ -55,13 +55,18 @@ One option **per discovered row**. Do **not** hardcode `gsv | poolai`.
 Call MCP (live `:9999`; tool/resource counts come from `GET /mcp` —
 `tool_count`/`resource_count`; restart Cursor when `listed_tool_count < tool_count`).
 Read `gsv://docs/agi-path`
-(rust-folder host, portable plugins, env security first, max Rust). Fail-open:
-a down plugin does not abort the session.
+(rust-folder host, portable plugins, env security first, max Rust). Fail-open
+aggregation (Kit-Eco 8): **required** peers `gsv` + `telenetis` down → **pause and
+ask the owner** (a dead hub means no board; a dead telenetis means no relay — on
+boxes without telenetis set `GSV_KEEP_LIVE_OPTIONAL=telenetis`). **Optional** peers
+`llama_rs` / `rusty` / `omniroute` down never abort the session — report and go on
+(rusty = PH-507 engine host; heartbeat file only). The wire flags each row's
+`required`.
 
 | Probe | Tool / check | Expected |
 |-------|----------------|----------|
 | GSV hub `:9999` | `gsv_health` + `gsv_watchdog` | `ok`, `version` = crate, `version_lag=false` |
-| Keep-live aggregate | `gsv_keep_live` | `gsv` + `telenetis` + `llama_rs` up when those processes exist |
+| Keep-live aggregate | `gsv_keep_live` | `gsv` + `telenetis` (required) + `llama_rs` / `rusty` (optional, heartbeat files) up when those processes exist |
 | Telenetis `:9800` | `gsv_telenetis_health` | alive if the bot is running |
 | poolAI grid `:8091` | `gsv_grid` | ALLBGP mirror; report nodes/workers |
 | OmniRoute `:20128` | `gsv_keep_live` `omniroute` | **policy-down** (EDGE_PLAN). Probe only. **Do not start it.** |
