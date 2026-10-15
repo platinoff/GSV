@@ -239,6 +239,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut action = if ok { "probe-ok" } else { "probe-fail" };
         let debug_newer = watchdog::debug_newer_server(&cfg.repo_root);
         let needs = watchdog::needs_lockstep(debug_newer, probe.version_lag);
+        // Sidecar live copies (mcp/watchdog) auto-heal per tick: a stdio MCP
+        // client picks the fresh exe up on its next window start without
+        // waiting for a server respawn (locked copies retry next tick).
+        for swapped in watchdog::refresh_sidecar_live_copies(&cfg.repo_root) {
+            eprintln!("gsv-watchdog: refreshed live copy {swapped}");
+        }
         let lockstep_off = ok && needs && watchdog::lockstep_disabled();
         if lockstep_off {
             action = watchdog::lockstep_off_action();

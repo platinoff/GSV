@@ -640,6 +640,35 @@ pub fn copy_debug_to_live(repo_root: &Path) -> Result<PathBuf, String> {
     Ok(live)
 }
 
+/// Kit-Eco band follow-up: the sidecar live copies (`gsv-mcp`, `gsv-watchdog`)
+/// used to swap only on a server respawn, so an MCP stdio client could keep
+/// running a stale live exe forever (Windows locks the running exe). Best
+/// effort per tick: when the debug exe is newer than the live copy (or the
+/// copy is missing) try to overwrite it; a locked (still-running) copy fails
+/// silently and retries next tick. Returns the exes actually refreshed.
+pub fn refresh_sidecar_live_copies(repo_root: &Path) -> Vec<String> {
+    let mut done = Vec::new();
+    for name in [mcp_exe_name(), watchdog_exe_name()] {
+        let debug = repo_root.join("target/debug").join(name);
+        if !debug.is_file() {
+            continue;
+        }
+        let live = repo_root.join("target/live").join(name);
+        let stale = match (
+            debug.metadata().and_then(|m| m.modified()),
+            live.metadata().and_then(|m| m.modified()),
+        ) {
+            (Ok(d), Ok(l)) => d > l,
+            (Ok(_), Err(_)) => true,
+            _ => false,
+        };
+        if stale && copy_debug_bin_to_live(repo_root, name).is_ok() {
+            done.push(name.to_string());
+        }
+    }
+    done
+}
+
 /// Windows flags for the detached live copy (no console flash).
 ///
 /// Do **not** set `CREATE_BREAKAWAY_FROM_JOB` — inside Cursor/job objects that

@@ -647,3 +647,32 @@ fn card_names_include_watchdog() {
     assert!(CARD_NAMES.contains(&"watchdog"));
     assert_eq!(CARD_NAMES.len(), 45);
 }
+
+#[test]
+fn refresh_sidecar_swaps_newer_mcp_copy_only_when_stale() {
+    let dir = std::env::temp_dir().join(format!("gsv-wd-refresh-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let debug_dir = dir.join("target/debug");
+    std::fs::create_dir_all(&debug_dir).expect("debug dir");
+    std::fs::write(debug_dir.join("gsv-mcp.exe"), b"mcp-v1").expect("mcp");
+    // missing live copy -> first refresh swaps it in.
+    let done = watchdog::refresh_sidecar_live_copies(&dir);
+    assert_eq!(done, vec!["gsv-mcp.exe".to_string()], "{done:?}");
+    let live = dir.join("target/live").join("gsv-mcp.exe");
+    assert_eq!(std::fs::read(&live).expect("read live"), b"mcp-v1");
+    // fresh live (copy mtime >= debug) -> second refresh is a no-op.
+    assert!(watchdog::refresh_sidecar_live_copies(&dir).is_empty());
+    // debug grows newer than live -> refreshed again with new bytes.
+    std::fs::write(debug_dir.join("gsv-mcp.exe"), b"mcp-v2").expect("mcp v2");
+    let old = std::time::SystemTime::now() - std::time::Duration::from_secs(120);
+    let f = std::fs::OpenOptions::new()
+        .write(true)
+        .open(&live)
+        .expect("open live");
+    f.set_modified(old).expect("age live");
+    drop(f);
+    let done = watchdog::refresh_sidecar_live_copies(&dir);
+    assert_eq!(done, vec!["gsv-mcp.exe".to_string()], "{done:?}");
+    assert_eq!(std::fs::read(&live).expect("read live v2"), b"mcp-v2");
+    let _ = std::fs::remove_dir_all(&dir);
+}
