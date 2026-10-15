@@ -569,11 +569,21 @@ pub fn load_rust_diagnostics(data_dir: &Path) -> Result<RustDiagnosticsReport, S
 }
 
 /// Read + parse the vision manifest from `repo_root`.
+///
+/// The `git_head` stamp in the docs canon only refreshes when the manifest is
+/// regenerated, so a committed stamp can point at a commit from an older era
+/// (or a sibling repo after the PoolAI split). Prefer the live repo HEAD here;
+/// fall back to the file stamp only when git cannot answer.
 pub fn read_manifest(repo_root: &Path) -> Result<Manifest, String> {
     let path = manifest_source(repo_root);
     let raw =
         std::fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
-    serde_json::from_str(&raw).map_err(|e| format!("parse manifest.json: {e}"))
+    let mut manifest: Manifest =
+        serde_json::from_str(&raw).map_err(|e| format!("parse manifest.json: {e}"))?;
+    if let Some(head) = crate::vision::git_head(repo_root) {
+        manifest.git_head = head;
+    }
+    Ok(manifest)
 }
 
 /// Read + parse the vision feed from `repo_root`.

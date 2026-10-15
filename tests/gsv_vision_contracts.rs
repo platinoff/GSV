@@ -75,6 +75,44 @@ fn vision_manifest_reads_real_workspace() {
 }
 
 #[test]
+fn vision_manifest_git_head_prefers_live_head_and_sync_restamps_snapshot() {
+    let repo = repo_root();
+    let canon_raw =
+        std::fs::read_to_string(repo.join("docs/vision/manifest.json")).expect("canon present");
+    let canon: Value = serde_json::from_str(&canon_raw).expect("canon json");
+    let live = gsv::vision::git_head_short(&repo);
+    let m = vision::read_manifest(&repo).expect("manifest");
+    assert_eq!(
+        m.git_head, live,
+        "live repo HEAD must win over the canon stamp"
+    );
+    assert_eq!(m.revision, canon["revision"].as_u64().expect("revision"));
+
+    let data = temp_data_dir("git-stamp");
+    let report = vision::sync(&repo, &data).expect("sync");
+    assert_eq!(report.git_head, live, "sync report carries the live HEAD");
+    let snap = vision::load_manifest(&data).expect("snapshot");
+    assert_eq!(
+        snap.git_head, live,
+        "persisted snapshot carries the live HEAD"
+    );
+
+    // Outside any git context the canon stamp is kept as the fallback.
+    let kit = std::env::temp_dir().join(format!("gsv-vision-nogit-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&kit);
+    std::fs::create_dir_all(kit.join("docs/vision")).expect("tmp docs/vision");
+    std::fs::write(kit.join("docs/vision/manifest.json"), &canon_raw).expect("tmp canon");
+    let orphan = vision::read_manifest(&kit).expect("orphan manifest");
+    assert_eq!(
+        orphan.git_head,
+        canon["git_head"].as_str().expect("canon stamp"),
+        "no-git readers fall back to the stamped value"
+    );
+    let _ = std::fs::remove_dir_all(&kit);
+    let _ = std::fs::remove_dir_all(&data);
+}
+
+#[test]
 fn vision_feed_reads_real_workspace() {
     let f = vision::read_feed(&repo_root()).expect("feed");
     assert!(!f.title.is_empty());
