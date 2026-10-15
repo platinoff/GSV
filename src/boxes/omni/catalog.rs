@@ -25,6 +25,19 @@ pub const BUNKE_ROCK_MODEL_FILE: &str = "S:/rust/llama-rs/models/Qwen3-30B-A3B-U
 pub const BUNKE_ROCK_FAST_MODEL_FILE: &str =
     "S:/rust/llama-rs/models/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf";
 
+/// Local rusty-engine model the `rusty-serve` provider serves (`rusty serve
+/// -m … :8090`, PH-507 bunke-rock pattern, portable-plugin tree).
+pub const RUSTY_SERVE_MODEL_FILE: &str =
+    "S:/rust/rusty-engine/data/models/qwen2.5-0.5b-q4_k_m.gguf";
+
+/// Heartbeat stamped by `rusty serve` at startup + every connection (PH-504);
+/// the `rusty-serve` host gate reads its mtime (PH-507).
+pub const RUSTY_SERVE_HEARTBEAT_FILE: &str =
+    "S:/rust/rusty-engine/target/live/rusty_heartbeat.json";
+
+/// Freshness window for the rusty heartbeat (aligns llama-rs keep-live 60s).
+pub const RUSTY_SERVE_FRESH_SECS: u64 = 60;
+
 /// Rate-limit window used for MCP auto-switch after 429 / RPM exhaustion.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct QuotaSpec {
@@ -247,6 +260,15 @@ pub fn providers() -> &'static [ProviderSpec] {
             free: true,
             default_base_url: "http://127.0.0.1:8082/v1",
             notes: "Local llama-rs interactive tier (Qwen2.5-1.5B, llama_serve :8082; deep tier is bunke-rock :8080)",
+            quota: QUOTA_PAID,
+        },
+        ProviderSpec {
+            id: "rusty-serve",
+            name: "Rusty serve (rusty-engine)",
+            region: "Local",
+            free: true,
+            default_base_url: "http://127.0.0.1:8090/v1",
+            notes: "Local pure-Rust MoE engine OpenAI-compat (PH-507; rusty serve -m Qwen2.5-0.5B-Q4_K_M :8090, LAN-first band 233; gated on model file + fresh rusty_heartbeat.json)",
             quota: QUOTA_PAID,
         },
         ProviderSpec {
@@ -483,6 +505,19 @@ pub fn models() -> &'static [ModelSpec] {
             "bunke-rock-fast",
             Some(4_096),
             Some(1_024),
+            true,
+            false,
+            "local",
+            true,
+            true,
+            C_ALL,
+        ),
+        m(
+            "rusty-05",
+            "Rusty 0.5B (rusty serve · rusty-engine)",
+            "rusty-serve",
+            Some(32_768),
+            Some(8),
             true,
             false,
             "local",
@@ -1051,10 +1086,10 @@ pub fn provider(id: &str) -> Option<&'static ProviderSpec> {
     providers().iter().find(|p| p.id == id)
 }
 
-/// Provider kind: `"local"` for on-disk llama-rs backends, `"remote"` for
-/// API vendors / aggregators.
+/// Provider kind: `"local"` for on-disk llama-rs / rusty-engine backends,
+/// `"remote"` for API vendors / aggregators.
 pub fn provider_kind(id: &str) -> &'static str {
-    if matches!(id, "bunke-rock" | "bunke-rock-fast") {
+    if matches!(id, "bunke-rock" | "bunke-rock-fast" | "rusty-serve") {
         "local"
     } else {
         "remote"
@@ -1082,16 +1117,49 @@ pub fn local_model_file(id: &str) -> Option<&'static str> {
     match id {
         "bunke-rock" => Some(BUNKE_ROCK_MODEL_FILE),
         "bunke-rock-fast" => Some(BUNKE_ROCK_FAST_MODEL_FILE),
+        "rusty-serve" => Some(RUSTY_SERVE_MODEL_FILE),
         _ => None,
     }
 }
 
 /// A `local` backend is ready only when its model file exists; remote
-/// providers are always ready (subject to quota timers elsewhere).
+/// providers are always ready (subject to quota timers elsewhere). PH-507:
+/// `rusty-serve` additionally requires a **fresh** `rusty_heartbeat.json`
+/// (mtime ≤ [`RUSTY_SERVE_FRESH_SECS`]) — the bunke-rock pattern with the
+/// heartbeat gate the owner directive pins. Unreadable mtime fails open
+/// (presence alone); a heartbeat older than the window means the serve is
+/// dead and the router must switch to the next host.
 pub fn host_ready(id: &str) -> bool {
     match local_model_file(id) {
-        Some(file) => std::path::Path::new(file).exists(),
+        Some(file) => {
+            if !std::path::Path::new(file).exists() {
+                return false;
+            }
+            if id == "rusty-serve" {
+                return heartbeat_mtime_fresh(
+                    std::path::Path::new(RUSTY_SERVE_HEARTBEAT_FILE),
+                    RUSTY_SERVE_FRESH_SECS,
+                );
+            }
+            true
+        }
         None => true,
+    }
+}
+
+/// Heartbeat freshness by file mtime against `now` (rusty `Heartbeat` carries
+/// uptime/tick fields, no epoch — the hub uses the filesystem stamp instead).
+fn heartbeat_mtime_fresh(path: &std::path::Path, fresh_secs: u64) -> bool {
+    let Ok(meta) = path.metadata() else {
+        return false;
+    };
+    let Ok(modified) = meta.modified() else {
+        return true;
+    };
+    match std::time::SystemTime::now().duration_since(modified) {
+        Ok(age) => age.as_secs() <= fresh_secs,
+        // clock skew (future mtime) — fail open
+        Err(_) => true,
     }
 }
 
@@ -1131,6 +1199,59 @@ mod tests {
             assert_eq!(spec.context_window, Some(40_960));
             assert!(spec.free && spec.rust, "{} free+rust lane", spec.id);
         }
+    }
+
+    #[test]
+    fn rusty_serve_is_local_with_heartbeat_gate() {
+        let p = provider("rusty-serve").expect("rusty-serve provider");
+        assert!(p.free, "local rusty is free tier");
+        assert_eq!(p.default_base_url, "http://127.0.0.1:8090/v1");
+        assert_eq!(provider_kind("rusty-serve"), "local");
+        assert_eq!(
+            local_model_file("rusty-serve"),
+            Some(RUSTY_SERVE_MODEL_FILE)
+        );
+        let rusty = find_models("rusty-05");
+        assert!(!rusty.is_empty(), "rusty-05 in catalog");
+        for spec in &rusty {
+            assert_eq!(spec.provider, "rusty-serve");
+            assert_eq!(spec.context_window, Some(32_768));
+            assert_eq!(spec.max_output, Some(8));
+            assert!(spec.free && spec.rust, "{} free+rust lane", spec.id);
+        }
+    }
+
+    #[test]
+    fn rusty_heartbeat_freshness_gates_the_host() {
+        let path = std::path::Path::new("target/test_rusty_heartbeat.json");
+        let _ = std::fs::remove_file(path);
+        assert!(
+            !heartbeat_mtime_fresh(path, 60),
+            "missing heartbeat is not fresh"
+        );
+        std::fs::write(
+            path,
+            r#"{"name":"rusty-engine","version":"0.1.0","uptime_secs":1,"alive":true,"tick_secs":15,"fresh_secs":60}"#,
+        )
+        .expect("write hb");
+        assert!(heartbeat_mtime_fresh(path, 60), "fresh stamp is ready");
+        let stale = std::time::SystemTime::now() - std::time::Duration::from_secs(90);
+        let f = std::fs::OpenOptions::new()
+            .write(true)
+            .open(path)
+            .expect("open hb");
+        f.set_modified(stale).expect("set mtime");
+        assert!(
+            !heartbeat_mtime_fresh(path, 60),
+            "stale heartbeat must gate off"
+        );
+        let _ = std::fs::remove_file(path);
+        let model = std::path::Path::new(RUSTY_SERVE_MODEL_FILE).exists();
+        let hb = heartbeat_mtime_fresh(
+            std::path::Path::new(RUSTY_SERVE_HEARTBEAT_FILE),
+            RUSTY_SERVE_FRESH_SECS,
+        );
+        assert_eq!(host_ready("rusty-serve"), model && hb);
     }
 
     #[test]

@@ -175,10 +175,14 @@ Paid APIs (OpenAI, Anthropic, xAI, DeepSeek, Moonshot, MiniMax, Qwen, Z.AI): `re
   `deepseek-v4.1-flash` рядки блокує Go Privacy-політика воркспейсу (у логах — тайтл-агент
   `stream error` + сесійні `Aborted`: чат «ламався», коли локальні моделі були живі). Чат-тест:
   `gsv/lama-1.5` або `gsv/lama-2.8` (hub сам скидає мертві ланки, offline-first 900 s на local).
-- **Planned (rusty-engine `PH-507`):** `rusty serve` — третій `kind: local` provider-row у
-  цьому каталозі за зразком `bunke-rock`: `host_ready` гейт на
-  `S:/rust/rusty-engine/target/live/rusty_heartbeat.json` (PH-504 already writes it) + gguf
-  presence, OpenAI-compat/SSE через hub, WiFi multi-host (LAN-first band 233). Плейсмент у
-  `src/boxes/omni/catalog.rs` — окремий GSV-зріз, не чіпати раніше за owner-директиву.
+- **Landed (rusty-engine `PH-507`, 2026-10-15):** `rusty serve` — третій `kind: local`
+  provider-row у цьому каталозі за зразком `bunke-rock` (id `rusty-serve`, модель
+  `rusty-05`, `:8090`): `host_ready` гейт на
+  `S:/rust/rusty-engine/target/live/rusty_heartbeat.json` (mtime ≤60 s; serve ставить
+  штамп при startup + кожне conn, PH-504) + gguf presence; unreadable mtime — fail-open.
+  OpenAI-compat + SSE (`stream:true` → chunk+[DONE]) через hub, WiFi multi-host
+  (LAN-first band 233: `rusty serve` біндить `0.0.0.0` за замовчуванням, `--host`
+  overrides; `resolved_default_base_url` переписує loopback на локаль). Тест-чат чіпає
+  `rusty-05` так само, як `gsv/lama-*`; мертвий serve → авто-switch до cloud.
 
 Canon code stays in Rust (`catalog.rs`). This file is the human/MCP snapshot of the same data.

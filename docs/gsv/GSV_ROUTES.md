@@ -16,6 +16,7 @@ IPv4 (UDP-trick) → `127.0.0.1`.
 | **8091** | `poolAI` coordinator (edge-воркери) | `0.0.0.0` | `llama_edge --coordinator` (дефолт `http://<lan>:8091`, remote edge — явний URL); telenetis `/vm`-view |
 | **8080** | `llama_serve` deep tier (`bunke-rock` / `lama-2.8`, **band 235: Qwen3-30B-A3B-UD-IQ2_XXS MoE**, tg 0.497; 27B dense reserved) | `0.0.0.0` (дефолт змінено) | GSV omni `catalog::resolved_default_base_url` → `http://<lan>:8080/v1`; llama_edge `serve_url()` (`LLAMA_SERVE_URL` override) |
 | **8082** | `llama_serve` fast tier (`bunke-rock-fast`) | `0.0.0.0` | GSV omni `lama-1.5`; `LLAMA_SERVE_FAST_URL` override |
+| **8090** | `rusty serve` (rusty-engine, PH-507 `rusty-serve`/`rusty-05`) | `0.0.0.0` (дефолт; `--host` override) | GSV omni `catalog::host_ready("rusty-serve")` = model file + `rusty_heartbeat.json` mtime ≤60 s; ready → `http://<lan>:8090/v1`, not ready → auto-switch до cloud |
 | **50052** | `ggml-rpc-server` (Linux-хости) | per-host | `llama_edge --rpc-endpoint` advertised локальною адресою; ALLBGP `--rpc` план у `grid.rs` |
 | **20128** | `OmniRoute` (зовнішній проксі) | — (зараз **DOWN**) | keep_live-проба + `usage` pull — локальна адреса; `OMNIROUTE_URL` / `GSV_OMNIROUTE_URL` override. Поки down — сесійний chat іде **через GSV-omni напряму на llama-rs тієри**, минаючи OmniRoute |
 
