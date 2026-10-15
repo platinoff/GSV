@@ -52,7 +52,9 @@ One option **per discovered row**. Do **not** hardcode `gsv | poolai`.
 
 ## Step 0d — Keep-live all hub services (before drain)
 
-Call MCP (live `:9999`, 59 tools / 16 `gsv://`). Read `gsv://docs/agi-path`
+Call MCP (live `:9999`; tool/resource counts come from `GET /mcp` —
+`tool_count`/`resource_count`; restart Cursor when `listed_tool_count < tool_count`).
+Read `gsv://docs/agi-path`
 (rust-folder host, portable plugins, env security first, max Rust). Fail-open:
 a down plugin does not abort the session.
 

@@ -139,7 +139,7 @@ hardcode options in this skill. Implementation: `src/boxes/products.rs` /
 1. S0 disk (GSV has its own `target/` at `S:/rust/GSV`): `df -h /s` → `cargo clean` if needed → `git fetch` + GSV HANDOFF.
 2. Project scan: warnings first (`cargo clippy --all-targets` in `S:/rust/GSV`) → `docs/gsv/GSV_TECH_ROADMAP.md` unchecked rows → gaps → next band. **VDT kit** (`.cursor/rules`, `.agents/skills`) is an in-tree product gap until band close.
 3. Drain next band (≤10 open PH-S*; no mid-drain push). Work in **`S:/rust/GSV`**.
-4. Vision close: GSV HANDOFF + GSV NEXT → `cargo xtask sync` then `cargo xtask sync --check`. Speeds/Rust: `cargo xtask record-speed` + `cargo xtask record-rust`. After **any canon skill edit**: `cargo xtask mirrors` + `cargo xtask mirrors --check` (rules-check `mirrors` HARD gate keeps `.cursor`/`.opencode` copies byte-identical).
+4. Vision close: GSV HANDOFF + GSV NEXT → `cargo xtask sync` then `cargo xtask sync --check`. Speeds/Rust: `cargo xtask record-speed` + `cargo xtask record-rust`. After **any canon skill edit**: `cargo xtask mirrors` + `cargo xtask mirrors --check` (rules-check `mirrors` HARD gate keeps `.cursor`/`.opencode` copies byte-identical). Close-check `gsv_health`/`GET /mcp`: `version_lag` or `listed_tool_count < tool_count` → schedule live recopy (`cargo xtask live` / `/api/update/apply`) in the **owner window** — never mid-drain, never kill `target/live` before tests.
 5. Test: `cargo test` in `S:/rust/GSV` — do **not** kill `target/live/` copy (only stop `target/debug/gsv-server.exe` if that file is the listener). Disk guard: `cargo xtask disk`.
 6. Git (end of session): one commit in the GSV repo. Push `origin` (`https://github.com/platinoff/GSV`) if the remote exists.
 
