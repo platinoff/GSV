@@ -24,7 +24,8 @@ pub struct ProductRow {
     pub cargo: bool,
     /// `host` = this GSV crate (the rust-folder brain). `plugin` = every other tree.
     pub role: String,
-    /// Plugin nested under the kit (Telenetis exception), not a sibling.
+    /// Plugin nested under the kit (historical Telenetis layout; the tree now
+    /// lives at `S:/rust/telenetis` as a sibling).
     pub nested: bool,
     /// Cargo `target/` for this tree. Drain uses this dir; never share with another plugin.
     pub target_dir: String,
@@ -236,7 +237,8 @@ fn push_row(
 /// two clients: `.cursor/mcp.json` (hub HTTP :9999/mcp) and `.grok/config.toml`
 /// (hub stdio + kit skills). Returns `ok`, `missing`,
 /// or `drift:<why>`; the host row and nested plugins are audited as `na` by the
-/// caller (the kit itself is the canon — Telenetis stays kit-confined).
+/// caller (the kit itself is the canon — the former nested Telenetis now lives
+/// in its own sibling plugin tree and is audited like every other plugin).
 pub fn wiring_status(root: &Path) -> String {
     let file = root.join("opencode.json");
     let Ok(text) = fs::read_to_string(&file) else {
@@ -627,12 +629,15 @@ mod tests {
     }
 
     #[test]
-    fn telenetis_nested_plugin_is_exception() {
+    fn telenetis_is_a_sibling_plugin() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let rows = discover(&root);
         if let Some(t) = rows.iter().find(|r| r.id == "telenetis") {
             assert_eq!(t.role, "plugin");
-            assert!(t.nested, "telenetis lives under GSV, not a sibling");
+            assert!(
+                !t.nested,
+                "telenetis was extracted to S:/rust/telenetis — no longer nested under GSV"
+            );
         }
     }
 

@@ -13,7 +13,7 @@ live: gsv-server 0.0.0.0:9999, llama_serve 0.0.0.0:8080/8082, edge-pc-01 + a54-0
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
 **`agi`** → `cargo xtask products` → **Owner product pick: telenetis** (skip AskQuestion
-if `telenetis` is in the scan) → S0 диск/git у **`S:/rust/GSV/telenetis`** →
+if `telenetis` is in the scan) → S0 диск/git у **`S:/rust/telenetis`** (з 2026-10-15 — own sibling repo) →
 warnings-first → Redmi 9 Wi-Fi debug з хаба (не другий мозок).
 Якщо **gsv:** settings/Telegram/tickets spec bands **166–212 ✅**
 + **band 212** telenetis to 100% — security wiring + HTTP checks + graceful shutdown + 13 new tests (55 total)

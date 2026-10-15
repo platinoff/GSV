@@ -506,6 +506,21 @@ pub fn debug_newer_bin(repo_root: &Path, exe_name: &str) -> bool {
     !live.is_file() || file_mtime_secs(&debug) > file_mtime_secs(&live)
 }
 
+/// Where the Telenetis crate lives: nested `GSV/telenetis` while it exists
+/// (historical exception), else the sibling portable plugin `S:/rust/telenetis`
+/// (band: extraction to own repo). The marker is `Cargo.toml`, so a stripped
+/// nested checkout (leftover `target/` of a running process) never wins.
+pub fn telenetis_crate_dir(repo_root: &Path) -> PathBuf {
+    let nested = repo_root.join("telenetis");
+    if nested.join("Cargo.toml").is_file() {
+        return nested;
+    }
+    repo_root
+        .parent()
+        .map(|p| p.join("telenetis"))
+        .unwrap_or(nested)
+}
+
 /// Telenetis debug binary with the workspace-target rule (bug-hunt 3):
 /// `CARGO_TARGET_DIR` wins; else the outermost ancestor holding
 /// `Cargo.toml` above the telenetis crate (this kit builds into
@@ -513,7 +528,7 @@ pub fn debug_newer_bin(repo_root: &Path, exe_name: &str) -> bool {
 /// `target-dir`); else the crate-local target (detached checkouts).
 /// Mirrors `telenetis_live::debug_exe` — keep the two in sync.
 pub fn telenetis_debug_exe(repo_root: &Path) -> PathBuf {
-    let crate_dir = repo_root.join("telenetis");
+    let crate_dir = telenetis_crate_dir(repo_root);
     if let Some(dir) = std::env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
         .filter(|p| !p.as_os_str().is_empty())
@@ -544,8 +559,7 @@ pub fn debug_newer_telenetis(repo_root: &Path) -> bool {
     if !debug.is_file() {
         return false;
     }
-    let live = repo_root
-        .join("telenetis")
+    let live = telenetis_crate_dir(repo_root)
         .join("target/live")
         .join(telenetis_live_exe_name());
     !live.is_file() || file_mtime_secs(&debug) > file_mtime_secs(&live)
@@ -826,5 +840,32 @@ mod tests {
         .unwrap();
         assert!(debug_newer_telenetis(&root), "workspace debug wins");
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn telenetis_crate_dir_falls_back_to_sibling_plugin() {
+        // Nested wins only while its Cargo.toml exists; a stripped leftover
+        // directory (running-process target) must not shadow the sibling repo.
+        let base = sandbox("sibling");
+        let kit = base.join("GSV");
+        std::fs::create_dir_all(&kit).unwrap();
+        let sibling = base.join("telenetis");
+        std::fs::create_dir_all(&sibling).unwrap();
+        std::fs::write(sibling.join("Cargo.toml"), b"[package]\n").unwrap();
+        assert_eq!(telenetis_crate_dir(&kit), sibling);
+        let stripped = kit.join("telenetis");
+        std::fs::create_dir_all(stripped.join("target/live")).unwrap();
+        assert_eq!(
+            telenetis_crate_dir(&kit),
+            sibling,
+            "leftover nested target/ does not win without Cargo.toml"
+        );
+        std::fs::write(stripped.join("Cargo.toml"), b"[package]\n").unwrap();
+        assert_eq!(
+            telenetis_crate_dir(&kit),
+            stripped,
+            "nested wins while present"
+        );
+        let _ = std::fs::remove_dir_all(&base);
     }
 }

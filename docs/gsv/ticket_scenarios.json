@@ -156,7 +156,7 @@
         },
         {
           "title": "gsv: products scan host vs portable plugin",
-          "body": "Canon GSV_AGI_PATH.md (gsv://docs/agi-path). cargo xtask products / gsv_products distinguish the rust-folder HOST (gsv) from sibling PLUGIN trees. Plugin = own git root, own target/, unplug fail-open. Nested GSV/telenetis is an exception, not the pattern. PRODUCTS.md enriches registered drains; it is not a closed allowlist of existence."
+          "body": "Canon GSV_AGI_PATH.md (gsv://docs/agi-path). cargo xtask products / gsv_products distinguish the rust-folder HOST (gsv) from sibling PLUGIN trees. Plugin = own git root, own target/, unplug fail-open. The one historical exception (nested GSV/telenetis) was extracted to the sibling plugin `S:/rust/telenetis` on 2026-10-15 — nested is not the pattern. PRODUCTS.md enriches registered drains; it is not a closed allowlist of existence."
         },
         {
           "title": "gsv: MCP sandbox stays GSV crate when plugin is picked",
@@ -185,7 +185,7 @@
       "tickets": [
         {
           "title": "gsv: products scan host vs portable plugin",
-          "body": "Canon GSV_AGI_PATH.md (gsv://docs/agi-path). cargo xtask products / gsv_products distinguish the rust-folder HOST (gsv) from sibling PLUGIN trees. Plugin = own git root, own target/, unplug fail-open. Nested GSV/telenetis is an exception, not the pattern. PRODUCTS.md enriches registered drains; it is not a closed allowlist of existence."
+          "body": "Canon GSV_AGI_PATH.md (gsv://docs/agi-path). cargo xtask products / gsv_products distinguish the rust-folder HOST (gsv) from sibling PLUGIN trees. Plugin = own git root, own target/, unplug fail-open. The one historical exception (nested GSV/telenetis) was extracted to the sibling plugin `S:/rust/telenetis` on 2026-10-15 — nested is not the pattern. PRODUCTS.md enriches registered drains; it is not a closed allowlist of existence."
         },
         {
           "title": "gsv: MCP sandbox stays GSV crate when plugin is picked",

@@ -14,7 +14,7 @@
     },
     {
       "name": "Telenetis",
-      "path": "./telenetis"
+      "path": "../telenetis"
     },
     {
       "name": "llama-rs",

@@ -56,7 +56,8 @@ Preferred layout:
   <name>/               # any other git tree = plugin
 ```
 
-`GSV/telenetis` is a **nested exception**, not the pattern to copy. New plugins
+`GSV/telenetis` was a **nested exception** — resolved into the sibling
+portable plugin `telenetis/` (`github.com/platinoff/telenetis`). New plugins
 are sibling git roots under `<rust>/`.
 
 | Plugin must | Plugin must not |
@@ -130,8 +131,8 @@ per registered plugin; host/nested/unregistered = `na`) and
 `tests/gsv_kit_wiring_contracts.rs` fails the suite on drift. Result: typing
 `agi` in any single-folder OpenCode window behaves like the GSV window — Step 0
 product pick (or the tree's `Owner product pick`), global rules, local nuances
-only for product specifics. Nested `telenetis` stays kit-confined (no plugin
-files inside the GSV tree).
+only for product specifics. `telenetis` lives in its own sibling tree now
+(no plugin files inside the GSV tree).
 
 ## Environment security (first)
 

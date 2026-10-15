@@ -459,8 +459,8 @@ pub fn spawn_telenetis_live(repo_root: &Path) -> String {
     if crate::boxes::update::is_cargo_test_harness() {
         return "telenetis-live: skipped (test harness)".into();
     }
-    let telenetis_dir = repo_root.join("telenetis");
-    if !telenetis_dir.is_dir() {
+    let telenetis_dir = watchdog::telenetis_crate_dir(repo_root);
+    if !telenetis_dir.join("Cargo.toml").is_file() {
         return "telenetis-live: telenetis crate not present — skipped".into();
     }
     let live_exe = telenetis_dir.join("target/live/telenetis-live.exe");
