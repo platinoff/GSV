@@ -52,7 +52,9 @@ One option **per discovered row**. Do **not** hardcode `gsv | poolai`.
 
 ## Step 0d — Keep-live all hub services (before drain)
 
-Call MCP (live `:9999`, 59 tools / 16 `gsv://`). Read `gsv://docs/agi-path`
+Call MCP (live `:9999`; tool/resource counts come from `GET /mcp` —
+`tool_count`/`resource_count`; restart Cursor when `listed_tool_count < tool_count`).
+Read `gsv://docs/agi-path`
 (rust-folder host, portable plugins, env security first, max Rust). Fail-open:
 a down plugin does not abort the session.
 
@@ -78,6 +80,11 @@ Cursor (agent refresh does not re-list tools).
 3. `gsv_tickets_create` for this session work (product = owner pick). Scenario `agi-session` places the keep-live + drain band.
 4. Claim → drain → `gsv_tickets_done` with a note. Optional: `gsv_tickets_hook` ≤10 PH-S* from the product roadmap.
 5. `gsv_tickets_next` after presence if the board already has WIP.
+
+**Ticket law (Kit-Eco 6):** never work a ticket whose `claimed_by` belongs to another
+worker; stale rows return to `open` only via `gsv_tickets_reclaim` — never by force.
+Full cycle (presence→pick→claim→drain→done→next→sync): `GSV_VDT_KIT.md` §Multi-window
+workflow.
 
 Godfather / Telegram tokens: never echo. `gsv_settings` / `gsv_telegram*` are redacted reads.
 
