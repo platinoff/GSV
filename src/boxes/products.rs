@@ -232,7 +232,9 @@ fn push_row(
 /// Kit-wiring audit (Kit-Eco 3): a registered plugin window must load the GSV
 /// kit from its root `opencode.json` — `instructions[0]` = `S:/rust/GSV/AGENTS.md`,
 /// `skills.paths` contains the kit dir, and `mcp.gsv_mcp_openbot` is stdio on
-/// `target/live/gsv-mcp.exe --repo-root S:/rust/GSV`. Returns `ok`, `missing`,
+/// `target/live/gsv-mcp.exe --repo-root S:/rust/GSV`. Kit-Eco 2 adds the other
+/// two clients: `.cursor/mcp.json` (hub HTTP :9999/mcp) and `.grok/config.toml`
+/// (hub stdio + kit skills). Returns `ok`, `missing`,
 /// or `drift:<why>`; the host row and nested plugins are audited as `na` by the
 /// caller (the kit itself is the canon — Telenetis stays kit-confined).
 pub fn wiring_status(root: &Path) -> String {
@@ -286,6 +288,15 @@ pub fn wiring_status(root: &Path) -> String {
     let repo_ok = cmd.iter().any(|a| a == "--repo-root") && cmd.iter().any(|a| a == "S:/rust/GSV");
     if !(exe_ok && repo_ok) {
         why.push(format!("mcp.gsv_mcp_openbot {:?}", cmd));
+    }
+    // Kit-Eco 2: Cursor folder MCP (hub HTTP) + Grok overlay (stdio + kit skills).
+    let cursor = fs::read_to_string(root.join(".cursor/mcp.json")).unwrap_or_default();
+    if !cursor.contains("127.0.0.1:9999/mcp") {
+        why.push(".cursor/mcp.json lacks hub http://127.0.0.1:9999/mcp".to_string());
+    }
+    let grok = fs::read_to_string(root.join(".grok/config.toml")).unwrap_or_default();
+    if !(grok.contains("gsv-mcp.exe") && grok.contains("S:/rust/GSV/.agents/skills")) {
+        why.push(".grok/config.toml lacks hub stdio / kit skills".to_string());
     }
     if why.is_empty() {
         "ok".to_string()

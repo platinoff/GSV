@@ -58,10 +58,25 @@ fn wiring_status_reports_missing_and_drift() {
     assert!(drift.contains("instructions"), "{drift}");
     assert!(drift.contains("skills.paths"), "{drift}");
     assert!(drift.contains("mcp.gsv_mcp_openbot"), "{drift}");
+    assert!(drift.contains(".cursor/mcp.json"), "{drift}");
+    assert!(drift.contains(".grok/config.toml"), "{drift}");
 
     std::fs::write(
         dir.join("opencode.json"),
         r#"{"instructions":["S:/rust/GSV/AGENTS.md","AGENTS.md"],"skills":{"paths":["S:/rust/GSV/.agents/skills"]},"mcp":{"gsv_mcp_openbot":{"type":"local","command":["S:/rust/GSV/target/live/gsv-mcp.exe","--repo-root","S:/rust/GSV"],"cwd":"S:/rust/GSV"}}}"#,
+    )
+    .unwrap();
+    // Kit-Eco 2 clients: Cursor folder MCP (hub HTTP) + Grok overlay (stdio + kit skills).
+    std::fs::create_dir_all(dir.join(".cursor")).unwrap();
+    std::fs::write(
+        dir.join(".cursor/mcp.json"),
+        r#"{"mcpServers":{"gsv_mcp_openbot":{"type":"http","url":"http://127.0.0.1:9999/mcp"}}}"#,
+    )
+    .unwrap();
+    std::fs::create_dir_all(dir.join(".grok")).unwrap();
+    std::fs::write(
+        dir.join(".grok/config.toml"),
+        "[mcp_servers.gsv_mcp_openbot]\ncommand = \"S:/rust/GSV/target/live/gsv-mcp.exe\"\nargs = [\"--repo-root\", \"S:/rust/GSV\"]\n\n[skills]\npaths = [\"S:/rust/GSV/.agents/skills\"]\n",
     )
     .unwrap();
     assert_eq!(products::wiring_status(&dir), "ok");

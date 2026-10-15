@@ -121,7 +121,13 @@ own root `opencode.json` — `instructions` = GSV `AGENTS.md` → local `AGENTS.
 → product NEXT/HANDOFF (global-first order), `skills.paths` = GSV kit
 (`S:/rust/GSV/.agents/skills`, canon copy lives here, PoolAI keeps its local
 `.agents/skills` first), `mcp.gsv_mcp_openbot` = stdio
-`S:/rust/GSV/target/live/gsv-mcp.exe --repo-root S:/rust/GSV`. Result: typing
+`S:/rust/GSV/target/live/gsv-mcp.exe --repo-root S:/rust/GSV` — **plus**
+`.cursor/mcp.json` (folder-scope HTTP `http://127.0.0.1:9999/mcp`, never User
+scope) and `.grok/config.toml` (same stdio + `[skills]` kit paths), so all three
+clients keep the hub and the `agi` law when the plugin folder is opened **alone**
+(Kit-Eco 2). `cargo xtask products` prints a `wiring` column (`ok|missing|drift`
+per registered plugin; host/nested/unregistered = `na`) and
+`tests/gsv_kit_wiring_contracts.rs` fails the suite on drift. Result: typing
 `agi` in any single-folder OpenCode window behaves like the GSV window — Step 0
 product pick (or the tree's `Owner product pick`), global rules, local nuances
 only for product specifics. Nested `telenetis` stays kit-confined (no plugin
