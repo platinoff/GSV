@@ -1766,3 +1766,50 @@ async fn mcp_telegram_decode_returns_data() {
     assert!(text.contains("PH-S2459"), "{text}");
     assert!(!text.contains("bot_token"), "{text}");
 }
+
+// Kit-Eco 9: MCP-facing bus identity — a foreign `from` (not the presence
+// identity, not numeric-allowlisted) must be refused through the tool surface
+// itself, and the refusal must never carry the bot token.
+#[tokio::test]
+async fn mcp_bus_send_foreign_from_refused_without_token_leak() {
+    let _g = bus_guard().await;
+    telegram::bus_reset();
+    let data = temp_data("mcp-bus-foreign");
+    save_relay(&data, "-100foreign", "foreign-secret-token", &["42"]);
+    // presence = cursor; `from` = ghost (not presence identity, not 42).
+    let app = app_cursor_online(data);
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/mcp")
+                .method(Method::POST)
+                .header(header::CONTENT_TYPE, "application/json")
+                .header("x-telegram-dry-run", "1")
+                .body(Body::from(
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "method": "tools/call",
+                        "params": {
+                            "name": "gsv_telegram_bus_send",
+                            "arguments": { "from": "ghost", "body": "spoof" }
+                        }
+                    })
+                    .to_string(),
+                ))
+                .expect("req"),
+        )
+        .await
+        .expect("resp");
+    assert_eq!(resp.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .expect("body");
+    let sj: Value = serde_json::from_slice(&bytes).expect("json");
+    assert_eq!(sj["result"]["isError"], true, "{sj}");
+    let text = sj["result"]["content"][0]["text"].as_str().unwrap_or("");
+    assert!(text.contains("allowlist"), "{text}");
+    assert!(!text.contains("foreign-secret-token"), "{text}");
+    assert!(!text.contains("bot_token"), "{text}");
+}

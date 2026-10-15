@@ -364,3 +364,10 @@ Next drain: **owner pick** after a warnings-first scan.
 - MCP: [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md)
 - Omni secrets (same redact idea): `data/omni.toml` + `GET /api/omni/config`
 - Tunnel (different): `cargo xtask tunnel` — not this spec
+
+## Tickets lifecycle cross-ref (Kit-Eco 9)
+
+Lease TTL / reclaim-only path / ranks (+1 done, −1 error, claimer-only) and the
+bus identity rule live in [`GSV_SOLO_SQUAD_JAIL.md`](./GSV_SOLO_SQUAD_JAIL.md)
+§Tickets + ranks + lease. The Godfather channel binds them: `member_count` sizes
+`squad_cap`, `allowed_user_ids` gate `from`, tokens stay redacted (`token_set`).

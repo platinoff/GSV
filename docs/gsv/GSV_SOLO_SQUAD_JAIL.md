@@ -167,3 +167,27 @@ Catalog ids: `federated-join` · `own-channel` · `jail-app` · `federated-prese
 - Co-workflows: `drain` · `ticket-claim` · `telegram-relay` · `ticket-squad`
 - Always-on live copy: [`GSV_POST_ALWAYS_ON.md`](./GSV_POST_ALWAYS_ON.md)
 - Localhost hardening: bands 133–134, 160
+
+## Tickets + ranks + lease (Kit-Eco 9, owner 2026-10-15)
+
+Жизтєвий цикл тікета на борці `docs/gsv/tickets.jsonl` — єдиний координатор між вікнами:
+
+- **presence** (`gsv_tickets_presence`) — хартбіт workers-списку; оновлює leases **лише
+  цього** worker'а (чужі in_progress не подовжуються). `online >= squad_cap` → new
+  worker відхиляється; `squad_cap` = `member_count` каналу Godfather (0 → fallback
+  `bot_slot_cap`).
+- **claim** (`gsv_tickets_claim`) — open → in_progress + `lease_until` (TSL TTL;
+  дивись `gsv_tickets` → `lease_secs` / рядок `lease_until`). Повторний claim чужого
+  rows = error, не force.
+- **done / error** (`gsv_tickets_done` / `_error`) — in_progress → done/blocked;
+  подія іде у fingerprint-ring; **ranks**: +1 за done, −1 за error, **тільки
+  claimer'у** (self-asserted identity немає — direct award/demote видалені;
+  L0 jun-nub … L15 marshal).
+- **reclaim** — єдиний шлях повернення in_progress → open: `gsv_tickets_reclaim`
+  з порожнім id (усі expired leases) або явним id; band 196 federation:
+  peer-борди transition own copies теж (`kind:reclaim`).
+- **next** (`gsv_tickets_next`) — inbox наступної дії вікна (WIP → hint), серцебиття
+  presence безкоштовно.
+- **bus identity** — `gsv_telegram_bus_send` приймає `from` = presence-identity
+  або numeric TG id з allowlist; чужий → refuse без витоку `bot_token`
+  (контракт `mcp_bus_send_foreign_from_refused_without_token_leak`).
