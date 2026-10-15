@@ -10,6 +10,8 @@
 //! - `registry` — every registered product row keeps HANDOFF + NEXT
 //!   (`products::scan`), i.e. PRODUCTS.md matches discovery reality.
 //! - `kit_copy` — GSV-only `agi` skill is not copied into plugin trees.
+//! - `mirrors` — HARD (Kit-Eco 4): `.cursor/skills` + `.opencode/skills` are
+//!   byte-identical to the `.agents/skills` canon (`cargo xtask mirrors --check`).
 //! - `ratio` — the persisted `data/rust_ratio.json` meets the Rust 95–100%
 //!   formal band (`ratio::load`); the 96% stretch is advisory.
 //! - `sli` — unused script candidates (new-SLI pool) — advisory.
@@ -176,6 +178,25 @@ pub fn collect(repo_root: &Path, data_dir: &Path, live_url: Option<&str>) -> Rul
             format!("agi skill leaked into plugins: {}", leaked.join(", "))
         },
     ));
+
+    // mirrors (Kit-Eco 4): .cursor/skills + .opencode/skills must be byte-identical
+    // to the .agents/skills canon — HARD gate, skill copies never drift silently.
+    match super::xtask::check_skill_mirrors(repo_root) {
+        Ok(drift) => checks.push(RuleCheck::hard(
+            "mirrors",
+            drift.is_empty(),
+            if drift.is_empty() {
+                "skill mirrors synced with .agents canon".to_string()
+            } else {
+                format!("mirror drift: {}", drift.join("; "))
+            },
+        )),
+        Err(e) => checks.push(RuleCheck::hard(
+            "mirrors",
+            false,
+            format!("mirrors check failed: {e}"),
+        )),
+    }
 
     // ratio: persisted Rust ratio must satisfy the formal band (95%).
     match ratio::load(data_dir) {

@@ -203,18 +203,39 @@ fn main() -> ExitCode {
                 }
             }
         }
-        "mirrors" => match xtask::sync_skill_mirrors(&root) {
-            Ok(names) => {
-                for n in names {
-                    println!("mirrored {n}");
+        "mirrors" => {
+            if args.iter().any(|a| a == "--check") {
+                match xtask::check_skill_mirrors(&root) {
+                    Ok(d) if d.is_empty() => {
+                        println!("mirrors ok (canon == .cursor + .opencode copies)");
+                        ExitCode::SUCCESS
+                    }
+                    Ok(d) => {
+                        for x in d {
+                            eprintln!("drift: {x}");
+                        }
+                        ExitCode::FAILURE
+                    }
+                    Err(e) => {
+                        eprintln!("mirrors --check: {e}");
+                        ExitCode::FAILURE
+                    }
                 }
-                ExitCode::SUCCESS
+            } else {
+                match xtask::sync_skill_mirrors(&root) {
+                    Ok(names) => {
+                        for n in names {
+                            println!("mirrored {n}");
+                        }
+                        ExitCode::SUCCESS
+                    }
+                    Err(e) => {
+                        eprintln!("mirrors: {e}");
+                        ExitCode::FAILURE
+                    }
+                }
             }
-            Err(e) => {
-                eprintln!("mirrors: {e}");
-                ExitCode::FAILURE
-            }
-        },
+        }
         "bump" => {
             let mut band: Option<u32> = env::var("GSV_BAND").ok().and_then(|s| s.parse().ok());
             let mut toml = root.join("Cargo.toml");

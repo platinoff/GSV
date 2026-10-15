@@ -61,7 +61,7 @@ pub const TASKS: &[(&str, &str)] = &[
     ),
     (
         "mirrors",
-        "Copy .agents/skills → .cursor/skills + .opencode/skills",
+        "Copy .agents/skills → .cursor/skills + .opencode/skills (add --check: diff-only audit, non-zero on drift)",
     ),
     (
         "bump",
@@ -602,6 +602,66 @@ pub fn sync_skill_mirrors(kit_root: &Path) -> Result<Vec<String>, String> {
     Ok(mirrored)
 }
 
+/// Recursively collect relative file paths (forward slashes) under `dir`.
+fn walk_rel(dir: &Path, base: &Path, out: &mut Vec<String>) -> Result<(), String> {
+    for entry in fs::read_dir(dir).map_err(|e| e.to_string())?.flatten() {
+        let p = entry.path();
+        if p.is_dir() {
+            walk_rel(&p, base, out)?;
+        } else if let Ok(rel) = p.strip_prefix(base) {
+            out.push(rel.to_string_lossy().replace('\\', "/"));
+        }
+    }
+    Ok(())
+}
+
+/// Kit-Eco 4: diff-only mirror audit — every `.agents/skills/<name>` must be
+/// byte-identical in `.cursor/skills/<name>` and `.opencode/skills/<name>`.
+/// Returns drift strings (empty = synced); never writes anything.
+pub fn check_skill_mirrors(kit_root: &Path) -> Result<Vec<String>, String> {
+    let src = kit_root.join(".agents/skills");
+    if !src.is_dir() {
+        return Err("missing .agents/skills".into());
+    }
+    let mut drift = Vec::new();
+    let read = fs::read_dir(&src).map_err(|e| e.to_string())?;
+    for entry in read.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let mut canon = Vec::new();
+        walk_rel(&path, &path, &mut canon)?;
+        for dest_root in [".cursor/skills", ".opencode/skills"] {
+            let dest = kit_root.join(dest_root).join(&name);
+            if !dest.is_dir() {
+                drift.push(format!("{name}: {dest_root} copy missing"));
+                continue;
+            }
+            let mut copy = Vec::new();
+            walk_rel(&dest, &dest, &mut copy)?;
+            for rel in &canon {
+                let (a, b) = (path.join(rel), dest.join(rel));
+                match (fs::read(&a), fs::read(&b)) {
+                    (Ok(x), Ok(y)) if x == y => {}
+                    (Ok(_), Ok(_)) => drift.push(format!("{name}: {dest_root}/{rel} differs")),
+                    (Ok(_), Err(_)) => {
+                        drift.push(format!("{name}: {dest_root}/{rel} missing on copy"))
+                    }
+                    _ => {}
+                }
+            }
+            for rel in &copy {
+                if !canon.contains(rel) {
+                    drift.push(format!("{name}: {dest_root}/{rel} extra on copy"));
+                }
+            }
+        }
+    }
+    Ok(drift)
+}
+
 /// `git status -sb` then `git push origin main`.
 pub fn git_push_only(repo_root: &Path) -> Result<String, String> {
     crate::boxes::gitkit::run(repo_root, &["push".into()])
@@ -1137,8 +1197,48 @@ mod tests {
             tsv.contains("/GSV/target/live") || tsv.contains("GSV/target/live"),
             "{tsv}"
         );
-        assert!(tsv.contains("\nwiring\n") || tsv.contains("live_dir\twiring"), "{tsv}");
+        assert!(
+            tsv.contains("\nwiring\n") || tsv.contains("live_dir\twiring"),
+            "{tsv}"
+        );
         assert!(tsv.contains("\tok\n") || tsv.contains("\tna\n"), "{tsv}");
+    }
+
+    #[test]
+    fn mirrors_check_detects_drift() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/mirror_check");
+        let _ = fs::remove_dir_all(&root);
+        let canon = root.join(".agents/skills/demo");
+        fs::create_dir_all(&canon).unwrap();
+        fs::write(canon.join("SKILL.md"), "one").unwrap();
+        for r in [".cursor/skills", ".opencode/skills"] {
+            let d = root.join(r).join("demo");
+            fs::create_dir_all(&d).unwrap();
+            fs::write(d.join("SKILL.md"), "one").unwrap();
+        }
+        assert_eq!(
+            check_skill_mirrors(&root).unwrap(),
+            Vec::<String>::new(),
+            "identical copies are clean"
+        );
+        fs::write(root.join(".cursor/skills/demo/SKILL.md"), "two").unwrap();
+        let drift = check_skill_mirrors(&root).unwrap();
+        assert!(drift.iter().any(|d| d.contains("differs")), "{drift:?}");
+        let _ = fs::remove_dir_all(root.join(".opencode/skills/demo"));
+        let drift = check_skill_mirrors(&root).unwrap();
+        assert!(
+            drift.iter().any(|d| d.contains("copy missing")),
+            "{drift:?}"
+        );
+        fs::create_dir_all(root.join(".opencode/skills/demo")).unwrap();
+        fs::write(root.join(".opencode/skills/demo/SKILL.md"), "one").unwrap();
+        fs::write(root.join(".opencode/skills/demo/OLD.md"), "stale").unwrap();
+        let drift = check_skill_mirrors(&root).unwrap();
+        assert!(
+            drift.iter().any(|d| d.contains("extra on copy")),
+            "{drift:?}"
+        );
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]
