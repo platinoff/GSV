@@ -229,6 +229,71 @@ fn push_row(
 }
 
 /// Discover environment projects (workspace → siblings → kit). Dedup by path.
+/// Kit-wiring audit (Kit-Eco 3): a registered plugin window must load the GSV
+/// kit from its root `opencode.json` — `instructions[0]` = `S:/rust/GSV/AGENTS.md`,
+/// `skills.paths` contains the kit dir, and `mcp.gsv_mcp_openbot` is stdio on
+/// `target/live/gsv-mcp.exe --repo-root S:/rust/GSV`. Returns `ok`, `missing`,
+/// or `drift:<why>`; the host row and nested plugins are audited as `na` by the
+/// caller (the kit itself is the canon — Telenetis stays kit-confined).
+pub fn wiring_status(root: &Path) -> String {
+    let file = root.join("opencode.json");
+    let Ok(text) = fs::read_to_string(&file) else {
+        return "missing".to_string();
+    };
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return "drift:opencode.json unparseable".to_string();
+    };
+    let mut why: Vec<String> = Vec::new();
+    let norm = |s: &str| s.replace('\\', "/");
+    if v.get("instructions")
+        .and_then(|i| i.get(0))
+        .and_then(|s| s.as_str())
+        .map(norm)
+        .as_deref()
+        != Some("S:/rust/GSV/AGENTS.md")
+    {
+        why.push("instructions[0] != S:/rust/GSV/AGENTS.md".to_string());
+    }
+    let skills_ok = v
+        .get("skills")
+        .and_then(|s| s.get("paths"))
+        .and_then(|p| p.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|x| x.as_str())
+                .any(|s| norm(s) == "S:/rust/GSV/.agents/skills")
+        })
+        .unwrap_or(false);
+    if !skills_ok {
+        why.push("skills.paths lacks GSV kit".to_string());
+    }
+    let cmd: Vec<String> = v
+        .get("mcp")
+        .and_then(|m| m.get("gsv_mcp_openbot"))
+        .and_then(|m| m.get("command"))
+        .and_then(|c| c.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|x| x.as_str())
+                .map(norm)
+                .collect::<Vec<String>>()
+        })
+        .unwrap_or_default();
+    let exe_ok = cmd
+        .first()
+        .map(|c| c.ends_with("target/live/gsv-mcp.exe") && c.contains("S:/rust/GSV"))
+        .unwrap_or(false);
+    let repo_ok = cmd.iter().any(|a| a == "--repo-root") && cmd.iter().any(|a| a == "S:/rust/GSV");
+    if !(exe_ok && repo_ok) {
+        why.push(format!("mcp.gsv_mcp_openbot {:?}", cmd));
+    }
+    if why.is_empty() {
+        "ok".to_string()
+    } else {
+        format!("drift:{}", why.join("; "))
+    }
+}
+
 pub fn discover(kit_root: &Path) -> Vec<ProductRow> {
     let mut seen = HashSet::new();
     let mut out = Vec::new();

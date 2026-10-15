@@ -368,11 +368,16 @@ pub fn mcp_run(repo_root: &Path, task: &str) -> Result<Value, String> {
 /// TSV for abracadabra Step 0 (same columns as the retired shell script).
 pub fn products_tsv(kit_root: &Path) -> String {
     let mut out = String::from(
-        "id\tname\tpath\tkind\tregistered\tsource\tgit\tcargo\trole\tnested\ttarget_dir\tlive_dir\n",
+        "id\tname\tpath\tkind\tregistered\tsource\tgit\tcargo\trole\tnested\ttarget_dir\tlive_dir\twiring\n",
     );
     for row in products::discover(kit_root) {
+        let wiring = if row.role == "host" || row.nested || !row.registered {
+            "na".to_string()
+        } else {
+            products::wiring_status(std::path::Path::new(&row.path))
+        };
         out.push_str(&format!(
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
             row.id,
             row.name,
             row.path,
@@ -385,6 +390,7 @@ pub fn products_tsv(kit_root: &Path) -> String {
             if row.nested { "yes" } else { "no" },
             row.target_dir,
             row.live_dir.as_deref().unwrap_or(""),
+            wiring,
         ));
     }
     out
@@ -1131,6 +1137,8 @@ mod tests {
             tsv.contains("/GSV/target/live") || tsv.contains("GSV/target/live"),
             "{tsv}"
         );
+        assert!(tsv.contains("\nwiring\n") || tsv.contains("live_dir\twiring"), "{tsv}");
+        assert!(tsv.contains("\tok\n") || tsv.contains("\tna\n"), "{tsv}");
     }
 
     #[test]
