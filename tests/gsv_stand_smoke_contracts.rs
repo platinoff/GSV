@@ -125,8 +125,9 @@ async fn struct_wire_endpoints_parse_json() {
     }
 }
 
-/// `/api/health` must always merge the `keep_live` aggregate (4 peers + hint),
-/// the shape the smoke `health_keep_live` case asserts against the live server.
+/// `/api/health` must always merge the `keep_live` aggregate (5 peers + hint;
+/// Kit-Eco 8 adds the optional `rusty` engine host), the shape the smoke
+/// `health_keep_live` case asserts against the live server.
 #[tokio::test]
 async fn health_keep_live_shape_has_four_peers_and_hint() {
     let (app, _state) = app();
@@ -134,7 +135,7 @@ async fn health_keep_live_shape_has_four_peers_and_hint() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(json["ok"], true, "health must be ok:true");
     let kl = &json["keep_live"];
-    for peer in ["gsv", "telenetis", "llama_rs", "omniroute"] {
+    for peer in ["gsv", "telenetis", "llama_rs", "rusty", "omniroute"] {
         assert!(
             kl[peer]["alive"].is_boolean(),
             "keep_live.{peer}.alive must be a boolean"

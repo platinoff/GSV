@@ -27,14 +27,22 @@ pub struct KeepLiveEntry {
     /// is TCP-only, so the server injects its own `started_at` uptime).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uptime_secs: Option<u64>,
+    /// Kit-Eco 8: required peers (gsv, telenetis by default) missing should
+    /// pause a drain; optional peers (llama_rs, rusty, omniroute — and any
+    /// peer listed in `GSV_KEEP_LIVE_OPTIONAL`) never alarm. Serialized only
+    /// when true, so optional rows keep the historic wire shape.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub required: bool,
 }
 
-/// Full keep-live report (4 peers).
+/// Full keep-live report (5 peers; `rusty` is the PH-507 engine host,
+/// optional, heartbeat-mtime fail-open).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct KeepLiveReport {
     pub gsv: KeepLiveEntry,
     pub telenetis: KeepLiveEntry,
     pub llama_rs: KeepLiveEntry,
+    pub rusty: KeepLiveEntry,
     pub omniroute: KeepLiveEntry,
 }
 
@@ -106,6 +114,42 @@ pub fn heartbeat_fresh(path: &Path, now: u64) -> bool {
         Err(_) => return false,
     };
     now.saturating_sub(hb.epoch_secs) <= 60
+}
+
+/// Heartbeat of the PH-507 engine host (`rusty serve` stamps it at startup +
+/// every conn). `RUSTY_HEARTBEAT_PATH` override else the plugin's live dir.
+pub fn rusty_heartbeat_path() -> PathBuf {
+    std::env::var("RUSTY_HEARTBEAT_PATH")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("S:/rust/rusty-engine/target/live/rusty_heartbeat.json"))
+}
+
+/// Freshness by file mtime (the rusty `Heartbeat` payload carries uptime/tick,
+/// no epoch — the filesystem stamp is the clock). Missing/stale → false.
+fn mtime_fresh(path: &Path, now: u64) -> bool {
+    let Ok(meta) = path.metadata() else {
+        return false;
+    };
+    let Ok(modified) = meta.modified() else {
+        return false;
+    };
+    match modified.duration_since(UNIX_EPOCH) {
+        Ok(d) => now.saturating_sub(d.as_secs()) <= 60,
+        Err(_) => false,
+    }
+}
+
+/// Kit-Eco 8: which peers must be up for the drain to proceed. Defaults:
+/// `gsv` + `telenetis` required; `llama_rs`/`rusty`/`omniroute` optional.
+/// `GSV_KEEP_LIVE_OPTIONAL="gsv,telenetis"` demotes any of them (squad box
+/// without telenetis must not false-alarm); the names are the wire keys.
+pub fn peer_required(name: &str) -> bool {
+    let optional = std::env::var("GSV_KEEP_LIVE_OPTIONAL")
+        .unwrap_or_else(|_| "llama_rs,rusty,omniroute".into());
+    !optional
+        .split(',')
+        .map(str::trim)
+        .any(|s| s.eq_ignore_ascii_case(name))
 }
 
 /// Omniroute probe chain (band 233): the LAN base first, then the loopback
@@ -395,6 +439,7 @@ pub fn report() -> KeepLiveReport {
             lag: None,
             latency_ms: Some(gsv_lat),
             uptime_secs: None,
+            required: peer_required("gsv"),
         },
         telenetis: KeepLiveEntry {
             alive: tel.alive,
@@ -403,6 +448,7 @@ pub fn report() -> KeepLiveReport {
             lag: None,
             latency_ms: Some(tel.latency_ms),
             uptime_secs: tel.uptime_secs,
+            required: peer_required("telenetis"),
         },
         llama_rs: KeepLiveEntry {
             alive: llama_alive,
@@ -411,6 +457,16 @@ pub fn report() -> KeepLiveReport {
             lag: None,
             latency_ms: None,
             uptime_secs: None,
+            required: peer_required("llama_rs"),
+        },
+        rusty: KeepLiveEntry {
+            alive: mtime_fresh(&rusty_heartbeat_path(), now),
+            url: rusty_heartbeat_path().to_string_lossy().to_string(),
+            version: None,
+            lag: None,
+            latency_ms: None,
+            uptime_secs: None,
+            required: peer_required("rusty"),
         },
         omniroute: KeepLiveEntry {
             alive: omni_alive,
@@ -419,6 +475,7 @@ pub fn report() -> KeepLiveReport {
             lag: None,
             latency_ms: Some(omni_lat),
             uptime_secs: omni_up,
+            required: peer_required("omniroute"),
         },
     }
 }
@@ -474,6 +531,7 @@ pub async fn report_async() -> KeepLiveReport {
             lag: None,
             latency_ms: Some(gsv_lat),
             uptime_secs: None,
+            required: peer_required("gsv"),
         },
         telenetis: KeepLiveEntry {
             alive: tel.alive,
@@ -482,6 +540,7 @@ pub async fn report_async() -> KeepLiveReport {
             lag: None,
             latency_ms: Some(tel.latency_ms),
             uptime_secs: tel.uptime_secs,
+            required: peer_required("telenetis"),
         },
         llama_rs: KeepLiveEntry {
             alive: llama_alive,
@@ -490,6 +549,16 @@ pub async fn report_async() -> KeepLiveReport {
             lag: None,
             latency_ms: None,
             uptime_secs: None,
+            required: peer_required("llama_rs"),
+        },
+        rusty: KeepLiveEntry {
+            alive: mtime_fresh(&rusty_heartbeat_path(), now),
+            url: rusty_heartbeat_path().to_string_lossy().to_string(),
+            version: None,
+            lag: None,
+            latency_ms: None,
+            uptime_secs: None,
+            required: peer_required("rusty"),
         },
         omniroute: KeepLiveEntry {
             alive: omni_alive,
@@ -498,6 +567,7 @@ pub async fn report_async() -> KeepLiveReport {
             lag: None,
             latency_ms: Some(omni_lat),
             uptime_secs: omni_up,
+            required: peer_required("omniroute"),
         },
     }
 }
@@ -552,6 +622,7 @@ pub fn hint(r: &KeepLiveReport) -> String {
         ("gsv", r.gsv.alive),
         ("telenetis", r.telenetis.alive),
         ("llama_rs", r.llama_rs.alive),
+        ("rusty", r.rusty.alive),
         ("omniroute", r.omniroute.alive),
     ] {
         if alive {
@@ -583,6 +654,7 @@ pub fn wire(data_dir: &Path) -> Value {
         "gsv": r.gsv,
         "telenetis": r.telenetis,
         "llama_rs": r.llama_rs,
+        "rusty": r.rusty,
         "omniroute": r.omniroute,
         "seat_queue": seat_queue(data_dir),
     })
@@ -601,6 +673,7 @@ pub async fn wire_async(data_dir: &Path) -> Value {
         "gsv": r.gsv,
         "telenetis": r.telenetis,
         "llama_rs": r.llama_rs,
+        "rusty": r.rusty,
         "omniroute": r.omniroute,
         "seat_queue": seat_queue(data_dir),
     })
@@ -900,6 +973,10 @@ mod tests {
             "LLAMA_HEARTBEAT_PATH",
             "/tmp/gsv-keep-live-missing-99999.json",
         );
+        std::env::set_var(
+            "RUSTY_HEARTBEAT_PATH",
+            "/tmp/gsv-keep-live-missing-rusty-99999.json",
+        );
         let tmp = std::env::temp_dir().join(format!("gsv-keep-live-wire-{}", std::process::id()));
         let _ = fs::remove_dir_all(&tmp);
         fs::create_dir_all(&tmp).unwrap();
@@ -932,21 +1009,68 @@ mod tests {
             lag: None,
             latency_ms: Some(1),
             uptime_secs: None,
+            required: false,
         };
         let all_up = KeepLiveReport {
             gsv: mk(true),
             telenetis: mk(true),
             llama_rs: mk(true),
+            rusty: mk(true),
             omniroute: mk(true),
         };
-        assert_eq!(hint(&all_up), "gsv/telenetis/llama_rs/omniroute up");
+        assert_eq!(hint(&all_up), "gsv/telenetis/llama_rs/rusty/omniroute up");
         let mixed = KeepLiveReport {
             gsv: mk(true),
             telenetis: mk(false),
             llama_rs: mk(true),
+            rusty: mk(true),
             omniroute: mk(false),
         };
-        assert_eq!(hint(&mixed), "gsv/llama_rs up · telenetis/omniroute down");
+        assert_eq!(
+            hint(&mixed),
+            "gsv/llama_rs/rusty up · telenetis/omniroute down"
+        );
+    }
+
+    #[test]
+    fn peer_required_defaults_gsv_telenetis_and_honors_optional_env() {
+        let _guard = crate::boxes::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        std::env::remove_var("GSV_KEEP_LIVE_OPTIONAL");
+        assert!(peer_required("gsv"), "hub is required by default");
+        assert!(peer_required("telenetis"), "relay is required by default");
+        assert!(!peer_required("llama_rs"), "llama is optional by default");
+        assert!(!peer_required("rusty"), "rusty is optional by default");
+        assert!(
+            !peer_required("omniroute"),
+            "omniroute is policy-down optional"
+        );
+        std::env::set_var("GSV_KEEP_LIVE_OPTIONAL", "telenetis, llama_rs");
+        assert!(peer_required("gsv"), "unset name stays required");
+        assert!(
+            !peer_required("telenetis"),
+            "env-demoted peer must not alarm on squad boxes"
+        );
+        std::env::remove_var("GSV_KEEP_LIVE_OPTIONAL");
+    }
+
+    #[test]
+    fn rusty_heartbeat_mtime_window() {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let p = std::env::temp_dir().join("gsv-rusty-hb-window.json");
+        let _ = fs::remove_file(&p);
+        assert!(!mtime_fresh(&p, now), "missing heartbeat is not fresh");
+        fs::write(&p, b"{}").unwrap();
+        assert!(mtime_fresh(&p, now + 5), "fresh stamp is alive");
+        let f = fs::OpenOptions::new().write(true).open(&p).unwrap();
+        f.set_modified(SystemTime::now() - std::time::Duration::from_secs(120))
+            .unwrap();
+        assert!(!mtime_fresh(&p, now), "stale stamp (>60s) is down");
+        let _ = fs::remove_file(&p);
     }
 
     #[test]

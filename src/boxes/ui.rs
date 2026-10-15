@@ -2495,7 +2495,7 @@ pub fn render_keep_live(d: &Value) -> String {
         return empty_html("keep-live");
     }
     let mut rows = Vec::new();
-    for key in ["gsv", "telenetis", "llama_rs", "omniroute"] {
+    for key in ["gsv", "telenetis", "llama_rs", "rusty", "omniroute"] {
         let e = &d[key];
         if e.is_null() {
             continue;
