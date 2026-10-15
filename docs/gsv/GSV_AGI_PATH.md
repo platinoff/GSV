@@ -116,6 +116,17 @@ iterations) goes through the **GSV hub**:
 `agi` keep-lives the hub, then drains the **picked** tree. Opening a plugin
 folder **alone** loses Cursor folder MCP — that is why the workspace exists.
 
+**2026-10-15 (kit-wiring band):** every registered plugin tree now carries its
+own root `opencode.json` — `instructions` = GSV `AGENTS.md` → local `AGENTS.md`
+→ product NEXT/HANDOFF (global-first order), `skills.paths` = GSV kit
+(`S:/rust/GSV/.agents/skills`, canon copy lives here, PoolAI keeps its local
+`.agents/skills` first), `mcp.gsv_mcp_openbot` = stdio
+`S:/rust/GSV/target/live/gsv-mcp.exe --repo-root S:/rust/GSV`. Result: typing
+`agi` in any single-folder OpenCode window behaves like the GSV window — Step 0
+product pick (or the tree's `Owner product pick`), global rules, local nuances
+only for product specifics. Nested `telenetis` stays kit-confined (no plugin
+files inside the GSV tree).
+
 ## Environment security (first)
 
 The **environment** is the rust folder + live hub process. Security is the
