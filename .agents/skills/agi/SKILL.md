@@ -79,6 +79,11 @@ Cursor (agent refresh does not re-list tools).
 4. Claim → drain → `gsv_tickets_done` with a note. Optional: `gsv_tickets_hook` ≤10 PH-S* from the product roadmap.
 5. `gsv_tickets_next` after presence if the board already has WIP.
 
+**Ticket law (Kit-Eco 6):** never work a ticket whose `claimed_by` belongs to another
+worker; stale rows return to `open` only via `gsv_tickets_reclaim` — never by force.
+Full cycle (presence→pick→claim→drain→done→next→sync): `GSV_VDT_KIT.md` §Multi-window
+workflow.
+
 Godfather / Telegram tokens: never echo. `gsv_settings` / `gsv_telegram*` are redacted reads.
 
 ## Then drain the picked product

@@ -117,6 +117,26 @@ DNA, коли це домінує по релевантності.
 **Не переносити в shared kit:** PoolAI FM/DIGEST/concept, `poolai-documentation` skill,
 `poolai-testing-policy` (test-ci / Playwright admin), Galaxy/OpenAPI bins.
 
+## Multi-window workflow (Kit-Eco 6, owner 2026-10-15)
+
+2+ вікна (OpenCode / Cursor / Grok) на одному jail — один цикл на вікно, одна дошка:
+
+1. **presence** — `gsv_tickets_presence` на старті сесії (`agi` Step 0e); хартбіт продовжує
+   **лише власні** in_progress leases; `squad_cap` = member_count — зайвих не пускать.
+2. **pick / 0r** — Step 0: скан + вибір продукту; папка поза списком → реєстраційне питання 0r.
+3. **claim** — `gsv_tickets_next` → `gsv_tickets_claim`; чужий `claimed_by` **не чіпати**,
+   stale повертає в open **тільки** `gsv_tickets_reclaim` (lease TTL дивитись у board-wire).
+4. **drain** — працювати в **вибраному** дереві; паралельний cargo між різними `target/` —
+   можна, два cargo на один `target/` — ні (file lock).
+5. **done** — `gsv_tickets_done` з нотаткою (+1 rank claimerу; error −1); далі одразу
+   `gsv_tickets_next` для наступного action цього вікна.
+6. **sync** — telegram-relay on: Godfather dual-message (human line + JSON `{v:1,kind:sync}`);
+   federation presence/claim/done/reclaim — бачити `GSV_SOLO_SQUAD_JAIL.md`.
+
+Один close = один локальний коміт у дереві продукту (push — лише закон продукту: GSV origin,
+rusty-engine B11 тощо). Між вікнами нічого не «домовляється» поза дошкою: tickets.jsonl —
+єдиний координатор.
+
 ## See also
 
 - Ролі сесії: [`../GSV_ROLES.md`](../GSV_ROLES.md)

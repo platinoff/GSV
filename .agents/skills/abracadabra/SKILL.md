@@ -117,6 +117,10 @@ Prompt: **«Проєкти з цього середовища. З яким пр�
 `PRODUCTS.md` is **enrichment** (HANDOFF, test command, ratio) — not the exclusive
 list. A discovered repo that is not registered is still a valid choice.
 
+**Ticket law (Kit-Eco 6):** never work a ticket whose `claimed_by` belongs to another
+worker; stale rows return to `open` only via `gsv_tickets_reclaim` — never by force.
+Full cycle: GSV_VDT_KIT.md §Multi-window workflow.
+
 ### 0c. After the owner picks
 
 | Pick | What to do |
