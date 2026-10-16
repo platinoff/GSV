@@ -1,6 +1,6 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-09-29 (**band 238 ✅** crate **0.238.0**, live `:9999` `version_lag=false`, keep-live gsv+telenetis+llama_rs up, omniroute policy-down). Cursor **3.22.12** (`Program Files\cursor\resources\app\package.json`). Two agents may show online (IDE + Agents Window): one writer on the GSV tree; the other uses `/worktree` or cloud. Folder MCP `type: http` unchanged. **Canon** [`gsv/GSV_AGI_PATH.md`](gsv/GSV_AGI_PATH.md). **Owner product pick: rebook** — next session after this GSV tech lockstep. last PH-S3028 next PH-S3029.
+**Оновлено:** 2026-10-16 (crate **0.244.0**, live `:9999` `version_lag=false`; bands **239–244** Rust-intel radar + **Kit-Eco 1–9** ecosystem pass; Telenetis extracted to sibling `S:/rust/telenetis`; keep-live gsv+telenetis(0.2.0)+llama_rs up, omniroute policy-down). Cursor **3.22.12** (`Program Files\cursor\resources\app\package.json`). Two agents may show online (IDE + Agents Window): one writer on the GSV tree; the other uses `/worktree` or cloud. Folder MCP `type: http` unchanged. **Canon** [`gsv/GSV_AGI_PATH.md`](gsv/GSV_AGI_PATH.md). **Next = owner pick** — warnings-first scan + `cargo xtask rules-check` before coding. last PH-S3088 next PH-S3089.
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -9,9 +9,9 @@
 agi
 ```
 
-`agi` = drain **плюс** keep-live хаба. **Не питати продукт:** NEXT називає
-**Owner product pick: rebook**, якщо скан його бачить (`S:/rust/rebook`).
-Telenetis лишається Wi-Fi кроликом з хаба, не ціллю цієї сесії.
+`agi` = drain **плюс** keep-live хаба. **Немає фіксованого піку:** питати продукт зі скану
+(`cargo xtask products`), якщо власник не назве його прямо. Telenetis тепер **sibling plugin**
+(`S:/rust/telenetis`, свій репо/`target/`), а не вкладена тека.
 
 або
 
@@ -296,7 +296,14 @@ Close: `cargo xtask bump --band N` (semver **and** vision queue **close of N**: 
       **band 226** (MCP tool 58, owner pick) ✅ — `gsv_telenetis_health`: telenetis keep-live peer as a first-class MCP tool. `src/boxes/keep_live.rs` `telenetis_wire()` (blocking, fail-open `ok:true`) + `telenetis_wire_async()` (tokio spawn_blocking twin) → `{ok, hint, telenetis}`; `src/mcp.rs` `gsv_telenetis_health` (tools_list / TOOL_NAMES / dispatch / contract list / gsv_drain prompt). 57→**58** tools; contracts ranks/tickets/telegram counts; unit `telenetis_wire_stays_ok_when_down`. clippy 0 · lib **309** · full `cargo test` green · version **0.226.0**.
       **band 223** (keep-live health aggregation, owner pick) ✅ — GSV now supervises the always-on kit (GSV :9999 + Telenetis :9800 + llama-rs + OmniRoute). `src/boxes/keep_live.rs`: `KeepLiveReport { gsv, telenetis, llama_rs, omniroute }` each `{ alive, url, version?, lag? }`, **aggregation only** (no respawn), `ok` stays true when a peer is down (like `disk_ok` band 181); env overrides `GSV_KEEP_LIVE_GSV_URL` / `GSV_KEEP_LIVE_TELENETIS_URL` / `OMNIROUTE_URL` / `LLAMA_HEARTBEAT_PATH`; llama_rs liveness = fresh heartbeat file (age ≤ 60s, path `S:/rust/llama-rs/target/live/llama_heartbeat.json`; llama-rs does **not** write it yet — band 225); routes `GET /api/keep-live` + `GET /api/health { keep_live }` (async `wire_async`, no blocking); MCP `gsv_keep_live` read-only → **57** tools; Galaxy `keep-live` studio card (`CARD_NAMES` **43**, 4-peer table peer/alive/url/version); `src/bin/gsv_http_stand_smoke.rs` CARDS 43; contracts `tests/gsv_keep_live_contracts.rs`. Fixed **recursive `cargo test` hang**: `terminal_cargo_test_allowed` ran a nested `cargo test` (deadlock on the build lock) → now `terminal_cargo_version_allowed` (`cargo --version`) + whitelist unit assert. Global rules: `AGENTS.md` **`## Formats + local rules`** section (allowed `.rs/.md/.mdc/.json/.js/.wasm`, Rust 95–100%/wasm 0–5%, product local rules stay in product trees). clippy 0 · **782** tests green · version **0.223.0**.
       **band 237** (hub edge-proxy, owner pick) ✅ — `boxes/edge.rs` single-entry onto poolAI `:8091` edge plane: token (`GSV_EDGE_TOKEN` / `settings.edge.token`), 20/s, allowlist, JSON redact; `GET /api/edge` + `GET`/`POST /api/edge/{*path}`; health `edge_proxy`; VDC card line. clippy 0 · stretch-96 **99.50%** · **0.237.0**. Follow-up: Telenetis service-account ticket.
-      **Наступний drain:** owner pick after a warnings-first scan (`cargo xtask rules-check` — hard/soft drift summary — before coding).
+       **band 239** (host close, agi) ✅ — `sli` usage detection wired (`used_count` no longer 0/unused 34) + `gsv_grid` mirror dedupes `discovered-*` workers by `node_id`; env keep-live lockstep probe + clippy-1.92 drift. **0.239.0**.
+       **band 240** (rust-intel #A core, agi) ✅ — `src/boxes/rust_intel.rs` OSV querybatch over Cargo.lock → `data/gsv_rustsec.json` (atomic, fail-open); `cargo xtask intel` (+`--dry-run`/`--json`); rules-check SOFT `rustsec`; +6 unit tests. **0.240.0**.
+       **band 241** (rust-intel #A.2a, agi) ✅ — CVSS v3.1 base-score (enrich `/v1/vulns/{id}`, ENRICH_CAP 40); `rustsec` → HARD (crit+high fails, `GSV_RUSTSEC_HARD=off`); MCP `gsv_rust_updates` (59→60 tools) + `GET /api/rust-intel`. **0.241.0**.
+       **band 242** (rust-intel #A.2b, agi) ✅ — Galaxy card `rust-intel` (`CARD_NAMES` 44→45, `GET /api/ui/card/rust-intel`). **0.242.0**.
+       **band 243** (rust-intel #B, agi) ✅ — framework freshness: crates.io `max_stable_version` for direct deps, `semver_kind`, rules-check SOFT `fresh` gate + card. **0.243.0**.
+       **band 244** (rust-intel #C, agi) ✅ — gated cadence tick (`GSV_RUSTSEC_TICK=1`) + patch-proposals (`cargo update` hints); `cargo-deny` deferred (#C.3). **0.244.0**.
+       **post-244** (Kit-Eco 1–9 + Telenetis sibling) ✅ — ecosystem wiring (global `opencode.jsonc`, per-plugin Cursor/Grok MCP, `wiring_status`, `mirrors --check` HARD gate, multi-window canon, MCP close discipline, keep-live required/optional + rusty peer, tickets/ranks canon); Telenetis extracted to sibling `S:/rust/telenetis` (watchdog `telenetis_crate_dir`, `:9800` take-over, `/health` **0.2.0**). crate stays **0.244.0**.
+       **Наступний drain:** owner pick after a warnings-first scan (`cargo xtask rules-check` — hard/soft drift summary — before coding).
 
 ## Канон GSV
 

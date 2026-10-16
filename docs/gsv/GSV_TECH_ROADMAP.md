@@ -2280,6 +2280,36 @@ Post-close 2026-09-22 night (not a new band): desktop **3.21.18**; live `:9999` 
 
 2026-09-29 tech check (not a new band): desktop **3.22.12**; hub still **0.238.0** `version_lag=false`; rustc pin **1.92.0-gnu** unchanged. IDE + Agents Window can both show online — one writer on `S:/rust/GSV`. Next drain = **rebook** (owner). GSV queue stays last PH-S3028 next PH-S3029.
 
+## Спринти (band 239) — host close: SLI usage detection + grid worker dedup (agi)
+
+Owner-driven `agi` host band (2026-10-12). `src/boxes/sli.rs` usage detection wired so `used_count` reflects real catalog invocation (was stuck at 0 / unused 34); `src/boxes/grid.rs` mirror dedups `discovered-*` workers by canonical `node_id` (a54-01 / edge-pc-01 were double-counted). Pre-close env fixes: keep-live lockstep probe (`probe_http_blocking` chunked de-chunk), Cursor env guard, clippy-1.92 drift.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S3029** | SLI usage | `sli` wire `used_count` reflects catalog invocation (no longer 0/unused 34) — **✅** |
+| **PH-S3030** | Grid dedup | `grid` wire drops `discovered-*` twins when base node registered — **✅** |
+| **PH-S3031** | Close | fmt · clippy 0 · full `cargo test` · bump **0.239.0** · fingerprint · sync last PH-S3031 next PH-S3039 — **✅** |
+
+## Спринти (bands 240–244) — Rust-intel radar (security + freshness + hygiene)
+
+Owner goal: an auto-radar so the `agi` drain squeezes max speed/safety. Box `src/boxes/rust_intel.rs` + bin `gsv-rust-intel` + MCP `gsv_rust_updates` + Galaxy card; task `cargo xtask intel`; cached `data/gsv_rustsec.json` (atomic, fail-open); rules-check gates: security CRITICAL/HIGH HARD, license/deny HARD, freshness/hygiene SOFT.
+
+| Sprint | Фокус | Acceptance (ключ) |
+|--------|-------|-------------------|
+| **PH-S3039…S3048** | #A core (band 240) | OSV querybatch over Cargo.lock → severity-bucketed advisories; `cargo xtask intel` (+`--dry-run`/`--json`); rules-check SOFT `rustsec`; +6 unit tests — **✅** |
+| **PH-S3049…S3058** | #A.2a (band 241) | CVSS v3.1 base-score (enrich `/v1/vulns/{id}`, ENRICH_CAP 40); `rustsec` → HARD (crit+high fails, `GSV_RUSTSEC_HARD=off` escape); MCP `gsv_rust_updates` (59→60 tools) + `GET /api/rust-intel` — **✅** |
+| **PH-S3059…S3068** | #A.2b (band 242) | Galaxy card `rust-intel` (`CARD_NAMES` 44→45, `GET /api/ui/card/rust-intel`, severity colors) — **✅** |
+| **PH-S3069…S3078** | #B (band 243) | framework freshness: crates.io `max_stable_version` for direct deps (`crates_latest`, `semver_kind` current/patch/minor/major), rules-check SOFT `fresh` gate + card column — **✅** |
+| **PH-S3079…S3088** | #C (band 244) | gated cadence tick (`GSV_RUSTSEC_TICK=1`, floor 300 default 3600) + patch-proposals (`cargo update` hints); `cargo-deny` license/ban deferred (#C.3) — **✅** |
+
+## Екосистема (post-244) — Kit-Eco 1–9 + telenetis sibling
+
+Not a versioned band (crate stayed **0.244.0**).
+
+Kit-Eco 1–9 (one continuous ecosystem pass): global `opencode.jsonc` carries the GSV kit (skills + MCP + instructions) in any folder; per-plugin Cursor folder MCP + Grok overlays; `wiring_status` audits `.cursor/mcp.json` + `.grok/config.toml` + `opencode.json` (xtask `products --wiring`); `xtask mirrors --check` + rules-check HARD `mirrors` gate (skill copies never drift); multi-window workflow canon (presence → pick → claim → drain → done → next); MCP `version_lag`/`listed_tool_count` discipline at close (counts derived from `tool_names()`); keep-live required/optional peers + rusty heartbeat as 5th peer; tickets lease/reclaim-only + ranks + squad_cap + Telegram bus identity canon.
+
+Also: rusty-engine hub registration (PRODUCTS row, PH-507 `rusty-serve` local provider row) and the **Telenetis extraction** — nested `GSV/telenetis` → sibling `S:/rust/telenetis` (own repo, own `target/`), watchdog `telenetis_crate_dir` sibling resolution, `:9800` take-over from the sibling build, `/health` stamps crate semver (0.1.0→**0.2.0**). Next drain = owner pick.
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.
