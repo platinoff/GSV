@@ -35,8 +35,12 @@ Owner one-liner: **The Rust folder is the host. Everything else is a plugin. Env
    `target/live/gsv-mcp.exe` for OpenCode/Grok. MCP sandbox is **this GSV
    crate**, not the plugin trees.
 5. **AGI pathing.** Orchestration, tickets, Omni, grid, edge proxy, keep-live
-   live **only** in GSV. Plugins **execute**. Telenetis is a Telegram-shell
-   plugin. A phone APK with WiFi debug is a `virtual_node` plugin via
+   live **only** in GSV. Plugins **execute**. Telenetis is a **commutation**
+   (switching) plugin. The **worker / edge / APK** role lives in the **model
+   engines** — `llama-rs` (MTP models, local provider `bunke-rock` /
+   `bunke-rock-fast`, `:8080`/`:8082`) and `rusty-engine` (MoE models, local
+   provider `rusty-serve`) — which ship `exe` / `bin` / `apk` for the local
+   LAN/WiFi provider. A phone registers as a `virtual_node` plugin via
    `/api/edge`. Trigger `agi` follows kit rules: discover → keep-live → tickets
    → drain the **picked** plugin (window = GSV does not pick GSV).
 6. **Environment security is the first constraint.** Discovery does not grant
@@ -186,10 +190,12 @@ control plane. No Termux.
 | Host (not a plugin) | `gsv-server` + MCP | `:9999` · `/mcp` | tickets, Omni, grid, `/api/edge`, keep-live, VDT |
 | Grid plugin | poolAI | `:8091` **only on-box**; clients use hub `/api/edge` | seats, jobs, virtual-nodes |
 | Tensor plugin | llama-rs | `:8080` deep · `:8082` fast | local model tiers |
-| Telegram-shell plugin | Telenetis | `:9800` | identity, Mini App chrome, LAN when Telegram is down |
-| Phone-edge plugin | APK + WiFi debug | hub `/api/edge/{*path}` | execute slices / tasks; never clone Telenetis |
+| Commutation plugin | Telenetis | `:9800` | routing / switching between hub, engines and clients; Mini App chrome; LAN when Telegram is down |
+| Model-engine workers | llama-rs (MTP) + rusty-engine (MoE) | hub `/api/edge` · local providers `bunke-rock` / `rusty-serve` | serve models + ship `exe` / `bin` / `apk` for the local LAN/WiFi provider; execute slices / tasks |
 | Cloud Omni (hub box) | GSV OmniRouter | `data/omni.toml` | free-tier chain; **OmniRoute `:20128` stays policy-down** |
 | Agent kit | this repo | `.agents/skills/` | `абракадабра` / `abrakadabra` / `agi` |
+
+**2026-10-16 (owner decision).** Telenetis is a **commutation (switching) plugin** — no APK / tensor / KVM / swarm inside it. The worker + APK role moves to the **engines that already exist**: `llama-rs` (MTP models) and `rusty-engine` (MoE models), which carry `exe` + `bin` + `apk` for the **local LAN/WiFi provider** (`bunke-rock`, the local OmniRouter provider-row). Engines are adapted **per their own HANDOFF / NEXT state**. Board hygiene: the superseded Telenetis worker / tensor / KVM rows were closed on the hub board; canonical engine-worker tracking stays in the `llama-rs` / `rusty-engine` tickets.
 
 ## Настройка екосистеми (operator)
 

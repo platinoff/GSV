@@ -24,6 +24,8 @@ This file only **enriches** a pick that is already registered.
 | **coreboard_labs_shop** | `S:/rust/CoreBoard_Labs_shop` | `S:/rust/CoreBoard_Labs_shop/docs/HANDOFF_NEW_SESSION.md` | `S:/rust/CoreBoard_Labs_shop/docs/NEXT_SESSION_PROMPT.md` | `cargo fmt --all` → `cargo clippy --all-targets` → `cargo test` (proprietary software, **private repo**) | Rust **95–100%** |
 | **rusty-engine** | `S:/rust/rusty-engine` | `S:/rust/rusty-engine/docs/HANDOFF_NEW_SESSION.md` | `S:/rust/rusty-engine/docs/NEXT_SESSION_PROMPT.md` | `cargo fmt --all` → `cargo clippy --all-targets -- -D warnings` → `cargo test` (MIT, portable plugin; Rust-MoE core; Docker only Win/Linux, Android via cargo-ndk) | Rust **95–100%** |
 
+**Roles (owner 2026-10-16):** `telenetis` = **commutation (switching) plugin** (no APK / tensor / KVM inside it); the worker + APK role lives in the **engines** — `llama-rs` (MTP models, local provider `bunke-rock`) + `rusty-engine` (MoE models, local provider `rusty-serve`), adapted per each engine's own HANDOFF/NEXT. Canon: [`GSV_AGI_PATH.md`](./GSV_AGI_PATH.md).
+
 Keep-live (band 225): llama-rs writes `target/live/llama_heartbeat.json` when run with `GSV_LIVE=1` or `LLAMA_RS_HEARTBEAT=1` (PID, model, epoch, bin_version, 15s tick); GSV reads it via `keep_live.llama_rs` (fresh = age ≤ 60s). `gsv_products_scan` / `cargo xtask products` enrich this heartbeat path + freshness for llama-rs.
 
 Discovered but **not** in this table → S0 + git in that tree; no PH-S* drain until a row is added. OmniRoute is registered (band 149, owner-opt-in).
