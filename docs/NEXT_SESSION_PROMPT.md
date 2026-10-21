@@ -3,8 +3,10 @@
 **Оновлено:** 2026-10-21 (crate **0.244.0**, live `:9999` `version_lag=false`; bands **239–244** Rust-intel radar + **Kit-Eco 1–9** ecosystem pass; Telenetis extracted to sibling `S:/rust/telenetis`; keep-live gsv+telenetis(0.2.0)+llama_rs+rusty up, omniroute policy-down). Cursor **3.22.12** (`Program Files\cursor\resources\app\package.json`). Two agents may show online (IDE + Agents Window): one writer on the GSV tree; the other uses `/worktree` or cloud. Folder MCP `type: http` unchanged. **Canon** [`gsv/GSV_AGI_PATH.md`](gsv/GSV_AGI_PATH.md). **Фокус: екосистема + двигуни** — спершу `cargo xtask rules-check` + warnings-first. last PH-S3088 next PH-S3089.
 
 **Бокси (2026-10-21):** `cargo test` **480 s ok** (41 `gsv_watchdog_contracts`), clippy **0/0**, speed/rust
-JSON перезаписані на `36e5eca`, vision `rev 516`, drift `ok`. Продукти: GSV ahead 1 (push) ·
-rusty-engine ahead 35 (push) · llama-rs ahead 1 + dirty 1 · telenetis dirty 70 · omniroute dirty 10440.
+JSON перезаписані на `36e5eca`, vision `rev 516`, drift `ok`. Продукти: GSV запушено (`a35e7f4`) ·
+rusty-engine 35 комітів запушено (`a4976e7`) · llama-rs ahead 1 + dirty 1 · telenetis dirty 70 ·
+omniroute dirty 10440. **Рантайм:** rusty + telenetis були down → піднято windowless, keep-live
+gsv + telenetis 0.2.0 + llama_rs + rusty 0.1.0 up (omniroute policy-down).
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).

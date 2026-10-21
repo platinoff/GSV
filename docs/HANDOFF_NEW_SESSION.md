@@ -9,10 +9,16 @@
 `telenetis/Cargo.toml` (без нього `telenetis_crate_dir` свідомо йде в sibling `<parent>/telenetis`, і
 тест проходив лише коли випадково був виставлений `CARGO_TARGET_DIR`).
 
-**Стан продуктів на момент синку:** GSV **ahead 1** (push у кінці сесії) · rusty-engine **ahead 35**
-(уся perf-сесія PH-203f/g/h, push) · llama-rs **ahead 1 + dirty 1** (`70f1e3a` edge worker) ·
+**Стан продуктів на момент синку:** GSV **запушено** (`origin/main` = `a35e7f4`) · rusty-engine
+**35 комітів запушено** (`origin/main` = `a4976e7`; уся perf-сесія PH-203f/g/h + доки) ·
+llama-rs **ahead 1 + dirty 1** (`70f1e3a` edge worker) ·
 poolAI / rebook / LinFS / CoreBoard_Labs_shop / ORR_DESKTOP чисті (+1 untracked у LinFS/ORR/CoreBoard) ·
 telenetis **dirty 70** · omniroute **dirty 10440** (`release/v3.8.50`, node_modules) — обидва чужі для цієї сесії.
+
+**Рантайм:** на початку синку двигуни **не працювали** (rusty heartbeat з 2026-10-19). Піднято
+windowless (`spawn_threads.ps1 -Threads 12`, `WMI → wscript → launch_serve.vbs`); telenetis — так само
+через новий `telenetis/target/live/launch_live.vbs`. keep-live після цього: **gsv + telenetis 0.2.0 +
+llama_rs + rusty 0.1.0 up**, omniroute policy-down; `:8090/v1/chat/completions` відповідає.
 
 **Wi-Fi debug (Redmi 9):** ADB on box `target/adb/platform-tools/adb.exe`; `adb devices` empty until pair. Phone: Developer → Wireless debugging → pair by code → send `IP:port` + 6 digits. Then `adb pair` + `adb connect`. Play from GSV hub + Telenetis `:9800` (LAN `192.168.2.238`). Runbook [`telenetis/TWO_PHONES.md`](telenetis/TWO_PHONES.md) §KVM. Open: T23.1 ping · T26.1 pong · T32.1 download.
 
