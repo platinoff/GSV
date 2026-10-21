@@ -2045,6 +2045,18 @@ pub fn render_health(d: &Value) -> String {
                 ),
             ],
             vec![
+                "keep_live.rusty".into(),
+                format!(
+                    "<span class='{}'>{}</span>",
+                    if b(&d["keep_live"]["rusty"]["alive"]) {
+                        "ok"
+                    } else {
+                        "dim"
+                    },
+                    b(&d["keep_live"]["rusty"]["alive"])
+                ),
+            ],
+            vec![
                 "keep_live.omniroute".into(),
                 format!(
                     "<span class='{}'>{}</span>",
@@ -2523,7 +2535,7 @@ pub fn render_keep_live(d: &Value) -> String {
     }
     let hint = s(&d["hint"]);
     let mut out =
-        String::from("<div class='dim'>keep-live 4 peers · fail-open (ok stays true)</div>");
+        String::from("<div class='dim'>keep-live 5 peers · fail-open (ok stays true)</div>");
     if s(&d["omniroute_policy"]) == "down" {
         out.push_str("<div class='dim'>OmniRoute <kbd>policy-down</kbd> · do not start</div>");
     }
@@ -3594,6 +3606,23 @@ mod tests {
         assert!(html.contains("criterion dirs: 2"));
         assert!(html.contains("class='ok'>12.5s</span>"));
         assert!(html.contains("hash1"));
+    }
+
+    #[test]
+    fn render_keep_live_card_lists_rusty_peer() {
+        let d = serde_json::json!({
+            "ok": true,
+            "hint": "gsv/telenetis/llama_rs/rusty up · omniroute down",
+            "gsv": { "alive": true, "url": "http://127.0.0.1:9999/api/health" },
+            "telenetis": { "alive": true, "url": "http://127.0.0.1:9800/health" },
+            "llama_rs": { "alive": true, "url": "hb.json" },
+            "rusty": { "alive": true, "url": "rusty_heartbeat.json", "version": "0.1.0" },
+            "omniroute": { "alive": false, "url": "http://127.0.0.1:20128" }
+        });
+        let html = render_keep_live(&d);
+        assert!(html.contains("keep-live 5 peers"), "{html}");
+        assert!(html.contains("rusty"), "{html}");
+        assert!(html.contains("rusty_heartbeat.json"), "{html}");
     }
 
     #[test]

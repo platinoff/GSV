@@ -221,7 +221,7 @@ async fn check_card(client: &Client, base: &str, card: &str) -> Result<(), Strin
     Ok(())
 }
 
-/// `GET /api/health` carry the `keep_live` aggregate with all 4 peers and a
+/// `GET /api/health` carry the `keep_live` aggregate with all 5 peers and a
 /// `hint` (the keep-live aggregation wire stays merged into health, band 223).
 async fn check_health_keep_live(client: &Client, base: &str) -> Result<(), String> {
     let url = api_url(base, "/api/health");
@@ -241,7 +241,7 @@ async fn check_health_keep_live(client: &Client, base: &str) -> Result<(), Strin
     let kl = body
         .get("keep_live")
         .ok_or_else(|| format!("{url}: missing keep_live"))?;
-    for peer in ["gsv", "telenetis", "llama_rs", "omniroute"] {
+    for peer in ["gsv", "telenetis", "llama_rs", "rusty", "omniroute"] {
         let p = kl
             .get(peer)
             .ok_or_else(|| format!("{url}: keep_live.{peer} missing"))?;

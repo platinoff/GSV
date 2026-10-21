@@ -400,7 +400,7 @@ fn parse_body(body: &str) -> (Option<String>, Option<u64>) {
     (version, uptime_secs)
 }
 
-/// Build a report by probing all 4 peers.
+/// Build a report by probing all 5 peers.
 /// `ok` is always true (like disk_ok) — sub-service down does not make GSV `ok:false`.
 pub fn report() -> KeepLiveReport {
     let now = SystemTime::now()

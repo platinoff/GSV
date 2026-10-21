@@ -62,7 +62,12 @@ where
         return Ok(p.to_string());
     }
 
-    let live = |id: &str| cfg.enabled(id) && cfg.effective_base_url(id).is_some() && available(id);
+    let live = |id: &str| {
+        cfg.enabled(id)
+            && catalog::host_ready(id)
+            && cfg.effective_base_url(id).is_some()
+            && available(id)
+    };
 
     if !model.is_empty() {
         let mut owners: Vec<&str> = catalog::find_models(model)

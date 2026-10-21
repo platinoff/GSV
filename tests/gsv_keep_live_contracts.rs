@@ -198,10 +198,13 @@ fn render_keep_live_rows() {
         "gsv": { "alive": true, "url": "http://127.0.0.1:9999/api/health", "version": "0.223.0", "latency_ms": 3, "uptime_secs": 900 },
         "telenetis": { "alive": false, "url": "http://127.0.0.1:9800/health", "latency_ms": 501 },
         "llama_rs": { "alive": false, "url": "S:/rust/llama-rs/target/live/llama_heartbeat.json" },
+        "rusty": { "alive": true, "url": "S:/rust/rusty-engine/target/live/rusty_heartbeat.json", "version": "0.1.0" },
         "omniroute": { "alive": true, "url": "http://127.0.0.1:3000", "latency_ms": 12 }
     });
     let html = render_card("keep-live", &d).expect("rows");
-    assert!(html.contains("keep-live 4 peers"), "{html}");
+    assert!(html.contains("keep-live 5 peers"), "{html}");
+    assert!(html.contains("<td>rusty</td>"), "{html}");
+    assert!(html.contains("rusty_heartbeat.json"), "{html}");
     assert!(html.contains("hint: gsv/omniroute up"), "{html}");
     assert!(html.contains("<th>peer</th>"), "{html}");
     assert!(html.contains("<th>latency</th>"), "{html}");

@@ -186,3 +186,14 @@ Paid APIs (OpenAI, Anthropic, xAI, DeepSeek, Moonshot, MiniMax, Qwen, Z.AI): `re
   `rusty-05` так само, як `gsv/lama-*`; мертвий serve → авто-switch до cloud.
 
 Canon code stays in Rust (`catalog.rs`). This file is the human/MCP snapshot of the same data.
+
+## Addendum (2026-10-21) — hub routes to `rusty-serve` first
+
+- `routing.fallback_order` defaults now start with `rusty-serve` (then the cloud chain), so a
+  missing default host falls back to the **local** engine instead of a vendor.
+- `proxy::select_provider*` honours `catalog::host_ready` on every hop (model owner, default,
+  fallback chain, priority scan) — a dead serve (stale/missing `rusty_heartbeat.json`) is skipped.
+- Keep-live Galaxy card + `/api/health` rows now show all **5** peers (`gsv`/`telenetis`/
+  `llama_rs`/`rusty`/`omniroute`); `GSV_KEEP_LIVE_OPTIONAL` still marks `rusty` optional.
+- Live tuning lives in `GSV/data/omni.toml` (gitignored); the crate default only seeds fresh data dirs.
+

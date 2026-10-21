@@ -33,6 +33,7 @@ impl Default for RoutingConfig {
             default_provider: "openai".to_string(),
             auto: true,
             fallback_order: [
+                "rusty-serve",
                 "openai",
                 "xai",
                 "anthropic",
@@ -293,6 +294,20 @@ mod tests {
         );
         // No key configured → None.
         assert_eq!(cfg.effective_api_key("openai"), None);
+    }
+
+    #[test]
+    fn default_fallback_order_routes_local_rusty_first() {
+        let cfg = OmniConfig::default();
+        assert_eq!(
+            cfg.routing.fallback_order.first().map(String::as_str),
+            Some("rusty-serve"),
+            "the local rusty engine is the first fallback host"
+        );
+        assert_eq!(
+            cfg.routing.fallback_order.last().map(String::as_str),
+            Some("openrouter")
+        );
     }
 
     #[test]
