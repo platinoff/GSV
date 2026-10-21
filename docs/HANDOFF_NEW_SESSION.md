@@ -1,6 +1,18 @@
 # Передача контексту новій сесії (GSV)
 
-**Оновлено:** 2026-10-16 (crate **0.244.0**; live `:9999` `version_lag=false`; bands **239–244** Rust-intel radar + **Kit-Eco 1–9** ecosystem pass; Telenetis extracted to sibling repo `S:/rust/telenetis`. Cursor **3.22.12**. IDE + Agents Window may both be online; one writer on this tree. Mini App/Chrome is not the phone worker (`apk_edge` only). **Canon** [`gsv/GSV_AGI_PATH.md`](gsv/GSV_AGI_PATH.md). **Next = owner pick** after a warnings-first scan. Queue last PH-S3088 next PH-S3089)
+**Оновлено:** 2026-10-21 (crate **0.244.0**; live `:9999` `version_lag=false`; bands **239–244** Rust-intel radar + **Kit-Eco 1–9** ecosystem pass; Telenetis extracted to sibling repo `S:/rust/telenetis`. Cursor **3.22.12**. IDE + Agents Window may both be online; one writer on this tree. Mini App/Chrome is not the phone worker (`apk_edge` only). **Canon** [`gsv/GSV_AGI_PATH.md`](gsv/GSV_AGI_PATH.md). **Next = ecosystem + engines pass** (owner: «продовжимо налаштування екосистеми та двигунів»). Queue last PH-S3088 next PH-S3089)
+
+**Бокси 2026-10-21 (синхронізовано зі станом репо):** GSV `cargo test` **480 s ok** (41 `gsv_watchdog_contracts`
++ решта), clippy **0 warnings / 0 errors**, `docs/vision/speed_index.json` + `rust_diagnostics.json`
+перезаписані на `36e5eca`, vision `revision 516` (1261 nodes / 562 edges / 12 feed), drift `ok`.
+Виправлено контракт `debug_newer_telenetis_compares_telenetis_crate`: фікстура тепер ставить маркер
+`telenetis/Cargo.toml` (без нього `telenetis_crate_dir` свідомо йде в sibling `<parent>/telenetis`, і
+тест проходив лише коли випадково був виставлений `CARGO_TARGET_DIR`).
+
+**Стан продуктів на момент синку:** GSV **ahead 1** (push у кінці сесії) · rusty-engine **ahead 35**
+(уся perf-сесія PH-203f/g/h, push) · llama-rs **ahead 1 + dirty 1** (`70f1e3a` edge worker) ·
+poolAI / rebook / LinFS / CoreBoard_Labs_shop / ORR_DESKTOP чисті (+1 untracked у LinFS/ORR/CoreBoard) ·
+telenetis **dirty 70** · omniroute **dirty 10440** (`release/v3.8.50`, node_modules) — обидва чужі для цієї сесії.
 
 **Wi-Fi debug (Redmi 9):** ADB on box `target/adb/platform-tools/adb.exe`; `adb devices` empty until pair. Phone: Developer → Wireless debugging → pair by code → send `IP:port` + 6 digits. Then `adb pair` + `adb connect`. Play from GSV hub + Telenetis `:9800` (LAN `192.168.2.238`). Runbook [`telenetis/TWO_PHONES.md`](telenetis/TWO_PHONES.md) §KVM. Open: T23.1 ping · T26.1 pong · T32.1 download.
 
@@ -12,9 +24,23 @@ live: gsv-server 0.0.0.0:9999, llama_serve 0.0.0.0:8080/8082, edge-pc-01 + a54-0
 192.168.2.238. Commits: GSV `019416a` · llama-rs `376aa5d` · poolAI `8f32f9f34`.
 
 **Наступна сесія:** відкрити Cursor на **`S:\rust\GSV`** (або `gsv.code-workspace`) →
-**`agi`** → `cargo xtask products` → **Owner product pick: telenetis** (skip AskQuestion
-if `telenetis` is in the scan) → S0 диск/git у **`S:/rust/telenetis`** (з 2026-10-15 — own sibling repo) →
-warnings-first → Redmi 9 Wi-Fi debug з хаба (не другий мозок).
+**`agi`** → `cargo xtask products` → **Owner product pick** (не хардкодити пару; `telenetis`
+лишається sibling-плагіном) → S0 диск/git у вибраному дереві → warnings-first.
+**Фокус власника на цю сесію: екосистема + двигуни.**
+
+**Екосистема (GSV-бік):** маршрутизація hub → `rusty-serve`: провайдер `rusty-05` уже віддається
+`GET /api/omni/v1/models` (`base_url http://<LAN>:8090/v1`), але `rusty-serve` **відсутній** у
+`routing.fallback_order` (`src/boxes/omni/config.rs:30-63`) — додати + перевірити `catalog::host_ready`
+(model + `target/live/rusty_heartbeat.json` ≤ 60 s) і keep-live панель.
+
+**Двигуни:** `S:/rust/rusty-engine` (плагін, окремий репо/target; власні канони в
+`rusty-engine/docs/HANDOFF_NEW_SESSION.md` + `NEXT_SESSION_PROMPT.md`). Ця сесія: **PH-203f**
+персистентний пул 12 воркерів, **PH-203g** RoPE раз на позицію + ротований KV-кеш (+ `moe::softmax_in_place`),
+**PH-203h** head-parallel prefill attention → decode **2.27 → 10.9 tok/s (4.8×)**, prefill 961 tok
+**190.9 → 23.5 s (8.1×)**; 203 тести + усі `--ignored` (dense_gen / 3× moe_parity / numeric_parity) зелені.
+Наступний зріз — **q8_0 kernel** (int8 dots; серійний `matvec` ≈1.5 GMAC/s, i8→f32 конверсія) або
+matmul-пропускна здатність (~17 GMAC/s); зміна численної схеми → окремий зріз з oracle + golden.
+
 Якщо **gsv:** settings/Telegram/tickets spec bands **166–212 ✅**
 + **band 212** telenetis to 100% — security wiring + HTTP checks + graceful shutdown + 13 new tests (55 total)
 + **band 214** telenetis Mini App initData HMAC-SHA256 verify (P0 from band-213 plan) — real handshake

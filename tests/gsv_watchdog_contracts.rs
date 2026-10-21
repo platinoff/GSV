@@ -321,6 +321,14 @@ fn debug_newer_telenetis_compares_telenetis_crate() {
     std::fs::create_dir_all(&debug_dir).expect("debug dir");
     std::fs::create_dir_all(&live_dir).expect("live dir");
     let name = watchdog::telenetis_live_exe_name();
+    // The nested crate only wins when it carries the `Cargo.toml` marker; without it
+    // `telenetis_crate_dir` escapes to the sibling `<parent>/telenetis` (by design), so the
+    // fixture must look like a real checkout.
+    std::fs::write(
+        dir.join("telenetis/Cargo.toml"),
+        "[package]\nname = \"telenetis\"\nversion = \"0.2.0\"\n",
+    )
+    .expect("crate marker");
     let debug = debug_dir.join(name);
     let live = live_dir.join(name);
 

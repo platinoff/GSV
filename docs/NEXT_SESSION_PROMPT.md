@@ -1,6 +1,10 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-10-16 (crate **0.244.0**, live `:9999` `version_lag=false`; bands **239–244** Rust-intel radar + **Kit-Eco 1–9** ecosystem pass; Telenetis extracted to sibling `S:/rust/telenetis`; keep-live gsv+telenetis(0.2.0)+llama_rs up, omniroute policy-down). Cursor **3.22.12** (`Program Files\cursor\resources\app\package.json`). Two agents may show online (IDE + Agents Window): one writer on the GSV tree; the other uses `/worktree` or cloud. Folder MCP `type: http` unchanged. **Canon** [`gsv/GSV_AGI_PATH.md`](gsv/GSV_AGI_PATH.md). **Next = owner pick** — warnings-first scan + `cargo xtask rules-check` before coding. last PH-S3088 next PH-S3089.
+**Оновлено:** 2026-10-21 (crate **0.244.0**, live `:9999` `version_lag=false`; bands **239–244** Rust-intel radar + **Kit-Eco 1–9** ecosystem pass; Telenetis extracted to sibling `S:/rust/telenetis`; keep-live gsv+telenetis(0.2.0)+llama_rs+rusty up, omniroute policy-down). Cursor **3.22.12** (`Program Files\cursor\resources\app\package.json`). Two agents may show online (IDE + Agents Window): one writer on the GSV tree; the other uses `/worktree` or cloud. Folder MCP `type: http` unchanged. **Canon** [`gsv/GSV_AGI_PATH.md`](gsv/GSV_AGI_PATH.md). **Фокус: екосистема + двигуни** — спершу `cargo xtask rules-check` + warnings-first. last PH-S3088 next PH-S3089.
+
+**Бокси (2026-10-21):** `cargo test` **480 s ok** (41 `gsv_watchdog_contracts`), clippy **0/0**, speed/rust
+JSON перезаписані на `36e5eca`, vision `rev 516`, drift `ok`. Продукти: GSV ahead 1 (push) ·
+rusty-engine ahead 35 (push) · llama-rs ahead 1 + dirty 1 · telenetis dirty 70 · omniroute dirty 10440.
 
 **Workspace:** відкрити Cursor на **`S:\rust\GSV`** або `gsv.code-workspace`. Не PoolAI як єдиний корінь.
 Канон: [`gsv/GSV_VDT_KIT.md`](gsv/GSV_VDT_KIT.md) · реєстр [`gsv/PRODUCTS.md`](gsv/PRODUCTS.md).
@@ -27,9 +31,18 @@ abrakadabra
 
 `agi` = той самий drain **плюс** keep-live хаба (GSV / Telenetis / llama-rs / grid; OmniRoute policy-down) і тікет-борд.
 
-**Порядок:** `cargo xtask products` → якщо **Owner product pick: rebook** є в скані, **не AskQuestion** →
-**S0 диск** у `S:/rust/rebook` → HANDOFF того репо → drain (**без** mid-push) →
-**один** commit у **rebook** → **`git push` + самарі**.
+**Порядок:** `cargo xtask products` → якщо власник не назвав продукт, **AskQuestion/question** по скану →
+**S0 диск** у дереві продукту → HANDOFF того репо → drain (**без** mid-push) →
+**один** commit у продукті → **`git push` + самарі**.
+
+**Черга власника (2026-10-21): екосистема + двигуни.**
+1. *Екосистема:* `rusty-serve` у `routing.fallback_order` (`src/boxes/omni/config.rs:30-63`) — провайдер
+   `rusty-05` вже в `/api/omni/v1/models` (`http://<LAN>:8090/v1`); далі `catalog::host_ready`
+   (model + `target/live/rusty_heartbeat.json` ≤ 60 s), keep-live картка, OmniRoute policy.
+2. *Двигуни:* `S:/rust/rusty-engine` — після PH-203f/g/h (decode 10.9 tok/s, prefill 961 tok 23.5 s)
+   наступний зріз **q8_0 kernel** (int8 dots; серійний matvec ≈1.5 GMAC/s) або matmul throughput;
+   зміна численної схеми = окремий зріз з oracle + golden (`RUSTY_CAPTURE_GOLDEN=1`) і
+   `cargo test --release -- --ignored` після будь-якої правки `src/forward.rs`.
 
 Якщо **gsv:** always-on Galaxy (**bands 143–147 ✅**) + SW cache (**band 148 ✅**) + omniroute/semver (**band 149 ✅**) + live watchdog (**band 150 ✅**) + MCP catch-up (**band 151 ✅**) + MCP products select (**band 152 ✅**) + rust-first xtask (**band 153 ✅**) + watchdog ops card (**band 154 ✅**) + session token usage (**band 155 ✅**) + streaming usage / VDT git / owner tunnel (**band 156 ✅**) + OmniRouter catalog / quota timers (**band 157 ✅**) + live MCP stdio / sync check (**band 158 ✅**) + Cursor HTTP MCP / session SSE hold (**band 159 ✅**) + GSV sandbox MCP / no User leak (**band 160 ✅**) + vision lockstep + disk MiB (**band 161 ✅**) + live crate/version lockstep (**band 162 ✅**) + vision queue lockstep + bump auto-advance (**band 163 ✅**) + Cursor 3.16.29 kit lockstep (**band 164 ✅**) + watchdog live copy + lockstep observability (**band 165 ✅**) + settings / Godfather (**band 166 ✅**) + Telegram bind (**band 167 ✅**) + ticket board + MCP claim (**band 168 ✅**) + Telegram bus (**band 169 ✅**) + ticket scenarios / solo-squad (**band 170 ✅**) + ticket lease / stale reclaim (**band 171 ✅**) + live crate lockstep (**band 172 ✅**) + vision queue close-lockstep (**band 173 ✅**) + solo Telegram tickets (**band 174 ✅**) + MDS scenario band / solo walk / Telegram sync (**band 175 ✅**) + visible MCP session walk (**band 176 ✅**) + roadmap/plan hook-up (**band 177 ✅**) + scenario benchmark (**band 178 ✅**) + Godfather inbound poller (**band 179 ✅**) + watchdog process lockstep (**band 180 ✅**) + Galaxy glue + S0 disk on health (**band 181 ✅**) + MCP-readable Godfather envelopes + Galaxy MCP signal (**band 182 ✅**) + squad next-action + MCP catalog lockstep (**band 183 ✅**) + MCP session catalog lockstep (**band 184 ✅**) + Cursor catalog restart lockstep (**band 185 ✅**) + solo/squad/jail (**band 186 ✅**) + live Godfather member_count (**band 187 ✅**) + README SMIL presentations + docs tidy (**band 188 ✅**) + Settings Galaxy polish (**band 189 ✅**) + Galaxy About + type/fullscreen chrome (**band 190 ✅**) + channel roles + GitHub origin lockstep (**band 191 ✅**) + ranks + no CMD flash (**band 192 ✅**) + federated `kind:presence` (**band 193 ✅**) + federated `kind:claim` (**band 194 ✅**) + federated `kind:done` (**band 195 ✅**) + federated `kind:reclaim` (**band 196 ✅**) + logic-audit fixes (**band 197 ✅**) + logic-audit fixes II (**band 198 ✅**) + logic-audit fixes III — omni persist contention / fingerprint tail UTF-8 / version key match (**band 199 ✅**) + logic-audit fixes IV — ranks TG override thread-scope / tickets board write races (**band 200 ✅**) + logic-audit fixes V — products parse_cargo_name / usage SSE tail flush (**band 201 ✅**) + logic-audit fixes VI — ui esc attribute-quote hardening / vision git_head test contract (**band 202 ✅**) + logic-audit VII tests sweep — vacuous-assertion hunt, verdict clean (**band 203 ✅**) are closed.
 **Next drain = owner pick** after a warnings-first scan. Spec [`GSV_SETTINGS_TELEGRAM.md`](gsv/GSV_SETTINGS_TELEGRAM.md) · [`GSV_SOLO_SQUAD_JAIL.md`](gsv/GSV_SOLO_SQUAD_JAIL.md).
