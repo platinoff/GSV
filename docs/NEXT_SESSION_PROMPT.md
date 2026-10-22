@@ -2,6 +2,13 @@
 
 **Оновлено:** 2026-10-21 (crate **0.244.0**, live `:9999` `version_lag=false`; bands **239–244** Rust-intel radar + **Kit-Eco 1–9** ecosystem pass; Telenetis extracted to sibling `S:/rust/telenetis`; keep-live gsv+telenetis(0.2.0)+llama_rs+rusty up, omniroute policy-down). Cursor **3.22.12** (`Program Files\cursor\resources\app\package.json`). Two agents may show online (IDE + Agents Window): one writer on the GSV tree; the other uses `/worktree` or cloud. Folder MCP `type: http` unchanged. **Canon** [`gsv/GSV_AGI_PATH.md`](gsv/GSV_AGI_PATH.md). **Фокус: екосистема + двигуни** — спершу `cargo xtask rules-check` + warnings-first. last PH-S3088 next PH-S3089.
 
+> **Сталий стан 2026-10-22 (актуальніше за абзац вище):** GSV `8761df5` (= `origin/main`, clean),
+> crate 0.244.0, live 60/60 tools; дошка 703 done / 9 open (owner-gated) / 8 blocked; rusty-engine
+> `e44695d` (= `origin/main`, clean, 220 тестів, Rust 98.9 %), prefill 961 tok **9.12–9.90 s**.
+> **Наступний крок:** rusty-engine `PH-203p` — `Stage::Other` у `src/profile.rs` і розкласти ~11 %
+> prefill (rmsnorm/RoPE/KV-copy/SwiGLU), далі K-квантовий dequant-once + NEON. GSV: тільки owner-gated
+> тікети або явний вибір owner (`cargo xtask products` → питання).
+
 **Бокси (2026-10-21):** `cargo test` **480 s ok** (41 `gsv_watchdog_contracts`), clippy **0/0**, speed/rust
 JSON перезаписані на `36e5eca`, vision `rev 516`, drift `ok`. Продукти: GSV запушено (`a35e7f4`) ·
 rusty-engine 35 комітів запушено (`a4976e7`) · llama-rs ahead 1 + dirty 1 · telenetis dirty 70 ·
