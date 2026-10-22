@@ -90,7 +90,7 @@ These globals hold in **every** session and **every** registered product, whatev
 - Local rules (`AGENTS.md` / `CLAUDE.md` / `.cursorrules` / `rules/`) live **in each registered plugin tree** and must not affect globals. `S:\rust\GSV\AGENTS.md` is the only global rule file; no other plugin's rules are placed inside the GSV tree.
 - **Global first.** In any plugin window, read this file + [`docs/gsv/GSV_AGI_PATH.md`](docs/gsv/GSV_AGI_PATH.md) before product HANDOFF. Local rules cover **product specifics only**. Template: [`docs/gsv/PLUGIN_AGENTS.md`](docs/gsv/PLUGIN_AGENTS.md).
 - **PoolAI is the genetic parent** for multi-agent workflow DNA (roles, PH-S* bands, FM journal, session iteration, marshal/squad). When that pattern dominates relevance, copy the **idea** from `S:/rust/poolAI` — not PoolAI product files into GSV or other plugins.
-- **IDE-agnostic auto-wire.** Open `gsv.code-workspace` (GSV first) so hub MCP, tickets, bands, and sprints stay wired regardless of which plugin is focused. Cursor folder MCP only (never User-scope). OpenCode / Grok: stdio `target/live/gsv-mcp.exe`.
+- **IDE-agnostic auto-wire.** Open `gsv.code-workspace` (GSV first) so hub MCP, tickets, bands, and sprints stay wired regardless of which plugin is focused. Cursor folder MCP only (never User-scope). On this machine a Cursor user hook (`gsv-cursor-rules`, `sessionStart`) also inlines this file and `.cursor/rules/` into any window whose roots sit under the rust folder `S:/rust` and do not already include GSV. Folders outside that environment are left alone. OpenCode / Grok: stdio `target/live/gsv-mcp.exe`.
 
 ## Do not
 

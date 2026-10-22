@@ -71,6 +71,10 @@ path = "src/bin/gsv_keep_live_boot_verify.rs"
 name = "gsv-ui-probe"
 path = "src/bin/gsv_ui_probe.rs"
 
+[[bin]]
+name = "gsv-cursor-rules"
+path = "src/bin/gsv_cursor_rules.rs"
+
 [[bench]]
 name = "gsv_dev"
 harness = false

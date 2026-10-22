@@ -51,15 +51,16 @@ Environment security first. Maximum Rust. Session law: `agi`. Canon: [`GSV_AGI_P
 |-----|----|----------|
 | **Shared VDT kit** | `S:\rust\GSV` | `abracadabra`, S0/`df`, MSYS2 bash, Conventional Commits, no `git add -A`, no Python product files, generic rust (`?` / no `unwrap` in product), architecture/TDD/debug skills |
 | **Product canon** | репо продукту | PoolAI FM §5.12 / `NEXT_SESSION_PROMPT.md` / `runtime-stack-policy`; GSV `GSV_ROLES.md` / `GSV_TECH_ROADMAP.md` |
-| **User-global** | не канон | `~/.cursor/skills/` лише якщо OWNER явно поставить install; git-джерело завжди GSV |
+| **User-global** | хук на цій машині (owner 2026-10-21) | `%USERPROFILE%\.cursor\hooks.json` → `gsv-cursor-rules` чіпляє живі `AGENTS.md` + `.cursor/rules/` хаба лише до вікон, чий корінь лежить у rust-середовищі `S:/rust`. Папка поза ним — без хаб-правил. Вікно самого GSV хук не дублює. Не User MCP. Не копія кіта в плагін. Refresh після правок правил: `cargo build --release --bin gsv-cursor-rules` → копія `target\release\gsv-cursor-rules.exe` у `%USERPROFILE%\.cursor\hooks\` (новий чат підхоплює; cloud agents хук не виконують). |
 
 ## Cursor constraint (обов’язково)
 
 | Відкрита папка | Що бачить агент |
 |----------------|-----------------|
-| `S:\rust\poolAI` | правила/скіли PoolAI (поточний стан) |
-| `S:\rust\GSV` | правила/скіли GSV (kit + продукт) |
-| multi-root `*.code-workspace` (GSV перший + продукти) | кіт з GSV + файли продуктів у сайдбарі |
+| папка під `S:\rust` (poolAI, rusty-engine, …) | локальні правила папки **плюс** хаб-глобали з user hook `sessionStart` |
+| папка поза `S:\rust` | лише правила тієї папки; хаб не чіпляється |
+| `S:\rust\GSV` | правила/скіли GSV (kit + продукт); хук мовчить, щоб не дублювати |
+| multi-root `*.code-workspace` (GSV перший + продукти) | кіт з GSV + файли продуктів у сайдбарі; хук мовчить |
 
 Наступна сесія: **File → Open Folder → `S:\rust\GSV`**, потім у чат: `абракадабра`, `abrakadabra`, або `agi`.
 
