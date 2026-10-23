@@ -6,10 +6,10 @@
 |----|----------|
 | GSV | crate **0.244.0**, HEAD **`8761df5`** (= `origin/main`, clean, 396 комітів); live `:9999` `version_lag=false`, **60/60** MCP tools, uptime ~10 год, disk 15.0 GiB вільно / `target/` 37 GiB |
 | Дошки | `docs/gsv/tickets.jsonl` **720** рядків: **703 done · 9 open · 8 blocked** (усі 9 open — owner-gated, автономно не драйвити) |
-| rusty-engine (plugin) | HEAD **`e749a4c`** (= `origin/main`, clean, 101 коміт); 224 тести (+5 ignored), clippy 0, Rust 98.9 % (14302 LOC); prefill 961 tok **7.1–8.9 s** (бокс дрейфує), matmul ~81–86 %, attention 0.72–0.93 s, down `896×4864` **50–56 GMAC/s** після PH-203q |
+| rusty-engine (plugin) | HEAD **`7941fb3`** (= `origin/main`, clean, 103 коміти); 224 тести (+5 ignored), clippy 0, Rust 98.9 % (14605 LOC); prefill 961 tok **5.3–6.4 s** (бокс дрейфує), matmul 4.1–4.7 s (77 %), attention 0.74–0.78 s (13.9 %), down `896×4864` **64–69 GMAC/s**, gate/up 81–92 після PH-203r (два рядки ваг на прохід) |
 | Продукти | poolAI `f7c6e10c` clean · LinFS `57bf083` clean · llama-rs `70f1e3a` clean · ORR `63df5ef` clean · CoreBoard `ef8b04e` clean · platinoff-profile `8af55a5` clean · rebook `1aae973` **dirty 1** (`src/coloring_kdp.rs`, чужа робота) · telenetis `47d7eab` **dirty 70** (чужа робота) · omniroute node_modules |
 | Прибирання | `target/live` почищено: GSV **745 MB → 451 MB** (лишились 3 live-бінарники + geckodriver + watchdog.json), rusty-engine **5.1 MB → 95 KB** (launch/spawn/threads/profile/проба/останній звіт); CRLF-шум у `AGENTS.md` 4 плагінів відкочено, порожній `CoreBoard/.new` видалено |
-| Далі | **rusty-engine `PH-203r`** — два вагових рядки на прохід (load-port `6/8` замість `5/4`); тайл/де-квант уже закриті виміром. Потім attention (exp-bound) / NEON. GSV: owner-gated тікети + `cargo xtask rules-check` |
+| Далі | **rusty-engine `PH-203s`** — attention 13.9 % (0.74–0.78 s, exp-bound, онлайн-softmax блоками; змінює округлення → лише з дозволу owner на новий golden). Потім NEON. GSV: owner-gated тікети + `cargo xtask rules-check` |
 
 Нижче — історичні блоки; усе, що суперечить таблиці вище, вважати застарілим.
 
