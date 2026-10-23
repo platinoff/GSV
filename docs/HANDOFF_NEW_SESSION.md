@@ -6,10 +6,10 @@
 |----|----------|
 | GSV | crate **0.244.0**, HEAD **`8761df5`** (= `origin/main`, clean, 396 комітів); live `:9999` `version_lag=false`, **60/60** MCP tools, uptime ~10 год, disk 15.0 GiB вільно / `target/` 37 GiB |
 | Дошки | `docs/gsv/tickets.jsonl` **720** рядків: **703 done · 9 open · 8 blocked** (усі 9 open — owner-gated, автономно не драйвити) |
-| rusty-engine (plugin) | HEAD **`e44695d`** (= `origin/main`, clean, 99 комітів); 220 тестів (+5 ignored), clippy 0, Rust 98.9 % (13738 LOC); prefill 961 tok **9.12–9.90 s** (matmul ~77 %, attention 0.81–0.88 s, other ~11 %) |
+| rusty-engine (plugin) | HEAD **`4ecd9d6`** (= `origin/main`, clean, 100 комітів); 222 тести (+5 ignored), clippy 0, Rust 98.9 % (13890 LOC); prefill 961 tok **6.90–7.84 s** (matmul ~84 %, attention 0.66–0.77 s, «other» 3.4–3.8 %) |
 | Продукти | poolAI `f7c6e10c` clean · LinFS `57bf083` clean · llama-rs `70f1e3a` clean · ORR `63df5ef` clean · CoreBoard `ef8b04e` clean · platinoff-profile `8af55a5` clean · rebook `1aae973` **dirty 1** (`src/coloring_kdp.rs`, чужа робота) · telenetis `47d7eab` **dirty 70** (чужа робота) · omniroute node_modules |
 | Прибирання | `target/live` почищено: GSV **745 MB → 451 MB** (лишились 3 live-бінарники + geckodriver + watchdog.json), rusty-engine **5.1 MB → 95 KB** (launch/spawn/threads/profile/проба/останній звіт); CRLF-шум у `AGENTS.md` 4 плагінів відкочено, порожній `CoreBoard/.new` видалено |
-| Далі | **rusty-engine `PH-203p`** — інструментувати ~11 % «other» у prefill (`Stage::Other` у `src/profile.rs`), потім K-квантовий dequant-once / NEON. GSV: owner-gated тікети + `cargo xtask rules-check` |
+| Далі | **rusty-engine `PH-203q`** — K-квантовий dequant-once (тайл, кратний 256), бо matmul = 84 % prefill; потім attention 9.8 % / NEON. GSV: owner-gated тікети + `cargo xtask rules-check` |
 
 Нижче — історичні блоки; усе, що суперечить таблиці вище, вважати застарілим.
 
