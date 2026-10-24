@@ -3,18 +3,20 @@
 **Оновлено:** 2026-10-21 (crate **0.244.0**, live `:9999` `version_lag=false`; bands **239–244** Rust-intel radar + **Kit-Eco 1–9** ecosystem pass; Telenetis extracted to sibling `S:/rust/telenetis`; keep-live gsv+telenetis(0.2.0)+llama_rs+rusty up, omniroute policy-down). Cursor **3.22.12** (`Program Files\cursor\resources\app\package.json`). Two agents may show online (IDE + Agents Window): one writer on the GSV tree; the other uses `/worktree` or cloud. Folder MCP `type: http` unchanged. **Canon** [`gsv/GSV_AGI_PATH.md`](gsv/GSV_AGI_PATH.md). **Фокус: екосистема + двигуни** — спершу `cargo xtask rules-check` + warnings-first. last PH-S3088 next PH-S3089.
 
 > **Сталий стан 2026-10-24 (актуальніше за абзац вище):** GSV `8761df5` (= `origin/main`, clean; + docs/board
-> коміт цього сеансу), crate 0.244.0, live 60/60 tools; дошка **709 done / 17 open (8 owner-gated + 5 B12 vision + 4 B13 qwen35) / 8 blocked**;
-> rusty-engine `eaa090d` (= `origin/main`, clean, 236 тестів +6 ignored, Rust 99.0 %), prefill 961 tok
+> коміт цього сеансу), crate 0.244.0, live 60/60 tools; дошка **710 done / 16 open (8 owner-gated + 5 B12 vision + 3 B13 qwen35) / 8 blocked**;
+> rusty-engine `88b1ce0` (= `origin/main`, clean, 241 тестів +6 ignored, Rust 99.0 %), prefill 961 tok
 > **5.3–6.4 s**, rusty serve **up** (heartbeat → keep-live). **Наступний крок:** rusty-engine — `PH-203s`
 > (attention онлайн-softmax + exp-таблиця) і **`PH-203t`** (matmul `w_rows=4` quad-pass + NT-store)
 > **обидва виміряно й відкинуто 2026-10-24** (`benches/attn.rs`, `benches/kquant.rs` wrows-свіпи +
 > interleaved t48/t96): продакшн = PH-203o/PH-203r біт-у-біт, golden не рухався; perf-черга закрита
 > до NEON. **`PH-1201` spike зроблено** (ваги MiniCPM-V 4.7-1B у `data/models/`, `rusty inspect` з KV-дампом):
 > text-core = **`qwen35`-гібрид** (18 GDN + 6 full-attn, QK-norm, zyxt-rope, vocab 248 094) → новий бенд
-> **B13 `PH-1301` теж закрито** (`model.rs`: `LayerKind` + qwen35 config/validate, на реальному
-> файлі `rusty validate` = OK; ffn_norm у qwen35 немає — pre-FFN = `post_attention_norm`);
-> **наступний зріз — `PH-1302`** (`src/gdn.rs`: conv1d k4 + delta-rule стан 16×128²,
-> O(1) decode); vision = clip-548M **BF16(30)** (dtype-фікс улитий). Екосистема №1
+> **B13 `PH-1301..1303` закрито** (`model.rs` LayerKind+config/validate; `src/gdn.rs` — delta-rule
+> стан 16×128², O(1) decode; `src/q35.rs` — QK-norm + q-gate `σ` + partial NeoX 64/256; zyxt =
+> M-RoPE слоти за llama.cpp PR #29416, text-дегенерація точна; prefill==steps біт-у-біт;
+> бонус: `nextn_predict_layers=1` — dspark head); **наступний зріз — `PH-1304`**
+> (pre-tokenizer `qwen35` + `DenseRunner`-wire 18 GDN + 6 full); vision = clip-548M
+> **BF16(30)** (dtype-фікс улитий). Екосистема №1
 > (`rusty-serve` у `routing.fallback_order`) — у коді GSV (default config) і провайдер живий. **Модельна
 > політика owner 2026-10-24: цільова модель rusty-engine = MiniCPM-V 4.7** (official-GGUF, без Python;
 > бенд **B12** — `src/vit.rs`, 4×/16× compressor, image-prefix, multimodal serve; тікети `PH-1201..1206`
