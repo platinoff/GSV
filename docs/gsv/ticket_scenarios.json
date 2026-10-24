@@ -618,6 +618,21 @@
         { "title": "PH-1205: multimodal serve + rusty-vision provider row", "body": "messages[].images base64 (PNG/JPEG via image crate; MVP PPM/BMP no-dep), E2E parity vs mtmd on 3-5 images, GSV catalog heartbeat-gated row." },
         { "title": "PH-1206: MiniCPM-V 4.7-35B-A3B via ExpertCache (dedicated node)", "body": "PH-404 cache + longest-first pin + NVMe offload + LES-style lookahead eval; S0 disk gate." }
       ]
+    },
+    {
+      "id": "rusty-engine-qwen35",
+      "title": "rusty-engine B13 text core qwen35 (hybrid GDN + full attention)",
+      "body": "PH-1201 spike finding: MiniCPM-V 4.7-1B text core is NOT qwen2 — it is qwen35, a Qwen3-Next-style hybrid: 18 Gated-DeltaNet layers (mixed attn_qkv 6144, depthwise conv1d k4, delta-rule state 16x128^2, out gate) + 6 full-attention layers every 4th (GQA 8/2, head_dim 256, QK-norm, q-gate) + sectioned RoPE [11,11,10,0] zyxt + pre-tokenizer qwen35 + vocab 248094. Linear-attention decode is the next pure-Rust differentiator after MoE. Oracle: llama.cpp-omni CLI. Blocks B12 image-prefix (PH-1204).",
+      "workflow": "ticket-claim",
+      "product": "rusty-engine",
+      "tickets": [
+        { "title": "PH-1301: model.rs — qwen35 config/Geometry/validate (hybrid GDN+full)", "body": "ssm.* keys, full_attention_interval, recurrent_layers[24], key/value_length 256, rope sections; per-layer kind; validate attn_qkv/attn_gate/ssm_* vs attn_q/k/v+q_norm/k_norm; synth tests + real #[ignore] smoke." },
+        { "title": "PH-1302: src/gdn.rs — Gated DeltaNet шар (conv1d k4 + delta-rule стан, O(1) decode)", "body": "mixed qkv -> depthwise ssm_conv1d -> delta-rule state 16x128^2 (dt/alpha/beta/ssm_a) -> ssm_norm -> attn_gate -> ssm_out; prefill scan + O(1) step; synth unit + llama.cpp-omni fixpoints #[ignore]." },
+        { "title": "PH-1303: full-attn шари qwen35 (GQA 256 + QK-norm + zyxt-rope)", "body": "attn_q 4096 (q+gate), k/v 512, QK-norm 256, attn_output 2048->1024; sectioned rope [11,11,10,0]; cached==seq 1e-5." },
+        { "title": "PH-1304: pre-tokenizer qwen35 + specials + DenseRunner-wire 18+6 шарів", "body": "gpt2-family pre regex from tokenizer.ggml.pre=qwen35; bos/eos 248045/6; wire by recurrent_layers; CLI rusty run on MiniCPM-V-4_7-1B-Q4_K_M." },
+        { "title": "PH-1305: qwen35 E2E greedy-паритет (llama.cpp-omni оракул) + perf-зріз", "body": "3-5 prompts golden fixtures tests/data/qwen35_*.txt; prefill/decode on 12 threads; GDN O(1) decode expectation >= parity." },
+        { "title": "PH-1306: serve на qwen35-core (text-only provider row) → розблокує B12-1204", "body": "model id rusty-mcp-v47 in GSV catalog + /v1/models + heartbeat; unblocks image-prefix." }
+      ]
     }
   ]
 }
