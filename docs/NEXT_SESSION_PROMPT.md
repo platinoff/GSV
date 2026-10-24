@@ -23,7 +23,7 @@
 > політика owner 2026-10-24: цільова модель rusty-engine = MiniCPM-V 4.7** (official-GGUF, без Python;
 > бенд **B12** — `src/vit.rs`, 4×/16× compressor, image-prefix, multimodal serve; тікети `PH-1201..1206`
 > на борді + сценарій `rusty-engine-vision`; Qwen3-30B-A3B / Mixtral з цілей прибрано, Qwen2.5 = оракул). **Скан станів 2026-10-24:** llama-rs `70f1e3a` запушено (ahead 1→0), telenetis чистий (відкочено 70 файлів CRLF-шуму),
-> rebook `1aae973` (dirty 1), omniroute `4835b9c` (dirty 10440: CRLF-шум + 5 реальних файлів) і rusty-engine WIP `rusty.rs` — чужа робота, не чіпати. GSV: тільки
+> rebook `1aae973` (dirty 1), omniroute `4835b9c` (10435 CRLF-файлів відкочено → залишилось dirty 5 реальних) і rusty-engine WIP `rusty.rs` — чужа робота, не чіпати. GSV: тільки
 > owner-gated тікети або явний вибір owner (`cargo xtask products` → питання).
 
 **Бокси (2026-10-21):** `cargo test` **480 s ok** (41 `gsv_watchdog_contracts`), clippy **0/0**, speed/rust
