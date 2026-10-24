@@ -2,9 +2,9 @@
 
 **Оновлено:** 2026-10-21 (crate **0.244.0**, live `:9999` `version_lag=false`; bands **239–244** Rust-intel radar + **Kit-Eco 1–9** ecosystem pass; Telenetis extracted to sibling `S:/rust/telenetis`; keep-live gsv+telenetis(0.2.0)+llama_rs+rusty up, omniroute policy-down). Cursor **3.22.12** (`Program Files\cursor\resources\app\package.json`). Two agents may show online (IDE + Agents Window): one writer on the GSV tree; the other uses `/worktree` or cloud. Folder MCP `type: http` unchanged. **Canon** [`gsv/GSV_AGI_PATH.md`](gsv/GSV_AGI_PATH.md). **Фокус: екосистема + двигуни** — спершу `cargo xtask rules-check` + warnings-first. last PH-S3088 next PH-S3089.
 
-> **Сталий стан 2026-10-24 (актуальніше за абзац вище):** GSV `8761df5` (= `origin/main`, clean; + docs/board
-> коміт цього сеансу), crate 0.244.0, live 60/60 tools; дошка **711 done / 15 open (8 owner-gated + 5 B12 vision + 2 B13 qwen35) / 8 blocked**;
-> rusty-engine `7afad27` (= `origin/main`, clean, 244 тестів +7 ignored, Rust 99.0 %), prefill 961 tok
+> **Сталий стан 2026-10-24 (скан станів продуктів; актуальніше за абзац вище):** GSV `f6f00e6` (= `origin/main`; + board/docs
+> коміт цієї сесії), crate 0.244.0, live 60/60 tools; дошка **711 done / 14 open (8 owner-gated + 5 B12 vision + 1 B13 `PH-1306`) + 1 in_progress (`PH-1305` — orchestrator grok-4.7, lease) / 8 blocked**;
+> rusty-engine `7afad27` (= `origin/main`, WIP `src/bin/rusty.rs` +51 — `rusty tokenize` для `PH-1305`, 244 тестів +7 ignored, Rust 99.0 %), prefill 961 tok
 > **5.3–6.4 s**, rusty serve **up** (heartbeat → keep-live). **Наступний крок:** rusty-engine — `PH-203s`
 > (attention онлайн-softmax + exp-таблиця) і **`PH-203t`** (matmul `w_rows=4` quad-pass + NT-store)
 > **обидва виміряно й відкинуто 2026-10-24** (`benches/attn.rs`, `benches/kquant.rs` wrows-свіпи +
@@ -16,13 +16,14 @@
 > M-RoPE слоти за llama.cpp PR #29416, text-дегенерація точна; prefill==steps біт-у-біт;
 > `src/runner35.rs`+`TextRunner35`+CLI — **реальний MiniCPM-V-4.7-1B генерує детерміновано**
 > (7 ток. = 2.4 s; конвенції гейтів — pin-пара `PH-1305`);
-> бонус: `nextn_predict_layers=1` — dspark head); **наступний зріз — `PH-1305`**
+> бонус: `nextn_predict_layers=1` — dspark head); **`PH-1305` узятий у роботу** (in_progress; WIP `rusty.rs`: `rusty tokenize` — pin-пара)
 > (оракул `llama.cpp-omni`: pin-пара greedy + golden-файкстури + batched-prefill perf); vision = clip-548M
 > **BF16(30)** (dtype-фікс улитий). Екосистема №1
 > (`rusty-serve` у `routing.fallback_order`) — у коді GSV (default config) і провайдер живий. **Модельна
 > політика owner 2026-10-24: цільова модель rusty-engine = MiniCPM-V 4.7** (official-GGUF, без Python;
 > бенд **B12** — `src/vit.rs`, 4×/16× compressor, image-prefix, multimodal serve; тікети `PH-1201..1206`
-> на борді + сценарій `rusty-engine-vision`; Qwen3-30B-A3B / Mixtral з цілей прибрано, Qwen2.5 = оракул). GSV: тільки
+> на борді + сценарій `rusty-engine-vision`; Qwen3-30B-A3B / Mixtral з цілей прибрано, Qwen2.5 = оракул). **Скан станів 2026-10-24:** llama-rs `70f1e3a` запушено (ahead 1→0), telenetis чистий (відкочено 70 файлів CRLF-шуму),
+> rebook `1aae973` (dirty 1), omniroute `4835b9c` (dirty 10440: CRLF-шум + 5 реальних файлів) і rusty-engine WIP `rusty.rs` — чужа робота, не чіпати. GSV: тільки
 > owner-gated тікети або явний вибір owner (`cargo xtask products` → питання).
 
 **Бокси (2026-10-21):** `cargo test` **480 s ok** (41 `gsv_watchdog_contracts`), clippy **0/0**, speed/rust
