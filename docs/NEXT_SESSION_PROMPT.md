@@ -3,13 +3,16 @@
 **Оновлено:** 2026-10-21 (crate **0.244.0**, live `:9999` `version_lag=false`; bands **239–244** Rust-intel radar + **Kit-Eco 1–9** ecosystem pass; Telenetis extracted to sibling `S:/rust/telenetis`; keep-live gsv+telenetis(0.2.0)+llama_rs+rusty up, omniroute policy-down). Cursor **3.22.12** (`Program Files\cursor\resources\app\package.json`). Two agents may show online (IDE + Agents Window): one writer on the GSV tree; the other uses `/worktree` or cloud. Folder MCP `type: http` unchanged. **Canon** [`gsv/GSV_AGI_PATH.md`](gsv/GSV_AGI_PATH.md). **Фокус: екосистема + двигуни** — спершу `cargo xtask rules-check` + warnings-first. last PH-S3088 next PH-S3089.
 
 > **Сталий стан 2026-10-24 (актуальніше за абзац вище):** GSV `8761df5` (= `origin/main`, clean; + docs/board
-> коміт цього сеансу), crate 0.244.0, live 60/60 tools; дошка **704 done / 9 open (owner-gated) / 8 blocked**;
+> коміт цього сеансу), crate 0.244.0, live 60/60 tools; дошка **705 done / 14 open (8 owner-gated + 6 тікетів B12 vision) / 8 blocked**;
 > rusty-engine `2cd269c` (= `origin/main`, clean, 225 тестів +5 ignored, Rust 99.0 %), prefill 961 tok
 > **5.3–6.4 s**, rusty serve **up** (heartbeat → keep-live). **Наступний крок:** rusty-engine — `PH-203s`
 > (attention онлайн-softmax + exp-таблиця) **виміряно й відкинуто 2026-10-24** (`benches/attn.rs`: +8–15 %
 > проти 3-pass libm; exp не ботлнек, forward лишився PH-203o, golden не зрушив); далі **`PH-203t`** —
 > памʼять matmul (`r_block`, non-temporal store, A/B у `benches/kquant.rs`), потім NEON. Екосистема №1
-> (`rusty-serve` у `routing.fallback_order`) — у коді GSV (default config) і провайдер живий. GSV: тільки
+> (`rusty-serve` у `routing.fallback_order`) — у коді GSV (default config) і провайдер живий. **Модельна
+> політика owner 2026-10-24: цільова модель rusty-engine = MiniCPM-V 4.7** (official-GGUF, без Python;
+> бенд **B12** — `src/vit.rs`, 4×/16× compressor, image-prefix, multimodal serve; тікети `PH-1201..1206`
+> на борді + сценарій `rusty-engine-vision`; Qwen3-30B-A3B / Mixtral з цілей прибрано, Qwen2.5 = оракул). GSV: тільки
 > owner-gated тікети або явний вибір owner (`cargo xtask products` → питання).
 
 **Бокси (2026-10-21):** `cargo test` **480 s ok** (41 `gsv_watchdog_contracts`), clippy **0/0**, speed/rust

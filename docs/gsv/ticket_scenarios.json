@@ -591,7 +591,7 @@
     {
       "id": "rusty-engine-moe-core",
       "title": "rusty-engine B4 MoE core (differentiator)",
-      "body": "Run Qwen3-30B-A3B / Mixtral GGUF natively in Rust (no llama.cpp). Floor: llama-rs ~0.497 tok/s decode. Drain PH-401..407.",
+      "body": "Run MiniCPM-V 4.7-35B-A3B (target model, owner 2026-10-24) natively in Rust (no llama.cpp). Floor oracle: llama-rs ~0.497 tok/s decode (tool, not target). Drain PH-401..407.",
       "workflow": "ticket-claim",
       "product": "rusty-engine",
       "tickets": [
@@ -600,8 +600,23 @@
         { "title": "PH-403: shared-expert merge (DeepSeek/Qwen3)", "body": "src/moe/shared.rs." },
         { "title": "PH-404: expert-cache LRU + RAM/NVMe offload + prefetch", "body": "src/moe/cache.rs; KTransformers/PowerInfer ideas." },
         { "title": "PH-405: greedy-parity vs llama.cpp ref + perplexity smoke", "body": "tests/moe_parity.rs." },
-        { "title": "PH-406: run Qwen3-30B-A3B / Mixtral GGUF pure-Rust", "body": "src/moe/forward.rs." },
+        { "title": "PH-406: run MiniCPM-V 4.7-35B-A3B GGUF pure-Rust (retargeted from Qwen3/Mixtral)", "body": "src/moe/forward.rs; weights via B12 spike PH-1201." },
         { "title": "PH-407: bench tok/s vs llama-rs baseline", "body": "benches/moe.rs." }
+      ]
+    },
+    {
+      "id": "rusty-engine-vision",
+      "title": "rusty-engine B12 vision (MiniCPM-V 4.7, target model)",
+      "body": "Target model per owner 2026-10-24: MiniCPM-V 4.7 (official Apache-2.0 GGUF from HF openbmb, no Python at runtime). Vision tower + 4x/16x visual-token compressor + image-prefix prefill + multimodal serve, all pure Rust on existing QMat kernels. Numeric oracle: llama.cpp-omni mtmd CLI (measurement tool only). Qwen3-30B-A3B/Mixtral removed from targets; Qwen2.5-0.5B stays internal golden.",
+      "workflow": "ticket-claim",
+      "product": "rusty-engine",
+      "tickets": [
+        { "title": "PH-1201: spike — MiniCPM-V 4.7-1B official GGUF + rusty inspect vision layout", "body": "Download openbmb/MiniCPM-V-4.7-1B-gguf into gitignored data/models/; rusty inspect: arch KV, vision tensors, quants, image-token vocab; facts to docs/research/minicpm-v-4.7.md." },
+        { "title": "PH-1202: src/vit.rs — vision tower in Rust on existing QMat kernels", "body": "patch-embed + LayerNorm + ViT attention + GELU MLP + RoPE/pos-interpolation; golden fixpoints from llama.cpp-omni mtmd CLI; in-process bench parity like benches/attn.rs." },
+        { "title": "PH-1203: 4x/16x visual-token compressor + projector", "body": "pooling/merger + linear projection into LLM hidden size; shape-fixation tests." },
+        { "title": "PH-1204: image-token prefix in prefill + MiniCPM chat template/specials", "body": "DenseDecoder::prefill + block_forward_seq embedding merge; text-only regression stays green." },
+        { "title": "PH-1205: multimodal serve + rusty-vision provider row", "body": "messages[].images base64 (PNG/JPEG via image crate; MVP PPM/BMP no-dep), E2E parity vs mtmd on 3-5 images, GSV catalog heartbeat-gated row." },
+        { "title": "PH-1206: MiniCPM-V 4.7-35B-A3B via ExpertCache (dedicated node)", "body": "PH-404 cache + longest-first pin + NVMe offload + LES-style lookahead eval; S0 disk gate." }
       ]
     }
   ]
