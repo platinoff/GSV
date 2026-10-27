@@ -39,7 +39,7 @@ Rust модуль: `sli/` → `gsv_sli.json`.
 | clippy / rustfmt | — | toolchain |
 | MSYS2 bash | — | AGENTS.md |
 | Node / Playwright | — | `e2e/` |
-| Cursor / opencode | 3.22.12 live / 3.23.x installer · OC plugin 1.19.4 | service (Cursor `package.json` 2026-10-27; `target/live/cursor-setup-3.23.exe` staged; OpenCode `@opencode-ai/plugin` 1.19.4; leftover `_bak` deferred). IDE + Agents Window may both show online; one writer on the GSV tree |
+| Cursor / opencode | 3.27.14 per-user live · OC plugin 1.19.4 | service (running `AppData\Local\Programs\cursor` 3.27.14; `Program Files\cursor` still 3.22.12, not the live process; do not run staged `cursor-setup-3.23.exe`; OpenCode `@opencode-ai/plugin` 1.19.4; leftover `_bak` deferred). IDE + Agents Window may both show online; one writer on the GSV tree |
 
 Rust модуль: `toolchain/` → `gsv_toolchain.json`.
 

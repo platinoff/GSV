@@ -1,8 +1,8 @@
 # Промпт наступної сесії (GSV)
 
-**Оновлено:** 2026-10-27 (crate **0.244.0**, live `:9999` `version_lag=false`, MCP 60/60; keep-live gsv+telenetis(0.2.0)+llama_rs up, **rusty down**, omniroute policy-down). Cursor live **3.22.12**; installer **3.23.x** staged `target/live/cursor-setup-3.23.exe` (quit Cursor → run). OpenCode plugin **1.19.4** (stay 1.x unless `--major`). Vision MCP: mtime/`Arc` cache for ~360 KiB `manifest.json` + file-backed `git_head` (no spawn on hot path). PH-1305 reclaim → **open** + rusty WIP. Folder MCP `type: http` unchanged. **Canon** [`gsv/GSV_AGI_PATH.md`](gsv/GSV_AGI_PATH.md). last PH-S3088 next PH-S3089.
+**Оновлено:** 2026-10-27 (crate **0.244.0**, live `:9999` `version_lag=false`, MCP 60/60; keep-live gsv+telenetis(0.2.0)+llama_rs+**rusty** up, omniroute policy-down). `rusty serve` PID on `0.0.0.0:8090` (`qwen2.5-0.5b-q4_k_m`); `127.0.0.1:8090` is `rust_book.exe` — хаб ходить на LAN. Cursor live **3.27.14** (per-user `AppData\Local\Programs\cursor`); `Program Files\cursor` лишається **3.22.12** і не запущений — інсталятор `target/live/cursor-setup-3.23.exe` старіший, не запускати. OpenCode plugin **1.19.4** (stay 1.x unless `--major`). Vision MCP: mtime/`Arc` cache for ~360 KiB `manifest.json` + file-backed `git_head` (no spawn on hot path). **PH-1305** `in_progress` (lease OpenCode) — не забирати. Folder MCP `type: http` unchanged. **Canon** [`gsv/GSV_AGI_PATH.md`](gsv/GSV_AGI_PATH.md). last PH-S3088 next PH-S3089.
 
-> **Сталий стан 2026-10-24 (скан станів продуктів; актуальніше за абзац вище):** GSV `f6f00e6` (= `origin/main`; + board/docs
+> **Скан 2026-10-24 (історичний; актуальний стан — абзац вище):** GSV `f6f00e6` (= `origin/main`; + board/docs
 > коміт цієї сесії), crate 0.244.0, live 60/60 tools; дошка **711 done / 14 open (8 owner-gated + 5 B12 vision + 1 B13 `PH-1306`) + 1 in_progress (`PH-1305` — orchestrator grok-4.7, lease) / 8 blocked**;
 > rusty-engine `7afad27` (= `origin/main`, WIP `src/bin/rusty.rs` +51 — `rusty tokenize` для `PH-1305`, 244 тестів +7 ignored, Rust 99.0 %), prefill 961 tok
 > **5.3–6.4 s**, rusty serve **up** (heartbeat → keep-live). **Наступний крок:** rusty-engine — `PH-203s`
