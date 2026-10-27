@@ -46,12 +46,72 @@ pub fn system_to_rfc3339(t: SystemTime) -> String {
     dt.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
 }
 
-/// Read `git rev-parse --short HEAD` at `repo_root` (best effort).
+/// Read short HEAD at `repo_root` (best effort).
+///
+/// Prefers the filesystem (`.git/HEAD` + ref) so hot MCP/vision paths do not
+/// spawn `git` hundreds of times per session; falls back to `git rev-parse`.
 pub fn git_head(repo_root: &Path) -> Option<String> {
+    if let Some(h) = git_head_from_files(repo_root) {
+        return Some(h);
+    }
     run(repo_root, "git", &["rev-parse", "--short", "HEAD"])
         .ok()
         .map(|out| out.trim().to_string())
         .filter(|s| !s.is_empty())
+}
+
+fn short_hash(full: &str) -> Option<String> {
+    let t = full.trim();
+    if t.len() < 7 {
+        return None;
+    }
+    Some(t[..7].to_string())
+}
+
+fn git_head_from_files(repo_root: &Path) -> Option<String> {
+    let git_dir = {
+        let direct = repo_root.join(".git");
+        if direct.is_dir() {
+            direct
+        } else if direct.is_file() {
+            // worktree / submodule pointer: `gitdir: <path>`
+            let raw = std::fs::read_to_string(&direct).ok()?;
+            let rest = raw.strip_prefix("gitdir:")?.trim();
+            let p = Path::new(rest);
+            if p.is_absolute() {
+                p.to_path_buf()
+            } else {
+                repo_root.join(p)
+            }
+        } else {
+            return None;
+        }
+    };
+    let head = std::fs::read_to_string(git_dir.join("HEAD")).ok()?;
+    let head = head.trim();
+    if let Some(r) = head.strip_prefix("ref:") {
+        let ref_name = r.trim();
+        let ref_path = git_dir.join(ref_name);
+        if let Ok(hash) = std::fs::read_to_string(&ref_path) {
+            return short_hash(&hash);
+        }
+        // packed-refs fallback
+        let packed = std::fs::read_to_string(git_dir.join("packed-refs")).ok()?;
+        for line in packed.lines() {
+            if line.starts_with('#') || line.starts_with('^') {
+                continue;
+            }
+            let mut parts = line.split_whitespace();
+            let hash = parts.next()?;
+            let name = parts.next()?;
+            if name == ref_name {
+                return short_hash(hash);
+            }
+        }
+        None
+    } else {
+        short_hash(head)
+    }
 }
 
 /// Read `git rev-parse --short HEAD` at `repo_root`, returning `"unknown"` on failure.

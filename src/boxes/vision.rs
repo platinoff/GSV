@@ -10,9 +10,73 @@
 //! ```
 
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::SystemTime;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+
+/// Process-local file parse cache (mtime-keyed, `Arc`-shared). Vision MCP/HTTP
+/// paths used to re-read + re-parse `docs/vision/manifest.json` (~360 KiB) on
+/// every call; sharing the parsed value makes hot node-search / map paths cheap.
+struct FileCache<T> {
+    path: PathBuf,
+    mtime: Option<SystemTime>,
+    value: Arc<T>,
+}
+
+fn path_mtime(path: &Path) -> Option<SystemTime> {
+    std::fs::metadata(path).ok().and_then(|m| m.modified().ok())
+}
+
+fn cached_parse_arc<T: Send + Sync + 'static>(
+    cache: &OnceLock<Mutex<Option<FileCache<T>>>>,
+    path: &Path,
+    load: impl FnOnce(&str) -> Result<T, String>,
+) -> Result<Arc<T>, String> {
+    let slot = cache.get_or_init(|| Mutex::new(None));
+    let mtime = path_mtime(path);
+    if let Ok(guard) = slot.lock() {
+        if let Some(hit) = guard.as_ref() {
+            if hit.path == path && hit.mtime == mtime && hit.mtime.is_some() {
+                return Ok(Arc::clone(&hit.value));
+            }
+        }
+    }
+    let raw = std::fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
+    let value = Arc::new(load(&raw)?);
+    if let Ok(mut guard) = slot.lock() {
+        *guard = Some(FileCache {
+            path: path.to_path_buf(),
+            mtime,
+            value: Arc::clone(&value),
+        });
+    }
+    Ok(value)
+}
+
+fn clear_file_cache<T>(cache: &OnceLock<Mutex<Option<FileCache<T>>>>) {
+    if let Some(slot) = cache.get() {
+        if let Ok(mut guard) = slot.lock() {
+            *guard = None;
+        }
+    }
+}
+
+static MANIFEST_CACHE: OnceLock<Mutex<Option<FileCache<Manifest>>>> = OnceLock::new();
+static FEED_CACHE: OnceLock<Mutex<Option<FileCache<Feed>>>> = OnceLock::new();
+static EXTENSIONS_CACHE: OnceLock<Mutex<Option<FileCache<Extensions>>>> = OnceLock::new();
+static SPEED_CACHE: OnceLock<Mutex<Option<FileCache<SpeedIndexReport>>>> = OnceLock::new();
+static RUST_DIAG_CACHE: OnceLock<Mutex<Option<FileCache<RustDiagnosticsReport>>>> = OnceLock::new();
+
+/// Drop all process-local vision parse caches (tests / after external rewrite).
+pub fn invalidate_vision_file_caches() {
+    clear_file_cache(&MANIFEST_CACHE);
+    clear_file_cache(&FEED_CACHE);
+    clear_file_cache(&EXTENSIONS_CACHE);
+    clear_file_cache(&SPEED_CACHE);
+    clear_file_cache(&RUST_DIAG_CACHE);
+}
 
 /// Galaxy graph node (`manifest.json` → `nodes[]`).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -498,20 +562,21 @@ struct RustDiagnosticsFile {
 /// Read + parse the speed index from `repo_root` (empty-tolerant).
 pub fn read_speed_index(repo_root: &Path) -> Result<SpeedIndexReport, String> {
     let path = speed_index_source(repo_root);
-    let raw =
-        std::fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
-    let file: SpeedIndexFile =
-        serde_json::from_str(&raw).map_err(|e| format!("parse speed_index.json: {e}"))?;
-    Ok(SpeedIndexReport {
-        generated_at: file.generated_at,
-        git_head: file.git_head,
-        host_label: file.host_label,
-        latest: file.latest,
-        test_ci_count: file.test_ci_history.len() as u64,
-        bench_count: file.bench_history.len() as u64,
-        test_ci_history: file.test_ci_history,
-        bench_history: file.bench_history,
+    cached_parse_arc(&SPEED_CACHE, &path, |raw| {
+        let file: SpeedIndexFile =
+            serde_json::from_str(raw).map_err(|e| format!("parse speed_index.json: {e}"))?;
+        Ok(SpeedIndexReport {
+            generated_at: file.generated_at,
+            git_head: file.git_head,
+            host_label: file.host_label,
+            latest: file.latest,
+            test_ci_count: file.test_ci_history.len() as u64,
+            bench_count: file.bench_history.len() as u64,
+            test_ci_history: file.test_ci_history,
+            bench_history: file.bench_history,
+        })
     })
+    .map(|a| (*a).clone())
 }
 
 /// Persist the speed-index report under `data_dir`.
@@ -526,26 +591,28 @@ pub fn save_speed_index(report: &SpeedIndexReport, data_dir: &Path) -> Result<()
 /// Read the persisted speed-index snapshot from `data_dir`.
 pub fn load_speed_index(data_dir: &Path) -> Result<SpeedIndexReport, String> {
     let path = speed_index_target(data_dir);
-    let raw =
-        std::fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
-    serde_json::from_str(&raw).map_err(|e| format!("parse gsv_speed_index.json: {e}"))
+    cached_parse_arc(&SPEED_CACHE, &path, |raw| {
+        serde_json::from_str(raw).map_err(|e| format!("parse gsv_speed_index.json: {e}"))
+    })
+    .map(|a| (*a).clone())
 }
 
 /// Read + parse rust diagnostics from `repo_root` (empty-tolerant).
 pub fn read_rust_diagnostics(repo_root: &Path) -> Result<RustDiagnosticsReport, String> {
     let path = rust_diagnostics_source(repo_root);
-    let raw =
-        std::fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
-    let file: RustDiagnosticsFile =
-        serde_json::from_str(&raw).map_err(|e| format!("parse rust_diagnostics.json: {e}"))?;
-    Ok(RustDiagnosticsReport {
-        generated_at: file.generated_at,
-        git_head: file.git_head,
-        host_label: file.host_label,
-        latest: file.latest,
-        history_count: file.history.len() as u64,
-        history: file.history,
+    cached_parse_arc(&RUST_DIAG_CACHE, &path, |raw| {
+        let file: RustDiagnosticsFile =
+            serde_json::from_str(raw).map_err(|e| format!("parse rust_diagnostics.json: {e}"))?;
+        Ok(RustDiagnosticsReport {
+            generated_at: file.generated_at,
+            git_head: file.git_head,
+            host_label: file.host_label,
+            latest: file.latest,
+            history_count: file.history.len() as u64,
+            history: file.history,
+        })
     })
+    .map(|a| (*a).clone())
 }
 
 /// Persist the rust-diagnostics report under `data_dir`.
@@ -563,9 +630,10 @@ pub fn save_rust_diagnostics(
 /// Read the persisted rust-diagnostics snapshot from `data_dir`.
 pub fn load_rust_diagnostics(data_dir: &Path) -> Result<RustDiagnosticsReport, String> {
     let path = rust_diagnostics_target(data_dir);
-    let raw =
-        std::fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
-    serde_json::from_str(&raw).map_err(|e| format!("parse gsv_rust_diagnostics.json: {e}"))
+    cached_parse_arc(&RUST_DIAG_CACHE, &path, |raw| {
+        serde_json::from_str(raw).map_err(|e| format!("parse gsv_rust_diagnostics.json: {e}"))
+    })
+    .map(|a| (*a).clone())
 }
 
 /// Read + parse the vision manifest from `repo_root`.
@@ -574,24 +642,20 @@ pub fn load_rust_diagnostics(data_dir: &Path) -> Result<RustDiagnosticsReport, S
 /// regenerated, so a committed stamp can point at a commit from an older era
 /// (or a sibling repo after the PoolAI split). Prefer the live repo HEAD here;
 /// fall back to the file stamp only when git cannot answer.
+///
+/// Parsed JSON is mtime-cached process-locally (~360 KiB `manifest.json`);
+/// `git_head` is always refreshed cheaply after a cache hit.
 pub fn read_manifest(repo_root: &Path) -> Result<Manifest, String> {
-    let path = manifest_source(repo_root);
-    let raw =
-        std::fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
-    let mut manifest: Manifest =
-        serde_json::from_str(&raw).map_err(|e| format!("parse manifest.json: {e}"))?;
-    if let Some(head) = crate::vision::git_head(repo_root) {
-        manifest.git_head = head;
-    }
-    Ok(manifest)
+    read_manifest_arc(repo_root).map(|a| (*a).clone())
 }
 
 /// Read + parse the vision feed from `repo_root`.
 pub fn read_feed(repo_root: &Path) -> Result<Feed, String> {
     let path = feed_source(repo_root);
-    let raw =
-        std::fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
-    serde_json::from_str(&raw).map_err(|e| format!("parse feed.json: {e}"))
+    cached_parse_arc(&FEED_CACHE, &path, |raw| {
+        serde_json::from_str(raw).map_err(|e| format!("parse feed.json: {e}"))
+    })
+    .map(|a| (*a).clone())
 }
 
 /// Persist the manifest snapshot to `data_dir`.
@@ -610,26 +674,26 @@ pub fn save_feed(feed: &Feed, data_dir: &Path) -> Result<(), String> {
 
 /// Load the persisted manifest snapshot from `data_dir`.
 pub fn load_manifest(data_dir: &Path) -> Result<Manifest, String> {
-    let path = manifest_target(data_dir);
-    let raw =
-        std::fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
-    serde_json::from_str(&raw).map_err(|e| format!("parse {}: {e}", path.display()))
+    load_manifest_arc(data_dir).map(|a| (*a).clone())
 }
 
 /// Load the persisted feed snapshot from `data_dir`.
 pub fn load_feed(data_dir: &Path) -> Result<Feed, String> {
     let path = feed_target(data_dir);
-    let raw =
-        std::fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
-    serde_json::from_str(&raw).map_err(|e| format!("parse {}: {e}", path.display()))
+    let display = path.display().to_string();
+    cached_parse_arc(&FEED_CACHE, &path, |raw| {
+        serde_json::from_str(raw).map_err(|e| format!("parse {display}: {e}"))
+    })
+    .map(|a| (*a).clone())
 }
 
 /// Read + parse the extension manifest from `repo_root`.
 pub fn read_extensions(repo_root: &Path) -> Result<Extensions, String> {
     let path = extensions_source(repo_root);
-    let raw =
-        std::fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
-    serde_json::from_str(&raw).map_err(|e| format!("parse extensions.json: {e}"))
+    cached_parse_arc(&EXTENSIONS_CACHE, &path, |raw| {
+        serde_json::from_str(raw).map_err(|e| format!("parse extensions.json: {e}"))
+    })
+    .map(|a| (*a).clone())
 }
 
 /// Persist the extensions snapshot to `data_dir`.
@@ -642,9 +706,11 @@ pub fn save_extensions(extensions: &Extensions, data_dir: &Path) -> Result<(), S
 /// Load the persisted extensions snapshot from `data_dir`.
 pub fn load_extensions(data_dir: &Path) -> Result<Extensions, String> {
     let path = extensions_target(data_dir);
-    let raw =
-        std::fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
-    serde_json::from_str(&raw).map_err(|e| format!("parse {}: {e}", path.display()))
+    let display = path.display().to_string();
+    cached_parse_arc(&EXTENSIONS_CACHE, &path, |raw| {
+        serde_json::from_str(raw).map_err(|e| format!("parse {display}: {e}"))
+    })
+    .map(|a| (*a).clone())
 }
 
 /// Preferred source for the wire: live `repo_root` source, else persisted snapshot.
@@ -672,8 +738,32 @@ pub fn wire_extensions(repo_root: &Path, data_dir: &Path) -> Value {
 }
 
 /// Preferred source for the wire: live `repo_root` source, else persisted snapshot.
-fn source_manifest(repo_root: &Path, data_dir: &Path) -> Result<Manifest, String> {
-    read_manifest(repo_root).or_else(|_| load_manifest(data_dir))
+///
+/// Returns a shared `Arc` so MCP/HTTP hot paths (node-search, map, summary) do
+/// not deep-clone the ~360 KiB galaxy graph on every call.
+fn source_manifest(repo_root: &Path, data_dir: &Path) -> Result<Arc<Manifest>, String> {
+    read_manifest_arc(repo_root).or_else(|_| load_manifest_arc(data_dir))
+}
+
+fn read_manifest_arc(repo_root: &Path) -> Result<Arc<Manifest>, String> {
+    let path = manifest_source(repo_root);
+    let mut arc = cached_parse_arc(&MANIFEST_CACHE, &path, |raw| {
+        serde_json::from_str(raw).map_err(|e| format!("parse manifest.json: {e}"))
+    })?;
+    if let Some(head) = crate::vision::git_head(repo_root) {
+        if arc.git_head != head {
+            Arc::make_mut(&mut arc).git_head = head;
+        }
+    }
+    Ok(arc)
+}
+
+fn load_manifest_arc(data_dir: &Path) -> Result<Arc<Manifest>, String> {
+    let path = manifest_target(data_dir);
+    let display = path.display().to_string();
+    cached_parse_arc(&MANIFEST_CACHE, &path, |raw| {
+        serde_json::from_str(raw).map_err(|e| format!("parse {display}: {e}"))
+    })
 }
 
 /// Preferred source for the wire: live `repo_root` source, else persisted snapshot.
@@ -836,9 +926,9 @@ pub fn map_report(repo_root: &Path, data_dir: &Path) -> Result<MapReport, String
 
     Ok(MapReport {
         revision: m.revision,
-        git_head: m.git_head,
-        next_sprint: m.next_sprint,
-        last_sprint_closed: m.last_sprint_closed,
+        git_head: m.git_head.clone(),
+        next_sprint: m.next_sprint.clone(),
+        last_sprint_closed: m.last_sprint_closed.clone(),
         nodes_count: m.nodes.len() as u64,
         edges_count: m.edges.len() as u64,
         layers,
@@ -1025,9 +1115,9 @@ pub fn sprint_map_report(repo_root: &Path, data_dir: &Path) -> Result<SprintMapR
 
     Ok(SprintMapReport {
         revision: m.revision,
-        git_head: m.git_head,
-        next_sprint: m.next_sprint,
-        last_sprint_closed: m.last_sprint_closed,
+        git_head: m.git_head.clone(),
+        next_sprint: m.next_sprint.clone(),
+        last_sprint_closed: m.last_sprint_closed.clone(),
         nodes_count: involved.len() as u64,
         links,
         modules,
@@ -1093,7 +1183,7 @@ pub fn doc_preview(
     let link_count = (links_out.len() + links_in.len()) as u64;
     Ok(DocPreviewReport {
         revision: m.revision,
-        git_head: m.git_head,
+        git_head: m.git_head.clone(),
         node,
         links_out,
         links_in,
@@ -1203,7 +1293,7 @@ pub fn node_search(
 
     Ok(NodeSearchReport {
         revision: m.revision,
-        git_head: m.git_head,
+        git_head: m.git_head.clone(),
         query: query.trim().to_string(),
         layer: layer_filter,
         total_matches,
@@ -1630,12 +1720,12 @@ pub fn sprint_queue_report(repo_root: &Path, data_dir: &Path) -> Result<SprintQu
     }
     Ok(SprintQueueReport {
         revision: m.revision,
-        git_head: m.git_head,
-        next_sprint: m.next_sprint,
-        last_sprint_closed: m.last_sprint_closed,
+        git_head: m.git_head.clone(),
+        next_sprint: m.next_sprint.clone(),
+        last_sprint_closed: m.last_sprint_closed.clone(),
         open_count: m.sprint_queue_open_count,
         active_sprint: e.active_sprint,
-        entries: m.sprint_queue,
+        entries: m.sprint_queue.clone(),
         planned,
     })
 }
@@ -1955,9 +2045,9 @@ pub fn sprint_theme_report(repo_root: &Path, data_dir: &Path) -> Result<SprintTh
         .collect();
     Ok(SprintThemeReport {
         revision: m.revision,
-        git_head: m.git_head,
+        git_head: m.git_head.clone(),
         active_sprint: e.active_sprint,
-        next_sprint: m.next_sprint,
+        next_sprint: m.next_sprint.clone(),
         sprint: SPRINT_ACCENT.to_string(),
         sprint_next: SPRINT_NEXT_COLOR.to_string(),
         pill: SprintPillTheme {
@@ -2634,6 +2724,7 @@ pub fn galaxy_svg() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Instant;
 
     fn sample_manifest() -> Manifest {
         Manifest {
@@ -3949,5 +4040,41 @@ mod tests {
         let ext = std::fs::read_to_string(vis.join("extensions.json")).unwrap();
         assert!(ext.contains("\"active_sprint\": \"PH-S2279\""), "{ext}");
         let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn manifest_mtime_cache_speeds_repeat_arc_reads() {
+        invalidate_vision_file_caches();
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let data = root.join("data");
+        let cold = Instant::now();
+        let a = source_manifest(&root, &data).expect("cold manifest");
+        let cold_ns = cold.elapsed().as_nanos();
+        let mut hot_ns = 0u128;
+        for _ in 0..64 {
+            let t0 = Instant::now();
+            let b = source_manifest(&root, &data).expect("warm manifest");
+            hot_ns += t0.elapsed().as_nanos();
+            assert_eq!(a.revision, b.revision);
+            assert_eq!(a.nodes.len(), b.nodes.len());
+            assert!(Arc::ptr_eq(&a, &b) || b.nodes.len() == a.nodes.len());
+        }
+        let warm_avg = hot_ns / 64;
+        assert!(
+            warm_avg < cold_ns || cold_ns < 2_000_000,
+            "warm_avg={warm_avg}ns cold={cold_ns}ns"
+        );
+        // Arc cache hit (no re-parse, no deep clone) should beat the ~360 KiB
+        // JSON parse. File-backed git_head already removed process-spawn cost;
+        // require ≥5× so flaky/debug boxes still pass. Session-scale win is
+        // hundreds of MCP vision calls sharing one parse (~350 KiB manifest).
+        if cold_ns > 2_000_000 {
+            let ratio = cold_ns / warm_avg.max(1);
+            assert!(
+                ratio >= 5,
+                "expected ≥5× speedup, got {ratio}× cold={cold_ns} warm_avg={warm_avg}"
+            );
+        }
+        invalidate_vision_file_caches();
     }
 }

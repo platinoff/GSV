@@ -6,15 +6,16 @@ alwaysApply: false
 
 # Cursor environment baseline
 
-Verified on this machine (2026-09-29):
+Verified on this machine (2026-10-27):
 
-- **Cursor** **3.22.12** (`C:\Program Files\cursor\resources\app\package.json`). Leftover `Program Files\cursor\_bak` may still hold `chrome_200_percent.pak` (owner deferred wipe). Do not treat `_bak` as the live install.
-- **rustc / cargo** 1.92.0 (`1.92.0-x86_64-pc-windows-gnu`; `rust-toolchain.toml` names the gnu host). Do **not** export `RUSTUP_TOOLCHAIN`.
+- **Cursor** live **3.22.12** (`C:\Program Files\cursor\resources\app\package.json`). Latest Stable channel is **3.23.x** (installer staged at `target/live/cursor-setup-3.23.exe` — quit Cursor fully, then run it; in-app update on Windows often fails on leftover `_bak` locks). Leftover `Program Files\cursor\_bak` may still hold `chrome_200_percent.pak` (owner deferred wipe).
+- **OpenCode** plugin **1.19.4** (`.opencode/` + `~/.config/opencode`); desktop app under `%LOCALAPPDATA%\Programs\@opencode-aidesktop`. Stay on 1.x unless the owner explicitly runs `opencode upgrade --major` for 2.x.
+- **rustc / cargo** 1.92.0 (`1.92.0-x86_64-pc-windows-gnu`; `rust-toolchain.toml` names the gnu host). Do **not** export `RUSTUP_TOOLCHAIN`. Host default stable may be newer (1.98+/1.99); only the pin builds this crate.
 - **git** 2.50.0 (MSYS2 UCRT64)
 
-## MCP / tools / sync (3.20)
+## MCP / tools / sync (3.22+)
 
-- Folder MCP only: [`.cursor/mcp.json`](../mcp.json) `type: http` + `url: http://127.0.0.1:9999/mcp` (Streamable HTTP to live `gsv-server`). Keep `type: http`. Do **not** write `streamable-http` — `cursor-agent` drops the whole `mcp.json` on that alias. Desktop **3.22.12** still uses this folder file (not User MCP).
+- Folder MCP only: [`.cursor/mcp.json`](../mcp.json) `type: http` + `url: http://127.0.0.1:9999/mcp` (Streamable HTTP to live `gsv-server`). Keep `type: http`. Do **not** write `streamable-http` — `cursor-agent` drops the whole `mcp.json` on that alias. Desktop **3.22.12** / **3.23.x** still uses this folder file (not User MCP).
 - **Two agents online:** the IDE chat and the Agents Window can both be up. One writer on this tree (`S:\rust\GSV`). The second agent does not edit the same dirty files; parallel work is `/worktree` or cloud. Do not add a second MCP (User scope) so both windows “see” the hub.
 - **Never** User MCP (`%USERPROFILE%/.cursor/mcp.json`) — it leaks `gsv_mcp_openbot` into PoolAI windows.
 - **Hub rules in the rust environment:** `%USERPROFILE%/.cursor/hooks.json` `sessionStart` runs `gsv-cursor-rules` (`src/bin/gsv_cursor_rules.rs`). It inlines `AGENTS.md` + `.cursor/rules/*.mdc` only when a workspace root is under `S:/rust` and the hub folder itself is not already open. Folders outside that rust environment get nothing from the hook. A new Agent chat picks it up. Cloud agents do not run this user hook. `~/.cursor/rules` is not a global loader.
