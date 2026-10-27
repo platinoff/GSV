@@ -35,6 +35,10 @@
     {
       "name": "rusty-engine",
       "path": "../rusty-engine"
+    },
+    {
+      "name": "sport-forcast",
+      "path": "../sport-forcast"
     }
   ],
   "settings": {
