@@ -16,8 +16,8 @@ rebalance, burst seats, security): see [GSV_VDC.md](GSV_VDC.md).
 | llama provider | `:8080` | `llama-rs/target/release/llama_serve.exe` +27B mmap | HKCU `llama-serve` | `llama-rs/target/live/llama_serve.log`, heartbeat json |
 | poolAI grid | `:8091` | `poolAI/target/debug/poolai.exe` (`POOLAI_HTTP_PORT`) | HKCU `poolai-edge` → `target/edge_start.vbs` | `poolAI/target/live/edge_data/` (binds+tasks) |
 | edge executor | — | `llama-rs/target/debug/llama_edge.exe` as `edge-pc-01` (+ `a54-01`) | HKCU `llama-edge` → `target/edge_start.vbs` (with signing key) | `llama-rs/target/live/llama_edge.log` |
-| Telenetis shell | `:9800` | `telenetis/target/live/` + `telenetis-live.exe` supervisor | HKCU `telenetis-edge` → `target/telenetis_start.vbs` | identity + Mini App chrome; not orchestrator |
-| ngrok tunnel | `:4040` api | Temp `ngrok.exe` v3.39.11 | HKCU `ngrok-tunnel` | reserved domain `atonable-alibi-unwilling` |
+| Telenetis shell | `:9800` | `S:/rust/telenetis` `target/debug/telenetis-live.exe` (sibling plugin, not nested under GSV) | HKCU `telenetis-edge` → `S:\rust\telenetis\target\live\launch_live.vbs` | identity + Mini App chrome; not orchestrator. The supervisor starts ngrok itself when `TELENETIS_TUNNEL_ENABLED=1` |
+| ngrok tunnel | `:4040` api | WinGet `ngrok.exe` (resolved by `telenetis` `tunnel.rs`) | no separate logon entry — the old HKCU `ngrok-tunnel` VBS under `GSV\telenetis\target` is removed | reserved domain `atonable-alibi-unwilling` |
 | OmniRoute gate | `:20128` | node (no runtime, policy: Rust only) | DOWN by decision — role served by the hub itself (OmniRouter box) | keep-live probe stays as down-signal |
 
 ## 2. Settings inventory
