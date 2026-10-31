@@ -15,15 +15,16 @@ pub const RESEARCHED_AT: &str = "2026-08-18";
 
 /// Local llama-rs model the `bunke-rock` provider serves (kind `local`).
 /// The provider is host-ready only while this file exists on disk.
-/// Band 235 (PH-S2989): deep tier swapped dense-27B → Qwen3-30B-A3B
-/// IQ2_XXS (MoE, tg 0.497 vs 0.045 tok/s measured 2026-09-15,
-/// `llama-rs/docs/BENCHMARKS.md`); the 27B file stays as fallback.
-pub const BUNKE_ROCK_MODEL_FILE: &str = "S:/rust/llama-rs/models/Qwen3-30B-A3B-UD-IQ2_XXS.gguf";
+/// 2026-10-30 owner cleanup: llama-rs keeps only the tested
+/// `Qwen2.5-0.5B-Instruct-Q4_K_M.gguf` (27B / 30B-A3B / 1.5B / MTP quants
+/// removed); both llama tier gates now resolve to that single file, so the
+/// deep/interactive routing stays live without resurrecting old quants.
+pub const BUNKE_ROCK_MODEL_FILE: &str = "S:/rust/llama-rs/models/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf";
 
 /// Local llama-rs model the `bunke-rock-fast` provider serves (interactive
 /// tier on `llama_serve :8082`, `llama-rs/docs/BENCHMARKS.md`).
 pub const BUNKE_ROCK_FAST_MODEL_FILE: &str =
-    "S:/rust/llama-rs/models/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf";
+    "S:/rust/llama-rs/models/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf";
 
 /// Local rusty-engine model the `rusty-serve` provider serves (`rusty serve
 /// -m … :8090`, PH-507 bunke-rock pattern, portable-plugin tree).
@@ -250,7 +251,7 @@ pub fn providers() -> &'static [ProviderSpec] {
             region: "Local",
             free: true,
             default_base_url: "http://127.0.0.1:8080/v1",
-            notes: "Local llama-rs deep tier (Qwen3-30B-A3B IQ2_XXS MoE, tg 0.497; 27B dense reserved; S:/rust/llama-rs/models/Qwen3-30B-A3B-UD-IQ2_XXS.gguf)",
+            notes: "Local llama-rs deep tier (:8080; post-cleanup 2026-10-30 gates on the single kept model S:/rust/llama-rs/models/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf; 27B/30B quants removed by owner)",
             quota: QUOTA_PAID,
         },
         ProviderSpec {
@@ -259,7 +260,7 @@ pub fn providers() -> &'static [ProviderSpec] {
             region: "Local",
             free: true,
             default_base_url: "http://127.0.0.1:8082/v1",
-            notes: "Local llama-rs interactive tier (Qwen2.5-1.5B, llama_serve :8082; deep tier is bunke-rock :8080)",
+            notes: "Local llama-rs interactive tier (:8082; post-cleanup 2026-10-30 gates on the single kept model Qwen2.5-0.5B Q4_K_M; deep tier is bunke-rock :8080)",
             quota: QUOTA_PAID,
         },
         ProviderSpec {
