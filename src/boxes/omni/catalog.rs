@@ -251,7 +251,7 @@ pub fn providers() -> &'static [ProviderSpec] {
             region: "Local",
             free: true,
             default_base_url: "http://127.0.0.1:8080/v1",
-            notes: "Local llama-rs deep tier (:8080; post-cleanup 2026-10-30 gates on the single kept model S:/rust/llama-rs/models/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf; 27B/30B quants removed by owner)",
+            notes: "Local llama-rs deep lane (:8080; hybrid router works on the single kept model S:/rust/llama-rs/models/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf; 27B/30B quants removed by owner 2026-10-30; pure-Rust hybrid MoE/GDN lane is rusty-serve :8090)",
             quota: QUOTA_PAID,
         },
         ProviderSpec {
@@ -260,7 +260,7 @@ pub fn providers() -> &'static [ProviderSpec] {
             region: "Local",
             free: true,
             default_base_url: "http://127.0.0.1:8082/v1",
-            notes: "Local llama-rs interactive tier (:8082; post-cleanup 2026-10-30 gates on the single kept model Qwen2.5-0.5B Q4_K_M; deep tier is bunke-rock :8080)",
+            notes: "Local llama-rs fast/interactive lane (:8082; hybrid router works on the single kept model Qwen2.5-0.5B Q4_K_M; deep lane is bunke-rock :8080, pure-Rust hybrid lane is rusty-serve :8090)",
             quota: QUOTA_PAID,
         },
         ProviderSpec {
@@ -489,9 +489,9 @@ pub fn models() -> &'static [ModelSpec] {
         // ── Recommended for GSV Rust + web (2026-08-18) ─────────────
         m(
             "lama-2.8",
-            "Lama 2.8 (BunkeRock · llama-rs)",
+            "Lama deep 0.5 (BunkeRock · llama-rs, Qwen2.5-0.5B hybrid lane :8080)",
             "bunke-rock",
-            Some(40_960),
+            Some(32_768),
             Some(4_096),
             true,
             false,
@@ -502,9 +502,9 @@ pub fn models() -> &'static [ModelSpec] {
         ),
         m(
             "lama-1.5",
-            "Lama 1.5 (BunkeRock fast · llama-rs)",
+            "Lama fast 0.5 (BunkeRock fast · llama-rs, Qwen2.5-0.5B hybrid lane :8082)",
             "bunke-rock-fast",
-            Some(4_096),
+            Some(32_768),
             Some(1_024),
             true,
             false,
@@ -1197,7 +1197,7 @@ mod tests {
         assert!(!lama.is_empty(), "lama-2.8 in catalog");
         for spec in &lama {
             assert_eq!(spec.provider, "bunke-rock");
-            assert_eq!(spec.context_window, Some(40_960));
+            assert_eq!(spec.context_window, Some(32_768));
             assert!(spec.free && spec.rust, "{} free+rust lane", spec.id);
         }
     }
