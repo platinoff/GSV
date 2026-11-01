@@ -31,6 +31,12 @@ pub const BUNKE_ROCK_FAST_MODEL_FILE: &str =
 pub const RUSTY_SERVE_MODEL_FILE: &str =
     "S:/rust/rusty-engine/data/models/qwen2.5-0.5b-q4_k_m.gguf";
 
+/// Local rusty-engine **qwen35 hybrid** model the `rusty-hybrid` provider serves
+/// (`rusty serve -m … :8088`, PH-1306 serve wiring — MiniCPM-V 4.7-1B Q4_K_M +
+/// mmproj pair already on disk in the portable-plugin tree).
+pub const RUSTY_HYBRID_MODEL_FILE: &str =
+    "S:/rust/rusty-engine/data/models/MiniCPM-V-4_7-1B-Q4_K_M.gguf";
+
 /// Heartbeat stamped by `rusty serve` at startup + every connection (PH-504);
 /// the `rusty-serve` host gate reads its mtime (PH-507).
 pub const RUSTY_SERVE_HEARTBEAT_FILE: &str =
@@ -270,6 +276,15 @@ pub fn providers() -> &'static [ProviderSpec] {
             free: true,
             default_base_url: "http://127.0.0.1:8090/v1",
             notes: "Local pure-Rust MoE engine OpenAI-compat (PH-507; rusty serve -m Qwen2.5-0.5B-Q4_K_M :8090, LAN-first band 233; gated on model file + fresh rusty_heartbeat.json)",
+            quota: QUOTA_PAID,
+        },
+        ProviderSpec {
+            id: "rusty-hybrid",
+            name: "Rusty hybrid (rusty-engine qwen35)",
+            region: "Local",
+            free: true,
+            default_base_url: "http://127.0.0.1:8088/v1",
+            notes: "Local pure-Rust qwen35 GDN-hybrid lane (PH-1306; rusty serve -m MiniCPM-V-4_7-1B_Q4_K_M :8088, one Completes wire with the dense lane; gated on model file + fresh rusty_heartbeat.json; mmproj-model-f16 sits beside it for the image-prefix band)",
             quota: QUOTA_PAID,
         },
         ProviderSpec {
@@ -519,6 +534,19 @@ pub fn models() -> &'static [ModelSpec] {
             "rusty-serve",
             Some(32_768),
             Some(8),
+            true,
+            false,
+            "local",
+            true,
+            true,
+            C_ALL,
+        ),
+        m(
+            "rusty-omni-1b",
+            "Rusty hybrid 1B (rusty-hybrid · rusty-engine qwen35 MiniCPM-V)",
+            "rusty-hybrid",
+            Some(32_768),
+            Some(512),
             true,
             false,
             "local",
@@ -1090,7 +1118,10 @@ pub fn provider(id: &str) -> Option<&'static ProviderSpec> {
 /// Provider kind: `"local"` for on-disk llama-rs / rusty-engine backends,
 /// `"remote"` for API vendors / aggregators.
 pub fn provider_kind(id: &str) -> &'static str {
-    if matches!(id, "bunke-rock" | "bunke-rock-fast" | "rusty-serve") {
+    if matches!(
+        id,
+        "bunke-rock" | "bunke-rock-fast" | "rusty-serve" | "rusty-hybrid"
+    ) {
         "local"
     } else {
         "remote"
@@ -1119,6 +1150,7 @@ pub fn local_model_file(id: &str) -> Option<&'static str> {
         "bunke-rock" => Some(BUNKE_ROCK_MODEL_FILE),
         "bunke-rock-fast" => Some(BUNKE_ROCK_FAST_MODEL_FILE),
         "rusty-serve" => Some(RUSTY_SERVE_MODEL_FILE),
+        "rusty-hybrid" => Some(RUSTY_HYBRID_MODEL_FILE),
         _ => None,
     }
 }
@@ -1136,7 +1168,7 @@ pub fn host_ready(id: &str) -> bool {
             if !std::path::Path::new(file).exists() {
                 return false;
             }
-            if id == "rusty-serve" {
+            if id == "rusty-serve" || id == "rusty-hybrid" {
                 return heartbeat_mtime_fresh(
                     std::path::Path::new(RUSTY_SERVE_HEARTBEAT_FILE),
                     RUSTY_SERVE_FRESH_SECS,
@@ -1282,6 +1314,33 @@ mod tests {
             assert!(spec.free && spec.rust && spec.web, "{} lanes", spec.id);
             assert_eq!(spec.tier, "local");
         }
+    }
+
+    #[test]
+    fn rusty_hybrid_is_local_with_model_and_heartbeat_gate() {
+        let p = provider("rusty-hybrid").expect("rusty-hybrid provider");
+        assert!(p.free, "local hybrid is free tier");
+        assert_eq!(p.default_base_url, "http://127.0.0.1:8088/v1");
+        assert_eq!(provider_kind("rusty-hybrid"), "local");
+        assert_eq!(
+            local_model_file("rusty-hybrid"),
+            Some(RUSTY_HYBRID_MODEL_FILE)
+        );
+        let omni = find_models("rusty-omni-1b");
+        assert!(!omni.is_empty(), "rusty-omni-1b in catalog");
+        for spec in &omni {
+            assert_eq!(spec.provider, "rusty-hybrid");
+            assert_eq!(spec.context_window, Some(32_768));
+            assert!(spec.free && spec.rust, "{} free+rust lane", spec.id);
+        }
+        // Same heartbeat + file existence gate as the dense rusty-serve (PH-507 pattern).
+        let file = local_model_file("rusty-hybrid").expect("local file");
+        let model = std::path::Path::new(file).exists();
+        let hb = heartbeat_mtime_fresh(
+            std::path::Path::new(RUSTY_SERVE_HEARTBEAT_FILE),
+            RUSTY_SERVE_FRESH_SECS,
+        );
+        assert_eq!(host_ready("rusty-hybrid"), model && hb);
     }
 
     #[test]
