@@ -177,7 +177,8 @@ Paid APIs (OpenAI, Anthropic, xAI, DeepSeek, Moonshot, MiniMax, Qwen, Z.AI): `re
   `gsv/lama-1.5` або `gsv/lama-2.8` (hub сам скидає мертві ланки, offline-first 900 s на local).
 - **Landed (rusty-engine `PH-507`, 2026-10-15):** `rusty serve` — третій `kind: local`
   provider-row у цьому каталозі за зразком `bunke-rock` (id `rusty-serve`, модель
-  `rusty-05`, `:8090`): `host_ready` гейт на
+  `rusty-05`, `:8092` — 2026-11-02 переїзд з `:8090` (loopback `:8090` тепер належить rebook RB-5 view)):
+  `host_ready` гейт на
   `S:/rust/rusty-engine/target/live/rusty_heartbeat.json` (mtime ≤60 s; serve ставить
   штамп при startup + кожне conn, PH-504) + gguf presence; unreadable mtime — fail-open.
   OpenAI-compat + SSE (`stream:true` → chunk+[DONE]) через hub, WiFi multi-host

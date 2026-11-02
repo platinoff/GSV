@@ -257,7 +257,7 @@ pub fn providers() -> &'static [ProviderSpec] {
             region: "Local",
             free: true,
             default_base_url: "http://127.0.0.1:8080/v1",
-            notes: "Local llama-rs deep lane (:8080; hybrid router works on the single kept model S:/rust/llama-rs/models/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf; 27B/30B quants removed by owner 2026-10-30; pure-Rust hybrid MoE/GDN lane is rusty-serve :8090)",
+            notes: "Local llama-rs deep lane (:8080; hybrid router works on the single kept model S:/rust/llama-rs/models/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf; 27B/30B quants removed by owner 2026-10-30; pure-Rust hybrid MoE/GDN lane is rusty-serve :8092)",
             quota: QUOTA_PAID,
         },
         ProviderSpec {
@@ -266,7 +266,7 @@ pub fn providers() -> &'static [ProviderSpec] {
             region: "Local",
             free: true,
             default_base_url: "http://127.0.0.1:8082/v1",
-            notes: "Local llama-rs fast/interactive lane (:8082; hybrid router works on the single kept model Qwen2.5-0.5B Q4_K_M; deep lane is bunke-rock :8080, pure-Rust hybrid lane is rusty-serve :8090)",
+            notes: "Local llama-rs fast/interactive lane (:8082; hybrid router works on the single kept model Qwen2.5-0.5B Q4_K_M; deep lane is bunke-rock :8080, pure-Rust hybrid lane is rusty-serve :8092)",
             quota: QUOTA_PAID,
         },
         ProviderSpec {
@@ -274,8 +274,8 @@ pub fn providers() -> &'static [ProviderSpec] {
             name: "Rusty serve (rusty-engine)",
             region: "Local",
             free: true,
-            default_base_url: "http://127.0.0.1:8090/v1",
-            notes: "Local pure-Rust MoE engine OpenAI-compat (PH-507; rusty serve -m Qwen2.5-0.5B-Q4_K_M :8090, LAN-first band 233; gated on model file + fresh rusty_heartbeat.json)",
+            default_base_url: "http://127.0.0.1:8092/v1",
+            notes: "Local pure-Rust MoE engine OpenAI-compat (PH-507; rusty serve -m Qwen2.5-0.5B-Q4_K_M :8092, LAN-first band 233; port moved 8090→8092 on 2026-11-02 — rebook RB-5 axum viewer owns loopback :8090; gated on model file + fresh rusty_heartbeat.json)",
             quota: QUOTA_PAID,
         },
         ProviderSpec {
@@ -1238,7 +1238,7 @@ mod tests {
     fn rusty_serve_is_local_with_heartbeat_gate() {
         let p = provider("rusty-serve").expect("rusty-serve provider");
         assert!(p.free, "local rusty is free tier");
-        assert_eq!(p.default_base_url, "http://127.0.0.1:8090/v1");
+        assert_eq!(p.default_base_url, "http://127.0.0.1:8092/v1");
         assert_eq!(provider_kind("rusty-serve"), "local");
         assert_eq!(
             local_model_file("rusty-serve"),
