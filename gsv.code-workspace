@@ -37,6 +37,10 @@
       "path": "../rusty-engine"
     },
     {
+      "name": "GSV-WGPU",
+      "path": "../GSV-WGPU"
+    },
+    {
       "name": "sport-forcast",
       "path": "../sport-forcast"
     }
