@@ -16,9 +16,13 @@ drain target is GSV — the skill asks first.
 - Terminal: **MSYS2 bash**, not PowerShell.
 
 ```bash
-export PATH="/c/Users/${USER:-${USERNAME}}/.cargo/bin:$HOME/.cargo/bin:/ucrt64/bin:/usr/bin:$PATH"
-# rust-toolchain.toml pins 1.92.0-gnu. Do NOT export RUSTUP_TOOLCHAIN here — it
-# overrides the pin (stable-gnu is 1.98.1; a home-dir override can pick 1.87).
+# /c/Users/plati/.cargo/bin is the rustup shim dir. Do NOT build it from
+# ${USER:-${USERNAME}}: ${USER} is empty in MSYS bash -> /c/Users//.cargo/bin
+# (broken) and PATH falls back to /ucrt64/bin cargo (1.87), bypassing the pin
+# in rust-toolchain.toml entirely.
+export PATH="/c/Users/plati/.cargo/bin:$HOME/.cargo/bin:/ucrt64/bin:/usr/bin:$PATH"
+# rust-toolchain.toml pins stable-x86_64-pc-windows-gnu (floats 1.99.1 -> 1.100). Do NOT export
+# RUSTUP_TOOLCHAIN here — it overrides the pin.
 unset RUSTUP_TOOLCHAIN
 cd /s/rust/GSV || cd "S:/rust/GSV"
 unset CARGO_TARGET_DIR
