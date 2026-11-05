@@ -3,7 +3,6 @@
 ## Active
 
 - [ ] **ECO-2: dep refresh — latest best frameworks across all products (band-per-product)** — ticket `t-1793795019678869200`, product gsv; heavy/long, band-per-product, gates never skip
-- [ ] **ECO-3: portable auto-wire — `cargo xtask adopt <path>` (Rust, hub xtask)** — ticket `t-1793795019731059800`, product gsv; dry-first, `--yes` required
 
 ## Waiting On
 
@@ -15,6 +14,7 @@
 
 ## Done
 
+- [x] ~~**ECO-3: portable auto-wire — `cargo xtask adopt <path>` (Rust, hub xtask)**~~ (2026-11-05) - ticket `t-1793795019731059800`; GSV `71e4b71`: digest + artifacts (AGENTS/pin/HANDOFF/NEXT/PRODUCTS row/workspace), dry-first `--yes`, 6 unit tests, smoke dry-run on `freebeat.ai`; GSV-WGPU wiring fixed `72b4708`
 - [x] ~~**ECO-1: ecosystem toolchain flat policy — stable-gnu pins everywhere + rustc 1.99.1**~~ (2026-11-04) - ticket `t-1793795019622282400`; rustup 1.29.3, stable gnu+msvc → 1.99.1, unified pin in 11 repos, stale poolAI override removed, AGENTS.md PATH fix
 - [x] ~~**G2: GSV-WGPU WGSL compute smoke (matmul) — adapter+queue lane**~~ (2026-11-04) - ticket `t-1793734218923010900`, band G2, product gsv-wgpu
 - [x] ~~**G1: GSV-WGPU probe — wgpu adapter discovery**~~ (2026-11-03) - ticket `t-1793635200123456791`, band G1, product gsv-wgpu
