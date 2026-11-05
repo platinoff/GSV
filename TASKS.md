@@ -4,8 +4,8 @@
 
 - [ ] **ECO-2: dep refresh — latest best frameworks across all products (band-per-product)** — ticket `t-1793795019678869200`, product gsv; heavy/long, band-per-product, gates never skip
   - ✅ Bands done: gsv (`effd45f`: tokio 1.54.1, serde_json 1.0.154, toml 1.2.0, rustls 0.23.46, rustls-webpki 0.103.16; osv advisories 12→0; test exit 0), gsv-wgpu (`96a6548`: ordered-float 5.5.1; 8/8), linfs (`a01d543`), telenetis (`4a24f41`), orr_desktop (`4a26a13`), rebook (`30e97f5` + fmt fix), sport-forcast (`d71cbeb` no-op), coreboard (`14668a3`)
-  - ⛸️ Bands open: poolai (clippy red pre-existing: galaxy_*_integration unresolved imports; fmt red), llama-rs (update no-op; clippy blocked by llama-cpp-sys-2 native build: cpp-httplib Win8 error)
-  - ➡️ Next bands: poolai, llama-rs, omniroute (npm N/A); then ECO-4/ECO-5 sequencing
+  - ⛸️ Bands open: poolai (deps refreshed OK; fmt ✓ clippy ✓ canonical features green; full `cargo test` blocked by S:/ disk full — link stage "No space left", rerun after cleanup), llama-rs (update no-op; clippy blocked by pre-existing llama-cpp-sys-2 native build: cpp-httplib Win8 error; not dep-caused)
+  - ➡️ Next bands: poolai (rerun full test after disk cleanup), llama-rs (build fix), omniroute (npm N/A); then ECO-4/ECO-5 sequencing
 
 ## Waiting On
 
