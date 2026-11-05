@@ -10,7 +10,7 @@
 ## Waiting On
 
 - [ ] **ECO-5: rust 1.100 ready-lane** — ticket `t-1793795030516889300`; unblock when 1.100 stable lands
-- [ ] **ECO-4 bands: owner-review dirs (`freebeat.ai`, `reebeat.ai`, Tokenomica, platinoff-profile) + retire 1.92/1.96 toolchains (~5G) after ECO-2 gates** — ticket `t-1793795030452014000`
+- [ ] **ECO-4 bands: owner-review dirs (`freebeat.ai`, `reebeat.ai`, Tokenomica, platinoff-profile) + cargo-cache taxonomy** — ticket `t-1793795030452014000`; toolchain retire 1.92/1.96 DONE this block (toolchains gone, cargo still resolves 1.99.1)
 - [ ] **sec owner-gated: rotate Telenetis bot token** — ticket `t-1789606660639448500`; owner must rotate, agent never echoes tokens
 
 ## Someday
