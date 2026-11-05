@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generated_at": "2026-11-05",
   "host_label": "PLATINOV",
-  "git_head": "6a35c30",
+  "git_head": "effd45f",
   "source": "local",
   "notes": [
     "Machine-readable Rust/Clippy warning+error index for vision Rust panel.",
@@ -12,23 +12,11 @@
     "warnings": 0,
     "errors": 0,
     "ok": true,
-    "recorded_at": "2026-11-05T18:35:27Z",
+    "recorded_at": "2026-11-05T19:31:44Z",
     "command": "cargo clippy --message-format=json --all-targets",
-    "wall_secs": 74.5400555
+    "wall_secs": 8.7061217
   },
   "history": [
-    {
-      "kind": "rust_diagnostics",
-      "command": "cargo clippy --message-format=json --all-targets",
-      "warnings": 0,
-      "errors": 0,
-      "ok": true,
-      "recorded_at": "2026-09-14T14:34:39Z",
-      "wall_secs": 7.1754791,
-      "host_label": "PLATINOV",
-      "git_head": "ceb6aba",
-      "source": "local"
-    },
     {
       "kind": "rust_diagnostics",
       "command": "cargo clippy --message-format=json --all-targets",
@@ -399,6 +387,18 @@
       "wall_secs": 74.5400555,
       "host_label": "PLATINOV",
       "git_head": "6a35c30",
+      "source": "local"
+    },
+    {
+      "kind": "rust_diagnostics",
+      "command": "cargo clippy --message-format=json --all-targets",
+      "warnings": 0,
+      "errors": 0,
+      "ok": true,
+      "recorded_at": "2026-11-05T19:31:44Z",
+      "wall_secs": 8.7061217,
+      "host_label": "PLATINOV",
+      "git_head": "effd45f",
       "source": "local"
     }
   ]
