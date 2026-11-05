@@ -16,6 +16,7 @@
 //! | UI fragments | `ui` | `/api/ui/card/:name` | server-rendered card HTML |
 //! | About | `guide` | `/api/ui/card/about` · `/api/ui/icon/:name` · `/api/ui/icons.svg` | English how-to + hover blurbs + distinct card glyphs |
 //! | Products | `products` | `/api/products` | workspace ∪ sibling git ∪ kit |
+//! | Adopt | `adopt` | `cargo xtask adopt <path> [--yes]` | sibling git tree digest + registration artifacts (dry-first) |
 //! | Fingerprints | `fingerprint` | `/api/fingerprints` | `docs/gsv/fingerprints.jsonl` |
 //! | Ranks | `ranks` | `GET`/`POST /api/ranks` | IT+army merit ladder; host displays marshal-orchestrator; `data/gsv_ranks.json` |
 //! | Service Worker | `sw` | `/sw.js` · `/api/sw` | Rust-rendered shell cache |
@@ -32,6 +33,7 @@
 //! | Edge proxy | `edge` | `/api/edge` · `/api/edge/{*path}` | hub single-entry to the poolAI edge plane: token + rate limit + allowlist (canon `GSV_VDC.md` §6) |
 //! | APK client | `apk` | `/api/apk` · bin `gsv-apk` | Rust-ratio phone peer: disk/settings JSON + WiFi-debug ADB plan (no screenshots); join via `/api/edge`; never `:8091` |
 
+pub mod adopt;
 pub mod apk;
 pub mod edge;
 pub mod fingerprint;

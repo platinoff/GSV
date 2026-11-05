@@ -28,6 +28,10 @@ pub const TASKS: &[(&str, &str)] = &[
         "Discover VDT products (TSV; abracadabra / agi Step 0)",
     ),
     (
+        "adopt",
+        "Portable auto-wire: adopt <path> [--yes] — digest a sibling git tree and write registration artifacts (dry-first; ECO-3)",
+    ),
+    (
         "rules-check",
         "Rules-vs-live drift report (git/fingerprint/vision/registry/ratio; hard gates fail exit)",
     ),

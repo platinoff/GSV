@@ -220,9 +220,12 @@ mod tests {
     #[test]
     fn kit_rust_toolchain_names_gnu_host() {
         let raw = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/rust-toolchain.toml"));
+        // ECO-1 policy (owner 2026-11-04): channel = stable-gnu floats to the
+        // latest stable (1.99.1 -> 1.100); the invariant is gnu-host + no msvc,
+        // because msvc + MSYS2 link.exe breaks.
         assert!(
-            raw.contains("1.92.0-x86_64-pc-windows-gnu"),
-            "channel must pin gnu host (msvc + MSYS2 link.exe breaks): {raw}"
+            raw.contains("x86_64-pc-windows-gnu") && !raw.contains("msvc"),
+            "channel must pin the gnu host: {raw}"
         );
     }
 

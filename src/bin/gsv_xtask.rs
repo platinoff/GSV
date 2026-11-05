@@ -72,6 +72,27 @@ fn main() -> ExitCode {
             print!("{}", xtask::products_tsv(&root));
             ExitCode::SUCCESS
         }
+        "adopt" => {
+            let yes = args.iter().any(|a| a == "--yes" || a == "-y");
+            let path = args.iter().find(|a| !a.starts_with('-')).cloned();
+            let Some(path) = path else {
+                eprintln!("gsv-adopt: missing <path> — usage: cargo xtask adopt <path> [--yes]");
+                return ExitCode::FAILURE;
+            };
+            match gsv::boxes::adopt::run(&root, &path, yes) {
+                Ok(report) => {
+                    print!("{report}");
+                    if !report.ends_with('\n') {
+                        println!();
+                    }
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("{e}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
         "disk" => {
             let enforce = args.iter().any(|a| a == "--enforce")
                 || env::var("GSV_ENFORCE_DISK_LIMIT").as_deref() == Ok("1");
