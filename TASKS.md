@@ -4,7 +4,8 @@
 
 - [ ] **ECO-6: ecosystem drain — cleanup, dead-code, perf-frameworks, dedup, updates (owner ask 2026-11-06)** — epic `t-1793982750395443700`; sub-tickets (2026-11-06): cleanup ✅, далі drain:
   - ✅ Step 1 cleanup executed (2026-11-06): llama-rs `.cmake/*.zip` + omniroute `llm.txt` + poolAI `comitmsg/*.txt`/`commit_msg.txt` + poolAI dep-refresh lock (`e2a454421`, `50808b7`, `7ae79c3`)
-  - ⬜ **ECO-6.2 dead-code / undeveloped / broken-function hunt** — ticket `t-1793983440266486800` (open) ← **NOW DRAINING**
+  - ✅ **ECO-6.2 dead-code/undeveloped/broken hunt done (2026-11-06)** — ticket `t-1793983440266486800` (done): compiler dead_code clean in gated repos; LinFS TODOs = planned band 204 + graceful Err fallbacks; poolAI todo!() = doc-example only; no actionable dead-code findings
+  - ⬜ **ECO-6.3 concepts vs concept-plans** — ticket `t-1793983440323800500` (open) ← **NEXT DRAINING**
   - ⬜ ECO-6.3 concepts vs concept-plans — ticket `t-1793983440323800500` (open)
   - ⬜ ECO-6.4 web-research speed frameworks + update plans — ticket `t-1793983440380816200` (open)
   - ⬜ ECO-6.5 dedup / reuse single implementation — ticket `t-1793983440434122000` (open)
