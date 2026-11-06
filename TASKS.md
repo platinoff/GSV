@@ -8,13 +8,9 @@
   - ✅ **ECO-6.3 concepts vs concept-plans done (2026-11-06)** — ticket `t-1793983440323800500` (done): scan mapped concept docs per repo; ORR_DESKTOP pure-Rust gap resolved (shipped), no new gap confirmed; poolAI docs/concept/*.txt presence noted. First deep-gap list → follow-up tickets if needed.
   - ✅ **ECO-6.4 web-research + update-plan notes done (2026-11-06)** — ticket `t-1793983440380816200` (done); findings → docs/gsv/GSV_SPEED_RESEARCH_2026-11.md; deeper update-plan adoption per band remains follow-up.
   - ✅ **ECO-6.5 dedup scan done (2026-11-06)** — ticket `t-1793983440434122000` (done): no internal duplicate items; cross-repo conceptual dupes flagged (bus/ticket infra).
+  - ✅ **ECO-6.7 txt/ps/py junk cleanup executed (2026-11-06)** — ticket `t-1793983440542048300` (open): poolAI tracked docs/concept+docs/archive .txt deleted (2752 lines), untracked commit-msg notes removed; rebook/omniroute build junk (.build, KDP.txt) removed; rusty-engine golden fixture kept.
   - ⬜ **ECO-6.6 dep updates + tests via tickets, git push per ticket** — ticket `t-1793983440484757800` (open) ← **NEXT DRAINING**
-  - ⬜ ECO-6.3 concepts vs concept-plans — ticket `t-1793983440323800500` (open)
-  - ⬜ ECO-6.4 web-research speed frameworks + update plans — ticket `t-1793983440380816200` (open)
-  - ⬜ ECO-6.5 dedup / reuse single implementation — ticket `t-1793983440434122000` (open)
-  - ⬜ ECO-6.6 dep updates + tests via tickets, git push per ticket — ticket `t-1793983440484757800` (open)
-  - ⬜ ECO-6.7 txt/ps/py cleanup + RS/MD/MDC/WASM/SH eco + GSV call-rules/MCP adaptation — ticket `t-1793983440542048300` (open)
-  - ⬜ ECO-6.8 ripgrep instead of grep — ticket `t-1793983440593346700` (open)
+  - ⬜ **ECO-6.8 ripgrep instead of grep** — ticket `t-1793983440593346700` (open)
 
 - [ ] **ECO-2: dep refresh — latest best frameworks across all products (band-per-product)** — ticket `t-1793795019678869200`, product gsv; heavy/long, band-per-product, gates never skip
   - ✅ Bands done: gsv (`effd45f`: tokio 1.54.1, serde_json 1.0.154, toml 1.2.0, rustls 0.23.46, rustls-webpki 0.103.16; osv advisories 12→0; test exit 0), gsv-wgpu (`96a6548`: ordered-float 5.5.1; 8/8), linfs (`a01d543`), telenetis (`4a24f41`), orr_desktop (`4a26a13`), rebook (`30e97f5` + fmt fix), sport-forcast (`d71cbeb` no-op), coreboard (`14668a3`)
