@@ -2,14 +2,16 @@
 
 ## Active
 
+- [ ] **ECO-6: ecosystem drain — cleanup, dead-code, perf-frameworks, dedup, updates (owner ask 2026-11-06)** — ticket `t-1793982750395443700`, product gsv; drain plan: junk cleanup, concepts/plans comparison, dead-code hunt, web-research speed frameworks, update plans, dedup/reuse, updates+tests via tickets, git push per ticket, txt/ps/py cleanup + RS/MD/MDC/WASM/SH eco, ripgrep-if-faster
+
 - [ ] **ECO-2: dep refresh — latest best frameworks across all products (band-per-product)** — ticket `t-1793795019678869200`, product gsv; heavy/long, band-per-product, gates never skip
   - ✅ Bands done: gsv (`effd45f`: tokio 1.54.1, serde_json 1.0.154, toml 1.2.0, rustls 0.23.46, rustls-webpki 0.103.16; osv advisories 12→0; test exit 0), gsv-wgpu (`96a6548`: ordered-float 5.5.1; 8/8), linfs (`a01d543`), telenetis (`4a24f41`), orr_desktop (`4a26a13`), rebook (`30e97f5` + fmt fix), sport-forcast (`d71cbeb` no-op), coreboard (`14668a3`)
-  - ⛸️ Bands open: poolai (deps refreshed OK; fmt ✓ clippy ✓ canonical features green; full `cargo test` blocked by S:/ disk full — link stage "No space left", rerun after cleanup), llama-rs (update no-op; clippy blocked by pre-existing llama-cpp-sys-2 native build: cpp-httplib Win8 error; not dep-caused)
+  - ⛸️ Bands open: poolai (deps refreshed OK; fmt ✓ clippy ✓ canonical green; full `cargo test` blocked by S:/ disk full — link stage "No space left", rerun after cleanup), llama-rs (update no-op; clippy blocked by pre-existing llama-cpp-sys-2 native build: cpp-httplib Win8 error; not dep-caused)
   - ➡️ Next bands: poolai (rerun full test after disk cleanup), llama-rs (build fix), omniroute (npm N/A); then ECO-4/ECO-5 sequencing
 
 ## Waiting On
 
-- [ ] **ECO-5: rust 1.100 ready-lane** — ticket `t-1793795030516889300`; unblock when 1.100 stable lands
+- [ ] **ECO-5: rust 1.100 ready-lane** — ticket `t-1793795030516889300`; unblock when 1.100 stable lands; now on **forecast** (owner ask 2026-11-06: periodic check whether release is out)
 - [ ] **ECO-4 bands: owner-review dirs (`freebeat.ai`, `reebeat.ai`, Tokenomica, platinoff-profile) + cargo-cache taxonomy** — ticket `t-1793795030452014000`; toolchain retire 1.92/1.96 DONE this block (toolchains gone, cargo still resolves 1.99.1)
 - [ ] **sec owner-gated: rotate Telenetis bot token** — ticket `t-1789606660639448500`; owner must rotate, agent never echoes tokens
 
