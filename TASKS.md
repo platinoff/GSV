@@ -5,8 +5,8 @@
 - [ ] **ECO-6: ecosystem drain — cleanup, dead-code, perf-frameworks, dedup, updates (owner ask 2026-11-06)** — epic `t-1793982750395443700`; sub-tickets (2026-11-06): cleanup ✅, далі drain:
   - ✅ Step 1 cleanup executed (2026-11-06): llama-rs `.cmake/*.zip` + omniroute `llm.txt` + poolAI `comitmsg/*.txt`/`commit_msg.txt` + poolAI dep-refresh lock (`e2a454421`, `50808b7`, `7ae79c3`)
   - ✅ **ECO-6.2 dead-code/undeveloped/broken hunt done (2026-11-06)** — ticket `t-1793983440266486800` (done): compiler dead_code clean in gated repos; LinFS TODOs = planned band 204 + graceful Err fallbacks; poolAI todo!() = doc-example only; no actionable dead-code findings
-  - ⬜ **ECO-6.3 concepts vs concept-plans** — ticket `t-1793983440323800500` (open) ← **NOW DRAINING**
-    - ✅ Scan 2026-11-06 done (concept/plan docs per repo mapped: GSV TECH_ROADMAP+ARCH, GSV-WGPU SPEC+ROADMAP, LinFS SPEC+ROADMAP+ARCH, llama-rs CONCEPT+ARCH+ROADMAP, omniroute ARCH/ROADMAP(+node law), ORR_DESKTOP CONCEPT+ARCH_PURE_RUST+ROADMAP, poolAI concept-tree, rebook, rusty-engine, sport-forcast). First-pass gap ORR_DESKTOP: RESOLVED — ARCHITECTURE_PURE_RUST.md status=shipped (native pipeline P1-P4 live, ffmpeg spawn behind ORR_LEGACY=1 in recorder.rs; default = pipeline.rs+native.rs). poolAI docs/concept/*.txt presence noted.
+  - ✅ **ECO-6.3 concepts vs concept-plans done (2026-11-06)** — ticket `t-1793983440323800500` (done): scan mapped concept docs per repo; ORR_DESKTOP pure-Rust gap resolved (shipped), no new gap confirmed; poolAI docs/concept/*.txt presence noted. First deep-gap list → follow-up tickets if needed.
+  - ⬜ **ECO-6.4 web-research last speed frameworks + update plans** — ticket `t-1793983440380816200` (open) ← **NEXT DRAINING**
   - ⬜ ECO-6.3 concepts vs concept-plans — ticket `t-1793983440323800500` (open)
   - ⬜ ECO-6.4 web-research speed frameworks + update plans — ticket `t-1793983440380816200` (open)
   - ⬜ ECO-6.5 dedup / reuse single implementation — ticket `t-1793983440434122000` (open)
