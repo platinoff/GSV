@@ -27,6 +27,21 @@ Assessment: pure-Rust engines are past llama.cpp on Metal (Frink) and approachin
 
 ## 4. Next research tracks (ECO-6.4 sub-items)
 
+## 5. Latest forks / MoE experimental-4bit research (2026-10/11 deep pass)
+
+Sources: GitHub ggml-org/llama.cpp PRs + discussions, oMLX benchmarks, NVIDIA Model-Optimizer, fusion-mlx, MiLo.
+
+- PR #31188 (merged 26.10): CUDA fuse MoE gate/up + GLU in MMQ — +5.7~17% tok/s on MoE Q4_K_M (DGX Spark, RTX 5090).
+- Fork vahpetr/llama.cpp-s1-fork (Strix Halo/Vulkan, Qwen3.8-Flash-Next 177B MoE): ~190 patches; prefill 550→474 t/s @8k, cold fill 64→44 min; GPU mem +0.8 GiB.
+- PR #30112 (merged 8.10): MoE expert cache over multiple GPUs (2x4090): decode 60→64 t/s.
+- PR #31291: FP4 E2M1 KV cache (RTX 5090/Blackwell) — closed w/o GPU access (4x KV compression vs FP16).
+- PR #31497: speculative — do not apply MoE cache to draft (merged; segfault fixed).
+- NVIDIA Model-Optimizer: GLM-5.3-Flash MoE (321B; 304B routed experts) at IQ2_S PTQ / QAD / NVFP4 — ~130GB (vs FP8 328GB).
+- oMLX: Gemma-4-26B-A4B-it OptiQ-4bit-REAP-14B (M4, 4bit, 26 TG/t/s); Qwen3.5-4B-MLX-4bit (4bit).
+- fusion-mlx: MoE shared-expert activation cache (DSA), 4-bit convert; MiLo (LoRC compensators + INT3 kernel).
+
+## 6. Update plans (ECO-6.4 -> ECO-2 bands follow-ups)
+
 - CPU backend replacement (Frink Rayon-pool fix) for llama-rs CPU lane.
 - MoE expert-residency runtime (router+KV+memory co-design) — only strong reason to write runtime from scratch.
 
