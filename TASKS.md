@@ -2,7 +2,8 @@
 
 ## Active
 
-- [ ] **ECO-6: ecosystem drain — cleanup, dead-code, perf-frameworks, dedup, updates (owner ask 2026-11-06)** — ticket `t-1793982750395443700`, product gsv; drain plan: junk cleanup, concepts/plans comparison, dead-code hunt, web-research speed frameworks, update plans, dedup/reuse, updates+tests via tickets, git push per ticket, txt/ps/py cleanup + RS/MD/MDC/WASM/SH eco, ripgrep-if-faster
+- [ ] **ECO-6: ecosystem drain — cleanup, dead-code, perf-frameworks, dedup, updates (owner ask 2026-11-06)** — ticket `t-1793982750395443700`, product gsv; drain plan: junk cleanup, concepts/plans comparison, dead-code hunt, web-research speed frameworks, update plans, dedup/reuse, updates+tests via tickets, git push per ticket, txt/ps/py cleanup + RS/MD/MDC/WASM/SH eco, GSV call-rules/MCP adaptation, ripgrep-if-faster
+  - ✅ Step 1 cleanup executed (2026-11-06): llama-rs `.cmake/*.zip` + omniroute `llm.txt` + poolAI `comitmsg/*.txt`/`commit_msg.txt` + poolAI dep-refresh lock (`e2a454421`, `50808b7`, `7ae79c3`)
 
 - [ ] **ECO-2: dep refresh — latest best frameworks across all products (band-per-product)** — ticket `t-1793795019678869200`, product gsv; heavy/long, band-per-product, gates never skip
   - ✅ Bands done: gsv (`effd45f`: tokio 1.54.1, serde_json 1.0.154, toml 1.2.0, rustls 0.23.46, rustls-webpki 0.103.16; osv advisories 12→0; test exit 0), gsv-wgpu (`96a6548`: ordered-float 5.5.1; 8/8), linfs (`a01d543`), telenetis (`4a24f41`), orr_desktop (`4a26a13`), rebook (`30e97f5` + fmt fix), sport-forcast (`d71cbeb` no-op), coreboard (`14668a3`)
