@@ -45,7 +45,7 @@ The agent **shell** is still MSYS2 bash (`C:\msys64\usr\bin\bash.exe -lc '…'`)
 | [helix-editor/helix](https://github.com/helix-editor/helix/tree/master/xtask) | xtask: query validation, docs | Rust tests | Docs/codegen in Rust — same direction as `gsv-vision-sync`. |
 | [clap-rs/clap](https://github.com/clap-rs/clap) | xtask + complete generation | lib tests | CLI completeness in Rust. GSV stays clap-free (manual args, smaller crate). |
 | [tokio-rs/tokio](https://github.com/tokio-rs/tokio) | CI YAML + `tests/` | `benches/` Criterion | Tests/benches are `.rs`. YAML is CI, not product scripts. |
-| [BurntSushi/ripgrep](https://github.com/BurntSushi/ripgrep) | little shell; tests in Rust | integration `.rs` | Search tool: product tests are Rust. |
+| [BurntSushi/ripgrep](https://github.com/BurntSushi/ripgrep) | little shell; tests in Rust | integration `.rs` | Search tool: product tests are Rust. **Adopted 2026-11 (ECO-6.8): `rg` 15.2.0 (`~/.cargo/bin`) is the canonical matcher for owned `.sh` — grep is legacy-only; POSIX `[[:space:]]` rewrites as `\s`. No PCRE2 in this build. |
 | [gfx-rs/wgpu](https://github.com/gfx-rs/wgpu) | xtask-style workspace tasks | `tests/` + benches | GPU stack still automates in Rust. |
 | [zellij-org/zellij](https://github.com/zellij-org/zellij) | mix of xtask + some CI shell | Rust tests | Shell leftover is CI; GSV goes further and deletes product `.sh`. |
 | [rust-lang/rust](https://github.com/rust-lang/rust) bootstrap | `x.py` / bootstrap in Rust | compiletest | Heavyweight; we do **not** copy `x.py`. cargo-xtask is the right scale. |
