@@ -2310,6 +2310,16 @@ Kit-Eco 1–9 (one continuous ecosystem pass): global `opencode.jsonc` carries t
 
 Also: rusty-engine hub registration (PRODUCTS row, PH-507 `rusty-serve` local provider row) and the **Telenetis extraction** — nested `GSV/telenetis` → sibling `S:/rust/telenetis` (own repo, own `target/`), watchdog `telenetis_crate_dir` sibling resolution, `:9800` take-over from the sibling build, `/health` stamps crate semver (0.1.0→**0.2.0**). Next drain = owner pick.
 
+## Екосистема (ECO-хвиля 2026-11) — ECO-1…ECO-8, тікетами через борд
+
+Not a versioned band (crate stayed **0.244.0**; PH-S queue не змінювалась, next PH-S3089).
+
+- **ECO-1…5** (2026-11-05/06): toolchain pin `stable-x86_64-pc-windows-gnu` у всіх плагінах (floats 1.99.1 → 1.100); sweep junk (zips/mp4/scratch); token rotation + owner dirs — owner-gated; Rust 1.100 beta виключено (owner вердикт) → re-gate 12.11.
+- **ECO-6** (2026-11-06/07): dep-refresh хвиля (6.1–6.6), формат-гігієна (6.7), **ripgrep adoption** (6.8: `rg 15.2.0` canonical матчер, 30 скриптів мігровано, `[[:space:]]`→`\s`), frameworks survey (6.9: keep axum 0.8 + tower-http; actix 4.12 = candidate only), git grep→rg globs (6.10).
+- **ECO-7** (2026-11-07/08): B1/B3/B6 done; B2/B7 owner-skipped; B4 blocked на poolAI 9-red; B5 date-gated 2026-11-12; B8 owner-gated (rebook `workspace/books`). Побічний фікс: poolAI pre-push hook у git-hook env бачив `HOME=/home/plati` → cargo падав на ucrt64 1.87 обминавши пін; хук тепер хардкодить `/c/Users/plati/.cargo/bin` (`e1c5c1a52`).
+- **ECO-6.6 dep bands** (2026-11-08): GSV 59 крейтів +-semver + tickets-escape fix (ratio 99.56%); rebook cc/flate2/smallvec + `single_element_loop` фікс; telenetis cc/smallvec/uuid; llama-rs cc-only (`llama-cpp-sys-2` 0.1.161 відкладено окремим бендом). Пуши — owner-авторизовано 2026-11-07.
+- **ECO-8 черга (2026-11-08, тікети):** 8.1 poolAI red-lanes grid/job/galaxy_capability → розблокує ECO-7.3 (tokio 1.49→1.53); 8.2 llama-rs llama-cpp-sys-2 bump + patch-set verify; 8.3 dep-sweep решти продуктів (GSV-WGPU, LinFS, ORR_DESKTOP, rusty-engine, sport-forcast, CoreBoard); 8.4 infra keep-live (координатор `:8091` down — owner-gated). Далі за датою: ECO-7.4 (1.100 re-gate 2026-11-12).
+
 ## Ключові UX-вимоги (узагальнення ТЗ)
 
 1. Оновлюємо/дебажимо vision Rust-кодбазу, запущена **bin-версія** → сервер приймає **повідомлення про апдейт**.

@@ -49,6 +49,7 @@ each becomes its own ticket.
 
 ## Status
 
-- ECO-4 owner-gated items: open (owner decision pending).
+- ECO-4 owner-gated items: open (owner decision pending): token rotation, `poolAI_concept.txt` keep/move, infra keep-live (`:8091` down).
 - Cleaned (previously approved): zips, mp4, scratch (ECO-4).
-- ECO-6.7 cleanup: partial (txt/ps/py sweep in progress).
+- ECO-6.7 cleanup: **closed 2026-11-08** — full py/ps survey повернув 30 файлів, 0 sweepable (усі функціональні; таблиця вище). Відкриті опції повідомлені як окремі тікети, якщо owner захоче формат-дисципліну.
+- `target/` scratch-скрипти (probe/verify/dry-run) автоматично не чистяться — `target/` gitignored, не в реєстрі hygiенно поверхні; ручна періодична зачистка за потреби.

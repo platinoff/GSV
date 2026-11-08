@@ -1,6 +1,16 @@
 # Передача контексту новій сесії (GSV)
 
-## Сталий стан (2026-10-24, скан станів продуктів; live drift ok — vision rev 516, next PH-S3089)
+## Сталий стан (2026-11-08, після ECO-6.6 dep-update бенду; vision rev 516, next PH-S3089)
+
+| Що | Значення |
+|----|----------|
+| GSV | crate **0.244.0**, HEAD **`1a5b4a7`** (= `origin/main`, clean+pushed); live `:9999`; ratio **99.56%** (`--stretch-96`); deps: `cargo update` 59 крейтів +-semver, gate-ланцюжок зелений (fmt/clippy/test/loc) |
+| Залишки-зал | **done:** ECO-6.6 (deps: GSV/rebook/telenetis/llama-rs; llama-rs — cc-only, `llama-cpp-2 =0.1.154` пін не чіпано), ECO-6.7 (py/ps survey: 0 sweepable, 30 функціональних KEEP), ECO-6.8 (grep→rg, 30 скриптів), ECO-6.9 (frameworks survey: keep axum 0.8), ECO-6.10, ECO-7.2/7.5. **skipped (owner):** 7.1 (omni lint), 7.6 (actix). **blocked:** 7.3 (poolAI tokio → на green 9-red; попередник = ECO-8.1), 7.4 (Rust 1.100 re-gate — 2026-11-12) |
+| Продукти | poolAI `e1c5c1a52` (incl. pre-push-hook HOME-фікс) · rebook `1c08855` (deps + `single_element_loop` фікс) · telenetis `7efad09` (deps) · llama-rs `f8d927a` (lock gitignored — cc апдейт без коміта) · omniroute `e3d202c` (release/v3.8.50) — all **clean + pushed** |
+| Інфра | gsv-server / telenetis / llama-rs / rusty живі за станом синку; poolAI координатор `:8091` **down** (релонч refused, ECO-4 owner-gated) |
+| Далі | ECO-8 черга (тікети): 8.1 poolAI red-lanes (grid/job/galaxy_capability) → розкриває ECO-7.3 (tokio 1.49→1.53) · 8.2 llama-rs sys 0.1.161 бамп (6 патчів перезібрати/перевірити) · 8.3 dep-sweep решти продуктів · 8.4 infra keep-live (owner-gated) |
+
+## Стан 2026-10-24 (історичний; актуальний — таблиця вище)
 
 | Що | Значення |
 |----|----------|
