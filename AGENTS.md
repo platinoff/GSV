@@ -49,6 +49,8 @@ C:\msys64\usr\bin\bash.exe -lc 'команда'
 
 `абракадабра` / `abrakadabra` / `agi` in OpenCode uses the `question` tool (not Cursor AskQuestion). Skills: `.agents/skills/` (`opencode.json` → `skills.paths`). Plugin host: `.opencode/package.json` (`@opencode-ai/plugin`). **Do not auto-generate a product UI** — live Galaxy UI is `gsv-server` at `http://<local-addr>:9999/` (`127.0.0.1:9999` on this box; band 233 LAN-first, [`docs/gsv/GSV_ROUTES.md`](docs/gsv/GSV_ROUTES.md)).
 
+**Free-token ECO lane (owner 2026-11-08):** prefer OpenCode Zen **Flint 40B → GLM 5.3 → DeepSeek 1017** (then Zen free fallbacks). Start card: [`docs/gsv/GSV_OPENCODE_FREE_AGENTS.md`](docs/gsv/GSV_OPENCODE_FREE_AGENTS.md). `opencode.json` `instructions` load that file + HANDOFF. Never claim cancelled rebook RB-\* from the hub board. poolAI WSP/RL hybrid study = ticket **ECO-9.1**.
+
 Cursor ↔ OpenCode ↔ Grok: Cursor `AskQuestion` = OpenCode `question`; Grok asks in plain text (numbered list, no question tool). Shared kit git-canon is this repo; copy (not symlink) to `.cursor/skills/` and `.opencode/skills/` via `cargo xtask mirrors`; Grok reads the `.agents/skills/` canon directly (`[skills] paths` in `.grok/config.toml`, no copy).
 
 Grok Build: reads `AGENTS.md` + root `.mcp.json` natively; stdio MCP + skills paths live in `.grok/config.toml`; verify discovery with `grok inspect`. Same MSYS2 bash rule — never PowerShell.

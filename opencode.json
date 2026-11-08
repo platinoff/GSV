@@ -1,5 +1,10 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "docs/gsv/GSV_OPENCODE_FREE_AGENTS.md",
+    "docs/HANDOFF_NEW_SESSION.md",
+    "AGENTS.md"
+  ],
   "skills": {
     "paths": [".agents/skills"]
   },

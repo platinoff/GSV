@@ -53,3 +53,5 @@ each becomes its own ticket.
 - Cleaned (previously approved): zips, mp4, scratch (ECO-4).
 - ECO-6.7 cleanup: **closed 2026-11-08** — full py/ps survey повернув 30 файлів, 0 sweepable (усі функціональні; таблиця вище). Відкриті опції повідомлені як окремі тікети, якщо owner захоче формат-дисципліну.
 - `target/` scratch-скрипти (probe/verify/dry-run) автоматично не чистяться — `target/` gitignored, не в реєстрі hygiенно поверхні; ручна періодична зачистка за потреби.
+- **2026-11-08 board:** rebook RB-63…66 **cancelled** on hub `tickets.jsonl` (OpenCode free lane must not claim book content). AGENTS.md CRLF churn across plugins = revert, never commit.
+- **ECO-9:** free OpenCode agents + poolAI WSP feasibility are canon docs — not junk; do not sweep.
