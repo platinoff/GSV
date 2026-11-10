@@ -44,6 +44,7 @@ pub mod gitkit;
 pub mod grid;
 pub mod guide;
 pub mod hooks;
+pub mod hygiene;
 pub mod ide;
 pub mod keep_live;
 pub mod mds;

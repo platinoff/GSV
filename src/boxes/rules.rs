@@ -360,6 +360,29 @@ pub fn collect(repo_root: &Path, data_dir: &Path, live_url: Option<&str>) -> Rul
     };
     checks.push(RuleCheck::check(true, "deny", deny_ok, deny_detail));
 
+    // #C.4 dead-code hygiene stream (cargo-machete): SOFT / advisory — never
+    // blocks (owner spec: hygiene stays advisory, unlike the HARD deny gate).
+    // No escape flag; a missing tool / stale cache just reports source=none.
+    let hygiene_rep = crate::boxes::hygiene::load(data_dir);
+    let (hygiene_ok, hygiene_detail) = match &hygiene_rep {
+        Some(r) => {
+            let fresh = crate::boxes::hygiene::is_fresh(r);
+            let n = r.findings.len();
+            (
+                true,
+                format!(
+                    "source {} · dead-deps {} · fresh {} · {}",
+                    r.source, n, fresh, r.generated_at
+                ),
+            )
+        }
+        None => (
+            true,
+            "not run (cargo xtask intel; needs cargo-machete) / no hygiene data".to_string(),
+        ),
+    };
+    checks.push(RuleCheck::soft("hygiene", hygiene_ok, hygiene_detail));
+
     // live: optional running-server version lockstep probe.
     match live_url {
         Some(url) => {
@@ -569,6 +592,37 @@ mod tests {
         let deny = r.checks.iter().find(|c| c.id == "deny").cloned().unwrap();
         assert!(deny.ok, "stale deny cache must not block");
         assert!(deny.detail.contains("fresh false"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// #C.4 hygiene gate: soft / advisory — never blocks, reports the cache.
+    #[test]
+    fn hygiene_check_is_soft_advisory() {
+        use crate::boxes::hygiene::{HygieneFinding, HygieneReport};
+        // Unique tag: tmp() dirs are shared by pid+tag across parallel tests.
+        let dir = tmp_repo("hygiene");
+        let data = dir.join("data");
+        let rep = HygieneReport {
+            ok: true,
+            source: "machete".into(),
+            generated_at: chrono::Utc::now().to_rfc3339(),
+            findings: vec![HygieneFinding {
+                crate_name: "tower-http".into(),
+                reason: String::new(),
+            }],
+            hints: vec![],
+        };
+        crate::boxes::hygiene::save(&data, &rep).unwrap();
+        let r = collect(&dir, &data, None);
+        let hygiene = r
+            .checks
+            .iter()
+            .find(|c| c.id == "hygiene")
+            .cloned()
+            .unwrap();
+        assert!(!hygiene.gate, "hygiene is a SOFT (advisory) gate");
+        assert!(hygiene.ok, "soft hygiene must never block");
+        assert!(hygiene.detail.contains("dead-deps"));
         let _ = fs::remove_dir_all(&dir);
     }
 

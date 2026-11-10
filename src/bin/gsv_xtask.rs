@@ -522,6 +522,29 @@ fn main() -> ExitCode {
                     }
                 }
             }
+            // #C.4 dead-code hygiene stream: run alongside the OSV/deny sweeps
+            // on the live path only (--dry-run never shells out). Fail-open on a
+            // missing cargo-machete; the SOFT rules-check gate keys on the cache.
+            if !dry {
+                let hygiene_report = gsv::boxes::hygiene::collect_live(&root);
+                if let Err(e) = gsv::boxes::hygiene::save(&data, &hygiene_report) {
+                    eprintln!("intel: hygiene cache write: {e}");
+                }
+                let hc = hygiene_report.findings.len();
+                if hygiene_report.source == "machete" {
+                    println!(
+                        "hygiene: dead-deps {} (source {}) -> {}",
+                        hc,
+                        hygiene_report.source,
+                        gsv::boxes::hygiene::path(&data).display()
+                    );
+                } else {
+                    println!("hygiene: {} (gate advisory)", hygiene_report.source);
+                    for h in &hygiene_report.hints {
+                        eprintln!("  hint: {h}");
+                    }
+                }
+            }
             ExitCode::SUCCESS
         }
         other => {

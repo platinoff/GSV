@@ -883,6 +883,29 @@ pub fn render_rust_intel(d: &Value) -> String {
             out.push_str(&format!("<div class='dim'>{}</div>", esc(&s(h))));
         }
     }
+    // #C.4 dead-code hygiene stream (cargo-machete). Soft / advisory.
+    if let Some(hyg) = d.get("hygiene") {
+        let hsrc = s(&hyg["source"]);
+        let hfind = arr(&hyg["findings"]);
+        let hcls = if hfind.is_empty() { "ok" } else { "warn" };
+        out.push_str(&format!(
+            "<div style='margin-top:8px'>hygiene{}: dead-deps <span class='{hcls}'>{}</span> · <span class='dim'>fresh {}</span></div>",
+            if hsrc.as_str() == "machete" { String::new() } else { format!(" ({hsrc})") },
+            hfind.len(),
+            b(&hyg["fresh"]),
+        ));
+        if !hfind.is_empty() {
+            let names: Vec<String> = hfind
+                .iter()
+                .take(10)
+                .map(|x| esc(&s(&x["crate_name"])))
+                .collect();
+            out.push_str(&format!(" <span class='dim'>{}</span>", names.join(", ")));
+        }
+        for h in arr(&hyg["hints"]).iter().take(2) {
+            out.push_str(&format!("<div class='dim'>{}</div>", esc(&s(h))));
+        }
+    }
     out
 }
 
@@ -3822,6 +3845,34 @@ mod tests {
         let html = render_rust_intel(&missing);
         assert!(html.contains("deny (none):"), "{html}");
         assert!(!html.contains("<table class='fresh-tbl'"), "{html}");
+    }
+
+    #[test]
+    fn render_rust_intel_renders_hygiene_stream() {
+        // #C.4: the hygiene sub-wire renders the dead-deps count + source; an
+        // empty findings list renders the ok class; a not-run source degrades.
+        let h = serde_json::json!({
+            "ok": true,
+            "fresh": true,
+            "source": "machete",
+            "generated_at": "2026-11-10T00:00:00Z",
+            "findings": [
+                {"crate_name": "tower-http", "reason": ""}
+            ],
+            "hints": []
+        });
+        let d = serde_json::json!({ "ok": true, "source": "osv", "counts": {"total": 0, "critical": 0, "high": 0, "moderate": 0, "low": 0, "unknown": 0}, "deny": {"ok": true, "fresh": true, "source": "deny", "license_errors": 0}, "hygiene": h });
+        let html = render_rust_intel(&d);
+        assert!(html.contains("hygiene:"), "{html}");
+        assert!(
+            html.contains("dead-deps <span class='warn'>1</span>"),
+            "{html}"
+        );
+        assert!(html.contains("tower-http"), "{html}");
+
+        let none = serde_json::json!({ "ok": true, "source": "none", "hygiene": {"ok": true, "fresh": false, "source": "none", "findings": []} });
+        let html = render_rust_intel(&none);
+        assert!(html.contains("hygiene (none):"), "{html}");
     }
 
     #[test]
