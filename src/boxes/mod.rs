@@ -68,6 +68,7 @@ pub mod update;
 pub mod usage;
 pub mod vision;
 pub mod watchdog;
+pub mod workflow;
 pub mod xtask;
 
 /// Serialise env-var-mutating lib tests (probe/override vars are

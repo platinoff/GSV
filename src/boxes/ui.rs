@@ -906,6 +906,29 @@ pub fn render_rust_intel(d: &Value) -> String {
             out.push_str(&format!("<div class='dim'>{}</div>", esc(&s(h))));
         }
     }
+    // #C.5 workflow feed (GitHub open issues -> skills proposals). Soft / advisory.
+    if let Some(wf) = d.get("workflow") {
+        let wsrc = s(&wf["source"]);
+        let wfind = arr(&wf["findings"]);
+        let wcls = if wfind.is_empty() { "ok" } else { "warn" };
+        out.push_str(&format!(
+            "<div style='margin-top:8px'>workflow{}: open-issues <span class='{wcls}'>{}</span> · <span class='dim'>fresh {}</span></div>",
+            if wsrc.as_str() == "github-api" { String::new() } else { format!(" ({wsrc})") },
+            wfind.len(),
+            b(&wf["fresh"]),
+        ));
+        if !wfind.is_empty() {
+            let names: Vec<String> = wfind
+                .iter()
+                .take(10)
+                .map(|x| esc(&s(&x["source_repo"])))
+                .collect();
+            out.push_str(&format!(" <span class='dim'>{}</span>", names.join(", ")));
+        }
+        for h in arr(&wf["hints"]).iter().take(2) {
+            out.push_str(&format!("<div class='dim'>{}</div>", esc(&s(h))));
+        }
+    }
     out
 }
 
@@ -3873,6 +3896,33 @@ mod tests {
         let none = serde_json::json!({ "ok": true, "source": "none", "hygiene": {"ok": true, "fresh": false, "source": "none", "findings": []} });
         let html = render_rust_intel(&none);
         assert!(html.contains("hygiene (none):"), "{html}");
+    }
+
+    #[test]
+    fn render_rust_intel_renders_workflow_stream() {
+        // #C.5: the workflow sub-wire renders the open-issues count + source.
+        let wf = serde_json::json!({
+            "ok": true,
+            "fresh": true,
+            "source": "github-api",
+            "generated_at": "2026-11-10T00:00:00Z",
+            "findings": [
+                {"source_repo": "rust-lang/ACP", "issue_number": 42, "title": "t", "html_url": "u"}
+            ],
+            "hints": []
+        });
+        let d = serde_json::json!({ "ok": true, "source": "osv", "counts": {"total": 0, "critical": 0, "high": 0, "moderate": 0, "low": 0, "unknown": 0}, "deny": {"ok": true, "fresh": true, "source": "deny", "license_errors": 0}, "hygiene": {"ok": true, "fresh": true, "source": "machete", "findings": []}, "workflow": wf });
+        let html = render_rust_intel(&d);
+        assert!(html.contains("workflow:"), "{html}");
+        assert!(
+            html.contains("open-issues <span class='warn'>1</span>"),
+            "{html}"
+        );
+        assert!(html.contains("rust-lang/ACP"), "{html}");
+
+        let none = serde_json::json!({ "ok": true, "source": "none", "workflow": {"ok": true, "fresh": false, "source": "none", "findings": []} });
+        let html = render_rust_intel(&none);
+        assert!(html.contains("workflow (none):"), "{html}");
     }
 
     #[test]

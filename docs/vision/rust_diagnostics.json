@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generated_at": "2026-11-10",
   "host_label": "PLATINOV",
-  "git_head": "c3dc536",
+  "git_head": "08ca7de",
   "source": "local",
   "notes": [
     "Machine-readable Rust/Clippy warning+error index for vision Rust panel.",
@@ -12,35 +12,11 @@
     "warnings": 0,
     "errors": 0,
     "ok": true,
-    "recorded_at": "2026-11-10T15:57:14Z",
+    "recorded_at": "2026-11-10T17:12:43Z",
     "command": "cargo clippy --message-format=json --all-targets",
-    "wall_secs": 40.8279667
+    "wall_secs": 40.5063386
   },
   "history": [
-    {
-      "kind": "rust_diagnostics",
-      "command": "cargo clippy --message-format=json --all-targets",
-      "warnings": 0,
-      "errors": 0,
-      "ok": true,
-      "recorded_at": "2026-09-14T22:46:01Z",
-      "wall_secs": 10.077524,
-      "host_label": "PLATINOV",
-      "git_head": "12f58e0",
-      "source": "local"
-    },
-    {
-      "kind": "rust_diagnostics",
-      "command": "cargo clippy --message-format=json --all-targets",
-      "warnings": 0,
-      "errors": 9,
-      "ok": false,
-      "recorded_at": "2026-09-15T01:52:33Z",
-      "wall_secs": 20.2498011,
-      "host_label": "PLATINOV",
-      "git_head": "c117343",
-      "source": "local"
-    },
     {
       "kind": "rust_diagnostics",
       "command": "cargo clippy --message-format=json --all-targets",
@@ -399,6 +375,34 @@
       "wall_secs": 40.8279667,
       "host_label": "PLATINOV",
       "git_head": "c3dc536",
+      "source": "local"
+    },
+    {
+      "kind": "rust_diagnostics",
+      "command": "cargo clippy --message-format=json --all-targets",
+      "warnings": 4,
+      "errors": 0,
+      "ok": true,
+      "recorded_at": "2026-11-10T16:58:01Z",
+      "wall_secs": 38.3259712,
+      "host_label": "PLATINOV",
+      "git_head": "08ca7de",
+      "source": "local",
+      "top_codes": [
+        "unused_imports×2",
+        "unused_mut×2"
+      ]
+    },
+    {
+      "kind": "rust_diagnostics",
+      "command": "cargo clippy --message-format=json --all-targets",
+      "warnings": 0,
+      "errors": 0,
+      "ok": true,
+      "recorded_at": "2026-11-10T17:12:43Z",
+      "wall_secs": 40.5063386,
+      "host_label": "PLATINOV",
+      "git_head": "08ca7de",
       "source": "local"
     }
   ]

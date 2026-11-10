@@ -383,6 +383,30 @@ pub fn collect(repo_root: &Path, data_dir: &Path, live_url: Option<&str>) -> Rul
     };
     checks.push(RuleCheck::soft("hygiene", hygiene_ok, hygiene_detail));
 
+    // #C.5 workflow feed (GitHub open issues -> skills proposals): SOFT /
+    // advisory — never blocks (owner spec: hygiene/workflow/freshness advisory).
+    let workflow_rep = crate::boxes::workflow::load(data_dir);
+    let (workflow_ok, workflow_detail) = match &workflow_rep {
+        Some(r) => {
+            let fresh = crate::boxes::workflow::is_fresh(r);
+            (
+                true,
+                format!(
+                    "source {} · findings {} · fresh {} · {}",
+                    r.source,
+                    r.findings.len(),
+                    fresh,
+                    r.generated_at
+                ),
+            )
+        }
+        None => (
+            true,
+            "not run (cargo xtask intel; github api) / no workflow data".to_string(),
+        ),
+    };
+    checks.push(RuleCheck::soft("workflow", workflow_ok, workflow_detail));
+
     // live: optional running-server version lockstep probe.
     match live_url {
         Some(url) => {
@@ -623,6 +647,39 @@ mod tests {
         assert!(!hygiene.gate, "hygiene is a SOFT (advisory) gate");
         assert!(hygiene.ok, "soft hygiene must never block");
         assert!(hygiene.detail.contains("dead-deps"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// #C.5 workflow gate: soft / advisory — never blocks, reports the cache.
+    #[test]
+    fn workflow_check_is_soft_advisory() {
+        use crate::boxes::workflow::{WorkflowFinding, WorkflowReport};
+        // Unique tag: tmp() dirs are shared by pid+tag across parallel tests.
+        let dir = tmp_repo("workflow");
+        let data = dir.join("data");
+        let rep = WorkflowReport {
+            ok: true,
+            source: "github-api".into(),
+            generated_at: chrono::Utc::now().to_rfc3339(),
+            findings: vec![WorkflowFinding {
+                source_repo: "rust-lang/ACP".into(),
+                issue_number: 7,
+                title: "t".into(),
+                html_url: "u".into(),
+            }],
+            hints: vec![],
+        };
+        crate::boxes::workflow::save(&data, &rep).unwrap();
+        let r = collect(&dir, &data, None);
+        let workflow = r
+            .checks
+            .iter()
+            .find(|c| c.id == "workflow")
+            .cloned()
+            .unwrap();
+        assert!(!workflow.gate, "workflow is a SOFT (advisory) gate");
+        assert!(workflow.ok, "soft workflow must never block");
+        assert!(workflow.detail.contains("findings"));
         let _ = fs::remove_dir_all(&dir);
     }
 

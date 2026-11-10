@@ -545,6 +545,28 @@ fn main() -> ExitCode {
                     }
                 }
             }
+            // #C.5 workflow feed: run alongside the OSV/deny/hygiene sweeps
+            // on the live path only (--dry-run never shells out). Fail-open on a
+            // missing GitHub API access; the SOFT rules-check gate keys on cache.
+            if !dry {
+                let workflow_report = gsv::boxes::workflow::collect_live(&root);
+                if let Err(e) = gsv::boxes::workflow::save(&data, &workflow_report) {
+                    eprintln!("intel: workflow cache write: {e}");
+                }
+                if workflow_report.source == "github-api" {
+                    println!(
+                        "workflow: open-issues {} (source {}) -> {}",
+                        workflow_report.findings.len(),
+                        workflow_report.source,
+                        gsv::boxes::workflow::path(&data).display()
+                    );
+                } else {
+                    println!("workflow: {} (gate advisory)", workflow_report.source);
+                    for h in &workflow_report.hints {
+                        eprintln!("  hint: {h}");
+                    }
+                }
+            }
             ExitCode::SUCCESS
         }
         other => {

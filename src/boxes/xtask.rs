@@ -92,7 +92,7 @@ pub const TASKS: &[(&str, &str)] = &[
     ("sync", "Vision snapshot sync (`--check` = drift gate)"),
     (
         "intel",
-        "RustSec/OSV security + framework-freshness radar over Cargo.lock/Cargo.toml + cargo-deny license/ban stream (deny.toml) + dead-code hygiene stream (cargo machete) → data/gsv_rustsec.json + data/gsv_deny.json + data/gsv_hygiene.json (`--dry-run` / `--json`; rustsec HARD + deny HARD + fresh/hygiene SOFT gates)",
+        "RustSec/OSV security + framework-freshness radar over Cargo.lock/Cargo.toml + cargo-deny license/ban stream (deny.toml) + dead-code hygiene stream (cargo machete) + workflow feed (GitHub open issues) → data/gsv_rustsec.json + data/gsv_deny.json + data/gsv_hygiene.json + data/gsv_workflow.json (`--dry-run` / `--json`; rustsec HARD + deny HARD + fresh/hygiene/workflow SOFT gates)",
     ),
     (
         "vault-note",

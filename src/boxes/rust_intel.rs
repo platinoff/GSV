@@ -879,6 +879,7 @@ pub fn wire(data_dir: &Path) -> Value {
     if let Value::Object(ref mut m) = v {
         m.insert("deny".into(), super::deny::wire(data_dir));
         m.insert("hygiene".into(), super::hygiene::wire(data_dir));
+        m.insert("workflow".into(), super::workflow::wire(data_dir));
     }
     v
 }

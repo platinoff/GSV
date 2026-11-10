@@ -432,7 +432,7 @@ async fn fetch_remote(repo: &str) -> (String, String) {
     (ver, sha)
 }
 
-async fn fetch_issues_live(repo: &str) -> Vec<GhIssue> {
+pub async fn fetch_issues_live(repo: &str) -> Vec<GhIssue> {
     let client = match reqwest::Client::builder()
         .timeout(HTTP_TIMEOUT)
         .default_headers(gh_headers())
