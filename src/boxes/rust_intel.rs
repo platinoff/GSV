@@ -842,8 +842,9 @@ pub fn is_fresh(report: &IntelReport) -> bool {
 
 /// Read-only wire for `GET /api/rust-intel` and MCP `gsv_rust_updates` (cached;
 /// no network). One flat shape whether or not a cache exists; `ok` always true.
+/// Carries the #C.3 cargo-deny stream under `deny`.
 pub fn wire(data_dir: &Path) -> Value {
-    match load(data_dir) {
+    let mut v = match load(data_dir) {
         Some(r) => json!({
             "ok": true,
             "fresh": is_fresh(&r),
@@ -874,7 +875,11 @@ pub fn wire(data_dir: &Path) -> Value {
             "hints": [],
             "hint": "not run — `cargo xtask intel`",
         }),
+    };
+    if let Value::Object(ref mut m) = v {
+        m.insert("deny".into(), super::deny::wire(data_dir));
     }
+    v
 }
 
 #[cfg(test)]

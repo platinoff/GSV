@@ -1,0 +1,49 @@
+# cargo-deny policy — GSV kit (#C.3, ticket t-1791988510976871500).
+#
+# Checked by `cargo deny --format json --target x86_64-pc-windows-gnu check
+# licenses bans advisories`, collected by `cargo xtask intel` into
+# `data/gsv_deny.json`, enforced as the HARD `deny` rules-check gate
+# (escape: GSV_DENY_HARD=off). Stream separation:
+#   - licenses + bans → the HARD deny gate (supply-chain policy)
+#   - advisories      → warnings here; security blocking stays owned by the
+#                       rustsec rules-check gate (OSV radar, crit+high)
+
+[licenses]
+# Base four from the ticket + the companions actually present in the
+# windows-gnu dependency graph (cargo deny list --target …): 0BSD (adler2),
+# BSL-1.0 (ryu), Unlicense (memchr), Zlib (miniz_oxide), Unicode-3.0 (icu*
+# family, unicode-ident), Apache-2.0 WITH LLVM-exception (rustix, linux-raw-sys).
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "0BSD",
+    "BSL-1.0",
+    "Unlicense",
+    "Zlib",
+    "Unicode-3.0",
+    "Apache-2.0 WITH LLVM-exception",
+]
+
+[bans]
+# Duplicate crates are a signal, not a build break — warn so the intel tick
+# reports them without failing the drain.
+multiple-versions = "warn"
+
+# Kit ban list: the openssl C stack must never compile into GSV. The tree uses
+# native-tls = schannel on windows-gnu; openssl-sys would pull a vendored
+# OpenSSL build (needs perl/NASM on this box). The --target pin already keeps
+# openssl out of the checked graph — the ban is the tripwire if a dep ever
+# hard-depends on it for the windows target.
+deny = [
+    { name = "openssl" },
+    { name = "openssl-sys" },
+]
+
+[advisories]
+# Security blocking belongs to the rustsec rules-check gate (crit+high, fresh
+# OSV radar). cargo-deny keeps advisory findings visible here (default lint
+# levels); the rules-check `deny` gate keys on license/ban errors only, so the
+# two radars never fight over the same failure.

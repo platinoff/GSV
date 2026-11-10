@@ -19,6 +19,9 @@
 //! - `rustsec` — cached OSV radar (`cargo xtask intel`): HARD when a fresh scan
 //!   finds a critical/high advisory (escape: `GSV_RUSTSEC_HARD=off`) — advisory
 //!   when stale / unreachable / empty.
+//! - `deny` — cached cargo-deny radar (`cargo xtask intel`, #C.3): HARD when a
+//!   fresh scan finds a disallowed license or a banned crate (escape:
+//!   `GSV_DENY_HARD=off`) — advisory when stale / not-installed / empty.
 //! - `live` — when a live URL is passed, the running server's crate version
 //!   matches this crate (`keep_live::probe_http_blocking`) — advisory.
 //!
@@ -320,6 +323,43 @@ pub fn collect(repo_root: &Path, data_dir: &Path, live_url: Option<&str>) -> Rul
     };
     checks.push(RuleCheck::soft("fresh", true, fresh_detail));
 
+    // #C.3 cargo-deny license/ban stream (deny.toml). HARD when a **fresh**
+    // scan found a disallowed license or a banned crate; advisory otherwise
+    // (stale cache / cargo-deny not installed never blocks). Owner escape:
+    // GSV_DENY_HARD=off. Security blocking stays owned by the rustsec gate.
+    let deny_rep = crate::boxes::deny::load(data_dir);
+    let deny_off = std::env::var("GSV_DENY_HARD")
+        .map(|v| v.eq_ignore_ascii_case("off"))
+        .unwrap_or(false);
+    let (deny_ok, deny_detail) = match &deny_rep {
+        Some(r) => {
+            let c = &r.counts;
+            let fresh = crate::boxes::deny::is_fresh(r);
+            let blocking = !deny_off && fresh && r.blocking();
+            (
+                !blocking,
+                format!(
+                    "source {} · license err {} warn {} · ban err {} warn {} · advisory err {} warn {} · fresh {} · hard {} · {}",
+                    r.source,
+                    c.license_errors,
+                    c.license_warnings,
+                    c.ban_errors,
+                    c.ban_warnings,
+                    c.advisory_errors,
+                    c.advisory_warnings,
+                    fresh,
+                    if deny_off { "off" } else { "license+ban" },
+                    r.generated_at
+                ),
+            )
+        }
+        None => (
+            true,
+            "not run (cargo xtask intel; needs cargo-deny) / no deny.toml gate data".to_string(),
+        ),
+    };
+    checks.push(RuleCheck::check(true, "deny", deny_ok, deny_detail));
+
     // live: optional running-server version lockstep probe.
     match live_url {
         Some(url) => {
@@ -481,6 +521,55 @@ mod tests {
         let text = render(&r);
         assert!(text.contains("git"));
         assert!(text.contains(RULES_DOC));
+    }
+
+    /// #C.3 deny gate: fresh license/ban errors block; stale / no cache
+    /// advisory. GSV_DENY_HARD=off escapes.
+    #[test]
+    fn deny_gate_blocks_fresh_license_error() {
+        use crate::boxes::deny::{DenyDiag, DenyReport, DenySummary};
+        // Unique tag: tmp() dirs are shared by pid+tag across parallel tests.
+        let dir = tmp_repo("deny");
+        let data = dir.join("data");
+        // Fresh report with a license error + a banned crate → gate fails.
+        let bad = DenyReport {
+            ok: true,
+            source: "deny".into(),
+            generated_at: chrono::Utc::now().to_rfc3339(),
+            counts: DenySummary {
+                license_errors: 1,
+                ban_errors: 1,
+                ..DenySummary::default()
+            },
+            diagnostics: vec![DenyDiag {
+                kind: "rejected".into(),
+                severity: "error".into(),
+                krate: "zeroize@1.9.1".into(),
+                message: "x".into(),
+            }],
+            hints: vec![],
+        };
+        crate::boxes::deny::save(&data, &bad).unwrap();
+        let r = collect(&dir, &data, None);
+        let deny = r.checks.iter().find(|c| c.id == "deny").cloned().unwrap();
+        assert!(deny.gate, "deny is a hard gate");
+        assert!(!deny.ok, "fresh license/ban errors must block");
+        assert!(!r.ok);
+
+        // Stale cache → advisory (gate stays open).
+        let stale = DenyReport {
+            generated_at: (chrono::Utc::now() - chrono::Duration::days(9)).to_rfc3339(),
+            ..bad.clone()
+        };
+        // Windows: a just-renamed file can still be held briefly by the
+        // indexer — drop the destination before the second atomic write.
+        let _ = fs::remove_file(crate::boxes::deny::path(&data));
+        crate::boxes::deny::save(&data, &stale).unwrap();
+        let r = collect(&dir, &data, None);
+        let deny = r.checks.iter().find(|c| c.id == "deny").cloned().unwrap();
+        assert!(deny.ok, "stale deny cache must not block");
+        assert!(deny.detail.contains("fresh false"));
+        let _ = fs::remove_dir_all(&dir);
     }
 
     /// Bench freshness accepts the date-only form (as record-speed writes).

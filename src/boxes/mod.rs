@@ -28,6 +28,7 @@
 //! | MDS | `mds` | `/api/mds` | light memory/disk/speed probe (`gsv-mds`) |
 //! | Rules drift | `rules` | MCP `rules` (read) · `cargo xtask rules-check` | gates: git HEAD, fingerprint, vision drift, product registry, Rust ratio, SLI pool, bench freshness, live version lockstep |
 //! | RustSec/OSV radar | `rust_intel` | `cargo xtask intel` · `data/gsv_rustsec.json` | OSV `querybatch` over `Cargo.lock` deps → severity-bucketed advisories (cached; soft `rules-check` gate) |
+//! | cargo-deny radar | `deny` | `cargo xtask intel` · `data/gsv_deny.json` | `cargo deny check licenses/bans/advisories` over `deny.toml` → license/ban/advisory counts (cached; HARD `rules-check` gate, escape `GSV_DENY_HARD=off`) |
 //! | Xtask | `xtask` | `/api/xtask` · `/api/disk` | `cargo xtask` product automation (no `.sh`) |
 //! | Grid (ALLBGP) | `grid` | `/api/grid` | durable mirror of poolAI `:8091` topology/workers/virtual-nodes/seats + history ring (`data/gsv_grid.json`, canon `GSV_VDC.md`) |
 //! | Edge proxy | `edge` | `/api/edge` · `/api/edge/{*path}` | hub single-entry to the poolAI edge plane: token + rate limit + allowlist (canon `GSV_VDC.md` §6) |
@@ -35,6 +36,7 @@
 
 pub mod adopt;
 pub mod apk;
+pub mod deny;
 pub mod edge;
 pub mod fingerprint;
 pub mod github;

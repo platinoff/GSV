@@ -842,6 +842,47 @@ pub fn render_rust_intel(d: &Value) -> String {
         }
         out.push_str("</tbody></table><div class='dim'>proposals only — apply via the command, nothing runs silently.</div>");
     }
+    // #C.3 cargo-deny stream (deny.toml; HARD rules-check gate on license/ban).
+    if let Some(deny) = d.get("deny") {
+        let dsrc = s(&deny["source"]);
+        let dcls = |n: &Value| if u(n) > 0 { "err" } else { "ok" };
+        let dfcls = if b(&deny["fresh"]) { "ok" } else { "dim" };
+        out.push_str(&format!(
+            "<div style='margin-top:8px'>deny{}: license <span class='{}'>{}</span>/<span class='{}'>{} warn</span> · ban <span class='{}'>{}</span> · advisory err {} · <span class='{dfcls}'>fresh {}</span></div>",
+            if dsrc.as_str() == "deny" {
+                String::new()
+            } else {
+                format!(" ({dsrc})")
+            },
+            dcls(&deny["license_errors"]),
+            u(&deny["license_errors"]),
+            dcls(&deny["license_warnings"]),
+            u(&deny["license_warnings"]),
+            dcls(&deny["ban_errors"]),
+            u(&deny["ban_errors"]),
+            u(&deny["advisory_errors"]),
+            b(&deny["fresh"]),
+        ));
+        let ddiags = arr(&deny["diagnostics"]);
+        if !ddiags.is_empty() {
+            out.push_str(
+                "<table class='fresh-tbl'><thead><tr><th>sev</th><th>crate</th><th>finding</th></tr></thead><tbody>",
+            );
+            for x in ddiags.iter().take(10) {
+                let sev = s(&x["severity"]);
+                let cls = if sev == "error" { "err" } else { "warn" };
+                out.push_str(&format!(
+                    "<tr><td><span class='{cls}'>{sev}</span></td><td>{}</td><td>{}</td></tr>",
+                    esc(&s(&x["krate"])),
+                    esc(&s(&x["message"])),
+                ));
+            }
+            out.push_str("</tbody></table>");
+        }
+        for h in arr(&deny["hints"]).iter().take(2) {
+            out.push_str(&format!("<div class='dim'>{}</div>", esc(&s(h))));
+        }
+    }
     out
 }
 
@@ -3737,6 +3778,50 @@ mod tests {
         assert!(render_vdc(&empty).contains("vdc — no data"));
         let err = serde_json::json!({"ok": false, "error": "down"});
         assert!(render_vdc(&err).contains("down"));
+    }
+
+    #[test]
+    fn render_rust_intel_renders_deny_stream() {
+        // #C.3: the deny sub-wire renders counts + samples; errors get the err
+        // class; a not-installed source degrades to a dim suffix.
+        let bad = serde_json::json!({
+            "ok": true,
+            "fresh": true,
+            "source": "osv",
+            "counts": {"total": 0, "critical": 0, "high": 0, "moderate": 0, "low": 0, "unknown": 0},
+            "deny": {
+                "ok": true,
+                "fresh": true,
+                "source": "deny",
+                "license_errors": 2,
+                "license_warnings": 0,
+                "ban_errors": 1,
+                "ban_warnings": 0,
+                "advisory_errors": 0,
+                "advisory_warnings": 1,
+                "diagnostics": [
+                    {"kind": "rejected", "severity": "error", "krate": "zeroize@1.9.1", "message": "failed to satisfy license requirements — rejected (Apache-2.0)"}
+                ],
+                "hints": []
+            }
+        });
+        let html = render_rust_intel(&bad);
+        assert!(html.contains("deny:"), "{html}");
+        assert!(
+            html.contains("license <span class='err'>2</span>"),
+            "{html}"
+        );
+        assert!(html.contains("ban <span class='err'>1</span>"), "{html}");
+        assert!(html.contains("zeroize@1.9.1"), "{html}");
+
+        let missing = serde_json::json!({
+            "ok": true,
+            "source": "none",
+            "deny": {"ok": true, "fresh": false, "source": "none", "license_errors": 0}
+        });
+        let html = render_rust_intel(&missing);
+        assert!(html.contains("deny (none):"), "{html}");
+        assert!(!html.contains("<table class='fresh-tbl'"), "{html}");
     }
 
     #[test]

@@ -492,6 +492,36 @@ fn main() -> ExitCode {
                     gsv::boxes::rust_intel::path(&data).display()
                 );
             }
+            // #C.3 cargo-deny stream: run alongside the OSV sweep on the live
+            // path only (--dry-run never shells out). Fail-open on a missing
+            // cargo-deny; the HARD rules-check gate keys on the cached report.
+            if !dry {
+                let deny_report = gsv::boxes::deny::collect_live(&root);
+                if let Err(e) = gsv::boxes::deny::save(&data, &deny_report) {
+                    eprintln!("intel: deny cache write: {e}");
+                }
+                let c = &deny_report.counts;
+                if deny_report.source == "deny" {
+                    println!(
+                        "deny: license err {} warn {} · ban err {} warn {} · advisory err {} warn {} ({})",
+                        c.license_errors,
+                        c.license_warnings,
+                        c.ban_errors,
+                        c.ban_warnings,
+                        c.advisory_errors,
+                        c.advisory_warnings,
+                        gsv::boxes::deny::path(&data).display()
+                    );
+                    for d in deny_report.diagnostics.iter().take(10) {
+                        println!("  [{}] {} {} — {}", d.severity, d.kind, d.krate, d.message);
+                    }
+                } else {
+                    println!("deny: {} (gate advisory)", deny_report.source);
+                    for h in &deny_report.hints {
+                        eprintln!("  hint: {h}");
+                    }
+                }
+            }
             ExitCode::SUCCESS
         }
         other => {
