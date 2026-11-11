@@ -17,7 +17,6 @@
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -68,7 +67,7 @@ pub fn path(data_dir: &Path) -> PathBuf {
 /// Run `cargo machete` in the repo root; parse its stdout into findings.
 /// Fail-open on missing tool / spawn error / parse trouble.
 pub fn collect_live(repo_root: &Path) -> HygieneReport {
-    let out = Command::new("cargo")
+    let out = crate::vision::command("cargo")
         .args(["machete"])
         .current_dir(repo_root)
         .output();

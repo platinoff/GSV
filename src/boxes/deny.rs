@@ -32,7 +32,6 @@
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -241,7 +240,7 @@ pub fn count(diags: &[DenyDiag]) -> DenySummary {
 /// advisories` in the repo root. Fail-open: a missing subcommand or a spawn
 /// error yields a `source`-marked report with hints, never a panic.
 pub fn collect_live(repo_root: &Path) -> DenyReport {
-    let out = Command::new("cargo")
+    let out = crate::vision::command("cargo")
         .args([
             "deny",
             "--format",
