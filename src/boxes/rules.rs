@@ -392,9 +392,10 @@ pub fn collect(repo_root: &Path, data_dir: &Path, live_url: Option<&str>) -> Rul
             (
                 true,
                 format!(
-                    "source {} · findings {} · fresh {} · {}",
+                    "source {} · findings {} · proposals {} · fresh {} · {}",
                     r.source,
                     r.findings.len(),
+                    crate::boxes::workflow::collect_proposals(&r.findings).len(),
                     fresh,
                     r.generated_at
                 ),
@@ -680,6 +681,7 @@ mod tests {
         assert!(!workflow.gate, "workflow is a SOFT (advisory) gate");
         assert!(workflow.ok, "soft workflow must never block");
         assert!(workflow.detail.contains("findings"));
+        assert!(workflow.detail.contains("proposals"));
         let _ = fs::remove_dir_all(&dir);
     }
 

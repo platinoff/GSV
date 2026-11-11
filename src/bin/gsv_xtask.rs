@@ -555,8 +555,9 @@ fn main() -> ExitCode {
                 }
                 if workflow_report.source == "github-api" {
                     println!(
-                        "workflow: open-issues {} (source {}) -> {}",
+                        "workflow: open-issues {} -> proposals {} (source {}) -> {}",
                         workflow_report.findings.len(),
+                        gsv::boxes::workflow::collect_proposals(&workflow_report.findings).len(),
                         workflow_report.source,
                         gsv::boxes::workflow::path(&data).display()
                     );

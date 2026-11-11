@@ -54,6 +54,58 @@ impl WorkflowReport {
     }
 }
 
+/// A proposed-skill draft derived from an open workflow issue (band #C.6).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct WorkflowProposal {
+    pub source_repo: String,
+    pub issue_number: u64,
+    pub title: String,
+    pub html_url: String,
+    /// Kebab-cased skill name suggested by the issue title (docs drafting hint).
+    pub suggested_skill: String,
+}
+
+/// Derive proposed-skill drafts (one per open issue) from the findings.
+/// Kept 1:1 with findings; the suggested-skill name is kebab-cased from the title.
+pub fn collect_proposals(findings: &[WorkflowFinding]) -> Vec<WorkflowProposal> {
+    findings
+        .iter()
+        .map(|f| WorkflowProposal {
+            source_repo: f.source_repo.clone(),
+            issue_number: f.issue_number,
+            title: f.title.clone(),
+            html_url: f.html_url.clone(),
+            suggested_skill: to_kebab_skill(&f.title),
+        })
+        .collect()
+}
+
+/// Kebab-case a title into a skill-name hint (lowercase, non-alphanumeric → '-').
+pub fn to_kebab_skill(title: &str) -> String {
+    let mut out = String::new();
+    let mut prev_hyphen = false;
+    for ch in title.chars() {
+        if ch.is_ascii_alphanumeric() {
+            out.push(ch.to_ascii_lowercase());
+            prev_hyphen = false;
+        } else if !prev_hyphen {
+            out.push('-');
+            prev_hyphen = true;
+        }
+    }
+    while out.starts_with('-') {
+        out.remove(0);
+    }
+    while out.ends_with('-') {
+        out.pop();
+    }
+    if out.is_empty() {
+        "proposed-skill".to_string()
+    } else {
+        out
+    }
+}
+
 /// Cache path: `data/gsv_workflow.json`.
 pub fn path(data_dir: &Path) -> PathBuf {
     data_dir.join("gsv_workflow.json")
@@ -122,6 +174,8 @@ pub fn is_fresh(report: &WorkflowReport) -> bool {
 
 /// Read-only wire merged into the rust-intel card + `gsv_rust_updates` (cached;
 /// no GitHub call). One flat shape whether or not a cache exists; `ok` always true.
+/// Band #C.6: the wire also carries the derived `proposals` (open issues -> proposed
+/// skill drafts) alongside the raw findings.
 pub fn wire(data_dir: &Path) -> Value {
     match load(data_dir) {
         Some(r) => json!({
@@ -130,6 +184,7 @@ pub fn wire(data_dir: &Path) -> Value {
             "source": r.source,
             "generated_at": r.generated_at,
             "findings": r.findings,
+            "proposals": collect_proposals(&r.findings),
             "hints": r.hints,
         }),
         None => json!({
@@ -138,6 +193,7 @@ pub fn wire(data_dir: &Path) -> Value {
             "source": "none",
             "generated_at": String::new(),
             "findings": [],
+            "proposals": [],
             "hints": [],
             "hint": "not run — `cargo xtask intel` (github api)",
         }),
@@ -190,5 +246,35 @@ mod tests {
         };
         assert!(!is_fresh(&old));
         let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn collect_proposals_maps_findings_with_kebab_skill() {
+        let findings = vec![WorkflowFinding {
+            source_repo: "rust-lang/ACP".into(),
+            issue_number: 42,
+            title: "Add agent skills for rust workflows".into(),
+            html_url: "https://github.com/rust-lang/ACP/issues/42".into(),
+        }];
+        let props = collect_proposals(&findings);
+        assert_eq!(props.len(), 1);
+        assert_eq!(props[0].source_repo, "rust-lang/ACP");
+        assert_eq!(props[0].issue_number, 42);
+        assert_eq!(
+            props[0].suggested_skill,
+            "add-agent-skills-for-rust-workflows"
+        );
+        let none = collect_proposals(&[]);
+        assert!(none.is_empty());
+    }
+
+    #[test]
+    fn to_kebab_skill_normalizes_and_defaults() {
+        assert_eq!(
+            to_kebab_skill("Add Agent Skills! For Rust"),
+            "add-agent-skills-for-rust"
+        );
+        assert_eq!(to_kebab_skill("---UPPER--"), "upper");
+        assert_eq!(to_kebab_skill("!!!"), "proposed-skill");
     }
 }
