@@ -542,7 +542,7 @@ pub fn models() -> &'static [ModelSpec] {
             C_ALL,
         ),
         m(
-            "rusty-omni-1b",
+            "rusty-mcp-v47",
             "Rusty hybrid 1B (rusty-hybrid · rusty-engine qwen35 MiniCPM-V)",
             "rusty-hybrid",
             Some(32_768),
@@ -1326,8 +1326,8 @@ mod tests {
             local_model_file("rusty-hybrid"),
             Some(RUSTY_HYBRID_MODEL_FILE)
         );
-        let omni = find_models("rusty-omni-1b");
-        assert!(!omni.is_empty(), "rusty-omni-1b in catalog");
+        let omni = find_models("rusty-mcp-v47");
+        assert!(!omni.is_empty(), "rusty-mcp-v47 in catalog");
         for spec in &omni {
             assert_eq!(spec.provider, "rusty-hybrid");
             assert_eq!(spec.context_window, Some(32_768));
