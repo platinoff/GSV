@@ -178,7 +178,7 @@ fn main(@builtin(global_invocation_id) g:vec3<u32>) {
 }`;
 async function run(){
   go.disabled=true; out.textContent='';
-  if(!navigator.gpu){setCap('no navigator.gpu',false);const ua=navigator.userAgent||'';const mv=ua.match(/Chrome\/(\d+)/);const chromeV=mv?mv[1]:'?';log('WebGPU unavailable in this browser');log('userAgent: '+ua.slice(0,160));log('Chrome major: '+chromeV+' (WebGPU needs Chrome 121+ on Android 12+ with Vulkan)');log('fix: Play Store -> update Chrome; or chrome://flags -> enable "Unsafe WebGPU" -> Relaunch');await post({ok:false,task_id:'phone-e2e-matmul64',peer:'browser-webgpu',adapter:'none',dims:'64x64',elapsed_ms:0,max_err:-1,ua:ua.slice(0,160)});go.disabled=false;return;}
+  if(!navigator.gpu){setCap('no navigator.gpu',false);const ua=navigator.userAgent||'';const mv=ua.match(/Chrome\/(\d+)/);const chromeV=mv?mv[1]:'?';log('WebGPU unavailable in this browser');log('userAgent: '+ua.slice(0,160));log('Chrome major: '+chromeV+' (WebGPU needs Chrome 121+ on Android 12+ with Vulkan)');log('fix: Play Store -> update Chrome; or chrome://flags -> enable "Unsafe WebGPU" -> Relaunch');await post({ok:false,task_id:'phone-e2e-matmul64',peer:'browser-webgpu',adapter:'no-navigator-gpu',dims:'64x64',elapsed_ms:0,max_err:0,ua:ua.slice(0,160)});go.disabled=false;return;}
   setCap('navigator.gpu present',true);
   try{
     const adapter=await navigator.gpu.requestAdapter();
@@ -210,7 +210,7 @@ async function run(){
     setCap(maxErr<1e-3?'PASS':'FAIL',maxErr<1e-3);
     await post({ok:maxErr<1e-3,task_id:'phone-e2e-matmul64',peer:'browser-webgpu',adapter:adapterName,dims:'64x64',elapsed_ms:Math.round(ms*100)/100,max_err:maxErr,ua:navigator.userAgent.slice(0,120)});
     aBuf.destroy();bBuf.destroy();cBuf.destroy();cRead.destroy();
-  }catch(e){setCap('error: '+e,false);log('error: '+e);await post({ok:false,task_id:'phone-e2e-matmul64',peer:'browser-webgpu',adapter:'error',dims:'64x64',elapsed_ms:0,max_err:-1,ua:String(e).slice(0,120)});}
+  }catch(e){setCap('error: '+e,false);log('error: '+e);await post({ok:false,task_id:'phone-e2e-matmul64',peer:'browser-webgpu',adapter:'error: '+String(e).slice(0,80),dims:'64x64',elapsed_ms:0,max_err:0,ua:String(e).slice(0,120)});}
   await refreshFeed();go.disabled=false;
 }
 refreshFeed();
