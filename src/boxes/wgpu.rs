@@ -146,7 +146,16 @@ const TASKS_FILE: &str = "wgpu_tasks.jsonl";
 const MAX_PEERS: usize = 50;
 const MAX_TASKS: usize = 200;
 /// Operations a mesh peer can execute (page-side WGSL runners).
-pub const SUPPORTED_OPS: [&str; 1] = ["matmul64"];
+pub const SUPPORTED_OPS: [&str; 2] = ["matmul64", "matvec"];
+
+/// Dims string per op (mirrors the page-side WGSL runners).
+pub fn op_dims(op: &str) -> &'static str {
+    match op {
+        "matmul64" => "64x64",
+        "matvec" => "256x1024",
+        _ => "?",
+    }
+}
 
 /// Process-global mesh lock: every JSONL read-modify-write is serialized
 /// (tickets.rs `BOARD_LOCK` precedent, band 200).
@@ -354,7 +363,7 @@ pub fn task_enqueue(data_dir: &Path, body: &Value) -> Result<Value, String> {
             SUPPORTED_OPS.join(", ")
         ));
     }
-    let dims = if op == "matmul64" { "64x64" } else { "?" };
+    let dims = op_dims(op);
     let _g = mesh_lock();
     let path = data_dir.join(TASKS_FILE);
     let mut tasks = read_jsonl(&path);
@@ -453,7 +462,8 @@ button:disabled{opacity:.5}
 <div>
 <button id="wjoin" onclick="startWorker()">Start mesh worker</button>
 <button id="wstop" onclick="stopWorker()" disabled>Stop worker</button>
-<button onclick="enqueueTask()">Enqueue test task</button>
+<button onclick="enqueueTask('matmul64')">Enqueue matmul</button>
+<button onclick="enqueueTask('matvec')">Enqueue matvec (LLM shard)</button>
 </div>
 <pre id="out">idle</pre>
 <pre id="feed">hub feed: (tap Run to refresh)</pre>
@@ -504,6 +514,48 @@ async function matmulOnce(){
   aBuf.destroy();bBuf.destroy();cBuf.destroy();cRead.destroy();
   return {ok:maxErr<1e-3,adapter:adapterName,elapsed_ms:Math.round(ms*100)/100,max_err:maxErr};
 }
+async function matvecOnce(){
+  if(!navigator.gpu){throw new Error('no navigator.gpu (secure-context gate: see hub notes)');}
+  const adapter=await navigator.gpu.requestAdapter();
+  if(!adapter){throw new Error('requestAdapter returned null');}
+  const device=await adapter.requestDevice();
+  let adapterName='adapter'; try{const i=adapter.info||{};adapterName=[i.vendor,i.architecture,i.device].filter(Boolean).join('/')||'adapter';}catch(e){}
+  const R=256,K=1024,W=new Float32Array(R*K),X=new Float32Array(K),REF=new Float32Array(R);
+  for(let i=0;i<R*K;i++){W[i]=((i%13)-6)*0.125;}
+  for(let k=0;k<K;k++){X[k]=((k%7)-3)*0.25;}
+  for(let r=0;r<R;r++){let acc=0;for(let k=0;k<K;k++)acc+=W[r*K+k]*X[k];REF[r]=acc;}
+  const wBuf=device.createBuffer({size:W.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
+  const xBuf=device.createBuffer({size:X.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
+  const yBuf=device.createBuffer({size:REF.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC});
+  device.queue.writeBuffer(wBuf,0,W);device.queue.writeBuffer(xBuf,0,X);
+  const WGSLV=`
+@group(0) @binding(0) var<storage,read> w:array<f32>;
+@group(0) @binding(1) var<storage,read> x:array<f32>;
+@group(0) @binding(2) var<storage,read_write> y:array<f32>;
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) g:vec3<u32>) {
+  let r=g.x;
+  if (r>=256u) { return; }
+  var acc=0.0;
+  for (var k=0u; k<1024u; k++) { acc = acc + w[r*1024u+k]*x[k]; }
+  y[r]=acc;
+}`;
+  const pipeline=device.createComputePipeline({layout:'auto',compute:{module:device.createShaderModule({code:WGSLV}),entryPoint:'main'}});
+  const bg=device.createBindGroup({layout:pipeline.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:wBuf}},{binding:1,resource:{buffer:xBuf}},{binding:2,resource:{buffer:yBuf}}]});
+  const yRead=device.createBuffer({size:REF.byteLength,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
+  const enc=device.createCommandEncoder();const pass=enc.beginComputePass();
+  pass.setPipeline(pipeline);pass.setBindGroup(0,bg);pass.dispatchWorkgroups(4);pass.end();
+  enc.copyBufferToBuffer(yBuf,0,yRead,0,REF.byteLength);
+  const t0=performance.now();device.queue.submit([enc.finish()]);
+  await device.queue.onSubmittedWorkDone();
+  const ms=performance.now()-t0;
+  await yRead.mapAsync(GPUMapMode.READ);const Y=new Float32Array(yRead.getMappedRange().slice(0));yRead.unmap();
+  let maxErr=0;for(let r=0;r<R;r++){const e=Math.abs(Y[r]-REF[r]);if(e>maxErr)maxErr=e;}
+  wBuf.destroy();xBuf.destroy();yBuf.destroy();yRead.destroy();
+  const mflops=(2*R*K)/(ms*1000);
+  log('matvec y[0..3]: '+Array.from(Y.slice(0,3)).map(v=>v.toFixed(1)).join(', ')+' · '+mflops.toFixed(0)+' MFLOPS');
+  return {ok:maxErr<1e-3,adapter:adapterName,elapsed_ms:Math.round(ms*100)/100,max_err:maxErr};
+}
 async function run(){
   go.disabled=true; out.textContent='';
   if(!navigator.gpu){setCap('no navigator.gpu',false);const ua=navigator.userAgent||'';log('WebGPU unavailable in this browser (insecure origin?)');log('userAgent: '+ua.slice(0,160));await post({ok:false,task_id:'phone-e2e-matmul64',peer:'browser-webgpu',adapter:'no-navigator-gpu',dims:'64x64',elapsed_ms:0,max_err:0,ua:ua.slice(0,160)});go.disabled=false;return;}
@@ -539,7 +591,7 @@ async function workerLoop(){
       const d=await(await fetch('api/wgpu/task/poll',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({peer_id:WORKER.peer})})).json();
       if(d.ok&&d.task){
         log('mesh task '+d.task.task_id+' ('+d.task.op+')');
-        let r;try{r=await matmulOnce();}catch(e){r={ok:false,elapsed_ms:0,max_err:0,adapter:'error: '+String(e).slice(0,60)};}
+        let r;try{r=d.task.op==='matvec'?await matvecOnce():await matmulOnce();}catch(e){r={ok:false,elapsed_ms:0,max_err:0,adapter:'error: '+String(e).slice(0,60)};}
         log('task '+d.task.task_id+': '+(r.ok?'done':'failed')+' '+r.elapsed_ms+'ms max_err='+r.max_err.toExponential(2));
         await fetch('api/wgpu/task/result',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({peer_id:WORKER.peer,task_id:d.task.task_id,ok:r.ok,elapsed_ms:r.elapsed_ms,max_err:r.max_err})});
         await refreshMesh();
@@ -548,7 +600,7 @@ async function workerLoop(){
     await new Promise(res=>setTimeout(res,(WORKER?WORKER.poll:2)*1000));
   }
 }
-async function enqueueTask(){try{const d=await(await fetch('api/wgpu/task/enqueue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'matmul64'})})).json();log(d.ok?'queued '+d.task_id+' (queue='+d.queued+')':'enqueue error: '+d.error);}catch(e){log('enqueue: '+e);}await refreshMesh();}
+async function enqueueTask(op){try{const d=await(await fetch('api/wgpu/task/enqueue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:op||'matmul64'})})).json();log(d.ok?'queued '+d.task_id+' ('+(op||'matmul64')+' queue='+d.queued+')':'enqueue error: '+d.error);}catch(e){log('enqueue: '+e);}await refreshMesh();}
 refreshFeed();refreshMesh();
 </script>
 </body>
@@ -631,6 +683,17 @@ mod tests {
     }
 
     #[test]
+    fn op_dims_covers_supported_ops() {
+        assert_eq!(op_dims("matmul64"), "64x64");
+        assert_eq!(op_dims("matvec"), "256x1024");
+        assert_eq!(op_dims("other"), "?");
+        let p = page();
+        assert!(p.contains("matvecOnce"));
+        assert!(p.contains("r*1024u+k"));
+        assert!(p.contains("Enqueue matvec (LLM shard)"));
+    }
+
+    #[test]
     fn peer_join_mints_monotonic_ids_and_poll_requires_known_peer() {
         let dir = temp_dir("mesh_join");
         let j1 = peer_join(&dir, &json!({"adapter":"arm/valhall","ua":"ua1"})).expect("join 1");
@@ -653,16 +716,22 @@ mod tests {
         let peer = j["peer_id"].as_u64().unwrap();
         let e = task_enqueue(&dir, &json!({"op":"matmul64"})).expect("enqueue");
         assert_eq!(e["queued"], 1);
-        assert!(task_enqueue(&dir, &json!({"op":"matvec"})).is_err());
+        assert!(task_enqueue(&dir, &json!({"op":"fft1024"})).is_err());
+        let ev = task_enqueue(&dir, &json!({"op":"matvec"})).expect("enqueue matvec");
+        assert!(ev["task_id"].as_str().unwrap().starts_with("mt-"));
         let p = peer_poll(&dir, &json!({"peer_id": peer})).expect("poll");
         let task = &p["task"];
         assert!(!task.is_null());
         assert_eq!(task["status"], "claimed");
         assert_eq!(task["peer_id"], peer);
         assert!(task["task_id"].as_str().unwrap().starts_with("mt-"));
-        // Queue drained: next poll has no task.
+        // Second queued task (matvec) hands out on the next poll.
         let p2 = peer_poll(&dir, &json!({"peer_id": peer})).expect("poll 2");
-        assert!(p2["task"].is_null());
+        assert_eq!(p2["task"]["op"], "matvec");
+        assert_eq!(p2["task"]["dims"], "256x1024");
+        // Queue drained: third poll has no task.
+        let p3 = peer_poll(&dir, &json!({"peer_id": peer})).expect("poll 3");
+        assert!(p3["task"].is_null());
         // Result from the claiming peer marks done.
         let r = task_result(
             &dir,
@@ -678,6 +747,7 @@ mod tests {
         assert!(bad.is_err());
         let m = mesh_wire(&dir);
         assert_eq!(m["done"], 1);
+        assert_eq!(m["claimed"], 1);
         assert_eq!(m["queued"], 0);
         assert!(m["peers"]
             .as_array()
