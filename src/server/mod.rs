@@ -162,6 +162,11 @@ pub fn router(state: AppState) -> Router {
         .route("/api/wgpu", get(api_wgpu))
         .route("/api/wgpu/reports", get(api_wgpu_reports))
         .route("/api/wgpu/report", post(api_wgpu_report_post))
+        .route("/api/wgpu/mesh", get(api_wgpu_mesh))
+        .route("/api/wgpu/peer/join", post(api_wgpu_peer_join))
+        .route("/api/wgpu/task/enqueue", post(api_wgpu_task_enqueue))
+        .route("/api/wgpu/task/poll", post(api_wgpu_task_poll))
+        .route("/api/wgpu/task/result", post(api_wgpu_task_result))
         .route("/api/rust-intel", get(api_rust_intel))
         .route("/api/xtask", get(api_xtask))
         .route("/api/disk", get(api_disk))
@@ -796,6 +801,38 @@ async fn api_wgpu_reports(State(state): State<AppState>) -> Json<Value> {
 async fn api_wgpu_report_post(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
     match crate::boxes::wgpu::record_report(&state.data_dir, &body) {
         Ok(()) => Json(json!({ "ok": true })).into_response(),
+        Err(e) => err_json(StatusCode::BAD_REQUEST, e),
+    }
+}
+
+async fn api_wgpu_mesh(State(state): State<AppState>) -> Json<Value> {
+    Json(crate::boxes::wgpu::mesh_wire(&state.data_dir))
+}
+
+async fn api_wgpu_peer_join(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
+    match crate::boxes::wgpu::peer_join(&state.data_dir, &body) {
+        Ok(v) => Json(v).into_response(),
+        Err(e) => err_json(StatusCode::BAD_REQUEST, e),
+    }
+}
+
+async fn api_wgpu_task_enqueue(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
+    match crate::boxes::wgpu::task_enqueue(&state.data_dir, &body) {
+        Ok(v) => Json(v).into_response(),
+        Err(e) => err_json(StatusCode::BAD_REQUEST, e),
+    }
+}
+
+async fn api_wgpu_task_poll(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
+    match crate::boxes::wgpu::peer_poll(&state.data_dir, &body) {
+        Ok(v) => Json(v).into_response(),
+        Err(e) => err_json(StatusCode::NOT_FOUND, e),
+    }
+}
+
+async fn api_wgpu_task_result(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
+    match crate::boxes::wgpu::task_result(&state.data_dir, &body) {
+        Ok(v) => Json(v).into_response(),
         Err(e) => err_json(StatusCode::BAD_REQUEST, e),
     }
 }
