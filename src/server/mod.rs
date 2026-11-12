@@ -158,6 +158,10 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/tickets/next", post(api_tickets_next))
         .route("/api/mds", get(api_mds))
+        .route("/wgpu", get(api_wgpu_page))
+        .route("/api/wgpu", get(api_wgpu))
+        .route("/api/wgpu/reports", get(api_wgpu_reports))
+        .route("/api/wgpu/report", post(api_wgpu_report_post))
         .route("/api/rust-intel", get(api_rust_intel))
         .route("/api/xtask", get(api_xtask))
         .route("/api/disk", get(api_disk))
@@ -774,6 +778,26 @@ async fn api_tickets_next(State(state): State<AppState>, Json(body): Json<Value>
 
 async fn api_mds(State(state): State<AppState>) -> Json<Value> {
     Json(crate::boxes::mds::wire(&state.repo_root))
+}
+
+/// WGPU phone-test page (`GET /wgpu`) — browser WGSL matmul runner.
+async fn api_wgpu_page() -> Html<&'static str> {
+    Html(crate::boxes::wgpu::page())
+}
+
+async fn api_wgpu(State(state): State<AppState>) -> Json<Value> {
+    Json(crate::boxes::wgpu::wire(&state.data_dir))
+}
+
+async fn api_wgpu_reports(State(state): State<AppState>) -> Json<Value> {
+    Json(crate::boxes::wgpu::reports_wire(&state.data_dir))
+}
+
+async fn api_wgpu_report_post(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
+    match crate::boxes::wgpu::record_report(&state.data_dir, &body) {
+        Ok(()) => Json(json!({ "ok": true })).into_response(),
+        Err(e) => err_json(StatusCode::BAD_REQUEST, e),
+    }
 }
 
 fn ticket_http_status(err: &crate::boxes::tickets::TicketError) -> StatusCode {
