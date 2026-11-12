@@ -195,12 +195,11 @@ async function run(){
     device.queue.writeBuffer(aBuf,0,A);device.queue.writeBuffer(bBuf,0,B);
     const pipeline=device.createComputePipeline({layout:'auto',compute:{module:device.createShaderModule({code:WGSL}),entryPoint:'main'}});
     const bg=device.createBindGroup({layout:pipeline.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:aBuf}},{binding:1,resource:{buffer:bBuf}},{binding:2,resource:{buffer:cBuf}}]});
+    const cRead=device.createBuffer({size:A.byteLength,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
     const enc=device.createCommandEncoder();const pass=enc.beginComputePass();
     pass.setPipeline(pipeline);pass.setBindGroup(0,bg);pass.dispatchWorkgroups(8,8);pass.end();
-    const t0=performance.now();device.queue.submit([enc.finish()]);
-    const cRead=device.createBuffer({size:A.byteLength,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
     enc.copyBufferToBuffer(cBuf,0,cRead,0,A.byteLength);
-    device.queue.submit([enc.finish()]);
+    const t0=performance.now();device.queue.submit([enc.finish()]);
     await device.queue.onSubmittedWorkDone();
     const ms=performance.now()-t0;
     await cRead.mapAsync(GPUMapMode.READ);const C=new Float32Array(cRead.getMappedRange().slice(0));cRead.unmap();
