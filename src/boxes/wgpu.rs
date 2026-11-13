@@ -1085,8 +1085,20 @@ fn main(@builtin(global_invocation_id) g:vec3<u32>) {
   var maxv=x[0];
   for (var k=1u; k<1024u; k++) { let v=x[k]; if (v>maxv) { maxv=v; } }
   var s=0.0;
-  for (var k=0u; k<1024u; k++) { s = s + exp(x[k]-maxv); }
-  y[i] = exp(x[i]-maxv)/s;
+  for (var k=0u; k<1024u; k++) {
+    var xx = x[k]-maxv;
+    var t=1.0;
+    var e=0.0;
+    var m=0.0;
+    while (m<20.0) { e = e + t; t = t*xx/m; m = m + 1.0; }
+    s = s + e;
+  }
+  var xx = x[i]-maxv;
+  var t=1.0;
+  var e=0.0;
+  var m=0.0;
+  while (m<20.0) { e = e + t; t = t*xx/m; m = m + 1.0; }
+  y[i] = e/s;
 }`;
   const xBuf=device.createBuffer({size:V.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
   const yBuf=device.createBuffer({size:REF.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC});
