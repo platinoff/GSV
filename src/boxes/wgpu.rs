@@ -149,7 +149,14 @@ const MAX_TASKS: usize = 200;
 pub const MAX_ITERS: u64 = 1024;
 
 /// Operations a mesh peer can execute (page-side WGSL runners).
-pub const SUPPORTED_OPS: [&str; 4] = ["matmul64", "matvec", "matvec_shard", "mlpblock"];
+pub const SUPPORTED_OPS: [&str; 6] = [
+    "matmul64",
+    "matvec",
+    "matvec_shard",
+    "mlpblock",
+    "layernorm",
+    "softmax",
+];
 
 /// Dims string per op (mirrors the page-side WGSL runners).
 pub fn op_dims(op: &str) -> &'static str {
@@ -158,6 +165,8 @@ pub fn op_dims(op: &str) -> &'static str {
         "matvec" => "256x1024",
         "matvec_shard" => "256x1024",
         "mlpblock" => "1024x1024",
+        "layernorm" => "1024",
+        "softmax" => "1024",
         _ => "?",
     }
 }
@@ -179,6 +188,9 @@ pub fn op_flops(op: &str) -> u64 {
         "matvec_shard" => 524_288,
         // transformer block: two chained matvecs (1024x256 + 256x1024) + SiLU
         "mlpblock" => 1_048_576,
+        // elementwise over the 1024-dim vector: sub/add/sqrt (layernorm) / exp+sum+div (softmax)
+        "layernorm" => 2_048,
+        "softmax" => 2_048,
         _ => 0,
     }
 }
@@ -251,6 +263,30 @@ pub fn mlp_block_reference() -> Vec<f64> {
                 .sum()
         })
         .collect()
+}
+
+/// Deterministic elementwise vector of the elementwise ops (same generator family).
+fn element_x() -> Vec<f64> {
+    (0..MATVEC_K).map(matvec_x).collect()
+}
+
+/// CPU reference of layernorm over the 1024-dim vector: `y[i] = (v[i]-mean)/sqrt(var+eps)`.
+pub fn layernorm_reference() -> Vec<f64> {
+    let v = element_x();
+    let n = v.len() as f64;
+    let mean = v.iter().sum::<f64>() / n;
+    let var_sum = v.iter().map(|x| (x - mean) * (x - mean)).sum::<f64>();
+    let varr = var_sum / n;
+    v.iter()
+        .map(|x| (x - mean) / (varr + 1e-5).sqrt())
+        .collect()
+}
+
+/// CPU reference of softmax over the 1024-dim vector: `y[i] = exp(x[i])/sum(exp(x))`.
+pub fn softmax_reference() -> Vec<f64> {
+    let v = element_x();
+    let sum = v.iter().map(|x| x.exp()).sum::<f64>();
+    v.iter().map(|x| x.exp() / sum).collect()
 }
 
 /// Relative tolerance for the hub-side reduction check.
@@ -855,6 +891,8 @@ button:disabled{opacity:.5}
 <button onclick="enqueueTask('matvec_shard',1,2)">Enqueue matvec shard (2x)</button>
 <button onclick="enqueueTask('matvec_shard',1,4)">Enqueue matvec shard (4x)</button>
 <button onclick="enqueueTask('mlpblock',1)">Enqueue mlpblock (transformer block)</button>
+<button onclick="enqueueTask('layernorm',1)">Enqueue layernorm</button>
+<button onclick="enqueueTask('softmax',1)">Enqueue softmax</button>
 <button onclick="benchLocal('matvec',64)">Local bench matvec (64x)</button>
 </div>
 <pre id="out">idle</pre>
@@ -953,7 +991,7 @@ async function buildBlock(device){
   const read=device.createBuffer({size:REF.byteLength,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
   return {device:device,adapterName:adapterName,pipeline:pipeline,bg:bg,out:yBuf,read:read,bytes:REF.byteLength,ref:REF,flops:OPS.mlpblock.flops,dispatch:OPS.mlpblock.dispatch};
 }
-const OPS={matmul64:{flops:524288,dispatch:[8,8]},matvec:{flops:524288,dispatch:[4]},mlpblock:{flops:1048576,dispatch:[16]}};
+const OPS={matmul64:{flops:524288,dispatch:[8,8]},matvec:{flops:524288,dispatch:[4]},mlpblock:{flops:1048576,dispatch:[16]},layernorm:{flops:2048,dispatch:[16]},softmax:{flops:2048,dispatch:[16]}};
 const CACHE={};
 async function buildRunner(op,shardId,shards){
   if(!navigator.gpu){throw new Error('no navigator.gpu (secure-context gate: see hub notes)');}
@@ -970,6 +1008,8 @@ async function buildRunner(op,shardId,shards){
     return {device:device,adapterName:adapterName,pipeline:built.pipeline,bg:built.bg,out:built.out,read:built.read,bytes:built.bytes,ref:built.ref,flops:built.flops,dispatch:built.dispatch};
   }
   if(op==='mlpblock'){return await buildBlock(device);}
+  if(op==='layernorm'){return await buildLayernorm(device);}
+  if(op==='softmax'){return await buildSoftmax(device);}
   // matvec_shard: one peer owns a K-range of the reduction and returns a partial.
   const R=256,K=1024,n=Math.max(1,shards||1),chunk=Math.floor(K/n),k0=shardId*chunk,k1=k0+chunk;
   const W=new Float32Array(R*K),X=new Float32Array(K),REF=new Float32Array(R);
@@ -998,6 +1038,107 @@ fn main(@builtin(global_invocation_id) g:vec3<u32>) {
   return {device:device,adapterName:adapterName,pipeline:pipeline,bg:bg,out:yBuf,read:read,bytes:REF.byteLength,ref:REF,flops:2*R*chunk,dispatch:[4]};
 }
 async function getRunner(op,shardId,shards){const key=op+(op==='matvec_shard'?'#'+shardId+'#'+shards:'');if(CACHE[key])return CACHE[key];const r=await buildRunner(op,shardId,shards);CACHE[key]=r;return r;}
+async function buildLayernorm(device){
+  const V=new Float32Array(1024),REF=new Float32Array(1024);
+  for(let i=0;i<1024;i++){V[i]=((i%7)-3)*0.25;}
+  let sum=0;for(let i=0;i<1024;i++){sum=sum+V[i];}
+  const mean=sum/1024;
+  let varSum=0;for(let i=0;i<1024;i++){const d=V[i]-mean;varSum=varSum+d*d;}
+  const varr=varSum/1024;
+  for(let i=0;i<1024;i++){REF[i]=(V[i]-mean)/Math.sqrt(varr+1e-5);}
+  const WGSL_LN=`
+@group(0) @binding(0) var<storage,read> x:array<f32>;
+@group(0) @binding(1) var<storage,read_write> y:array<f32>;
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) g:vec3<u32>) {
+  let i=g.x;
+  if (i>=1024u) { return; }
+  var sum=0.0;
+  for (var k=0u; k<1024u; k++) { sum = sum + x[k]; }
+  let mean = sum/1024.0;
+  var varSum=0.0;
+  for (var k=0u; k<1024u; k++) { let d = x[k]-mean; varSum = varSum + d*d; }
+  let varr = varSum/1024.0;
+  y[i] = (x[i]-mean)/sqrt(varr+1e-5);
+}`;
+  const xBuf=device.createBuffer({size:V.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
+  const yBuf=device.createBuffer({size:REF.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC});
+  device.queue.writeBuffer(xBuf,0,V);
+  const pipeline=device.createComputePipeline({layout:'auto',compute:{module:device.createShaderModule({code:WGSL_LN}),entryPoint:'main'}});
+  const bg=device.createBindGroup({layout:pipeline.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:xBuf}},{binding:1,resource:{buffer:yBuf}}]});
+  const read=device.createBuffer({size:REF.byteLength,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
+  return {device:device,adapterName:adapterName,pipeline:pipeline,bg:bg,out:yBuf,read:read,bytes:REF.byteLength,ref:REF,flops:OPS.layernorm.flops,dispatch:OPS.layernorm.dispatch};
+}
+async function buildSoftmax(device){
+  const V=new Float32Array(1024),REF=new Float32Array(1024);
+  for(let i=0;i<1024;i++){V[i]=((i%7)-3)*0.25;}
+  let maxv=V[0];for(let k=1;k<1024;k++){if(V[k]>maxv){maxv=V[k];}}
+  let s=0;for(let k=0;k<1024;k++){s=s+Math.exp(V[k]-maxv);}
+  for(let i=0;i<1024;i++){REF[i]=Math.exp(V[i]-maxv)/s;}
+  const WGSL_SM=`
+@group(0) @binding(0) var<storage,read> x:array<f32>;
+@group(0) @binding(1) var<storage,read_write> y:array<f32>;
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) g:vec3<u32>) {
+  let i=g.x;
+  if (i>=1024u) { return; }
+  var maxv=x[0];
+  for (var k=1u; k<1024u; k++) { let v=x[k]; if (v>maxv) { maxv=v; } }
+  var s=0.0;
+  for (var k=0u; k<1024u; k++) { s = s + exp(x[k]-maxv); }
+  y[i] = exp(x[i]-maxv)/s;
+}`;
+  const xBuf=device.createBuffer({size:V.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
+  const yBuf=device.createBuffer({size:REF.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC});
+  device.queue.writeBuffer(xBuf,0,V);
+  const pipeline=device.createComputePipeline({layout:'auto',compute:{module:device.createShaderModule({code:WGSL_SM}),entryPoint:'main'}});
+  const bg=device.createBindGroup({layout:pipeline.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:xBuf}},{binding:1,resource:{buffer:yBuf}}]});
+  const read=device.createBuffer({size:REF.byteLength,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
+  return {device:device,adapterName:adapterName,pipeline:pipeline,bg:bg,out:yBuf,read:read,bytes:REF.byteLength,ref:REF,flops:OPS.softmax.flops,dispatch:OPS.softmax.dispatch};
+}
+async function runLayernorm(){
+  const reused=!!CACHE['layernorm'];
+  const r=await getRunner('layernorm');
+  const enc=r.device.createCommandEncoder();const pass=enc.beginComputePass();
+  pass.setPipeline(r.pipeline);pass.setBindGroup(0,r.bg);pass.dispatchWorkgroups(r.dispatch[0]);pass.end();
+  enc.copyBufferToBuffer(r.out,0,r.read,0,r.bytes);
+  const t0=performance.now();r.device.queue.submit([enc.finish()]);
+  await r.device.queue.onSubmittedWorkDone();
+  const total=performance.now()-t0;
+  await r.read.mapAsync(GPUMapMode.READ);const V=new Float32Array(r.read.getMappedRange().slice(0));r.read.unmap();
+  let maxErr=0;
+  for(let i=0;i<1024;i++){
+    let sum=0;for(let k=0;k<1024;k++){sum=sum+V[k];}
+    const mean=sum/1024;
+    let varSum=0;for(let k=0;k<1024;k++){const d=V[k]-mean;varSum=varSum+d*d;}
+    const varr=varSum/1024;
+    const hv=(V[i]-mean)/Math.sqrt(varr+1e-5);
+    const e=Math.abs(hv-r.ref[i]);if(e>maxErr){maxErr=e;}
+  }
+  const mflops=r.flops/((total/1000)*1e6);
+  const opsPerSec=1024/(total/1000);
+  log('layernorm: '+total.toFixed(2)+'ms max_err='+maxErr.toExponential(2)+' · '+mflops.toFixed(2)+' MFLOPS');
+  return {ok:maxErr<1e-3,adapter:r.adapterName,elapsed_ms:Math.round(total*100)/100,max_err:maxErr,iters:1,mflops:Math.round(mflops*100)/100,ops_per_sec:Math.round(opsPerSec*100)/100,device_reused:reused};
+}
+async function runSoftmax(){
+  const reused=!!CACHE['softmax'];
+  const r=await getRunner('softmax');
+  const enc=r.device.createCommandEncoder();const pass=enc.beginComputePass();
+  pass.setPipeline(r.pipeline);pass.setBindGroup(0,r.bg);pass.dispatchWorkgroups(r.dispatch[0]);pass.end();
+  enc.copyBufferToBuffer(r.out,0,r.read,0,r.bytes);
+  const t0=performance.now();r.device.queue.submit([enc.finish()]);
+  await r.device.queue.onSubmittedWorkDone();
+  const total=performance.now()-t0;
+  await r.read.mapAsync(GPUMapMode.READ);const V=new Float32Array(r.read.getMappedRange().slice(0));r.read.unmap();
+  const maxv=V[0];for(let k=1;k<1024;k++){if(V[k]>maxv){maxv=V[k];}}
+  let s=0;for(let k=0;k<1024;k++){s=s+Math.exp(V[k]-maxv);}
+  const y=new Float32Array(1024);
+  let maxErr=0;for(let i=0;i<1024;i++){y[i]=Math.exp(V[i]-maxv)/s;const e=Math.abs(y[i]-r.ref[i]);if(e>maxErr)maxErr=e;}
+  const mflops=r.flops/((total/1000)*1e6);
+  const opsPerSec=1024/(total/1000);
+  log('softmax: '+total.toFixed(2)+'ms max_err='+maxErr.toExponential(2)+' · '+mflops.toFixed(2)+' MFLOPS');
+  return {ok:maxErr<1e-3,adapter:r.adapterName,elapsed_ms:Math.round(total*100)/100,max_err:maxErr,iters:1,mflops:Math.round(mflops*100)/100,ops_per_sec:Math.round(opsPerSec*100)/100,device_reused:reused};
+}
 async function runBlock(){
   const reused=!!CACHE['mlpblock'];
   const r=await getRunner('mlpblock');
@@ -1093,7 +1234,7 @@ async function workerLoop(){
       if(d.ok&&d.task){
         const iters=d.task.iters||1;
         log('mesh task '+d.task.task_id+' ('+d.task.op+' x'+iters+')');
-        let r;try{if(d.task.op==='matvec_shard'){r=await runShard(d.task.shard_id||0,d.task.shards||1);}else if(d.task.op==='mlpblock'){r=await runBlock();}else{r=await runOp(d.task.op,iters);}}catch(e){r={ok:false,elapsed_ms:0,max_err:0,adapter:'error: '+String(e).slice(0,60)};}
+        let r;try{if(d.task.op==='matvec_shard'){r=await runShard(d.task.shard_id||0,d.task.shards||1);}else if(d.task.op==='mlpblock'){r=await runBlock();}else if(d.task.op==='layernorm'){r=await runLayernorm();}else if(d.task.op==='softmax'){r=await runSoftmax();}else{r=await runOp(d.task.op,iters);}}catch(e){r={ok:false,elapsed_ms:0,max_err:0,adapter:'error: '+String(e).slice(0,60)};}
         log('task '+d.task.task_id+': '+(r.ok?'done':'failed')+' '+r.elapsed_ms+'ms/op max_err='+r.max_err.toExponential(2)+(r.mflops!==undefined?' · '+r.mflops+' MFLOPS · '+r.ops_per_sec+' ops/s':''));
         await fetch('api/wgpu/task/result',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({peer_id:WORKER.peer,task_id:d.task.task_id,ok:r.ok,elapsed_ms:r.elapsed_ms,max_err:r.max_err,iters:r.iters,mflops:r.mflops,ops_per_sec:r.ops_per_sec,device_reused:r.device_reused,partial:r.partial})});
         await refreshMesh();
@@ -1190,6 +1331,8 @@ mod tests {
         assert_eq!(op_dims("matmul64"), "64x64");
         assert_eq!(op_dims("matvec"), "256x1024");
         assert_eq!(op_dims("mlpblock"), "1024x1024");
+        assert_eq!(op_dims("layernorm"), "1024");
+        assert_eq!(op_dims("softmax"), "1024");
         assert_eq!(op_dims("other"), "?");
         let p = page();
         assert!(p.contains("matvecOnce"));
@@ -1197,6 +1340,8 @@ mod tests {
         assert!(p.contains("Enqueue matvec (LLM shard)"));
         assert!(p.contains("mlpblock"));
         assert!(p.contains("Enqueue mlpblock (transformer block)"));
+        assert!(p.contains("Enqueue layernorm"));
+        assert!(p.contains("Enqueue softmax"));
     }
 
     #[test]
@@ -1470,6 +1615,60 @@ mod tests {
         // Unsupported ops stay refused.
         assert!(task_enqueue(&dir, &json!({"op":"fft512"})).is_err());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn layernorm_reference_is_mean_var_normalized() {
+        let y = layernorm_reference();
+        assert_eq!(y.len(), 1024);
+        let v = element_x();
+        let n = v.len() as f64;
+        let mean = v.iter().sum::<f64>() / n;
+        let var_sum = v.iter().map(|x| (x - mean) * (x - mean)).sum::<f64>();
+        let varr = var_sum / n;
+        for (i, yv) in y.iter().enumerate() {
+            let expected = (v[i] - mean) / (varr + 1e-5).sqrt();
+            assert!((yv - expected).abs() < 1e-9, "layernorm mismatch at {i}");
+        }
+    }
+
+    #[test]
+    fn softmax_reference_is_normalized_exponentials() {
+        let y = softmax_reference();
+        assert_eq!(y.len(), 1024);
+        let v = element_x();
+        let sum = v.iter().map(|x| x.exp()).sum::<f64>();
+        for (i, yv) in y.iter().enumerate() {
+            let expected = v[i].exp() / sum;
+            assert!((yv - expected).abs() < 1e-9, "softmax mismatch at {i}");
+        }
+    }
+
+    #[test]
+    fn layernorm_and_softmax_task_lifecycles_report_results() {
+        for (op, ref_fn) in [
+            ("layernorm", layernorm_reference() as Vec<f64>),
+            ("softmax", softmax_reference() as Vec<f64>),
+        ] {
+            let dir = temp_dir("mesh_elementwise");
+            let e = task_enqueue(&dir, &json!({"op":op,"iters":1})).expect("enqueue");
+            assert_eq!(e["iters"], 1);
+            let task_id = e["task_id"].as_str().unwrap().to_string();
+            let j = peer_join(&dir, &json!({"adapter":"a","ua":"u"})).expect("join");
+            let peer = j["peer_id"].as_u64().unwrap();
+            let p = peer_poll(&dir, &json!({"peer_id": peer})).expect("poll");
+            let task = &p["task"];
+            assert_eq!(task["op"], op);
+            assert_eq!(task["flops_per_iter"], 2_048);
+            let r = task_result(
+                &dir,
+                &json!({"peer_id":peer,"task_id":task_id,"ok":true,"elapsed_ms":3.3,"max_err":0.0,"iters":1,"mflops":615.4,"ops_per_sec":1852.1}),
+            )
+            .expect("result");
+            assert_eq!(r["status"], "done");
+            assert_eq!(ref_fn.len(), 1024);
+            let _ = std::fs::remove_dir_all(&dir);
+        }
     }
 
     #[test]
