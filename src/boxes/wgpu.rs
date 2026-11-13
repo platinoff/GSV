@@ -145,20 +145,27 @@ const PEERS_FILE: &str = "wgpu_peers.jsonl";
 const TASKS_FILE: &str = "wgpu_tasks.jsonl";
 const MAX_PEERS: usize = 50;
 const MAX_TASKS: usize = 200;
+/// Max iterations a peer may run inside one task (band D: sustained bench).
+pub const MAX_ITERS: u64 = 1024;
+
 /// Operations a mesh peer can execute (page-side WGSL runners).
-pub const SUPPORTED_OPS: [&str; 2] = ["matmul64", "matvec"];
+pub const SUPPORTED_OPS: [&str; 3] = ["matmul64", "matvec", "matvec_shard"];
 
 /// Dims string per op (mirrors the page-side WGSL runners).
 pub fn op_dims(op: &str) -> &'static str {
     match op {
         "matmul64" => "64x64",
         "matvec" => "256x1024",
+        "matvec_shard" => "256x1024",
         _ => "?",
     }
 }
 
-/// Max iterations a peer may run inside one task (band D: sustained bench).
-pub const MAX_ITERS: u64 = 1024;
+/// Matvec geometry (identical on the hub and in the page-side WGSL runner).
+pub const MATVEC_ROWS: usize = 256;
+pub const MATVEC_K: usize = 1024;
+/// Allowed shard counts for `matvec_shard` (must divide `MATVEC_K`).
+pub const ALLOWED_SHARDS: [usize; 4] = [1, 2, 4, 8];
 
 /// FLOP count of one iteration per op (band D: MFLOPS accounting).
 pub fn op_flops(op: &str) -> u64 {
@@ -167,7 +174,58 @@ pub fn op_flops(op: &str) -> u64 {
         "matmul64" => 524_288,
         // 2 * 256 * 1024
         "matvec" => 524_288,
+        // full matvec; a shard does 2 * 256 * (1024 / shards)
+        "matvec_shard" => 524_288,
         _ => 0,
+    }
+}
+
+/// Deterministic matvec weights (same generator as the page-side runner).
+fn matvec_w(i: usize) -> f64 {
+    ((i % 13) as f64 - 6.0) * 0.125
+}
+
+/// Deterministic matvec input vector (same generator as the page-side runner).
+fn matvec_x(k: usize) -> f64 {
+    ((k % 7) as f64 - 3.0) * 0.25
+}
+
+/// CPU reference of the full matvec (`W[256x1024] * x[1024]`).
+pub fn matvec_reference() -> Vec<f64> {
+    (0..MATVEC_ROWS)
+        .map(|r| {
+            (0..MATVEC_K)
+                .map(|k| matvec_w(r * MATVEC_K + k) * matvec_x(k))
+                .sum()
+        })
+        .collect()
+}
+
+/// K-range covered by one shard of a `matvec_shard` group.
+pub fn shard_range(shard_id: usize, shards: usize) -> (usize, usize) {
+    let chunk = MATVEC_K / shards.max(1);
+    (shard_id * chunk, (shard_id + 1) * chunk)
+}
+
+/// Relative tolerance for the hub-side reduction check.
+pub const REDUCE_TOL: f64 = 1e-3;
+
+/// Optional `shards` field of a `matvec_shard` enqueue (must divide `MATVEC_K`).
+fn parse_shards(body: &Value) -> Result<usize, String> {
+    match body.get("shards") {
+        None | Some(Value::Null) => Ok(2),
+        Some(v) => {
+            let n = v
+                .as_u64()
+                .ok_or("field `shards` must be a positive integer")? as usize;
+            if !ALLOWED_SHARDS.contains(&n) {
+                return Err(format!(
+                    "field `shards` must be one of {:?}",
+                    ALLOWED_SHARDS
+                ));
+            }
+            Ok(n)
+        }
     }
 }
 
@@ -378,6 +436,22 @@ pub fn task_result(data_dir: &Path, body: &Value) -> Result<Value, String> {
     if let Some(flag) = body.get("device_reused").and_then(Value::as_bool) {
         extra.push(("device_reused".to_string(), json!(flag)));
     }
+    // Band F: a shard peer returns its partial vector (not a scalar).
+    if let Some(partial) = body.get("partial") {
+        let arr = partial
+            .as_array()
+            .ok_or("field `partial` must be an array of numbers")?;
+        if arr.is_empty() || arr.len() > 4096 {
+            return Err("field `partial` must hold 1..=4096 numbers".to_string());
+        }
+        for v in arr {
+            let f = v.as_f64().unwrap_or(f64::NAN);
+            if !f.is_finite() {
+                return Err("field `partial` must contain finite numbers".to_string());
+            }
+        }
+        extra.push(("partial".to_string(), partial.clone()));
+    }
     let _g = mesh_lock();
     let path = data_dir.join(TASKS_FILE);
     let mut tasks = read_jsonl(&path);
@@ -419,6 +493,11 @@ pub fn task_enqueue(data_dir: &Path, body: &Value) -> Result<Value, String> {
     }
     let dims = op_dims(op);
     let iters = parse_iters(body)?;
+    let shards = if op == "matvec_shard" {
+        parse_shards(body)?
+    } else {
+        1
+    };
     let _g = mesh_lock();
     let path = data_dir.join(TASKS_FILE);
     let mut tasks = read_jsonl(&path);
@@ -434,15 +513,36 @@ pub fn task_enqueue(data_dir: &Path, body: &Value) -> Result<Value, String> {
         .unwrap_or(0)
         + 1;
     let task_id = format!("mt-{seq}");
-    tasks.push(json!({
-        "task_id": task_id,
-        "op": op,
-        "dims": dims,
-        "flops_per_iter": op_flops(op),
-        "iters": iters,
-        "status": "queued",
-        "created_ts": now_secs(),
-    }));
+    let group_id = format!("g-{seq}");
+    let flops_per_iter = if shards > 1 {
+        op_flops(op) / shards as u64
+    } else {
+        op_flops(op)
+    };
+    let mut task_ids: Vec<String> = Vec::new();
+    for shard_id in 0..shards {
+        let id = if shards > 1 {
+            format!("{}-{}", task_id, shard_id)
+        } else {
+            task_id.clone()
+        };
+        task_ids.push(id.clone());
+        let mut row = json!({
+            "task_id": id,
+            "op": op,
+            "dims": dims,
+            "flops_per_iter": flops_per_iter,
+            "iters": iters,
+            "status": "queued",
+            "created_ts": now_secs(),
+        });
+        if shards > 1 {
+            row["group_id"] = json!(group_id);
+            row["shard_id"] = json!(shard_id);
+            row["shards"] = json!(shards);
+        }
+        tasks.push(row);
+    }
     if tasks.len() > MAX_TASKS {
         let keep = tasks.len() - MAX_TASKS;
         tasks.drain(..keep);
@@ -452,7 +552,24 @@ pub fn task_enqueue(data_dir: &Path, body: &Value) -> Result<Value, String> {
         .filter(|t| t.get("status").and_then(Value::as_str) == Some("queued"))
         .count();
     write_jsonl(&path, &tasks)?;
-    Ok(json!({ "ok": true, "task_id": task_id, "queued": queued, "iters": iters }))
+    if shards > 1 {
+        Ok(json!({
+            "ok": true,
+            "group_id": group_id,
+            "task_ids": task_ids,
+            "shards": shards,
+            "queued": queued,
+            "iters": iters,
+        }))
+    } else {
+        Ok(json!({
+            "ok": true,
+            "task_id": task_id,
+            "task_ids": task_ids,
+            "queued": queued,
+            "iters": iters,
+        }))
+    }
 }
 
 /// Per-peer capability profile (band D): best measured throughput per peer.
@@ -528,6 +645,73 @@ fn capability_rows(peers: &[Value], tasks: &[Value], now: u64) -> Vec<Value> {
     rows
 }
 
+/// Band F: reduce a `matvec_shard` group — sum the partials of every peer and
+/// check the sum against the hub-side CPU reference.
+fn reduce_groups(tasks: &[Value]) -> Vec<Value> {
+    let mut groups: Vec<String> = Vec::new();
+    for t in tasks.iter() {
+        if let Some(g) = t.get("group_id").and_then(Value::as_str) {
+            if !groups.iter().any(|x| x == g) {
+                groups.push(g.to_string());
+            }
+        }
+    }
+    let reference = matvec_reference();
+    let scale = reference
+        .iter()
+        .fold(0.0f64, |m, v| m.max(v.abs()))
+        .max(1.0);
+    let mut rows: Vec<Value> = Vec::new();
+    for g in groups {
+        let shard_rows: Vec<&Value> = tasks
+            .iter()
+            .filter(|t| t.get("group_id").and_then(Value::as_str) == Some(g.as_str()))
+            .collect();
+        let shards = shard_rows
+            .first()
+            .and_then(|t| t.get("shards").and_then(Value::as_u64))
+            .unwrap_or(0);
+        let done: Vec<&&Value> = shard_rows
+            .iter()
+            .filter(|t| t.get("status").and_then(Value::as_str) == Some("done"))
+            .collect();
+        let mut sum = vec![0.0f64; MATVEC_ROWS];
+        let mut complete = true;
+        for t in &done {
+            match t.get("partial").and_then(Value::as_array) {
+                Some(p) if p.len() == MATVEC_ROWS => {
+                    for (i, v) in p.iter().enumerate() {
+                        sum[i] += v.as_f64().unwrap_or(0.0);
+                    }
+                }
+                _ => complete = false,
+            }
+        }
+        let max_err = if complete && !done.is_empty() {
+            sum.iter()
+                .zip(reference.iter())
+                .map(|(a, b)| (a - b).abs())
+                .fold(0.0f64, f64::max)
+        } else {
+            0.0
+        };
+        rows.push(json!({
+            "group_id": g,
+            "shards": shards,
+            "done_shards": done.len(),
+            "complete": complete && done.len() as u64 == shards,
+            "max_err": max_err,
+            "scale": scale,
+            "ok": complete && done.len() as u64 == shards && max_err <= REDUCE_TOL * scale,
+            "peers": shard_rows
+                .iter()
+                .filter_map(|t| t.get("peer_id").and_then(Value::as_u64))
+                .collect::<Vec<u64>>(),
+        }));
+    }
+    rows
+}
+
 /// Mesh topology wire (`GET /api/wgpu/mesh`): peers + queue + task tail.
 pub fn mesh_wire(data_dir: &Path) -> Value {
     let _g = mesh_lock();
@@ -584,6 +768,7 @@ pub fn mesh_wire(data_dir: &Path) -> Value {
         "poll_secs": POLL_SECS,
         "capability": capability,
         "best_peer": best_peer,
+        "groups": reduce_groups(&tasks),
         "tasks": task_tail,
     })
 }
@@ -619,6 +804,8 @@ button:disabled{opacity:.5}
 <button onclick="enqueueTask('matvec')">Enqueue matvec (LLM shard)</button>
 <button onclick="enqueueTask('matvec',64)">Enqueue bench matvec (64x)</button>
 <button onclick="enqueueTask('matmul64',64)">Enqueue bench matmul (64x)</button>
+<button onclick="enqueueTask('matvec_shard',1,2)">Enqueue matvec shard (2x)</button>
+<button onclick="enqueueTask('matvec_shard',1,4)">Enqueue matvec shard (4x)</button>
 <button onclick="benchLocal('matvec',64)">Local bench matvec (64x)</button>
 </div>
 <pre id="out">idle</pre>
@@ -630,7 +817,7 @@ function log(m){out.textContent+=m+'\n';}
 function setCap(t,ok){cap.textContent=t;cap.style.borderColor=ok?'#3aa66a':'#c0392b';}
 async function post(report){try{const r=await fetch('api/wgpu/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(report)});const d=await r.json();log('hub ack: '+JSON.stringify(d));}catch(e){log('hub post failed: '+e);}}
 async function refreshFeed(){try{const d=await(await fetch('api/wgpu')).json();feed.textContent='hub feed: count='+d.count+(d.latest?'\nlatest: '+JSON.stringify(d.latest):'');}catch(e){feed.textContent='hub feed error: '+e;}}
-async function refreshMesh(){try{const d=await(await fetch('api/wgpu/mesh')).json();const caps=(d.capability||[]).filter(c=>c.measured>0).map(c=>'#'+c.peer_id+' '+(c.adapter||'?')+' '+c.mflops_max+' MFLOPS / '+c.ops_per_sec_max+' ops/s');mesh.textContent='mesh: peers='+d.peers.length+' (alive '+d.peers.filter(p=>p.alive).length+') · queued='+d.queued+' claimed='+d.claimed+' done='+d.done+' failed='+d.failed+(caps.length?'\ncapability: '+caps.join(' | '):'')+(d.best_peer&&d.best_peer.peer_id!==undefined?'\nbest peer: #'+d.best_peer.peer_id+' ('+(d.best_peer.adapter||'?')+') '+d.best_peer.mflops_max+' MFLOPS':'')+(d.tasks.length?'\ntasks: '+d.tasks.map(t=>t.task_id+':'+t.status+(t.elapsed_ms!==undefined?' '+t.elapsed_ms+'ms':'')+(t.mflops?' '+t.mflops+'MF':'')).join(' | '):'');}catch(e){mesh.textContent='mesh error: '+e;}}
+async function refreshMesh(){try{const d=await(await fetch('api/wgpu/mesh')).json();const caps=(d.capability||[]).filter(c=>c.measured>0).map(c=>'#'+c.peer_id+' '+(c.adapter||'?')+' '+c.mflops_max+' MFLOPS / '+c.ops_per_sec_max+' ops/s');const grp=(d.groups||[]).map(g=>g.group_id+' '+g.done_shards+'/'+g.shards+(g.complete?(' err='+g.max_err.toExponential(1)+(g.ok?' OK':' FAIL')):' pending'));mesh.textContent='mesh: peers='+d.peers.length+' (alive '+d.peers.filter(p=>p.alive).length+') · queued='+d.queued+' claimed='+d.claimed+' done='+d.done+' failed='+d.failed+(caps.length?'\ncapability: '+caps.join(' | '):'')+(d.best_peer&&d.best_peer.peer_id!==undefined?'\nbest peer: #'+d.best_peer.peer_id+' ('+(d.best_peer.adapter||'?')+') '+d.best_peer.mflops_max+' MFLOPS':'')+(grp.length?'\nreduce: '+grp.join(' | '):'')+(d.tasks.length?'\ntasks: '+d.tasks.map(t=>t.task_id+':'+t.status+(t.elapsed_ms!==undefined?' '+t.elapsed_ms+'ms':'')+(t.mflops?' '+t.mflops+'MF':'')).join(' | '):'');}catch(e){mesh.textContent='mesh error: '+e;}}
 const WGSL=`
 @group(0) @binding(0) var<storage,read> a:array<f32>;
 @group(0) @binding(1) var<storage,read> b:array<f32>;
@@ -684,16 +871,63 @@ async function buildMatvec(device){
 }
 const OPS={matmul64:{flops:524288,dispatch:[8,8]},matvec:{flops:524288,dispatch:[4]}};
 const CACHE={};
-async function buildRunner(op){
+async function buildRunner(op,shardId,shards){
   if(!navigator.gpu){throw new Error('no navigator.gpu (secure-context gate: see hub notes)');}
   const adapter=await navigator.gpu.requestAdapter();
   if(!adapter){throw new Error('requestAdapter returned null');}
   const device=await adapter.requestDevice();
   let adapterName='adapter'; try{const i=adapter.info||{};adapterName=[i.vendor,i.architecture,i.device].filter(Boolean).join('/')||'adapter';}catch(e){}
-  const built=op==='matmul64'?await buildMatmul(device):await buildMatvec(device);
-  return {device:device,adapterName:adapterName,pipeline:built.pipeline,bg:built.bg,out:built.out,read:built.read,bytes:built.bytes,ref:built.ref,flops:built.flops,dispatch:built.dispatch};
+  if(op==='matmul64'){
+    const built=await buildMatmul(device);
+    return {device:device,adapterName:adapterName,pipeline:built.pipeline,bg:built.bg,out:built.out,read:built.read,bytes:built.bytes,ref:built.ref,flops:built.flops,dispatch:built.dispatch};
+  }
+  if(op==='matvec'){
+    const built=await buildMatvec(device);
+    return {device:device,adapterName:adapterName,pipeline:built.pipeline,bg:built.bg,out:built.out,read:built.read,bytes:built.bytes,ref:built.ref,flops:built.flops,dispatch:built.dispatch};
+  }
+  // matvec_shard: one peer owns a K-range of the reduction and returns a partial.
+  const R=256,K=1024,n=Math.max(1,shards||1),chunk=Math.floor(K/n),k0=shardId*chunk,k1=k0+chunk;
+  const W=new Float32Array(R*K),X=new Float32Array(K),REF=new Float32Array(R);
+  for(let i=0;i<R*K;i++){W[i]=((i%13)-6)*0.125;}
+  for(let k=0;k<K;k++){X[k]=((k%7)-3)*0.25;}
+  for(let r=0;r<R;r++){let acc=0;for(let k=k0;k<k1;k++)acc+=W[r*K+k]*X[k];REF[r]=acc;}
+  const wBuf=device.createBuffer({size:W.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
+  const xBuf=device.createBuffer({size:X.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
+  const yBuf=device.createBuffer({size:REF.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC});
+  device.queue.writeBuffer(wBuf,0,W);device.queue.writeBuffer(xBuf,0,X);
+  const WGSL_SHARD=`
+@group(0) @binding(0) var<storage,read> w:array<f32>;
+@group(0) @binding(1) var<storage,read> x:array<f32>;
+@group(0) @binding(2) var<storage,read_write> y:array<f32>;
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) g:vec3<u32>) {
+  let r=g.x;
+  if (r>=256u) { return; }
+  var acc=0.0;
+  for (var k=${k0}u; k<${k1}u; k++) { acc = acc + w[r*1024u+k]*x[k]; }
+  y[r]=acc;
+}`;
+  const pipeline=device.createComputePipeline({layout:'auto',compute:{module:device.createShaderModule({code:WGSL_SHARD}),entryPoint:'main'}});
+  const bg=device.createBindGroup({layout:pipeline.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:wBuf}},{binding:1,resource:{buffer:xBuf}},{binding:2,resource:{buffer:yBuf}}]});
+  const read=device.createBuffer({size:REF.byteLength,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
+  return {device:device,adapterName:adapterName,pipeline:pipeline,bg:bg,out:yBuf,read:read,bytes:REF.byteLength,ref:REF,flops:2*R*chunk,dispatch:[4]};
 }
-async function getRunner(op){if(CACHE[op])return CACHE[op];const r=await buildRunner(op);CACHE[op]=r;return r;}
+async function getRunner(op,shardId,shards){const key=op+(op==='matvec_shard'?'#'+shardId+'#'+shards:'');if(CACHE[key])return CACHE[key];const r=await buildRunner(op,shardId,shards);CACHE[key]=r;return r;}
+async function runShard(shardId,shards){
+  const reused=!!CACHE['matvec_shard#'+shardId+'#'+shards];
+  const r=await getRunner('matvec_shard',shardId,shards);
+  const enc=r.device.createCommandEncoder();const pass=enc.beginComputePass();
+  pass.setPipeline(r.pipeline);pass.setBindGroup(0,r.bg);pass.dispatchWorkgroups(4);pass.end();
+  enc.copyBufferToBuffer(r.out,0,r.read,0,r.bytes);
+  const t0=performance.now();r.device.queue.submit([enc.finish()]);
+  await r.device.queue.onSubmittedWorkDone();
+  const total=performance.now()-t0;
+  await r.read.mapAsync(GPUMapMode.READ);const Y=new Float32Array(r.read.getMappedRange().slice(0));r.read.unmap();
+  let maxErr=0;for(let i=0;i<r.ref.length;i++){const e=Math.abs(Y[i]-r.ref[i]);if(e>maxErr)maxErr=e;}
+  const partial=Array.from(Y).map(v=>Math.round(v*1e6)/1e6);
+  log('shard '+shardId+'/'+shards+': '+total.toFixed(2)+'ms max_err='+maxErr.toExponential(2)+' · partial[0..2]='+partial.slice(0,2).join(', '));
+  return {ok:maxErr<1e-3,adapter:r.adapterName,elapsed_ms:Math.round(total*100)/100,max_err:maxErr,iters:1,device_reused:reused,partial:partial};
+}
 async function runOp(op,iters){
   const reused=!!CACHE[op];
   const r=await getRunner(op);
@@ -758,16 +992,16 @@ async function workerLoop(){
       if(d.ok&&d.task){
         const iters=d.task.iters||1;
         log('mesh task '+d.task.task_id+' ('+d.task.op+' x'+iters+')');
-        let r;try{r=await runOp(d.task.op,iters);}catch(e){r={ok:false,elapsed_ms:0,max_err:0,adapter:'error: '+String(e).slice(0,60)};}
+        let r;try{if(d.task.op==='matvec_shard'){r=await runShard(d.task.shard_id||0,d.task.shards||1);}else{r=await runOp(d.task.op,iters);}}catch(e){r={ok:false,elapsed_ms:0,max_err:0,adapter:'error: '+String(e).slice(0,60)};}
         log('task '+d.task.task_id+': '+(r.ok?'done':'failed')+' '+r.elapsed_ms+'ms/op max_err='+r.max_err.toExponential(2)+(r.mflops!==undefined?' · '+r.mflops+' MFLOPS · '+r.ops_per_sec+' ops/s':''));
-        await fetch('api/wgpu/task/result',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({peer_id:WORKER.peer,task_id:d.task.task_id,ok:r.ok,elapsed_ms:r.elapsed_ms,max_err:r.max_err,iters:r.iters,mflops:r.mflops,ops_per_sec:r.ops_per_sec,device_reused:r.device_reused})});
+        await fetch('api/wgpu/task/result',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({peer_id:WORKER.peer,task_id:d.task.task_id,ok:r.ok,elapsed_ms:r.elapsed_ms,max_err:r.max_err,iters:r.iters,mflops:r.mflops,ops_per_sec:r.ops_per_sec,device_reused:r.device_reused,partial:r.partial})});
         await refreshMesh();
       }
     }catch(e){log('worker: '+e);}
     await new Promise(res=>setTimeout(res,(WORKER?WORKER.poll:2)*1000));
   }
 }
-async function enqueueTask(op,iters){const n=parseInt(iters,10)||1;try{const d=await(await fetch('api/wgpu/task/enqueue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:op||'matmul64',iters:n})})).json();log(d.ok?'queued '+d.task_id+' ('+(op||'matmul64')+' x'+n+' queue='+d.queued+')':'enqueue error: '+d.error);}catch(e){log('enqueue: '+e);}await refreshMesh();}
+async function enqueueTask(op,iters,shards){const n=parseInt(iters,10)||1;const sh=parseInt(shards,10)||0;const body={op:op||'matmul64',iters:n};if(sh>1)body.shards=sh;try{const d=await(await fetch('api/wgpu/task/enqueue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();log(d.ok?(d.group_id?'queued group '+d.group_id+' ('+d.shards+' shards: '+d.task_ids.join(', ')+')':'queued '+d.task_id+' ('+(op||'matmul64')+' x'+n+' queue='+d.queued+')'):'enqueue error: '+d.error);}catch(e){log('enqueue: '+e);}await refreshMesh();}
 async function benchLocal(op,iters){const n=parseInt(iters,10)||64;try{const r=await runOp(op,n);setCap(r.ok?'BENCH PASS':'BENCH FAIL',r.ok);log('local bench '+op+': '+r.mflops+' MFLOPS · '+r.ops_per_sec+' ops/s · '+r.elapsed_ms+'ms/op · max_err='+r.max_err.toExponential(2));}catch(e){setCap('bench error: '+e,false);log('bench error: '+e);}await refreshMesh();}
 refreshFeed();refreshMesh();
 </script>
@@ -898,6 +1132,121 @@ mod tests {
         assert!(p.contains("unknown_peer"));
         assert!(p.contains("re-joined as peer #"));
         assert!(p.contains("api/wgpu/peer/join"));
+    }
+
+    #[test]
+    fn matvec_reference_matches_the_page_side_generator() {
+        // The hub reference must use the same deterministic data as the page:
+        // W[i] = ((i % 13) - 6) * 0.125, X[k] = ((k % 7) - 3) * 0.25.
+        let y = matvec_reference();
+        assert_eq!(y.len(), MATVEC_ROWS);
+        // Row 0, K = 1024 — computed independently here.
+        let mut acc = 0.0f64;
+        for k in 0..MATVEC_K {
+            acc += (((k % 13) as f64) - 6.0) * 0.125 * (((k % 7) as f64) - 3.0) * 0.25;
+        }
+        assert!((y[0] - acc).abs() < 1e-9);
+        // The reference is not a trivial vector.
+        assert!(y.iter().any(|v| v.abs() > 1.0));
+    }
+
+    #[test]
+    fn shard_ranges_cover_k_without_overlap() {
+        assert_eq!(shard_range(0, 2), (0, 512));
+        assert_eq!(shard_range(1, 2), (512, 1024));
+        assert_eq!(shard_range(3, 4), (768, 1024));
+        let mut covered = vec![0usize; MATVEC_K];
+        for s in 0..4 {
+            let (a, b) = shard_range(s, 4);
+            for slot in covered.iter_mut().take(b).skip(a) {
+                *slot += 1;
+            }
+        }
+        assert!(covered.iter().all(|c| *c == 1));
+    }
+
+    #[test]
+    fn shard_group_enqueues_one_task_per_shard() {
+        let dir = temp_dir("mesh_shard_enq");
+        let e = task_enqueue(&dir, &json!({"op":"matvec_shard","shards":4})).expect("enqueue");
+        assert_eq!(e["shards"], 4);
+        assert_eq!(e["task_ids"].as_array().unwrap().len(), 4);
+        let group = e["group_id"].as_str().expect("group id").to_string();
+        assert!(group.starts_with("g-"));
+        // Unsupported shard counts are refused.
+        assert!(task_enqueue(&dir, &json!({"op":"matvec_shard","shards":3})).is_err());
+        assert!(task_enqueue(&dir, &json!({"op":"matvec_shard","shards":0})).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn hub_reduces_shard_partials_and_checks_against_reference() {
+        let dir = temp_dir("mesh_reduce");
+        let e = task_enqueue(&dir, &json!({"op":"matvec_shard","shards":2})).expect("enqueue");
+        let group = e["group_id"].as_str().unwrap().to_string();
+        let ids: Vec<String> = e["task_ids"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap().to_string())
+            .collect();
+        assert_eq!(ids.len(), 2);
+        for (shard_id, task_id) in ids.iter().enumerate() {
+            let j = peer_join(&dir, &json!({"adapter":"a","ua":"u"})).expect("join");
+            let peer = j["peer_id"].as_u64().unwrap();
+            let _ = peer_poll(&dir, &json!({"peer_id": peer})).expect("poll");
+            // Partial for this shard: sum over its K-range only.
+            let (k0, k1) = shard_range(shard_id, 2);
+            let mut partial = vec![0.0f64; MATVEC_ROWS];
+            for (r, slot) in partial.iter_mut().enumerate() {
+                let mut acc = 0.0f64;
+                for k in k0..k1 {
+                    acc += matvec_w(r * MATVEC_K + k) * matvec_x(k);
+                }
+                *slot = acc;
+            }
+            let r = task_result(
+                &dir,
+                &json!({"peer_id":peer,"task_id":task_id,"ok":true,"elapsed_ms":1.0,"max_err":0.0,"partial":partial}),
+            )
+            .expect("result");
+            assert_eq!(r["status"], "done");
+        }
+        let m = mesh_wire(&dir);
+        let g = m["groups"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|g| g["group_id"] == group.as_str())
+            .expect("group row");
+        assert_eq!(g["complete"], true);
+        assert_eq!(g["done_shards"], 2);
+        assert_eq!(g["ok"], true);
+        assert!(g["max_err"].as_f64().unwrap() <= REDUCE_TOL * g["scale"].as_f64().unwrap());
+        // Two different peers took the two shards.
+        assert_eq!(g["peers"].as_array().unwrap().len(), 2);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn partial_envelope_must_be_a_finite_vector() {
+        let dir = temp_dir("mesh_partial_bad");
+        let j = peer_join(&dir, &json!({"adapter":"a","ua":"u"})).expect("join");
+        let peer = j["peer_id"].as_u64().unwrap();
+        let e = task_enqueue(&dir, &json!({"op":"matvec_shard","shards":1})).expect("enqueue");
+        let task_id = e["task_ids"][0].as_str().unwrap().to_string();
+        let _ = peer_poll(&dir, &json!({"peer_id": peer})).expect("poll");
+        assert!(task_result(
+            &dir,
+            &json!({"peer_id":peer,"task_id":task_id,"ok":true,"elapsed_ms":1,"max_err":0,"partial":"nope"}),
+        )
+        .is_err());
+        assert!(task_result(
+            &dir,
+            &json!({"peer_id":peer,"task_id":task_id,"ok":true,"elapsed_ms":1,"max_err":0,"partial":[1.0,"x"]}),
+        )
+        .is_err());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
