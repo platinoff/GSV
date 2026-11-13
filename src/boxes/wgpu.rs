@@ -149,7 +149,7 @@ const MAX_TASKS: usize = 200;
 pub const MAX_ITERS: u64 = 1024;
 
 /// Operations a mesh peer can execute (page-side WGSL runners).
-pub const SUPPORTED_OPS: [&str; 3] = ["matmul64", "matvec", "matvec_shard"];
+pub const SUPPORTED_OPS: [&str; 4] = ["matmul64", "matvec", "matvec_shard", "mlpblock"];
 
 /// Dims string per op (mirrors the page-side WGSL runners).
 pub fn op_dims(op: &str) -> &'static str {
@@ -157,6 +157,7 @@ pub fn op_dims(op: &str) -> &'static str {
         "matmul64" => "64x64",
         "matvec" => "256x1024",
         "matvec_shard" => "256x1024",
+        "mlpblock" => "1024x1024",
         _ => "?",
     }
 }
@@ -176,6 +177,8 @@ pub fn op_flops(op: &str) -> u64 {
         "matvec" => 524_288,
         // full matvec; a shard does 2 * 256 * (1024 / shards)
         "matvec_shard" => 524_288,
+        // transformer block: two chained matvecs (1024x256 + 256x1024) + SiLU
+        "mlpblock" => 1_048_576,
         _ => 0,
     }
 }
@@ -205,6 +208,49 @@ pub fn matvec_reference() -> Vec<f64> {
 pub fn shard_range(shard_id: usize, shards: usize) -> (usize, usize) {
     let chunk = MATVEC_K / shards.max(1);
     (shard_id * chunk, (shard_id + 1) * chunk)
+}
+
+/// Hidden width of the transformer block (`W1: [256][1024]`, `W2: [1024][256]`).
+pub const BLOCK_HIDDEN: usize = 256;
+
+/// Block weight `W1[h][k]` (flat index `h * 1024 + k`, same generator family as matvec).
+fn block_w1(h: usize, k: usize) -> f64 {
+    (((h * MATVEC_K + k) % 13) as f64 - 6.0) * 0.125
+}
+
+/// Block weight `W2[o][h]` (flat index `o * 256 + h`).
+fn block_w2(o: usize, h: usize) -> f64 {
+    (((o * BLOCK_HIDDEN + h) % 13) as f64 - 6.0) * 0.125
+}
+
+/// SiLU activation: `x / (1 + exp(-x))`.
+fn block_silu(v: f64) -> f64 {
+    v / (1.0 + (-v).exp())
+}
+
+/// Deterministic input vector of the block (same generator as the page-side runner).
+fn block_x() -> Vec<f64> {
+    (0..MATVEC_K).map(matvec_x).collect()
+}
+
+/// Hidden activations `h = W1 * x` of the block.
+fn block_h(x: &[f64]) -> Vec<f64> {
+    (0..BLOCK_HIDDEN)
+        .map(|h| (0..MATVEC_K).map(|k| block_w1(h, k) * x[k]).sum())
+        .collect()
+}
+
+/// CPU reference of the transformer block: `y = W2 * silu(W1 * x)` (1024 -> 256 -> 1024).
+pub fn mlp_block_reference() -> Vec<f64> {
+    let x = block_x();
+    let h = block_h(&x);
+    (0..1024)
+        .map(|o| {
+            (0..BLOCK_HIDDEN)
+                .map(|i| block_w2(o, i) * block_silu(h[i]))
+                .sum()
+        })
+        .collect()
 }
 
 /// Relative tolerance for the hub-side reduction check.
@@ -808,6 +854,7 @@ button:disabled{opacity:.5}
 <button onclick="enqueueTask('matmul64',64)">Enqueue bench matmul (64x)</button>
 <button onclick="enqueueTask('matvec_shard',1,2)">Enqueue matvec shard (2x)</button>
 <button onclick="enqueueTask('matvec_shard',1,4)">Enqueue matvec shard (4x)</button>
+<button onclick="enqueueTask('mlpblock',1)">Enqueue mlpblock (transformer block)</button>
 <button onclick="benchLocal('matvec',64)">Local bench matvec (64x)</button>
 </div>
 <pre id="out">idle</pre>
@@ -871,7 +918,42 @@ async function buildMatvec(device){
   const read=device.createBuffer({size:REF.byteLength,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
   return {pipeline:pipeline,bg:bg,out:yBuf,read:read,bytes:REF.byteLength,ref:REF,flops:OPS.matvec.flops,dispatch:OPS.matvec.dispatch};
 }
-const OPS={matmul64:{flops:524288,dispatch:[8,8]},matvec:{flops:524288,dispatch:[4]}};
+const WGL_BLOCK=`
+@group(0) @binding(0) var<storage,read> w1:array<f32>;
+@group(0) @binding(1) var<storage,read> x:array<f32>;
+@group(0) @binding(2) var<storage,read> w2:array<f32>;
+@group(0) @binding(3) var<storage,read_write> y:array<f32>;
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) g:vec3<u32>) {
+  let o=g.x;
+  if (o>=1024u) { return; }
+  var acc=0.0;
+  for (var i2=0u; i2<256u; i2++) {
+    var s=0.0;
+    for (var k=0u; k<1024u; k++) { s = s + w1[i2*1024u+k]*x[k]; }
+    let hv = s/(1.0+exp(-s));
+    acc = acc + w2[o*256u+i2]*hv;
+  }
+  y[o]=acc;
+}`;
+async function buildBlock(device){
+  const H=256,O=1024;
+  const W1=new Float32Array(H*1024),X=new Float32Array(1024),W2=new Float32Array(O*H),REF=new Float32Array(O);
+  for(let i=0;i<H*1024;i++){W1[i]=((i%13)-6)*0.125;}
+  for(let k=0;k<1024;k++){X[k]=((k%7)-3)*0.25;}
+  for(let i=0;i<O*H;i++){W2[i]=((i%13)-6)*0.125;}
+  for(let o=0;o<O;o++){let acc=0;for(let h2=0;h2<H;h2++){let s=0;for(let k=0;k<1024;k++){s=s+W1[h2*1024+k]*X[k];}let hv=s/(1.0+Math.exp(-s));acc=acc+W2[o*H+h2]*hv;}REF[o]=acc;}
+  const w1Buf=device.createBuffer({size:W1.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
+  const xBuf=device.createBuffer({size:X.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
+  const w2Buf=device.createBuffer({size:W2.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
+  const yBuf=device.createBuffer({size:REF.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC});
+  device.queue.writeBuffer(w1Buf,0,W1);device.queue.writeBuffer(xBuf,0,X);device.queue.writeBuffer(w2Buf,0,W2);
+  const pipeline=device.createComputePipeline({layout:'auto',compute:{module:device.createShaderModule({code:WGL_BLOCK}),entryPoint:'main'}});
+  const bg=device.createBindGroup({layout:pipeline.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:w1Buf}},{binding:1,resource:{buffer:xBuf}},{binding:2,resource:{buffer:w2Buf}},{binding:3,resource:{buffer:yBuf}}]});
+  const read=device.createBuffer({size:REF.byteLength,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
+  return {device:device,adapterName:adapterName,pipeline:pipeline,bg:bg,out:yBuf,read:read,bytes:REF.byteLength,ref:REF,flops:OPS.mlpblock.flops,dispatch:OPS.mlpblock.dispatch};
+}
+const OPS={matmul64:{flops:524288,dispatch:[8,8]},matvec:{flops:524288,dispatch:[4]},mlpblock:{flops:1048576,dispatch:[16]}};
 const CACHE={};
 async function buildRunner(op,shardId,shards){
   if(!navigator.gpu){throw new Error('no navigator.gpu (secure-context gate: see hub notes)');}
@@ -887,6 +969,7 @@ async function buildRunner(op,shardId,shards){
     const built=await buildMatvec(device);
     return {device:device,adapterName:adapterName,pipeline:built.pipeline,bg:built.bg,out:built.out,read:built.read,bytes:built.bytes,ref:built.ref,flops:built.flops,dispatch:built.dispatch};
   }
+  if(op==='mlpblock'){return await buildBlock(device);}
   // matvec_shard: one peer owns a K-range of the reduction and returns a partial.
   const R=256,K=1024,n=Math.max(1,shards||1),chunk=Math.floor(K/n),k0=shardId*chunk,k1=k0+chunk;
   const W=new Float32Array(R*K),X=new Float32Array(K),REF=new Float32Array(R);
@@ -915,6 +998,22 @@ fn main(@builtin(global_invocation_id) g:vec3<u32>) {
   return {device:device,adapterName:adapterName,pipeline:pipeline,bg:bg,out:yBuf,read:read,bytes:REF.byteLength,ref:REF,flops:2*R*chunk,dispatch:[4]};
 }
 async function getRunner(op,shardId,shards){const key=op+(op==='matvec_shard'?'#'+shardId+'#'+shards:'');if(CACHE[key])return CACHE[key];const r=await buildRunner(op,shardId,shards);CACHE[key]=r;return r;}
+async function runBlock(){
+  const reused=!!CACHE['mlpblock'];
+  const r=await getRunner('mlpblock');
+  const enc=r.device.createCommandEncoder();const pass=enc.beginComputePass();
+  pass.setPipeline(r.pipeline);pass.setBindGroup(0,r.bg);pass.dispatchWorkgroups(r.dispatch[0]);pass.end();
+  enc.copyBufferToBuffer(r.out,0,r.read,0,r.bytes);
+  const t0=performance.now();r.device.queue.submit([enc.finish()]);
+  await r.device.queue.onSubmittedWorkDone();
+  const total=performance.now()-t0;
+  await r.read.mapAsync(GPUMapMode.READ);const Y=new Float32Array(r.read.getMappedRange().slice(0));r.read.unmap();
+  let maxErr=0;for(let i=0;i<r.ref.length;i++){const e=Math.abs(Y[i]-r.ref[i]);if(e>maxErr)maxErr=e;}
+  const mflops=r.flops/((total/1000)*1e6);
+  const opsPerSec=1/(total/1000);
+  log('mlpblock: '+total.toFixed(2)+'ms · '+mflops.toFixed(2)+' MFLOPS · '+opsPerSec.toFixed(2)+' ops/s · max_err='+maxErr.toExponential(2));
+  return {ok:maxErr<1e-3,adapter:r.adapterName,elapsed_ms:Math.round(total*100)/100,max_err:maxErr,iters:1,mflops:Math.round(mflops*100)/100,ops_per_sec:Math.round(opsPerSec*100)/100,device_reused:reused};
+}
 async function runShard(shardId,shards){
   const reused=!!CACHE['matvec_shard#'+shardId+'#'+shards];
   const r=await getRunner('matvec_shard',shardId,shards);
@@ -994,7 +1093,7 @@ async function workerLoop(){
       if(d.ok&&d.task){
         const iters=d.task.iters||1;
         log('mesh task '+d.task.task_id+' ('+d.task.op+' x'+iters+')');
-        let r;try{if(d.task.op==='matvec_shard'){r=await runShard(d.task.shard_id||0,d.task.shards||1);}else{r=await runOp(d.task.op,iters);}}catch(e){r={ok:false,elapsed_ms:0,max_err:0,adapter:'error: '+String(e).slice(0,60)};}
+        let r;try{if(d.task.op==='matvec_shard'){r=await runShard(d.task.shard_id||0,d.task.shards||1);}else if(d.task.op==='mlpblock'){r=await runBlock();}else{r=await runOp(d.task.op,iters);}}catch(e){r={ok:false,elapsed_ms:0,max_err:0,adapter:'error: '+String(e).slice(0,60)};}
         log('task '+d.task.task_id+': '+(r.ok?'done':'failed')+' '+r.elapsed_ms+'ms/op max_err='+r.max_err.toExponential(2)+(r.mflops!==undefined?' · '+r.mflops+' MFLOPS · '+r.ops_per_sec+' ops/s':''));
         await fetch('api/wgpu/task/result',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({peer_id:WORKER.peer,task_id:d.task.task_id,ok:r.ok,elapsed_ms:r.elapsed_ms,max_err:r.max_err,iters:r.iters,mflops:r.mflops,ops_per_sec:r.ops_per_sec,device_reused:r.device_reused,partial:r.partial})});
         await refreshMesh();
@@ -1090,11 +1189,14 @@ mod tests {
     fn op_dims_covers_supported_ops() {
         assert_eq!(op_dims("matmul64"), "64x64");
         assert_eq!(op_dims("matvec"), "256x1024");
+        assert_eq!(op_dims("mlpblock"), "1024x1024");
         assert_eq!(op_dims("other"), "?");
         let p = page();
         assert!(p.contains("matvecOnce"));
         assert!(p.contains("r*1024u+k"));
         assert!(p.contains("Enqueue matvec (LLM shard)"));
+        assert!(p.contains("mlpblock"));
+        assert!(p.contains("Enqueue mlpblock (transformer block)"));
     }
 
     #[test]
@@ -1318,6 +1420,55 @@ mod tests {
         // Default is a single iteration.
         let e2 = task_enqueue(&dir, &json!({"op":"matvec"})).expect("enqueue default");
         assert_eq!(e2["iters"], 1);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn mlp_block_reference_is_the_two_matvec_stack_with_silu() {
+        // Block: y = W2 * silu(W1 * x). W1 is [256][1024] (hidden x input) and W2 is
+        // [1024][256] (out x hidden) — both on the same deterministic generator family.
+        let y = mlp_block_reference();
+        assert_eq!(y.len(), 1024);
+        let h = matvec_reference(); // block_h == matvec W1 * x (same generator + shapes)
+        for (o, yv) in y.iter().enumerate() {
+            let mut acc = 0.0f64;
+            for (i, hv) in h.iter().enumerate().take(BLOCK_HIDDEN) {
+                let w2 = (((o * BLOCK_HIDDEN + i) % 13) as f64 - 6.0) * 0.125;
+                acc += w2 * block_silu(*hv);
+            }
+            assert!((yv - acc).abs() < 1e-9, "block mismatch at o={o}");
+        }
+        // The block output is a real composition, not the raw hidden activations.
+        assert!(y.iter().any(|v| v.abs() > 0.0));
+    }
+
+    #[test]
+    fn mlp_block_flops_account_for_both_matvecs() {
+        assert_eq!(op_flops("mlpblock"), 1_048_576);
+        assert_eq!(op_dims("mlpblock"), "1024x1024");
+    }
+
+    #[test]
+    fn mlp_block_task_lifecycle_reports_block_result() {
+        let dir = temp_dir("mesh_mlp");
+        let e = task_enqueue(&dir, &json!({"op":"mlpblock","iters":1})).expect("enqueue");
+        assert_eq!(e["iters"], 1);
+        let task_id = e["task_id"].as_str().unwrap().to_string();
+        let j = peer_join(&dir, &json!({"adapter":"a","ua":"u"})).expect("join");
+        let peer = j["peer_id"].as_u64().unwrap();
+        let p = peer_poll(&dir, &json!({"peer_id": peer})).expect("poll");
+        let task = &p["task"];
+        assert_eq!(task["op"], "mlpblock");
+        assert_eq!(task["dims"], "1024x1024");
+        assert_eq!(task["flops_per_iter"], 1_048_576);
+        let r = task_result(
+            &dir,
+            &json!({"peer_id":peer,"task_id":task_id,"ok":true,"elapsed_ms":12.5,"max_err":0.0,"iters":1,"mflops":83.9,"ops_per_sec":79.6}),
+        )
+        .expect("result");
+        assert_eq!(r["status"], "done");
+        // Unsupported ops stay refused.
+        assert!(task_enqueue(&dir, &json!({"op":"fft512"})).is_err());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
