@@ -157,6 +157,36 @@ pub fn op_dims(op: &str) -> &'static str {
     }
 }
 
+/// Max iterations a peer may run inside one task (band D: sustained bench).
+pub const MAX_ITERS: u64 = 1024;
+
+/// FLOP count of one iteration per op (band D: MFLOPS accounting).
+pub fn op_flops(op: &str) -> u64 {
+    match op {
+        // 2 * 64^3
+        "matmul64" => 524_288,
+        // 2 * 256 * 1024
+        "matvec" => 524_288,
+        _ => 0,
+    }
+}
+
+/// Optional `iters` field of a task envelope: 1..=MAX_ITERS, default 1.
+fn parse_iters(body: &Value) -> Result<u64, String> {
+    match body.get("iters") {
+        None | Some(Value::Null) => Ok(1),
+        Some(v) => {
+            let n = v
+                .as_u64()
+                .ok_or("field `iters` must be a positive integer")?;
+            if !(1..=MAX_ITERS).contains(&n) {
+                return Err(format!("field `iters` must be 1..={MAX_ITERS}"));
+            }
+            Ok(n)
+        }
+    }
+}
+
 /// Process-global mesh lock: every JSONL read-modify-write is serialized
 /// (tickets.rs `BOARD_LOCK` precedent, band 200).
 fn mesh_lock() -> std::sync::MutexGuard<'static, ()> {
@@ -327,6 +357,22 @@ pub fn task_result(data_dir: &Path, body: &Value) -> Result<Value, String> {
     let ok = body.get("ok").and_then(Value::as_bool).unwrap_or(false);
     finite_nonneg(body, "elapsed_ms")?;
     finite_nonneg(body, "max_err")?;
+    // Band D: optional throughput fields (peers that do not measure them yet
+    // simply omit them — the envelope stays backward compatible).
+    let mut extra: Vec<(String, Value)> = Vec::new();
+    if body.get("iters").is_some() {
+        let iters = parse_iters(body)?;
+        extra.push(("iters".to_string(), json!(iters)));
+    }
+    for key in ["mflops", "ops_per_sec"] {
+        if body.get(key).is_some() {
+            finite_nonneg(body, key)?;
+            extra.push((key.to_string(), body.get(key).cloned().unwrap_or(json!(0))));
+        }
+    }
+    if let Some(flag) = body.get("device_reused").and_then(Value::as_bool) {
+        extra.push(("device_reused".to_string(), json!(flag)));
+    }
     let _g = mesh_lock();
     let path = data_dir.join(TASKS_FILE);
     let mut tasks = read_jsonl(&path);
@@ -340,6 +386,9 @@ pub fn task_result(data_dir: &Path, body: &Value) -> Result<Value, String> {
             t["done_ts"] = json!(now_secs());
             t["elapsed_ms"] = body.get("elapsed_ms").cloned().unwrap_or(json!(0));
             t["max_err"] = body.get("max_err").cloned().unwrap_or(json!(0));
+            for (key, value) in extra.iter() {
+                t[key.as_str()] = value.clone();
+            }
             settled = Some((task_id.clone(), t["status"].clone()));
             break;
         }
@@ -364,6 +413,7 @@ pub fn task_enqueue(data_dir: &Path, body: &Value) -> Result<Value, String> {
         ));
     }
     let dims = op_dims(op);
+    let iters = parse_iters(body)?;
     let _g = mesh_lock();
     let path = data_dir.join(TASKS_FILE);
     let mut tasks = read_jsonl(&path);
@@ -383,6 +433,8 @@ pub fn task_enqueue(data_dir: &Path, body: &Value) -> Result<Value, String> {
         "task_id": task_id,
         "op": op,
         "dims": dims,
+        "flops_per_iter": op_flops(op),
+        "iters": iters,
         "status": "queued",
         "created_ts": now_secs(),
     }));
@@ -395,7 +447,49 @@ pub fn task_enqueue(data_dir: &Path, body: &Value) -> Result<Value, String> {
         .filter(|t| t.get("status").and_then(Value::as_str) == Some("queued"))
         .count();
     write_jsonl(&path, &tasks)?;
-    Ok(json!({ "ok": true, "task_id": task_id, "queued": queued }))
+    Ok(json!({ "ok": true, "task_id": task_id, "queued": queued, "iters": iters }))
+}
+
+/// Per-peer capability profile (band D): best measured throughput per peer.
+fn capability_rows(peers: &[Value], tasks: &[Value], now: u64) -> Vec<Value> {
+    let mut rows: Vec<Value> = Vec::new();
+    for p in peers.iter().rev().take(20) {
+        let pid = p.get("peer_id").and_then(Value::as_u64);
+        let mut mflops: f64 = 0.0;
+        let mut ops: f64 = 0.0;
+        let mut iters: u64 = 0;
+        let mut measured = 0u64;
+        let mut last_task = Value::Null;
+        for t in tasks.iter() {
+            if t.get("status").and_then(Value::as_str) != Some("done") {
+                continue;
+            }
+            if t.get("peer_id").and_then(Value::as_u64) != pid {
+                continue;
+            }
+            let m = t.get("mflops").and_then(Value::as_f64).unwrap_or(0.0);
+            let o = t.get("ops_per_sec").and_then(Value::as_f64).unwrap_or(0.0);
+            if m <= 0.0 && o <= 0.0 {
+                continue;
+            }
+            measured += 1;
+            mflops = mflops.max(m);
+            ops = ops.max(o);
+            iters = iters.max(t.get("iters").and_then(Value::as_u64).unwrap_or(0));
+            last_task = t.get("task_id").cloned().unwrap_or(Value::Null);
+        }
+        rows.push(json!({
+            "peer_id": pid,
+            "adapter": p.get("adapter").cloned().unwrap_or(Value::Null),
+            "alive": row_alive(p, now),
+            "measured": measured,
+            "mflops_max": mflops,
+            "ops_per_sec_max": ops,
+            "iters_max": iters,
+            "last_task": last_task,
+        }));
+    }
+    rows
 }
 
 /// Mesh topology wire (`GET /api/wgpu/mesh`): peers + queue + task tail.
@@ -424,6 +518,24 @@ pub fn mesh_wire(data_dir: &Path) -> Value {
             .count()
     };
     let task_tail: Vec<Value> = tasks.iter().rev().take(10).rev().cloned().collect();
+    let capability = capability_rows(&peers, &tasks, now);
+    let best_peer = capability
+        .iter()
+        .filter(|c| c["mflops_max"].as_f64().unwrap_or(0.0) > 0.0)
+        .max_by(|a, b| {
+            let av = a["mflops_max"].as_f64().unwrap_or(0.0);
+            let bv = b["mflops_max"].as_f64().unwrap_or(0.0);
+            av.partial_cmp(&bv).unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .map(|c| {
+            json!({
+                "peer_id": c["peer_id"].clone(),
+                "adapter": c["adapter"].clone(),
+                "mflops_max": c["mflops_max"].clone(),
+                "ops_per_sec_max": c["ops_per_sec_max"].clone(),
+            })
+        })
+        .unwrap_or(Value::Null);
     json!({
         "ok": true,
         "peers": peer_rows,
@@ -431,6 +543,8 @@ pub fn mesh_wire(data_dir: &Path) -> Value {
         "claimed": count_status("claimed"),
         "done": count_status("done"),
         "failed": count_status("failed"),
+        "capability": capability,
+        "best_peer": best_peer,
         "tasks": task_tail,
     })
 }
@@ -464,6 +578,9 @@ button:disabled{opacity:.5}
 <button id="wstop" onclick="stopWorker()" disabled>Stop worker</button>
 <button onclick="enqueueTask('matmul64')">Enqueue matmul</button>
 <button onclick="enqueueTask('matvec')">Enqueue matvec (LLM shard)</button>
+<button onclick="enqueueTask('matvec',64)">Enqueue bench matvec (64x)</button>
+<button onclick="enqueueTask('matmul64',64)">Enqueue bench matmul (64x)</button>
+<button onclick="benchLocal('matvec',64)">Local bench matvec (64x)</button>
 </div>
 <pre id="out">idle</pre>
 <pre id="feed">hub feed: (tap Run to refresh)</pre>
@@ -474,7 +591,7 @@ function log(m){out.textContent+=m+'\n';}
 function setCap(t,ok){cap.textContent=t;cap.style.borderColor=ok?'#3aa66a':'#c0392b';}
 async function post(report){try{const r=await fetch('api/wgpu/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(report)});const d=await r.json();log('hub ack: '+JSON.stringify(d));}catch(e){log('hub post failed: '+e);}}
 async function refreshFeed(){try{const d=await(await fetch('api/wgpu')).json();feed.textContent='hub feed: count='+d.count+(d.latest?'\nlatest: '+JSON.stringify(d.latest):'');}catch(e){feed.textContent='hub feed error: '+e;}}
-async function refreshMesh(){try{const d=await(await fetch('api/wgpu/mesh')).json();mesh.textContent='mesh: peers='+d.peers.length+' (alive '+d.peers.filter(p=>p.alive).length+') · queued='+d.queued+' claimed='+d.claimed+' done='+d.done+' failed='+d.failed+(d.tasks.length?'\ntasks: '+d.tasks.map(t=>t.task_id+':'+t.status+(t.elapsed_ms!==undefined?' '+t.elapsed_ms+'ms':'')).join(' | '):'');}catch(e){mesh.textContent='mesh error: '+e;}}
+async function refreshMesh(){try{const d=await(await fetch('api/wgpu/mesh')).json();const caps=(d.capability||[]).filter(c=>c.measured>0).map(c=>'#'+c.peer_id+' '+(c.adapter||'?')+' '+c.mflops_max+' MFLOPS / '+c.ops_per_sec_max+' ops/s');mesh.textContent='mesh: peers='+d.peers.length+' (alive '+d.peers.filter(p=>p.alive).length+') · queued='+d.queued+' claimed='+d.claimed+' done='+d.done+' failed='+d.failed+(caps.length?'\ncapability: '+caps.join(' | '):'')+(d.best_peer&&d.best_peer.peer_id!==undefined?'\nbest peer: #'+d.best_peer.peer_id+' ('+(d.best_peer.adapter||'?')+') '+d.best_peer.mflops_max+' MFLOPS':'')+(d.tasks.length?'\ntasks: '+d.tasks.map(t=>t.task_id+':'+t.status+(t.elapsed_ms!==undefined?' '+t.elapsed_ms+'ms':'')+(t.mflops?' '+t.mflops+'MF':'')).join(' | '):'');}catch(e){mesh.textContent='mesh error: '+e;}}
 const WGSL=`
 @group(0) @binding(0) var<storage,read> a:array<f32>;
 @group(0) @binding(1) var<storage,read> b:array<f32>;
@@ -487,12 +604,7 @@ fn main(@builtin(global_invocation_id) g:vec3<u32>) {
   for (var k=0u; k<n; k++) { acc = acc + a[y*n+k]*b[k*n+x]; }
   c[y*n+x]=acc;
 }`;
-async function matmulOnce(){
-  if(!navigator.gpu){throw new Error('no navigator.gpu (secure-context gate: see hub notes)');}
-  const adapter=await navigator.gpu.requestAdapter();
-  if(!adapter){throw new Error('requestAdapter returned null');}
-  const device=await adapter.requestDevice();
-  let adapterName='adapter'; try{const i=adapter.info||{};adapterName=[i.vendor,i.architecture,i.device].filter(Boolean).join('/')||'adapter';}catch(e){}
+async function buildMatmul(device){
   const N=64,A=new Float32Array(N*N),B=new Float32Array(N*N),REF=new Float32Array(N*N);
   for(let i=0;i<N*N;i++){A[i]=(i%7)+1;B[i]=((i*3)%5)+1;}
   for(let y=0;y<N;y++)for(let x=0;x<N;x++){let acc=0;for(let k=0;k<N;k++)acc+=A[y*N+k]*B[k*N+x];REF[y*N+x]=acc;}
@@ -502,33 +614,10 @@ async function matmulOnce(){
   device.queue.writeBuffer(aBuf,0,A);device.queue.writeBuffer(bBuf,0,B);
   const pipeline=device.createComputePipeline({layout:'auto',compute:{module:device.createShaderModule({code:WGSL}),entryPoint:'main'}});
   const bg=device.createBindGroup({layout:pipeline.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:aBuf}},{binding:1,resource:{buffer:bBuf}},{binding:2,resource:{buffer:cBuf}}]});
-  const cRead=device.createBuffer({size:A.byteLength,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
-  const enc=device.createCommandEncoder();const pass=enc.beginComputePass();
-  pass.setPipeline(pipeline);pass.setBindGroup(0,bg);pass.dispatchWorkgroups(8,8);pass.end();
-  enc.copyBufferToBuffer(cBuf,0,cRead,0,A.byteLength);
-  const t0=performance.now();device.queue.submit([enc.finish()]);
-  await device.queue.onSubmittedWorkDone();
-  const ms=performance.now()-t0;
-  await cRead.mapAsync(GPUMapMode.READ);const C=new Float32Array(cRead.getMappedRange().slice(0));cRead.unmap();
-  let maxErr=0;for(let i=0;i<N*N;i++){const e=Math.abs(C[i]-REF[i]);if(e>maxErr)maxErr=e;}
-  aBuf.destroy();bBuf.destroy();cBuf.destroy();cRead.destroy();
-  return {ok:maxErr<1e-3,adapter:adapterName,elapsed_ms:Math.round(ms*100)/100,max_err:maxErr};
+  const read=device.createBuffer({size:A.byteLength,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
+  return {pipeline:pipeline,bg:bg,out:cBuf,read:read,bytes:A.byteLength,ref:REF,flops:OPS.matmul64.flops,dispatch:OPS.matmul64.dispatch};
 }
-async function matvecOnce(){
-  if(!navigator.gpu){throw new Error('no navigator.gpu (secure-context gate: see hub notes)');}
-  const adapter=await navigator.gpu.requestAdapter();
-  if(!adapter){throw new Error('requestAdapter returned null');}
-  const device=await adapter.requestDevice();
-  let adapterName='adapter'; try{const i=adapter.info||{};adapterName=[i.vendor,i.architecture,i.device].filter(Boolean).join('/')||'adapter';}catch(e){}
-  const R=256,K=1024,W=new Float32Array(R*K),X=new Float32Array(K),REF=new Float32Array(R);
-  for(let i=0;i<R*K;i++){W[i]=((i%13)-6)*0.125;}
-  for(let k=0;k<K;k++){X[k]=((k%7)-3)*0.25;}
-  for(let r=0;r<R;r++){let acc=0;for(let k=0;k<K;k++)acc+=W[r*K+k]*X[k];REF[r]=acc;}
-  const wBuf=device.createBuffer({size:W.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
-  const xBuf=device.createBuffer({size:X.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
-  const yBuf=device.createBuffer({size:REF.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC});
-  device.queue.writeBuffer(wBuf,0,W);device.queue.writeBuffer(xBuf,0,X);
-  const WGSLV=`
+const WGSLV=`
 @group(0) @binding(0) var<storage,read> w:array<f32>;
 @group(0) @binding(1) var<storage,read> x:array<f32>;
 @group(0) @binding(2) var<storage,read_write> y:array<f32>;
@@ -540,22 +629,54 @@ fn main(@builtin(global_invocation_id) g:vec3<u32>) {
   for (var k=0u; k<1024u; k++) { acc = acc + w[r*1024u+k]*x[k]; }
   y[r]=acc;
 }`;
+async function buildMatvec(device){
+  const R=256,K=1024,W=new Float32Array(R*K),X=new Float32Array(K),REF=new Float32Array(R);
+  for(let i=0;i<R*K;i++){W[i]=((i%13)-6)*0.125;}
+  for(let k=0;k<K;k++){X[k]=((k%7)-3)*0.25;}
+  for(let r=0;r<R;r++){let acc=0;for(let k=0;k<K;k++)acc+=W[r*K+k]*X[k];REF[r]=acc;}
+  const wBuf=device.createBuffer({size:W.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
+  const xBuf=device.createBuffer({size:X.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
+  const yBuf=device.createBuffer({size:REF.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC});
+  device.queue.writeBuffer(wBuf,0,W);device.queue.writeBuffer(xBuf,0,X);
   const pipeline=device.createComputePipeline({layout:'auto',compute:{module:device.createShaderModule({code:WGSLV}),entryPoint:'main'}});
   const bg=device.createBindGroup({layout:pipeline.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:wBuf}},{binding:1,resource:{buffer:xBuf}},{binding:2,resource:{buffer:yBuf}}]});
-  const yRead=device.createBuffer({size:REF.byteLength,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
-  const enc=device.createCommandEncoder();const pass=enc.beginComputePass();
-  pass.setPipeline(pipeline);pass.setBindGroup(0,bg);pass.dispatchWorkgroups(4);pass.end();
-  enc.copyBufferToBuffer(yBuf,0,yRead,0,REF.byteLength);
-  const t0=performance.now();device.queue.submit([enc.finish()]);
-  await device.queue.onSubmittedWorkDone();
-  const ms=performance.now()-t0;
-  await yRead.mapAsync(GPUMapMode.READ);const Y=new Float32Array(yRead.getMappedRange().slice(0));yRead.unmap();
-  let maxErr=0;for(let r=0;r<R;r++){const e=Math.abs(Y[r]-REF[r]);if(e>maxErr)maxErr=e;}
-  wBuf.destroy();xBuf.destroy();yBuf.destroy();yRead.destroy();
-  const mflops=(2*R*K)/(ms*1000);
-  log('matvec y[0..3]: '+Array.from(Y.slice(0,3)).map(v=>v.toFixed(1)).join(', ')+' · '+mflops.toFixed(0)+' MFLOPS');
-  return {ok:maxErr<1e-3,adapter:adapterName,elapsed_ms:Math.round(ms*100)/100,max_err:maxErr};
+  const read=device.createBuffer({size:REF.byteLength,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
+  return {pipeline:pipeline,bg:bg,out:yBuf,read:read,bytes:REF.byteLength,ref:REF,flops:OPS.matvec.flops,dispatch:OPS.matvec.dispatch};
 }
+const OPS={matmul64:{flops:524288,dispatch:[8,8]},matvec:{flops:524288,dispatch:[4]}};
+const CACHE={};
+async function buildRunner(op){
+  if(!navigator.gpu){throw new Error('no navigator.gpu (secure-context gate: see hub notes)');}
+  const adapter=await navigator.gpu.requestAdapter();
+  if(!adapter){throw new Error('requestAdapter returned null');}
+  const device=await adapter.requestDevice();
+  let adapterName='adapter'; try{const i=adapter.info||{};adapterName=[i.vendor,i.architecture,i.device].filter(Boolean).join('/')||'adapter';}catch(e){}
+  const built=op==='matmul64'?await buildMatmul(device):await buildMatvec(device);
+  return {device:device,adapterName:adapterName,pipeline:built.pipeline,bg:built.bg,out:built.out,read:built.read,bytes:built.bytes,ref:built.ref,flops:built.flops,dispatch:built.dispatch};
+}
+async function getRunner(op){if(CACHE[op])return CACHE[op];const r=await buildRunner(op);CACHE[op]=r;return r;}
+async function runOp(op,iters){
+  const reused=!!CACHE[op];
+  const r=await getRunner(op);
+  const N=Math.max(1,Math.min(1024,parseInt(iters,10)||1));
+  const enc=r.device.createCommandEncoder();const pass=enc.beginComputePass();
+  pass.setPipeline(r.pipeline);pass.setBindGroup(0,r.bg);
+  for(let i=0;i<N;i++){if(r.dispatch.length===2)pass.dispatchWorkgroups(r.dispatch[0],r.dispatch[1]);else pass.dispatchWorkgroups(r.dispatch[0]);}
+  pass.end();
+  enc.copyBufferToBuffer(r.out,0,r.read,0,r.bytes);
+  const t0=performance.now();r.device.queue.submit([enc.finish()]);
+  await r.device.queue.onSubmittedWorkDone();
+  const total=performance.now()-t0;
+  await r.read.mapAsync(GPUMapMode.READ);const C=new Float32Array(r.read.getMappedRange().slice(0));r.read.unmap();
+  let maxErr=0;for(let i=0;i<r.ref.length;i++){const e=Math.abs(C[i]-r.ref[i]);if(e>maxErr)maxErr=e;}
+  const per=total/N;
+  const mflops=(N*r.flops)/((total/1000)*1e6);
+  const opsPerSec=N/(total/1000);
+  log(op+' '+N+'x: '+total.toFixed(1)+'ms total · '+per.toFixed(2)+'ms/op · '+mflops.toFixed(1)+' MFLOPS · '+opsPerSec.toFixed(1)+' ops/s · max_err='+maxErr.toExponential(2)+(reused?' · device reused':' · device cold'));
+  return {ok:maxErr<1e-3,adapter:r.adapterName,elapsed_ms:Math.round(per*100)/100,total_ms:Math.round(total*100)/100,iters:N,max_err:maxErr,mflops:Math.round(mflops*100)/100,ops_per_sec:Math.round(opsPerSec*100)/100,device_reused:reused};
+}
+async function matmulOnce(){return await runOp('matmul64',1);}
+async function matvecOnce(){return await runOp('matvec',1);}
 async function run(){
   go.disabled=true; out.textContent='';
   if(!navigator.gpu){setCap('no navigator.gpu',false);const ua=navigator.userAgent||'';log('WebGPU unavailable in this browser (insecure origin?)');log('userAgent: '+ua.slice(0,160));await post({ok:false,task_id:'phone-e2e-matmul64',peer:'browser-webgpu',adapter:'no-navigator-gpu',dims:'64x64',elapsed_ms:0,max_err:0,ua:ua.slice(0,160)});go.disabled=false;return;}
@@ -563,9 +684,9 @@ async function run(){
   try{
     const r=await matmulOnce();
     log('adapter: '+r.adapter);
-    log('elapsed_ms='+r.elapsed_ms.toFixed(2)+' max_err='+r.max_err.toExponential(2));
+    log('elapsed_ms='+r.elapsed_ms.toFixed(2)+' max_err='+r.max_err.toExponential(2)+(r.mflops!==undefined?' · '+r.mflops+' MFLOPS':''));
     setCap(r.ok?'PASS':'FAIL',r.ok);
-    await post({ok:r.ok,task_id:'phone-e2e-matmul64',peer:'browser-webgpu',adapter:r.adapter,dims:'64x64',elapsed_ms:r.elapsed_ms,max_err:r.max_err,ua:navigator.userAgent.slice(0,120)});
+    await post({ok:r.ok,task_id:'phone-e2e-matmul64',peer:'browser-webgpu',adapter:r.adapter,dims:'64x64',elapsed_ms:r.elapsed_ms,max_err:r.max_err,mflops:r.mflops,ops_per_sec:r.ops_per_sec,iters:r.iters,ua:navigator.userAgent.slice(0,120)});
   }catch(e){setCap('error: '+e,false);log('error: '+e);await post({ok:false,task_id:'phone-e2e-matmul64',peer:'browser-webgpu',adapter:'error: '+String(e).slice(0,80),dims:'64x64',elapsed_ms:0,max_err:0,ua:String(e).slice(0,120)});}
   await refreshFeed();await refreshMesh();go.disabled=false;
 }
@@ -590,17 +711,19 @@ async function workerLoop(){
     try{
       const d=await(await fetch('api/wgpu/task/poll',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({peer_id:WORKER.peer})})).json();
       if(d.ok&&d.task){
-        log('mesh task '+d.task.task_id+' ('+d.task.op+')');
-        let r;try{r=d.task.op==='matvec'?await matvecOnce():await matmulOnce();}catch(e){r={ok:false,elapsed_ms:0,max_err:0,adapter:'error: '+String(e).slice(0,60)};}
-        log('task '+d.task.task_id+': '+(r.ok?'done':'failed')+' '+r.elapsed_ms+'ms max_err='+r.max_err.toExponential(2));
-        await fetch('api/wgpu/task/result',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({peer_id:WORKER.peer,task_id:d.task.task_id,ok:r.ok,elapsed_ms:r.elapsed_ms,max_err:r.max_err})});
+        const iters=d.task.iters||1;
+        log('mesh task '+d.task.task_id+' ('+d.task.op+' x'+iters+')');
+        let r;try{r=await runOp(d.task.op,iters);}catch(e){r={ok:false,elapsed_ms:0,max_err:0,adapter:'error: '+String(e).slice(0,60)};}
+        log('task '+d.task.task_id+': '+(r.ok?'done':'failed')+' '+r.elapsed_ms+'ms/op max_err='+r.max_err.toExponential(2)+(r.mflops!==undefined?' · '+r.mflops+' MFLOPS · '+r.ops_per_sec+' ops/s':''));
+        await fetch('api/wgpu/task/result',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({peer_id:WORKER.peer,task_id:d.task.task_id,ok:r.ok,elapsed_ms:r.elapsed_ms,max_err:r.max_err,iters:r.iters,mflops:r.mflops,ops_per_sec:r.ops_per_sec,device_reused:r.device_reused})});
         await refreshMesh();
       }
     }catch(e){log('worker: '+e);}
     await new Promise(res=>setTimeout(res,(WORKER?WORKER.poll:2)*1000));
   }
 }
-async function enqueueTask(op){try{const d=await(await fetch('api/wgpu/task/enqueue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:op||'matmul64'})})).json();log(d.ok?'queued '+d.task_id+' ('+(op||'matmul64')+' queue='+d.queued+')':'enqueue error: '+d.error);}catch(e){log('enqueue: '+e);}await refreshMesh();}
+async function enqueueTask(op,iters){const n=parseInt(iters,10)||1;try{const d=await(await fetch('api/wgpu/task/enqueue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:op||'matmul64',iters:n})})).json();log(d.ok?'queued '+d.task_id+' ('+(op||'matmul64')+' x'+n+' queue='+d.queued+')':'enqueue error: '+d.error);}catch(e){log('enqueue: '+e);}await refreshMesh();}
+async function benchLocal(op,iters){const n=parseInt(iters,10)||64;try{const r=await runOp(op,n);setCap(r.ok?'BENCH PASS':'BENCH FAIL',r.ok);log('local bench '+op+': '+r.mflops+' MFLOPS · '+r.ops_per_sec+' ops/s · '+r.elapsed_ms+'ms/op · max_err='+r.max_err.toExponential(2));}catch(e){setCap('bench error: '+e,false);log('bench error: '+e);}await refreshMesh();}
 refreshFeed();refreshMesh();
 </script>
 </body>
@@ -691,6 +814,93 @@ mod tests {
         assert!(p.contains("matvecOnce"));
         assert!(p.contains("r*1024u+k"));
         assert!(p.contains("Enqueue matvec (LLM shard)"));
+    }
+
+    #[test]
+    fn page_carries_bench_markers() {
+        let p = page();
+        assert!(p.contains("mflops"));
+        assert!(p.contains("ops_per_sec"));
+        assert!(p.contains("device_reused"));
+        assert!(p.contains("Enqueue bench matvec (64x)"));
+        assert!(p.contains("Local bench matvec (64x)"));
+        assert!(p.contains("const CACHE={}"));
+    }
+
+    #[test]
+    fn op_flops_matches_op_dimensions() {
+        // matmul64: 2 * 64^3; matvec: 2 * 256 * 1024 — equal by design.
+        assert_eq!(op_flops("matmul64"), 524_288);
+        assert_eq!(op_flops("matvec"), 524_288);
+        assert_eq!(op_flops("unknown"), 0);
+    }
+
+    #[test]
+    fn task_enqueue_carries_iters_and_rejects_out_of_range() {
+        let dir = temp_dir("mesh_iters");
+        let e = task_enqueue(&dir, &json!({"op":"matvec","iters":64})).expect("enqueue");
+        assert_eq!(e["iters"], 64);
+        let j = peer_join(&dir, &json!({"adapter":"a","ua":"u"})).expect("join");
+        let peer = j["peer_id"].as_u64().unwrap();
+        let p = peer_poll(&dir, &json!({"peer_id": peer})).expect("poll");
+        assert_eq!(p["task"]["iters"], 64);
+        assert_eq!(p["task"]["flops_per_iter"], 524_288);
+        // Out-of-range iteration counts are refused.
+        assert!(task_enqueue(&dir, &json!({"op":"matvec","iters":0})).is_err());
+        assert!(task_enqueue(&dir, &json!({"op":"matvec","iters":MAX_ITERS + 1})).is_err());
+        assert!(task_enqueue(&dir, &json!({"op":"matvec","iters":"many"})).is_err());
+        // Default is a single iteration.
+        let e2 = task_enqueue(&dir, &json!({"op":"matvec"})).expect("enqueue default");
+        assert_eq!(e2["iters"], 1);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn task_result_keeps_throughput_fields_and_mesh_aggregates_capability() {
+        let dir = temp_dir("mesh_cap");
+        let j = peer_join(&dir, &json!({"adapter":"arm/valhall","ua":"u"})).expect("join");
+        let peer = j["peer_id"].as_u64().unwrap();
+        let e = task_enqueue(&dir, &json!({"op":"matvec","iters":64})).expect("enqueue");
+        let task_id = e["task_id"].as_str().unwrap().to_string();
+        let _ = peer_poll(&dir, &json!({"peer_id": peer})).expect("poll");
+        let r = task_result(
+            &dir,
+            &json!({"peer_id":peer,"task_id":task_id,"ok":true,"elapsed_ms":7.8,"max_err":0.0,"iters":64,"mflops":33.6,"ops_per_sec":8205.1,"device_reused":true}),
+        )
+        .expect("result");
+        assert_eq!(r["status"], "done");
+        let m = mesh_wire(&dir);
+        let cap = &m["capability"][0];
+        assert_eq!(cap["peer_id"], peer);
+        assert_eq!(cap["measured"], 1);
+        assert_eq!(cap["mflops_max"], 33.6);
+        assert_eq!(cap["ops_per_sec_max"], 8205.1);
+        assert_eq!(cap["iters_max"], 64);
+        assert_eq!(m["best_peer"]["peer_id"], peer);
+        assert_eq!(m["best_peer"]["mflops_max"], 33.6);
+        // A second, slower peer must not beat the fastest one.
+        let j2 = peer_join(&dir, &json!({"adapter":"arm/bifrost","ua":"u2"})).expect("join 2");
+        let peer2 = j2["peer_id"].as_u64().unwrap();
+        let e2 = task_enqueue(&dir, &json!({"op":"matvec","iters":64})).expect("enqueue 2");
+        let task2 = e2["task_id"].as_str().unwrap().to_string();
+        let _ = peer_poll(&dir, &json!({"peer_id": peer2})).expect("poll 2");
+        let _ = task_result(
+            &dir,
+            &json!({"peer_id":peer2,"task_id":task2,"ok":true,"elapsed_ms":20.2,"max_err":0.0,"iters":64,"mflops":12.9,"ops_per_sec":3168.3}),
+        )
+        .expect("result 2");
+        let m2 = mesh_wire(&dir);
+        assert_eq!(m2["best_peer"]["peer_id"], peer);
+        // Negative throughput is refused.
+        let e3 = task_enqueue(&dir, &json!({"op":"matvec"})).expect("enqueue 3");
+        let task3 = e3["task_id"].as_str().unwrap().to_string();
+        let _ = peer_poll(&dir, &json!({"peer_id": peer2})).expect("poll 3");
+        assert!(task_result(
+            &dir,
+            &json!({"peer_id":peer2,"task_id":task3,"ok":true,"elapsed_ms":1,"max_err":0,"mflops":-5.0}),
+        )
+        .is_err());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
