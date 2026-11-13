@@ -272,7 +272,12 @@ pub fn peer_join(data_dir: &Path, body: &Value) -> Result<Value, String> {
         peers.drain(..keep);
     }
     write_jsonl(&path, &peers)?;
-    Ok(json!({ "ok": true, "peer_id": peer_id, "poll_secs": POLL_SECS }))
+    Ok(json!({
+        "ok": true,
+        "peer_id": peer_id,
+        "poll_secs": POLL_SECS,
+        "lease_secs": PEER_LEASE_SECS,
+    }))
 }
 
 /// A peer row is alive while its lease holds.
@@ -451,10 +456,39 @@ pub fn task_enqueue(data_dir: &Path, body: &Value) -> Result<Value, String> {
 }
 
 /// Per-peer capability profile (band D): best measured throughput per peer.
+///
+/// Peer ids are minted per join, so a re-joined peer shows up under a new id
+/// while its finished tasks keep the old one — the profile therefore covers the
+/// union of live peer rows and peer ids seen in measured tasks (band E).
 fn capability_rows(peers: &[Value], tasks: &[Value], now: u64) -> Vec<Value> {
+    let mut ids: Vec<u64> = Vec::new();
+    for p in peers.iter() {
+        if let Some(id) = p.get("peer_id").and_then(Value::as_u64) {
+            if !ids.contains(&id) {
+                ids.push(id);
+            }
+        }
+    }
+    for t in tasks.iter() {
+        if t.get("status").and_then(Value::as_str) != Some("done") {
+            continue;
+        }
+        let measured = t.get("mflops").and_then(Value::as_f64).unwrap_or(0.0) > 0.0
+            || t.get("ops_per_sec").and_then(Value::as_f64).unwrap_or(0.0) > 0.0;
+        if !measured {
+            continue;
+        }
+        if let Some(id) = t.get("peer_id").and_then(Value::as_u64) {
+            if !ids.contains(&id) {
+                ids.push(id);
+            }
+        }
+    }
     let mut rows: Vec<Value> = Vec::new();
-    for p in peers.iter().rev().take(20) {
-        let pid = p.get("peer_id").and_then(Value::as_u64);
+    for pid in ids {
+        let row = peers
+            .iter()
+            .find(|p| p.get("peer_id").and_then(Value::as_u64) == Some(pid));
         let mut mflops: f64 = 0.0;
         let mut ops: f64 = 0.0;
         let mut iters: u64 = 0;
@@ -464,7 +498,7 @@ fn capability_rows(peers: &[Value], tasks: &[Value], now: u64) -> Vec<Value> {
             if t.get("status").and_then(Value::as_str) != Some("done") {
                 continue;
             }
-            if t.get("peer_id").and_then(Value::as_u64) != pid {
+            if t.get("peer_id").and_then(Value::as_u64) != Some(pid) {
                 continue;
             }
             let m = t.get("mflops").and_then(Value::as_f64).unwrap_or(0.0);
@@ -480,8 +514,10 @@ fn capability_rows(peers: &[Value], tasks: &[Value], now: u64) -> Vec<Value> {
         }
         rows.push(json!({
             "peer_id": pid,
-            "adapter": p.get("adapter").cloned().unwrap_or(Value::Null),
-            "alive": row_alive(p, now),
+            "adapter": row
+                .and_then(|r| r.get("adapter").cloned())
+                .unwrap_or(Value::Null),
+            "alive": row.map(|r| row_alive(r, now)).unwrap_or(false),
             "measured": measured,
             "mflops_max": mflops,
             "ops_per_sec_max": ops,
@@ -508,6 +544,7 @@ pub fn mesh_wire(data_dir: &Path) -> Value {
                 "adapter": p.get("adapter").cloned().unwrap_or(Value::Null),
                 "alive": row_alive(p, now),
                 "age_secs": now - p.get("last_seen_ts").and_then(Value::as_u64).unwrap_or(now),
+                "lease_until": p.get("lease_until").cloned().unwrap_or(Value::Null),
             })
         })
         .collect();
@@ -543,6 +580,8 @@ pub fn mesh_wire(data_dir: &Path) -> Value {
         "claimed": count_status("claimed"),
         "done": count_status("done"),
         "failed": count_status("failed"),
+        "lease_secs": PEER_LEASE_SECS,
+        "poll_secs": POLL_SECS,
         "capability": capability,
         "best_peer": best_peer,
         "tasks": task_tail,
@@ -698,9 +737,9 @@ async function startWorker(){
     const ad=await navigator.gpu.requestAdapter();let name='adapter';try{const i=ad&&ad.info||{};name=[i.vendor,i.architecture,i.device].filter(Boolean).join('/')||'adapter';}catch(e){}
     const j=await(await fetch('api/wgpu/peer/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({adapter:name,ua:navigator.userAgent.slice(0,120)})})).json();
     if(!j.ok){log('join failed: '+(j.error||'?'));return;}
-    WORKER={peer:j.peer_id,poll:j.poll_secs||2,running:true};
+    WORKER={peer:j.peer_id,poll:j.poll_secs||2,lease:j.lease_secs||60,running:true,adapter:name};
     setCap('mesh worker · peer #'+j.peer_id+' · '+name,true);
-    log('mesh worker online: peer #'+j.peer_id+' poll='+WORKER.poll+'s');
+    log('mesh worker online: peer #'+j.peer_id+' poll='+WORKER.poll+'s lease='+WORKER.lease+'s');
     wjoin.disabled=true;wstop.disabled=false;
     workerLoop();
   }catch(e){log('worker start error: '+e);}
@@ -710,6 +749,12 @@ async function workerLoop(){
   while(WORKER&&WORKER.running){
     try{
       const d=await(await fetch('api/wgpu/task/poll',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({peer_id:WORKER.peer})})).json();
+      if(d.ok===false&&(d.code==='unknown_peer'||/unknown peer/i.test(d.error||''))){
+        // Band E: the registry was wiped or our row vanished -> re-join instead of dying.
+        const j=await(await fetch('api/wgpu/peer/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({adapter:WORKER.adapter||'adapter',ua:navigator.userAgent.slice(0,120)})})).json();
+        if(j.ok){WORKER.peer=j.peer_id;log('peer was gone ('+(d.error||'?')+') -> re-joined as peer #'+j.peer_id);setCap('mesh worker · peer #'+j.peer_id+' · '+(WORKER.adapter||'adapter'),true);}
+        else{log('re-join failed: '+(j.error||'?'));}
+      }
       if(d.ok&&d.task){
         const iters=d.task.iters||1;
         log('mesh task '+d.task.task_id+' ('+d.task.op+' x'+iters+')');
@@ -825,6 +870,76 @@ mod tests {
         assert!(p.contains("Enqueue bench matvec (64x)"));
         assert!(p.contains("Local bench matvec (64x)"));
         assert!(p.contains("const CACHE={}"));
+    }
+
+    #[test]
+    fn peer_lease_semantics_are_published() {
+        let dir = temp_dir("mesh_lease");
+        let j = peer_join(&dir, &json!({"adapter":"a","ua":"u"})).expect("join");
+        assert_eq!(j["lease_secs"], PEER_LEASE_SECS);
+        assert_eq!(j["poll_secs"], POLL_SECS);
+        let m = mesh_wire(&dir);
+        assert_eq!(m["lease_secs"], PEER_LEASE_SECS);
+        assert_eq!(m["poll_secs"], POLL_SECS);
+        let peer = &m["peers"][0];
+        assert_eq!(peer["alive"], true);
+        assert!(peer["lease_until"].as_u64().unwrap() > now_secs());
+        // A poll refreshes the lease (the heartbeat is the poll itself).
+        let before = peer["lease_until"].as_u64().unwrap();
+        let _ = peer_poll(&dir, &json!({"peer_id": j["peer_id"]})).expect("poll");
+        let m2 = mesh_wire(&dir);
+        assert!(m2["peers"][0]["lease_until"].as_u64().unwrap() >= before);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn page_carries_rejoin_markers() {
+        let p = page();
+        assert!(p.contains("unknown_peer"));
+        assert!(p.contains("re-joined as peer #"));
+        assert!(p.contains("api/wgpu/peer/join"));
+    }
+
+    #[test]
+    fn capability_keeps_measured_history_of_a_rejoined_peer() {
+        let dir = temp_dir("mesh_rejoin");
+        let j = peer_join(&dir, &json!({"adapter":"arm/valhall","ua":"u"})).expect("join");
+        let peer = j["peer_id"].as_u64().unwrap();
+        let e = task_enqueue(&dir, &json!({"op":"matvec","iters":64})).expect("enqueue");
+        let task_id = e["task_id"].as_str().unwrap().to_string();
+        let _ = peer_poll(&dir, &json!({"peer_id": peer})).expect("poll");
+        let _ = task_result(
+            &dir,
+            &json!({"peer_id":peer,"task_id":task_id,"ok":true,"elapsed_ms":1.5,"max_err":0.0,"iters":64,"mflops":349.6,"ops_per_sec":671.2}),
+        )
+        .expect("result");
+        // The peer re-joins (new id) — the measured history must survive.
+        let j2 = peer_join(&dir, &json!({"adapter":"arm/valhall","ua":"u2"})).expect("join 2");
+        let peer2 = j2["peer_id"].as_u64().unwrap();
+        assert_ne!(peer, peer2);
+        let m = mesh_wire(&dir);
+        let old = m["capability"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["peer_id"] == peer)
+            .expect("old peer row");
+        assert_eq!(old["measured"], 1);
+        assert_eq!(old["mflops_max"], 349.6);
+        // The old row still holds a lease (60 s) — the point is that its
+        // measured history survives the re-join, not that the row is gone.
+        assert_eq!(old["alive"], true);
+        // The fresh peer has no measurements yet.
+        let fresh = m["capability"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["peer_id"] == peer2)
+            .expect("fresh peer row");
+        assert_eq!(fresh["measured"], 0);
+        // Best peer still points at the measured one.
+        assert_eq!(m["best_peer"]["peer_id"], peer);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

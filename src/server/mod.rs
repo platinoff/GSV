@@ -826,7 +826,20 @@ async fn api_wgpu_task_enqueue(State(state): State<AppState>, Json(body): Json<V
 async fn api_wgpu_task_poll(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
     match crate::boxes::wgpu::peer_poll(&state.data_dir, &body) {
         Ok(v) => Json(v).into_response(),
-        Err(e) => err_json(StatusCode::NOT_FOUND, e),
+        Err(e) => {
+            // Band E: machine-readable code so a browser peer can re-join
+            // automatically instead of dying on a wiped registry.
+            let code = if e.starts_with("unknown peer") {
+                "unknown_peer"
+            } else {
+                "poll_failed"
+            };
+            (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "ok": false, "error": e, "code": code })),
+            )
+                .into_response()
+        }
     }
 }
 
