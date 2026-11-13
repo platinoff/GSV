@@ -507,6 +507,8 @@ pub fn task_enqueue(data_dir: &Path, body: &Value) -> Result<Value, String> {
             t.get("task_id")
                 .and_then(Value::as_str)
                 .and_then(|s| s.strip_prefix("mt-"))
+                // Shard tasks carry a `mt-<seq>-<shard>` id — take the seq part.
+                .and_then(|s| s.split('-').next())
                 .and_then(|s| s.parse::<u64>().ok())
         })
         .max()
