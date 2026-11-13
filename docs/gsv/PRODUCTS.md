@@ -26,6 +26,13 @@ This file only **enriches** a pick that is already registered.
 | **sport-forcast** | `S:/rust/sport-forcast` | `S:/rust/sport-forcast/docs/HANDOFF_NEW_SESSION.md` | `S:/rust/sport-forcast/docs/NEXT_SESSION_PROMPT.md` | `cargo fmt --all` → `cargo clippy --all-targets -- -D warnings` → `cargo test` (proprietary, **private repo**, binary releases only; Poland football first; `:9741`) | Rust **95–100%** |
 | **gsv-wgpu** | `S:/rust/GSV-WGPU` | `S:/rust/GSV-WGPU/docs/HANDOFF_NEW_SESSION.md` | `S:/rust/GSV-WGPU/docs/NEXT_SESSION_PROMPT.md` | `cargo fmt --all` → `cargo clippy --all-targets -- -D warnings` → `cargo test` (MIT, WebGPU plugin core; band G0 scaffold: `GpuBroker`/scopes/tasks/grants) | Rust **95–100%** |
 
+**gsv-wgpu mesh plan (2026-11-12, owner):** bands A/B/C closed — browser mesh worker loop
+(join/poll/result), 2+ peers fan-out, `matvec` LLM shard as a mesh op; live mesh = 3 browser
+peers (phone ×2, PC Firefox) on hub `/api/wgpu/*` (`src/boxes/wgpu.rs`). Далі — bands D…J
+(sustained bench · auto-rejoin · weight sharding · transformer block · norm/softmax ·
+mini-LM loop (stretch) · capacity planner): canon у продукті
+[`S:/rust/GSV-WGPU/docs/GSV_WGPU_MESH_TEST_PLAN.md`](../../GSV-WGPU/docs/GSV_WGPU_MESH_TEST_PLAN.md).
+
 **Roles (owner 2026-10-16):** `telenetis` = **commutation (switching) plugin** (no APK / tensor / KVM inside it); the worker + APK role lives in the **engines** — `llama-rs` (MTP models, local provider `bunke-rock`) + `rusty-engine` (MoE models, local provider `rusty-serve`), adapted per each engine's own HANDOFF/NEXT. Canon: [`GSV_AGI_PATH.md`](./GSV_AGI_PATH.md).
 
 Keep-live (band 225): llama-rs writes `target/live/llama_heartbeat.json` when run with `GSV_LIVE=1` or `LLAMA_RS_HEARTBEAT=1` (PID, model, epoch, bin_version, 15s tick); GSV reads it via `keep_live.llama_rs` (fresh = age ≤ 60s). `gsv_products_scan` / `cargo xtask products` enrich this heartbeat path + freshness for llama-rs.
