@@ -50,12 +50,19 @@
 ### Ключові рішення
 
 1. **Engine 1B**: rusty-engine (чистий Rust, GGUF-first); oracle = Qwen2.5 fingerprint; numerical rollback first.
-2. **Що йде в меш**: лише expert-матриці SwiGLU (gate/up/down) і `matvec_shard`-групи; GDN-стан і attention stay на CPU-шляху engine (перенесення GDN — інший бенд).
-3. **Ваги в девайсі**: не toy-константи, а реальні Q8 блоки; розповсюдження — content-addressed hub store (sha256, chunked, cache у браузері).
-4. **Перевірка**: кожен remote-результат має `max_err_model` vs CPU shard-reference і verified `op`-echo; інакше задача `failed`.
-5. **WSP lane**: лише block-bitmap patch-at-dequant (rusty-engine) ≥ zero-downtime; llama-rs — offline rewrite + restart; все проходить Uk-golden + chat-fixture counterfactual eval (router/gate frozen), 2/3 кворум, canary, auto-rollback при regression.
-6. **Cloud oracle**: кандидат від хмарної моделі (через OmniRouter `task=reasoning`, `prefer_free=true`) → WSP patch-pack → grid gate → rollback/keep. Обов'язковий фік у product docs (`WSP_WEIGHT_SPACE_PROGRAMMING_BRIEF.md`).
-7. **Мовна гарантія**: Uk-golden fixtures — обов'язковий гейт кожного патча та кожного offloaded matvec (freeze router/gate, Uk-golden до/після).
+2. **Важлива поправка (2026-11-15, виміряно):** MiniCPM-V 4.7-1B — **dense** qwen35-гібрид
+   (18 GDN + 6 full-attn, vocab 248 094, **без MoE-експертів**). Tensor-name prefixes: blk/*
+   (318 тензорів), вихід `output` + `token_embd`. Отже «ExpertParallelDispatch» як top-k=2
+   expert fan-out **не застосовний до 1B** — те саме розсічення ваг діє як
+   **dense FFN offload** через `weights_matvec` (GSV-WGPU MC-2, `blk.ffn_down.weight`
+   [3584×1024]). Справжній top-k=2 expert dispatch належить **35B-A3B** (PH-1206 трек).
+3. **Що йде в меш**: лише expert/dense-матриці SwiGLU (gate/up/down) і `matvec_shard`/`weights_matvec`
+   групи; GDN-стан і attention stay на CPU-шляху engine (перенесення GDN — інший бенд).
+4. **Ваги в девайсі**: не toy-константи, а реальні Q8 блоки; розповсюдження — content-addressed hub store (sha256, chunked, cache у браузері).
+5. **Перевірка**: кожен remote-результат має `max_err_model` vs CPU shard-reference і verified `op`-echo; інакше задача `failed`.
+6. **WSP lane**: лише block-bitmap patch-at-dequant (rusty-engine) ≥ zero-downtime; llama-rs — offline rewrite + restart; все проходить Uk-golden + chat-fixture counterfactual eval (router/gate frozen), 2/3 кворум, canary, auto-rollback при regression.
+7. **Cloud oracle**: кандидат від хмарної моделі (через OmniRouter `task=reasoning`, `prefer_free=true`) → WSP patch-pack → grid gate → rollback/keep. Обов'язковий фік у product docs (`WSP_WEIGHT_SPACE_PROGRAMMING_BRIEF.md`).
+8. **Мовна гарантія**: Uk-golden fixtures — обов'язковий гейт кожного патча та кожного offloaded matvec (freeze router/gate, Uk-golden до/після).
 
 ## 5. Майлстоуни
 
@@ -83,6 +90,14 @@
 | **MC-4** | t-1794758435965341800 | `gsv` |
 | **MC-5** | t-1794758436045763000 | `rusty-engine` |
 | **MC-6** | t-1794758436128993400 | `poolai` |
+
+**Переглянута інтерпретація (2026-11-15, виміряно на GGUF):**
+MiniCPM-V 4.7-1B — dense. Тому:
+
+- **MC-1** застосовна до **MiniCPM-V 4.7-35B-A3B** (MoE) — експерти top-k=2. Для 1B еквівалент —
+  dense FFN offload через `weights_matvec`/`matvec_shard` (вже зроблено в MC-2). MC-1 на 1B
+  виконується лише як **перший крок** (інтеграційний гейт до 35B-B_track), не як оптимізація швидкості.
+- **MC-4** і **MC-5** — без змін (35B) або можуть зупинятись на 1B-evidence тоді визначиться.
 
 ### Існуючі (залежності)
 - **MC-7** `gsv-wgpu` — Mesh networking architecture & engineering (класи девайсів, budget, ordering/failover).
