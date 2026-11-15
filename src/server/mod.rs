@@ -163,6 +163,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/wgpu/reports", get(api_wgpu_reports))
         .route("/api/wgpu/report", post(api_wgpu_report_post))
         .route("/api/wgpu/mesh", get(api_wgpu_mesh))
+        .route("/api/wgpu/capability", get(api_wgpu_capability))
         .route("/api/wgpu/peer/join", post(api_wgpu_peer_join))
         .route("/api/wgpu/task/enqueue", post(api_wgpu_task_enqueue))
         .route("/api/wgpu/task/poll", post(api_wgpu_task_poll))
@@ -807,6 +808,11 @@ async fn api_wgpu_report_post(State(state): State<AppState>, Json(body): Json<Va
 
 async fn api_wgpu_mesh(State(state): State<AppState>) -> Json<Value> {
     Json(crate::boxes::wgpu::mesh_wire(&state.data_dir))
+}
+
+/// Band J: peer capability profiles + quotas (`GET /api/wgpu/capability`).
+async fn api_wgpu_capability(State(state): State<AppState>) -> Json<Value> {
+    Json(crate::boxes::wgpu::capability_wire(&state.data_dir))
 }
 
 async fn api_wgpu_peer_join(State(state): State<AppState>, Json(body): Json<Value>) -> Response {

@@ -9,6 +9,7 @@
 //! provider row (G6) envelope path.
 
 use serde_json::{json, Value};
+use std::io::Write;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -147,6 +148,120 @@ const MAX_PEERS: usize = 50;
 const MAX_TASKS: usize = 200;
 /// Max iterations a peer may run inside one task (band D: sustained bench).
 pub const MAX_ITERS: u64 = 1024;
+
+// ---------------------------------------------------------------------------
+// Band J: capacity planner + per-peer quotas (operational maturity).
+// ---------------------------------------------------------------------------
+
+/// Total work (FLOP) one task may ask for: `iters * flops_per_iter`.
+/// Over-quota enqueues fail fast with an explicit error (and an audit row)
+/// instead of silently queueing a task no peer can finish.
+pub const DEFAULT_MAX_FLOPS_PER_TASK: u64 = 64 * 1024 * 1024;
+/// How many tasks one peer may hold at the same time (a browser worker runs
+/// them sequentially, so 1 is the honest default).
+pub const DEFAULT_MAX_CONCURRENT_PER_PEER: u64 = 1;
+/// How long a routed task sticks to its recommended peer before any alive peer
+/// may take it — routing without starvation.
+pub const DEFAULT_ROUTE_STICKY_SECS: u64 = 5;
+const QUOTA_AUDIT_FILE: &str = "wgpu_quota_audit.jsonl";
+
+fn env_u64(name: &str, default: u64) -> u64 {
+    std::env::var(name)
+        .ok()
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .filter(|v| *v > 0)
+        .unwrap_or(default)
+}
+
+/// Quota for the total work of one task (env `GSV_WGPU_MAX_FLOPS_PER_TASK`).
+pub fn max_flops_per_task() -> u64 {
+    env_u64("GSV_WGPU_MAX_FLOPS_PER_TASK", DEFAULT_MAX_FLOPS_PER_TASK)
+}
+
+/// Concurrent tasks allowed per peer (env `GSV_WGPU_MAX_CONCURRENT_PER_PEER`).
+pub fn max_concurrent_per_peer() -> u64 {
+    env_u64(
+        "GSV_WGPU_MAX_CONCURRENT_PER_PEER",
+        DEFAULT_MAX_CONCURRENT_PER_PEER,
+    )
+}
+
+/// Sticky window of a route recommendation (env `GSV_WGPU_ROUTE_STICKY_SECS`).
+pub fn route_sticky_secs() -> u64 {
+    env_u64("GSV_WGPU_ROUTE_STICKY_SECS", DEFAULT_ROUTE_STICKY_SECS)
+}
+
+/// Quota block published on the wire (audit surface).
+pub fn quotas_wire() -> Value {
+    json!({
+        "max_flops_per_task": max_flops_per_task(),
+        "max_concurrent_per_peer": max_concurrent_per_peer(),
+        "route_sticky_secs": route_sticky_secs(),
+    })
+}
+
+/// Append one quota event to the audit trail (`data/wgpu_quota_audit.jsonl`).
+fn audit_quota(data_dir: &Path, event: &str, fields: Value) {
+    let path = data_dir.join(QUOTA_AUDIT_FILE);
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let mut row = fields;
+    if let Some(obj) = row.as_object_mut() {
+        obj.insert("ts".to_string(), json!(now_secs()));
+        obj.insert("event".to_string(), json!(event));
+    }
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
+        let _ = writeln!(f, "{}", row);
+    }
+}
+
+/// Claimed (in-flight) task count of one peer.
+fn claimed_by(tasks: &[Value], peer_id: u64) -> u64 {
+    tasks
+        .iter()
+        .filter(|t| t.get("status").and_then(Value::as_str) == Some("claimed"))
+        .filter(|t| t.get("peer_id").and_then(Value::as_u64) == Some(peer_id))
+        .count() as u64
+}
+
+/// Rank peers for routing: alive first, then measured throughput (desc), then id.
+fn ranked_peers(peers: &[Value], tasks: &[Value], now: u64) -> Vec<(u64, f64, bool)> {
+    let mut rows: Vec<(u64, f64, bool)> = Vec::new();
+    for p in peers.iter() {
+        let id = match p.get("peer_id").and_then(Value::as_u64) {
+            Some(id) => id,
+            None => continue,
+        };
+        let alive = row_alive(p, now);
+        let mflops = capability_rows(std::slice::from_ref(p), tasks, now)
+            .first()
+            .and_then(|r| r.get("mflops_max").and_then(Value::as_f64))
+            .unwrap_or(0.0);
+        rows.push((id, mflops, alive));
+    }
+    rows.sort_by(|a, b| {
+        b.2.cmp(&a.2)
+            .then(b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal))
+            .then(a.0.cmp(&b.0))
+    });
+    rows
+}
+
+/// Best peer to run a task: the fastest alive peer that is within its
+/// concurrent quota. `None` when every alive peer is saturated.
+fn best_peer_for_task(peers: &[Value], tasks: &[Value], now: u64) -> Option<u64> {
+    let limit = max_concurrent_per_peer();
+    ranked_peers(peers, tasks, now)
+        .into_iter()
+        .filter(|(id, _, alive)| *alive && claimed_by(tasks, *id) < limit)
+        .map(|(id, _, _)| id)
+        .next()
+}
 
 /// Operations a mesh peer can execute (page-side WGSL runners).
 pub const SUPPORTED_OPS: [&str; 7] = [
@@ -527,18 +642,56 @@ pub fn peer_poll(data_dir: &Path, body: &Value) -> Result<Value, String> {
             }
         }
     }
+    // Band J: a peer that already holds its quota of tasks gets no new one
+    // (explicit `over_quota`, never a hang).
+    let limit = max_concurrent_per_peer();
+    let claimed_now = claimed_by(&tasks, peer_id);
+    if claimed_now >= limit {
+        write_jsonl(&tasks_path, &tasks)?;
+        return Ok(json!({
+            "ok": true,
+            "task": Value::Null,
+            "over_quota": true,
+            "quota": { "limit": limit, "claimed": claimed_now },
+        }));
+    }
+    // Band J: honour a fresh route recommendation — a task routed to another
+    // alive peer stays queued for the sticky window, after which any alive peer
+    // may take it (routing without starvation).
+    let sticky = route_sticky_secs();
     for t in tasks.iter_mut() {
-        if t.get("status").and_then(Value::as_str) == Some("queued") {
-            t["status"] = json!("claimed");
-            t["peer_id"] = json!(peer_id);
-            t["claimed_ts"] = json!(now);
-            let task = t.clone();
-            write_jsonl(&tasks_path, &tasks)?;
-            return Ok(json!({ "ok": true, "task": task }));
+        if t.get("status").and_then(Value::as_str) != Some("queued") {
+            continue;
         }
+        if let Some(route) = t.get("route_peer").and_then(Value::as_u64) {
+            if route != peer_id {
+                let routed_alive = peers.iter().any(|p| {
+                    p.get("peer_id").and_then(Value::as_u64) == Some(route) && row_alive(p, now)
+                });
+                let age =
+                    now.saturating_sub(t.get("route_ts").and_then(Value::as_u64).unwrap_or(0));
+                if routed_alive && age < sticky {
+                    continue;
+                }
+            }
+        }
+        t["status"] = json!("claimed");
+        t["peer_id"] = json!(peer_id);
+        t["claimed_ts"] = json!(now);
+        let task = t.clone();
+        write_jsonl(&tasks_path, &tasks)?;
+        return Ok(json!({
+            "ok": true,
+            "task": task,
+            "quota": { "limit": limit, "claimed": claimed_now },
+        }));
     }
     write_jsonl(&tasks_path, &tasks)?;
-    Ok(json!({ "ok": true, "task": Value::Null }))
+    Ok(json!({
+        "ok": true,
+        "task": Value::Null,
+        "quota": { "limit": limit, "claimed": claimed_now },
+    }))
 }
 
 /// Peer reports a task result (done/failed envelope).
@@ -707,6 +860,33 @@ pub fn task_enqueue(data_dir: &Path, body: &Value) -> Result<Value, String> {
             ));
         }
     }
+    let flops_per_iter = if shards > 1 {
+        op_flops(op) / shards as u64
+    } else {
+        op_flops(op)
+    };
+    // Band J: quota on the TOTAL work of the task. Over-quota fails fast with an
+    // explicit error and an audit row — it must never silently queue a task no
+    // peer can finish.
+    let total_flops = flops_per_iter.saturating_mul(iters);
+    let flops_limit = max_flops_per_task();
+    if total_flops > flops_limit {
+        audit_quota(
+            data_dir,
+            "enqueue_over_quota",
+            json!({
+                "op": op,
+                "iters": iters,
+                "shards": shards,
+                "flops_per_iter": flops_per_iter,
+                "total_flops": total_flops,
+                "limit": flops_limit,
+            }),
+        );
+        return Err(format!(
+            "task total work {total_flops} FLOP exceeds the quota {flops_limit} FLOP (op `{op}`, iters {iters})"
+        ));
+    }
     let _g = mesh_lock();
     let path = data_dir.join(TASKS_FILE);
     let mut tasks = read_jsonl(&path);
@@ -725,11 +905,6 @@ pub fn task_enqueue(data_dir: &Path, body: &Value) -> Result<Value, String> {
         + 1;
     let task_id = format!("mt-{seq}");
     let group_id = format!("g-{seq}");
-    let flops_per_iter = if shards > 1 {
-        op_flops(op) / shards as u64
-    } else {
-        op_flops(op)
-    };
     let mut task_ids: Vec<String> = Vec::new();
     for shard_id in 0..shards {
         let id = if shards > 1 {
@@ -762,11 +937,43 @@ pub fn task_enqueue(data_dir: &Path, body: &Value) -> Result<Value, String> {
         let keep = tasks.len() - MAX_TASKS;
         tasks.drain(..keep);
     }
+    // Band J: route the new tasks to the best alive peers. A group spreads its
+    // shards over the ranked peers; a single task goes to the fastest peer that
+    // is still within its concurrent quota. `peer_poll` honours the route for a
+    // short sticky window and then falls back to any alive peer.
+    let now = now_secs();
+    let peers_now = read_jsonl(&data_dir.join(PEERS_FILE));
+    let ranked: Vec<u64> = ranked_peers(&peers_now, &tasks, now)
+        .into_iter()
+        .filter(|(_, _, alive)| *alive)
+        .map(|(id, _, _)| id)
+        .collect();
+    let single_route = if shards == 1 {
+        best_peer_for_task(&peers_now, &tasks, now)
+    } else {
+        None
+    };
+    for (offset, row) in tasks.iter_mut().rev().take(task_ids.len()).enumerate() {
+        let route = if shards > 1 {
+            ranked.get(offset % ranked.len().max(1)).copied()
+        } else {
+            single_route
+        };
+        if let Some(pid) = route {
+            row["route_peer"] = json!(pid);
+            row["route_ts"] = json!(now);
+        }
+    }
     let queued = tasks
         .iter()
         .filter(|t| t.get("status").and_then(Value::as_str) == Some("queued"))
         .count();
     write_jsonl(&path, &tasks)?;
+    let quota = json!({
+        "max_flops_per_task": flops_limit,
+        "total_flops": total_flops,
+        "max_concurrent_per_peer": max_concurrent_per_peer(),
+    });
     if shards > 1 {
         Ok(json!({
             "ok": true,
@@ -775,6 +982,8 @@ pub fn task_enqueue(data_dir: &Path, body: &Value) -> Result<Value, String> {
             "shards": shards,
             "queued": queued,
             "iters": iters,
+            "route_peers": ranked,
+            "quota": quota,
         }))
     } else {
         Ok(json!({
@@ -783,6 +992,8 @@ pub fn task_enqueue(data_dir: &Path, body: &Value) -> Result<Value, String> {
             "task_ids": task_ids,
             "queued": queued,
             "iters": iters,
+            "route_peer": single_route.map(Value::from).unwrap_or(Value::Null),
+            "quota": quota,
         }))
     }
 }
@@ -855,9 +1066,48 @@ fn capability_rows(peers: &[Value], tasks: &[Value], now: u64) -> Vec<Value> {
             "ops_per_sec_max": ops,
             "iters_max": iters,
             "last_task": last_task,
+            // Band J: capacity profile — how many tasks this peer may hold and
+            // how many it holds right now.
+            "concurrent_limit": max_concurrent_per_peer(),
+            "claimed_now": claimed_by(tasks, pid),
+            "within_quota": claimed_by(tasks, pid) < max_concurrent_per_peer(),
         }));
     }
     rows
+}
+
+/// Band J: capability profiles + quotas (`GET /api/wgpu/capability`).
+pub fn capability_wire(data_dir: &Path) -> Value {
+    let _g = mesh_lock();
+    let now = now_secs();
+    let peers = read_jsonl(&data_dir.join(PEERS_FILE));
+    let tasks = read_jsonl(&data_dir.join(TASKS_FILE));
+    let rows = capability_rows(&peers, &tasks, now);
+    let best_peer = rows
+        .iter()
+        .filter(|c| c["alive"] == json!(true) && c["within_quota"] == json!(true))
+        .max_by(|a, b| {
+            a["mflops_max"]
+                .as_f64()
+                .unwrap_or(0.0)
+                .partial_cmp(&b["mflops_max"].as_f64().unwrap_or(0.0))
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .map(|c| {
+            json!({
+                "peer_id": c["peer_id"],
+                "adapter": c["adapter"],
+                "mflops_max": c["mflops_max"],
+                "ops_per_sec_max": c["ops_per_sec_max"],
+            })
+        })
+        .unwrap_or(Value::Null);
+    json!({
+        "ok": true,
+        "quotas": quotas_wire(),
+        "peers": rows,
+        "best_peer": best_peer,
+    })
 }
 
 /// Band F: reduce a `matvec_shard` group — sum the partials of every peer and
@@ -982,6 +1232,8 @@ pub fn mesh_wire(data_dir: &Path) -> Value {
         "lease_secs": PEER_LEASE_SECS,
         "poll_secs": POLL_SECS,
         "capability": capability,
+        // Band J: quotas are part of the audit surface.
+        "quotas": quotas_wire(),
         "best_peer": best_peer,
         "groups": reduce_groups(&tasks),
         "tasks": task_tail,
@@ -1036,7 +1288,7 @@ function log(m){out.textContent+=m+'\n';}
 function setCap(t,ok){cap.textContent=t;cap.style.borderColor=ok?'#3aa66a':'#c0392b';}
 async function post(report){try{const r=await fetch('api/wgpu/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(report)});const d=await r.json();log('hub ack: '+JSON.stringify(d));}catch(e){log('hub post failed: '+e);}}
 async function refreshFeed(){try{const d=await(await fetch('api/wgpu')).json();feed.textContent='hub feed: count='+d.count+(d.latest?'\nlatest: '+JSON.stringify(d.latest):'');}catch(e){feed.textContent='hub feed error: '+e;}}
-async function refreshMesh(){try{const d=await(await fetch('api/wgpu/mesh')).json();const caps=(d.capability||[]).filter(c=>c.measured>0).map(c=>'#'+c.peer_id+' '+(c.adapter||'?')+' '+c.mflops_max+' MFLOPS / '+c.ops_per_sec_max+' ops/s');const grp=(d.groups||[]).map(g=>g.group_id+' '+g.done_shards+'/'+g.shards+(g.complete?(' err='+g.max_err.toExponential(1)+(g.ok?' OK':' FAIL')):' pending'));mesh.textContent='mesh: peers='+d.peers.length+' (alive '+d.peers.filter(p=>p.alive).length+') · queued='+d.queued+' claimed='+d.claimed+' done='+d.done+' failed='+d.failed+(caps.length?'\ncapability: '+caps.join(' | '):'')+(d.best_peer&&d.best_peer.peer_id!==undefined?'\nbest peer: #'+d.best_peer.peer_id+' ('+(d.best_peer.adapter||'?')+') '+d.best_peer.mflops_max+' MFLOPS':'')+(grp.length?'\nreduce: '+grp.join(' | '):'')+(d.tasks.length?'\ntasks: '+d.tasks.map(t=>t.task_id+':'+t.status+(t.elapsed_ms!==undefined?' '+t.elapsed_ms+'ms':'')+(t.mflops?' '+t.mflops+'MF':'')).join(' | '):'');}catch(e){mesh.textContent='mesh error: '+e;}}
+async function refreshMesh(){try{const d=await(await fetch('api/wgpu/mesh')).json();const caps=(d.capability||[]).filter(c=>c.measured>0).map(c=>'#'+c.peer_id+' '+(c.adapter||'?')+' '+c.mflops_max+' MFLOPS / '+c.ops_per_sec_max+' ops/s');const grp=(d.groups||[]).map(g=>g.group_id+' '+g.done_shards+'/'+g.shards+(g.complete?(' err='+g.max_err.toExponential(1)+(g.ok?' OK':' FAIL')):' pending'));mesh.textContent='mesh: peers='+d.peers.length+' (alive '+d.peers.filter(p=>p.alive).length+') · queued='+d.queued+' claimed='+d.claimed+' done='+d.done+' failed='+d.failed+(caps.length?'\ncapability: '+caps.join(' | '):'')+(d.best_peer&&d.best_peer.peer_id!==undefined?'\nbest peer: #'+d.best_peer.peer_id+' ('+(d.best_peer.adapter||'?')+') '+d.best_peer.mflops_max+' MFLOPS':'')+(grp.length?'\nreduce: '+grp.join(' | '):'')+(d.tasks.length?'\ntasks: '+d.tasks.map(t=>t.task_id+':'+t.status+(t.elapsed_ms!==undefined?' '+t.elapsed_ms+'ms':'')+(t.mflops?' '+t.mflops+'MF':'')).join(' | '):'')+(d.quotas?'\nquota: '+d.quotas.max_flops_per_task+' FLOP/task · '+d.quotas.max_concurrent_per_peer+' task/peer · sticky '+d.quotas.route_sticky_secs+'s':'');}catch(e){mesh.textContent='mesh error: '+e;}}
 const WGSL=`
 @group(0) @binding(0) var<storage,read> a:array<f32>;
 @group(0) @binding(1) var<storage,read> b:array<f32>;
@@ -1455,8 +1707,8 @@ async function workerLoop(){
     await new Promise(res=>setTimeout(res,(WORKER?WORKER.poll:2)*1000));
   }
 }
-async function enqueueTask(op,iters,shards){const n=parseInt(iters,10)||1;const sh=parseInt(shards,10)||0;const body={op:op||'matmul64',iters:n};if(sh>1)body.shards=sh;try{const d=await(await fetch('api/wgpu/task/enqueue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();log(d.ok?(d.group_id?'queued group '+d.group_id+' ('+d.shards+' shards: '+d.task_ids.join(', ')+')':'queued '+d.task_id+' ('+(op||'matmul64')+' x'+n+' queue='+d.queued+')'):'enqueue error: '+d.error);}catch(e){log('enqueue: '+e);}await refreshMesh();}
-async function enqueueMinilm(token,layer){const body={op:'minilm',token:parseInt(token,10)||0,layer:parseInt(layer,10)||0};try{const d=await(await fetch('api/wgpu/task/enqueue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();log(d.ok?'queued minilm layer task '+(d.task_id||'?')+(d.group_id?' group '+d.group_id:'')+' token='+body.token+' layer='+body.layer:'enqueue error: '+d.error);}catch(e){log('enqueueMinilm: '+e);}await refreshMesh();}
+async function enqueueTask(op,iters,shards){const n=parseInt(iters,10)||1;const sh=parseInt(shards,10)||0;const body={op:op||'matmul64',iters:n};if(sh>1)body.shards=sh;try{const d=await(await fetch('api/wgpu/task/enqueue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();let msg;if(!d.ok){msg='enqueue error: '+d.error;}else if(d.group_id){msg='queued group '+d.group_id+' ('+d.shards+' shards: '+d.task_ids.join(', ')+')';if(d.route_peers&&d.route_peers.length){msg+=' · route '+d.route_peers.join(',');}}else{msg='queued '+d.task_id+' ('+(op||'matmul64')+' x'+n+' queue='+d.queued+')';if(d.route_peer){msg+=' · route #'+d.route_peer;}}log(msg);}catch(e){log('enqueue: '+e);}await refreshMesh();}
+async function enqueueMinilm(token,layer){const body={op:'minilm',token:parseInt(token,10)||0,layer:parseInt(layer,10)||0};try{const d=await(await fetch('api/wgpu/task/enqueue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();log(d.ok?'queued minilm layer task '+(d.task_id||'?')+(d.group_id?' group '+d.group_id:'')+' token='+body.token+' layer='+body.layer+(d.route_peer?' · route #'+d.route_peer:''):'enqueue error: '+d.error);}catch(e){log('enqueueMinilm: '+e);}await refreshMesh();}
 async function benchLocal(op,iters){const n=parseInt(iters,10)||64;try{const r=await runOp(op,n);setCap(r.ok?'BENCH PASS':'BENCH FAIL',r.ok);log('local bench '+op+': '+r.mflops+' MFLOPS · '+r.ops_per_sec+' ops/s · '+r.elapsed_ms+'ms/op · max_err='+r.max_err.toExponential(2));}catch(e){setCap('bench error: '+e,false);log('bench error: '+e);}await refreshMesh();}
 refreshFeed();refreshMesh();
 </script>
@@ -1467,12 +1719,26 @@ refreshFeed();refreshMesh();
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::Path;
     use std::path::PathBuf;
 
     fn temp_dir(tag: &str) -> PathBuf {
         let d = std::env::temp_dir().join(format!("gsv_wgpu_test_{}_{}", tag, std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
         d
+    }
+
+    /// Backdate a task's route stamp (test helper for the sticky window).
+    fn backdate_route(dir: &Path, id: &str) {
+        let _g = mesh_lock();
+        let path = dir.join(TASKS_FILE);
+        let mut tasks = read_jsonl(&path);
+        for t in tasks.iter_mut() {
+            if t.get("task_id").and_then(Value::as_str) == Some(id) {
+                t["route_ts"] = json!(0);
+            }
+        }
+        write_jsonl(&path, &tasks).unwrap();
     }
 
     #[test]
@@ -2038,6 +2304,9 @@ mod tests {
         let peer2 = j2["peer_id"].as_u64().unwrap();
         let e2 = task_enqueue(&dir, &json!({"op":"matvec","iters":64})).expect("enqueue 2");
         let task2 = e2["task_id"].as_str().unwrap().to_string();
+        // Routing would hand this to the fastest peer; backdate the route so the
+        // slower peer can still claim it (routing is tested separately).
+        backdate_route(&dir, &task2);
         let _ = peer_poll(&dir, &json!({"peer_id": peer2})).expect("poll 2");
         let _ = task_result(
             &dir,
@@ -2049,6 +2318,7 @@ mod tests {
         // Negative throughput is refused.
         let e3 = task_enqueue(&dir, &json!({"op":"matvec"})).expect("enqueue 3");
         let task3 = e3["task_id"].as_str().unwrap().to_string();
+        backdate_route(&dir, &task3);
         let _ = peer_poll(&dir, &json!({"peer_id": peer2})).expect("poll 3");
         assert!(task_result(
             &dir,
@@ -2090,6 +2360,14 @@ mod tests {
         assert_eq!(task["status"], "claimed");
         assert_eq!(task["peer_id"], peer);
         assert!(task["task_id"].as_str().unwrap().starts_with("mt-"));
+        // Band J: one task per peer at a time — settle the first claim before
+        // asking for the next one (otherwise the poll is refused as over-quota).
+        let r0 = task_result(
+            &dir,
+            &json!({"peer_id":peer,"task_id":task["task_id"],"ok":true,"elapsed_ms":1.0,"max_err":0.0}),
+        )
+        .expect("settle first claim");
+        assert_eq!(r0["status"], "done");
         // Second queued task (matvec) hands out on the next poll.
         let p2 = peer_poll(&dir, &json!({"peer_id": peer})).expect("poll 2");
         assert_eq!(p2["task"]["op"], "matvec");
@@ -2100,19 +2378,19 @@ mod tests {
         // Result from the claiming peer marks done.
         let r = task_result(
             &dir,
-            &json!({"peer_id":peer,"task_id":task["task_id"],"ok":true,"elapsed_ms":18.4,"max_err":0.0}),
+            &json!({"peer_id":peer,"task_id":p2["task"]["task_id"],"ok":true,"elapsed_ms":18.4,"max_err":0.0}),
         )
         .expect("result");
         assert_eq!(r["status"], "done");
         // Wrong claim is rejected.
         let bad = task_result(
             &dir,
-            &json!({"peer_id":peer,"task_id":task["task_id"],"ok":true,"elapsed_ms":1,"max_err":0}),
+            &json!({"peer_id":peer,"task_id":p2["task"]["task_id"],"ok":true,"elapsed_ms":1,"max_err":0}),
         );
         assert!(bad.is_err());
         let m = mesh_wire(&dir);
-        assert_eq!(m["done"], 1);
-        assert_eq!(m["claimed"], 1);
+        assert_eq!(m["done"], 2);
+        assert_eq!(m["claimed"], 0);
         assert_eq!(m["queued"], 0);
         assert!(m["peers"]
             .as_array()
@@ -2162,6 +2440,110 @@ mod tests {
         let polled = peer_poll(&dir, &json!({"peer_id": peer2})).expect("poll fresh peer");
         assert_eq!(polled["task"]["task_id"], task_id);
         assert_eq!(polled["task"]["peer_id"], peer2);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn task_enqueue_rejects_total_flops_over_quota_and_audits() {
+        // Band J: the quota covers the TOTAL work (`iters * flops_per_iter`).
+        let dir = temp_dir("mesh_quota");
+        // matvec = 524288 FLOP/iter -> 200 iters = 104 857 600 > 64 MiB default.
+        let bad = task_enqueue(&dir, &json!({"op": "matvec", "iters": 200}));
+        let err = bad.err().unwrap_or_default();
+        assert!(err.contains("quota"), "error should name the quota: {err}");
+        let audit = std::fs::read_to_string(dir.join("wgpu_quota_audit.jsonl")).unwrap_or_default();
+        assert!(audit.contains("enqueue_over_quota"));
+        assert!(audit.contains("\"total_flops\":104857600"));
+        // Within the quota the task enqueues and the response carries the quota.
+        let ok = task_enqueue(&dir, &json!({"op": "matvec", "iters": 64})).expect("within quota");
+        assert_eq!(ok["quota"]["total_flops"], 524_288 * 64);
+        assert_eq!(
+            ok["quota"]["max_flops_per_task"],
+            DEFAULT_MAX_FLOPS_PER_TASK
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn peer_poll_refuses_a_peer_over_its_concurrent_limit() {
+        // Band J: a peer already holding its quota of tasks gets no second one.
+        let dir = temp_dir("mesh_concurrent");
+        let j = peer_join(&dir, &json!({"adapter": "a", "ua": "u"})).expect("join");
+        let peer = j["peer_id"].as_u64().unwrap();
+        let _ = task_enqueue(&dir, &json!({"op": "matvec"})).expect("enqueue");
+        let p1 = peer_poll(&dir, &json!({"peer_id": peer})).expect("poll 1");
+        assert!(p1["task"].is_object());
+        let p2 = peer_poll(&dir, &json!({"peer_id": peer})).expect("poll 2");
+        assert!(p2["task"].is_null());
+        assert_eq!(p2["over_quota"], true);
+        assert_eq!(p2["quota"]["limit"], max_concurrent_per_peer());
+        assert_eq!(p2["quota"]["claimed"], 1);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn routing_sticks_to_the_best_peer_then_falls_back() {
+        let dir = temp_dir("mesh_route");
+        let j1 = peer_join(&dir, &json!({"adapter": "arm/bifrost", "ua": "u1"})).expect("join 1");
+        let p1 = j1["peer_id"].as_u64().unwrap();
+        let j2 = peer_join(&dir, &json!({"adapter": "arm/valhall", "ua": "u2"})).expect("join 2");
+        let p2 = j2["peer_id"].as_u64().unwrap();
+        // Warmup history: p1 is the fast peer, p2 the slow one.
+        for (peer, mflops) in [(p1, 100.0), (p2, 10.0)] {
+            let e = task_enqueue(&dir, &json!({"op": "matvec"})).expect("warmup enqueue");
+            let id = e["task_id"].as_str().unwrap().to_string();
+            backdate_route(&dir, &id);
+            let _ = peer_poll(&dir, &json!({"peer_id": peer})).expect("warmup claim");
+            let _ = task_result(
+                &dir,
+                &json!({"peer_id":peer,"task_id":id,"ok":true,"elapsed_ms":1.0,"max_err":0.0,"iters":1,"mflops":mflops,"ops_per_sec":1000.0}),
+            )
+            .expect("warmup result");
+        }
+        // The new task is routed to the fastest alive peer.
+        let e = task_enqueue(&dir, &json!({"op": "matvec"})).expect("enqueue");
+        assert_eq!(e["route_peer"], p1);
+        // The slow peer cannot take it while the route is fresh...
+        let slow = peer_poll(&dir, &json!({"peer_id": p2})).expect("poll slow");
+        assert!(slow["task"].is_null());
+        // ...but after the sticky window the route expires and anyone may take it.
+        backdate_route(&dir, e["task_id"].as_str().unwrap());
+        let slow2 = peer_poll(&dir, &json!({"peer_id": p2})).expect("poll slow after sticky");
+        assert_eq!(slow2["task"]["task_id"], e["task_id"]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn capability_wire_exposes_quotas_and_profiles() {
+        // Band J: the profile carries the concurrent limit and the live count.
+        let dir = temp_dir("mesh_capability_wire");
+        let j = peer_join(&dir, &json!({"adapter": "arm/valhall", "ua": "u"})).expect("join");
+        let peer = j["peer_id"].as_u64().unwrap();
+        let w = capability_wire(&dir);
+        assert_eq!(w["ok"], true);
+        assert!(w["quotas"]["max_flops_per_task"].as_u64().unwrap() > 0);
+        assert!(w["quotas"]["max_concurrent_per_peer"].as_u64().unwrap() > 0);
+        assert!(w["quotas"]["route_sticky_secs"].as_u64().unwrap() > 0);
+        let row = w["peers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["peer_id"] == json!(peer))
+            .expect("profile");
+        assert_eq!(row["concurrent_limit"], max_concurrent_per_peer());
+        assert_eq!(row["claimed_now"], 0);
+        assert_eq!(row["within_quota"], true);
+        let _ = task_enqueue(&dir, &json!({"op": "matvec"})).expect("enqueue");
+        let _ = peer_poll(&dir, &json!({"peer_id": peer})).expect("claim");
+        let w2 = capability_wire(&dir);
+        let row2 = w2["peers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["peer_id"] == json!(peer))
+            .unwrap();
+        assert_eq!(row2["claimed_now"], 1);
+        assert_eq!(row2["within_quota"], false);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

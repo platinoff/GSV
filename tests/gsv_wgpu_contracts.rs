@@ -320,6 +320,65 @@ async fn task_result_verifies_the_op_echo_against_the_task() {
 }
 
 #[tokio::test]
+async fn capability_endpoint_lists_profiles_and_quotas() {
+    let (app, dir) = app("capability");
+    let (status, joined) = post(
+        &app,
+        "/api/wgpu/peer/join",
+        serde_json::json!({"adapter": "arm/valhall", "ua": "u"}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let peer = joined["peer_id"].as_u64().unwrap();
+
+    let (status, cap) = get(&app, "/api/wgpu/capability").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(cap["ok"], true);
+    assert!(cap["quotas"]["max_flops_per_task"].as_u64().unwrap() > 0);
+    assert!(cap["quotas"]["max_concurrent_per_peer"].as_u64().unwrap() > 0);
+    assert!(cap["quotas"]["route_sticky_secs"].as_u64().unwrap() > 0);
+    let row = cap["peers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["peer_id"] == serde_json::json!(peer))
+        .expect("profile");
+    assert_eq!(row["adapter"], "arm/valhall");
+    assert!(row["concurrent_limit"].as_u64().unwrap() > 0);
+    assert_eq!(row["claimed_now"], 0);
+    assert_eq!(row["within_quota"], true);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
+async fn over_quota_enqueue_fails_fast_and_audits() {
+    let (app, dir) = app("quota");
+    // 200 iterations of matvec = 104 857 600 FLOP > the 64 MiB default quota.
+    let (status, body) = post(
+        &app,
+        "/api/wgpu/task/enqueue",
+        serde_json::json!({"op": "matvec", "iters": 200}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["ok"], false);
+    assert!(body["error"].as_str().unwrap_or("").contains("quota"));
+    let audit = std::fs::read_to_string(dir.join("wgpu_quota_audit.jsonl")).unwrap_or_default();
+    assert!(audit.contains("enqueue_over_quota"));
+    // Within the quota the same op enqueues fine.
+    let (status, ok) = post(
+        &app,
+        "/api/wgpu/task/enqueue",
+        serde_json::json!({"op": "matvec", "iters": 64}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(ok["ok"], true);
+    assert!(ok["quota"]["total_flops"].as_u64().unwrap() > 0);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
 async fn task_result_rejects_negative_throughput() {
     let (app, dir) = app("negative");
     let (_, joined) = post(
