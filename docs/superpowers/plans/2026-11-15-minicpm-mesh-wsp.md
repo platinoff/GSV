@@ -28,6 +28,9 @@
 | WSP відкриті | WSP-G1 (GSV hub — task envelope bridge) · **WSP-G1-rusty ✅** (block-bitmap patch-at-dequant apply lane, rusty-engine `6e19d3b`, real-model Q6_K smoke ok) · WSP-3 (poolAI — cloud-oracle delta patch pack + grid ActivationAudit/WeightPatch eval gate) |
 | MiniCPM відкриті | PH-1202..1206 (vision tower / serve / 35B), PH-404 (ExpertCache LRU), PH-405 (greedy-parity), PH-407 (tok/s bench vs llama-rs), PH-1305/1306 done |
 | Cloud lane | OpenCode free models: **Flint 40B → GLM 5.3 → DeepSeek 1017** (fallbacks Big Pickle · DeepSeek V4 Flash · Nemotron Ultra Free); 429 → switch; OmniRouter `/api/omni/route` вибір моделі |
+| Serve bugfixes 2026-11-15 | **UTF-8 extract_message_content** (`ae39cb5`, був Latin-1: укр. текст ніколи не досягав MiniCPM); **gpt2 contraction multibyte** (`7f7c1ad`, сервер падав на першому промпті з «я»). Без них Uk-golden gate неможливий |
+| Uk-golden draft | `evals/uk_golden/fixtures.json` (`dbd0613`, DRAFT, owner review pending): 18 промптів (fact/grammar/code/reasoning/translation/idiom/tech/chat/long/gen), 4 critical. fact-2 «Пушкін замість Шевченка» — ±клас фейлу для MC-6 |
+| Serve template gap | serve :8088 **не застосовує chat template** (Raw `messages[].content` concat); тікет `t-1794778713443485500`. Baselines Uk-golden записані на сирому конкаті content |
 
 ## 4. Архітектура шарів
 
@@ -74,7 +77,7 @@
 | M3 | ExpertParallelDispatch у rusty-engine | M2, WSP-G1 (hub), WSP-G1 (rusty) | **MC-1** (rusty-engine) |
 | M4 | Provider row + telemetry | M3 | **MC-4** (gsv) |
 | M5 | Hybrid prefill/decode split bench | M3 | **MC-5** (rusty-engine) |
-| M6 | WSP gate on MiniCPM path | M3, WSP-3, ECO-9.2 | **MC-6** (poolai) |
+| M6 | WSP gate on MiniCPM path | M3, WSP-3, ECO-9.2, **Uk-golden draft review** | **MC-6** (poolai) |
 | B12 | MiniCPM-V full serve (vision) | PH-1306 | PH-1202/1203/1204/1205 → PH-1206 |
 | Perf | MoE core (LRU/offload/bench) | — | PH-404 / PH-405 / PH-407 |
 
