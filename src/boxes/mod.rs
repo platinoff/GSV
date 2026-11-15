@@ -68,6 +68,7 @@ pub mod update;
 pub mod usage;
 pub mod vision;
 pub mod watchdog;
+pub mod weight_store;
 pub mod wgpu;
 pub mod workflow;
 pub mod xtask;

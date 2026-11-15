@@ -9,6 +9,7 @@ use std::path::PathBuf;
 
 use axum::body::Body;
 use axum::http::{header, Method, Request, StatusCode};
+use base64::Engine;
 use gsv::server::router;
 use gsv::AppState;
 use serde_json::Value;
@@ -346,6 +347,59 @@ async fn capability_and_mesh_carry_device_class() {
         .find(|p| p["peer_id"] == serde_json::json!(peer))
         .expect("capability row");
     assert_eq!(row["device_class"], "phone");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
+async fn weights_store_manifest_roundtrip_and_rejection() {
+    let (app, dir) = app("weights");
+    let (status, m0) = get(&app, "/api/wgpu/weights/manifest").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(m0["ok"], true);
+    assert_eq!(m0["chunks"].as_array().unwrap().len(), 0);
+    assert_eq!(m0["model"], "minicpm-v-4.7-1b");
+
+    let payload = b"q8_0 scale block miniature for the minicpm mesh";
+    let b64 = base64::engine::general_purpose::STANDARD.encode(payload);
+    let (status, stored) = post(
+        &app,
+        "/api/wgpu/weights/chunk",
+        serde_json::json!({"data_b64": b64}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(stored["ok"], true);
+    let key = stored["key"].as_str().unwrap().to_string();
+    assert_eq!(key.len(), 64);
+
+    // manifest lists it; HTTP read roundtrip returns the same bytes.
+    let (_s, m1) = get(&app, "/api/wgpu/weights/manifest").await;
+    assert_eq!(m1["chunks"].as_array().unwrap().len(), 1);
+    assert_eq!(m1["total_bytes"], payload.len() as u64);
+
+    let (status, got) = get(&app, &format!("/api/wgpu/weights/chunk?key={key}")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(got["data_b64"], b64.clone());
+
+    // Bad inputs are refused.
+    let (status, bad_empty) = post(&app, "/api/wgpu/weights/chunk", serde_json::json!({})).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(bad_empty["ok"], false);
+    let (status, bad_b64) = post(
+        &app,
+        "/api/wgpu/weights/chunk",
+        serde_json::json!({"data_b64": "!!!notbase64!!!"}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(bad_b64["ok"], false);
+    let (status, bad_key) = get(&app, "/api/wgpu/weights/chunk?key=junk").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(bad_key["ok"], false);
+
+    let audit = std::fs::read_to_string(dir.join("wgpu_weights_audit.jsonl")).unwrap();
+    assert!(audit.contains("\"event\":\"store\""));
+    assert!(audit.contains("\"event\":\"read\""));
     let _ = std::fs::remove_dir_all(&dir);
 }
 

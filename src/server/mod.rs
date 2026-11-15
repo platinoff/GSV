@@ -11,6 +11,7 @@ use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
+use base64::Engine;
 use futures_util::stream::{self, StreamExt};
 use serde_json::{json, Value};
 use tokio_stream::wrappers::BroadcastStream;
@@ -164,6 +165,11 @@ pub fn router(state: AppState) -> Router {
         .route("/api/wgpu/report", post(api_wgpu_report_post))
         .route("/api/wgpu/mesh", get(api_wgpu_mesh))
         .route("/api/wgpu/capability", get(api_wgpu_capability))
+        .route("/api/wgpu/weights/manifest", get(api_wgpu_weights_manifest))
+        .route(
+            "/api/wgpu/weights/chunk",
+            get(api_wgpu_weights_chunk_get).post(api_wgpu_weights_chunk_post),
+        )
         .route("/api/wgpu/peer/join", post(api_wgpu_peer_join))
         .route("/api/wgpu/task/enqueue", post(api_wgpu_task_enqueue))
         .route("/api/wgpu/task/poll", post(api_wgpu_task_poll))
@@ -810,6 +816,63 @@ async fn api_wgpu_mesh(State(state): State<AppState>) -> Json<Value> {
     Json(crate::boxes::wgpu::mesh_wire(&state.data_dir))
 }
 
+/// Band MC-3: manifest of every weight chunk the hub holds (peer fetches this
+/// first, then pulls only missing chunks).
+async fn api_wgpu_weights_manifest(State(state): State<AppState>) -> Json<Value> {
+    Json(crate::boxes::weight_store::manifest(&state.data_dir))
+}
+
+/// Band MC-3: store one weight chunk. Body: `{ "data_b64": "<base64>" }`.
+async fn api_wgpu_weights_chunk_post(
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> Response {
+    let b64 = match body
+        .get("data_b64")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        Some(s) => s.to_string(),
+        None => {
+            return err_json(
+                StatusCode::BAD_REQUEST,
+                "field `data_b64` must be a non-empty base64 string",
+            )
+        }
+    };
+    let bytes = match base64::engine::general_purpose::STANDARD.decode(b64) {
+        Ok(b) => b,
+        Err(e) => {
+            return err_json(
+                StatusCode::BAD_REQUEST,
+                format!("invalid base64 in `data_b64`: {e}"),
+            )
+        }
+    };
+    match crate::boxes::weight_store::store_chunk(&state.data_dir, &bytes) {
+        Ok(v) => Json(v).into_response(),
+        Err(e) => err_json(StatusCode::BAD_REQUEST, e),
+    }
+}
+
+/// Band MC-3: read one weight chunk by its sha256 key.
+async fn api_wgpu_weights_chunk_get(
+    State(state): State<AppState>,
+    Query(q): Query<KeyQuery>,
+) -> Response {
+    let key = q.key.unwrap_or_default();
+    match crate::boxes::weight_store::read_chunk(&state.data_dir, &key) {
+        Ok(bytes) => Json(json!({
+            "ok": true,
+            "key": key,
+            "data_b64": base64::engine::general_purpose::STANDARD.encode(bytes),
+        }))
+        .into_response(),
+        Err(e) => err_json(StatusCode::BAD_REQUEST, e),
+    }
+}
+
 /// Band J: peer capability profiles + quotas (`GET /api/wgpu/capability`).
 async fn api_wgpu_capability(State(state): State<AppState>) -> Json<Value> {
     Json(crate::boxes::wgpu::capability_wire(&state.data_dir))
@@ -871,6 +934,10 @@ async fn api_usage(State(state): State<AppState>) -> Json<Value> {
     Json(crate::boxes::usage::wire_state(&state).await)
 }
 
+#[derive(serde::Deserialize)]
+struct KeyQuery {
+    key: Option<String>,
+}
 #[derive(serde::Deserialize)]
 struct XtaskQuery {
     task: Option<String>,

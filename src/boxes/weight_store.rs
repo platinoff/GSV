@@ -1,0 +1,344 @@
+//! CentralWeightStore — content-addressed weight shards for the MiniCPM mesh.
+//!
+//! Hub-side store for the real Q8/Q4 blocks that phone/PC peers will consume
+//! (`MC-2` / `MC-1` in `docs/superpowers/plans/2026-11-15-minicpm-mesh-wsp.md`).
+//! The hub is the source of truth: peers fetch missing chunks once, cache them
+//! locally, and ask only for misses on subsequent calls.
+//!
+//! Layout under `data/`:
+//! ```text
+//! wgpu_weights/                     store root
+//!   chunks/<sha256 hex>.bin        raw chunk (up to 4 MiB)
+//!   index.json                     JSON array of chunk rows
+//! wgpu_weights_audit.jsonl         audit trail (store / read / evict)
+//! ```
+//!
+//! Invariants:
+//! - content-addressed: the key is `sha256(bytes)` — clients verify on fetch,
+//!   the hub never has to trust a caller-provided key;
+//! - chunk size is capped (4 MiB);
+//! - the store self-evicts LRU rows when it exceeds `GSV_WGPU_WEIGHT_STORE_MAX_BYTES`
+//!   (default 4 GiB); every store/read/evict is audited (JSONL);
+//! - peers must not apply weights without verifying the hash (MC-2).
+
+use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
+use std::io::Write;
+use std::path::{Path, PathBuf};
+
+pub const STORE_DIR: &str = "wgpu_weights";
+pub const CHUNKS_DIR: &str = "chunks";
+pub const INDEX_FILE: &str = "index.json";
+pub const AUDIT_FILE: &str = "wgpu_weights_audit.jsonl";
+/// Hard cap for any single chunk (bytes).
+pub const MAX_CHUNK_BYTES: usize = 4 * 1024 * 1024;
+/// Default store cap (bytes): 4 GiB — the phone + PC mesh only needs the active
+/// model resident; older chunks are evicted by LRU.
+pub const DEFAULT_MAX_STORE_BYTES: u64 = 4 * 1024 * 1024 * 1024;
+/// Maximum index rows the store keeps (the mesh ships a single model at a time).
+pub const MAX_INDEX_ROWS: usize = 1024;
+
+/// Store cap (env `GSV_WGPU_WEIGHT_STORE_MAX_BYTES`, else 4 GiB).
+pub fn max_store_bytes() -> u64 {
+    std::env::var("GSV_WGPU_WEIGHT_STORE_MAX_BYTES")
+        .ok()
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .filter(|v| *v > 0)
+        .unwrap_or(DEFAULT_MAX_STORE_BYTES)
+}
+
+fn store_root(data_dir: &Path) -> PathBuf {
+    data_dir.join(STORE_DIR)
+}
+
+fn chunks_root(data_dir: &Path) -> PathBuf {
+    store_root(data_dir).join(CHUNKS_DIR)
+}
+
+fn index_path(data_dir: &Path) -> PathBuf {
+    store_root(data_dir).join(INDEX_FILE)
+}
+
+fn audit_path(data_dir: &Path) -> PathBuf {
+    data_dir.join(AUDIT_FILE)
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    let digest = hasher.finalize();
+    let mut out = String::with_capacity(digest.len() * 2);
+    for b in digest.iter() {
+        out.push_str(&format!("{b:02x}"));
+    }
+    out
+}
+
+fn clean_key(key: &str) -> Option<String> {
+    let key = key.trim().to_ascii_lowercase();
+    if key.len() != 64 {
+        return None;
+    }
+    if !key.chars().all(|c| c.is_ascii_hexdigit()) {
+        return None;
+    }
+    Some(key)
+}
+
+fn read_index(data_dir: &Path) -> Vec<Value> {
+    let path = index_path(data_dir);
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+fn write_index(data_dir: &Path, rows: &[Value]) -> Result<(), String> {
+    let root = store_root(data_dir);
+    std::fs::create_dir_all(&root).map_err(|e| format!("store root: {e}"))?;
+    let body = serde_json::to_string(&json!(rows)).map_err(|e| format!("encode index: {e}"))?;
+    let tmp = root.join(format!(".{INDEX_FILE}.tmp"));
+    std::fs::write(&tmp, body).map_err(|e| format!("index tmp: {e}"))?;
+    std::fs::rename(&tmp, index_path(data_dir)).map_err(|e| format!("index rename: {e}"))
+}
+
+fn audit(data_dir: &Path, event: &str, fields: Value) {
+    let path = audit_path(data_dir);
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let mut row = fields;
+    if let Some(obj) = row.as_object_mut() {
+        obj.insert("ts".to_string(), json!(now_secs()));
+        obj.insert("event".to_string(), json!(event));
+    }
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
+        let _ = writeln!(f, "{row}");
+    }
+}
+
+/// LRU eviction: drop oldest rows until the store fits the cap.
+/// Kept as a pure helper so it is unit-testable.
+fn evict_lru(rows: Vec<Value>, max_bytes: u64, total: u64) -> (Vec<Value>, Vec<Value>) {
+    if total <= max_bytes {
+        return (rows, Vec::new());
+    }
+    // Sort by stored_ts ascending (oldest first).
+    let mut sorted = rows;
+    sorted.sort_by_key(|r| r.get("stored_ts").and_then(Value::as_u64).unwrap_or(0));
+    let mut evicted: Vec<Value> = Vec::new();
+    let mut kept_rows: Vec<Value> = Vec::new();
+    let mut over = total.saturating_sub(max_bytes);
+    for row in sorted {
+        let bytes = row.get("bytes").and_then(Value::as_u64).unwrap_or(0);
+        if over > 0 {
+            over = over.saturating_sub(bytes);
+            evicted.push(row);
+        } else {
+            kept_rows.push(row);
+        }
+    }
+    (kept_rows, evicted)
+}
+
+fn now_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
+fn total_bytes(rows: &[Value]) -> u64 {
+    rows.iter()
+        .map(|r| r.get("bytes").and_then(Value::as_u64).unwrap_or(0))
+        .sum()
+}
+
+/// Store one chunk. The key is derived from `payload` (sha256) — callers that
+/// pass a `key` argument get it ignored (content addressing is authoritative).
+pub fn store_chunk(data_dir: &Path, payload: &[u8]) -> Result<Value, String> {
+    if payload.is_empty() {
+        return Err("field `data_b64` holds no bytes".to_string());
+    }
+    if payload.len() > MAX_CHUNK_BYTES {
+        return Err(format!(
+            "chunk too big ({} > {MAX_CHUNK_BYTES})",
+            payload.len()
+        ));
+    }
+    let key = sha256_hex(payload);
+    let root = chunks_root(data_dir);
+    std::fs::create_dir_all(&root).map_err(|e| format!("chunks dir: {e}"))?;
+    let path = root.join(format!("{key}.bin"));
+    // Atomic write.
+    let tmp = root.join(format!(".{key}.bin.tmp"));
+    std::fs::write(&tmp, payload).map_err(|e| format!("chunk write: {e}"))?;
+    std::fs::rename(&tmp, &path).map_err(|e| format!("chunk rename: {e}"))?;
+
+    let mut rows = read_index(data_dir);
+    let now = now_secs();
+    let mut evicted: Vec<Value> = Vec::new();
+    // Replace any previous row with the same key (hash collisions are impossible).
+    rows.retain(|r| r.get("key").and_then(Value::as_str) != Some(key.as_str()));
+    let pending = json!({
+        "key": key,
+        "bytes": payload.len() as u64,
+        "stored_ts": now,
+        "hits": 0,
+    });
+    rows.push(pending);
+    // Trim the index to MAX_INDEX_ROWS, keeping newest rows.
+    rows.sort_by_key(|r| r.get("stored_ts").and_then(Value::as_u64).unwrap_or(0));
+    if rows.len() > MAX_INDEX_ROWS {
+        let keep = rows.split_off(rows.len() - MAX_INDEX_ROWS);
+        let dropped: Vec<Value> = rows; // oldest rows rolled off the cap
+        for row in &dropped {
+            evicted.push(row.clone());
+        }
+        rows = keep;
+    }
+    let new_total = total_bytes(&rows);
+    let (kept, more_evicted) = evict_lru(rows, max_store_bytes(), new_total);
+    rows = kept;
+    evicted.extend(more_evicted);
+    for row in &evicted {
+        let key = row.get("key").and_then(Value::as_str).unwrap_or("");
+        let _ = std::fs::remove_file(chunks_root(data_dir).join(format!("{key}.bin")));
+        audit(
+            data_dir,
+            "evict",
+            json!({"key": key, "bytes": row.get("bytes").cloned().unwrap_or(Value::Null)}),
+        );
+    }
+    write_index(data_dir, &rows)?;
+    audit(
+        data_dir,
+        "store",
+        json!({"key": key, "bytes": payload.len() as u64}),
+    );
+    Ok(json!({
+        "ok": true,
+        "key": key,
+        "bytes": payload.len() as u64,
+        "chunks": rows.len(),
+    }))
+}
+
+/// Read one chunk by key. Also bumps the hit counter (best effort).
+pub fn read_chunk(data_dir: &Path, key: &str) -> Result<Vec<u8>, String> {
+    let key = clean_key(key)
+        .ok_or_else(|| "field `key` must be a lowercase 64-char sha256".to_string())?;
+    let path = chunks_root(data_dir).join(format!("{key}.bin"));
+    let bytes = std::fs::read(&path).map_err(|e| format!("chunk `{key}` not stored: {e}"))?;
+    let mut rows = read_index(data_dir);
+    let mut bumped = false;
+    for row in rows.iter_mut() {
+        if row.get("key").and_then(Value::as_str) == Some(key.as_str()) {
+            row["hits"] = json!(row.get("hits").and_then(Value::as_u64).unwrap_or(0) + 1);
+            bumped = true;
+            break;
+        }
+    }
+    if bumped {
+        let _ = write_index(data_dir, &rows);
+    }
+    audit(
+        data_dir,
+        "read",
+        json!({"key": key, "bytes": bytes.len() as u64}),
+    );
+    Ok(bytes)
+}
+
+/// The manifest a peer fetches to know which chunks it must pull: model
+/// identity plus every stored chunk with size and key.
+pub fn manifest(data_dir: &Path) -> Value {
+    let rows = read_index(data_dir);
+    let total = total_bytes(&rows);
+    json!({
+        "ok": true,
+        "model": "minicpm-v-4.7-1b",
+        "family": "qwen35-hybrid",
+        "bits": "q8_0",
+        "total_bytes": total,
+        "max_chunk_bytes": MAX_CHUNK_BYTES,
+        "max_store_bytes": max_store_bytes(),
+        "chunks": rows.iter().map(|r| json!({
+            "key": r.get("key").cloned().unwrap_or(Value::Null),
+            "bytes": r.get("bytes").cloned().unwrap_or(Value::Null),
+            "stored_ts": r.get("stored_ts").cloned().unwrap_or(Value::Null),
+            "hits": r.get("hits").cloned().unwrap_or(Value::Null),
+        })).collect::<Vec<_>>(),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_dir(tag: &str) -> PathBuf {
+        let d =
+            std::env::temp_dir().join(format!("gsv_weights_test_{}_{}", tag, std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        d
+    }
+
+    #[test]
+    fn store_then_manifest_then_read_roundtrip() {
+        let dir = temp_dir("roundtrip");
+        let payload = b"real-ish q8 block bytes for the minicpm mesh".to_vec();
+        let stored = store_chunk(&dir, &payload).expect("store");
+        let key = stored["key"].as_str().unwrap().to_string();
+        assert_eq!(key.len(), 64);
+        let m = manifest(&dir);
+        assert_eq!(m["ok"], true);
+        assert_eq!(m["chunks"].as_array().unwrap().len(), 1);
+        assert_eq!(m["total_bytes"], payload.len() as u64);
+        let bytes = read_chunk(&dir, &key).expect("read");
+        assert_eq!(bytes, payload);
+        // Audit trail records store + read.
+        let audit = std::fs::read_to_string(dir.join(AUDIT_FILE)).unwrap();
+        assert!(audit.contains("\"event\":\"store\""));
+        assert!(audit.contains("\"event\":\"read\""));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn junk_keys_are_rejected() {
+        let dir = temp_dir("junk");
+        assert!(read_chunk(&dir, "not-a-hash").is_err());
+        assert!(read_chunk(&dir, "AAAA").is_err());
+        assert!(read_chunk(&dir, "z".repeat(64).as_str()).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn oversized_chunks_are_refused() {
+        let dir = temp_dir("big");
+        let big = vec![7u8; MAX_CHUNK_BYTES + 1];
+        assert!(store_chunk(&dir, &big).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn lru_eviction_drops_oldest_rows() {
+        let rows = vec![
+            json!({"key":"aa","bytes":10,"stored_ts":1}),
+            json!({"key":"bb","bytes":10,"stored_ts":2}),
+            json!({"key":"cc","bytes":10,"stored_ts":3}),
+        ];
+        let (kept, evicted) = evict_lru(rows, 20, 30);
+        assert_eq!(kept.len(), 2);
+        assert_eq!(evicted.len(), 1);
+        assert_eq!(evicted[0]["key"], "aa");
+        // Within the cap nothing is evicted.
+        let (kept2, evicted2) =
+            evict_lru(vec![json!({"key":"dd","bytes":5,"stored_ts":1})], 100, 5);
+        assert_eq!(kept2.len(), 1);
+        assert!(evicted2.is_empty());
+    }
+}
