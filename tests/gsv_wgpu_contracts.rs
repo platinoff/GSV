@@ -200,6 +200,40 @@ async fn mesh_wire_reports_leases_capability_and_best_peer() {
 }
 
 #[tokio::test]
+async fn enqueue_minilm_carries_token_and_layer_and_rejects_bad_bounds() {
+    let (app, dir) = app("minilm");
+    let (status, good) = post(
+        &app,
+        "/api/wgpu/task/enqueue",
+        serde_json::json!({"op":"minilm","token":7,"layer":1}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(good["ok"], true);
+    assert!(good["task_id"].as_str().unwrap().starts_with("mt-"));
+
+    // Out-of-range token (toy vocab is 0..1023) and layer (>= 2) are refused.
+    let (status, bad_token) = post(
+        &app,
+        "/api/wgpu/task/enqueue",
+        serde_json::json!({"op":"minilm","token":1024}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(bad_token["ok"], false);
+
+    let (status, bad_layer) = post(
+        &app,
+        "/api/wgpu/task/enqueue",
+        serde_json::json!({"op":"minilm","layer":2}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(bad_layer["ok"], false);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
 async fn task_result_rejects_negative_throughput() {
     let (app, dir) = app("negative");
     let (_, joined) = post(

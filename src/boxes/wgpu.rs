@@ -149,13 +149,14 @@ const MAX_TASKS: usize = 200;
 pub const MAX_ITERS: u64 = 1024;
 
 /// Operations a mesh peer can execute (page-side WGSL runners).
-pub const SUPPORTED_OPS: [&str; 6] = [
+pub const SUPPORTED_OPS: [&str; 7] = [
     "matmul64",
     "matvec",
     "matvec_shard",
     "mlpblock",
     "layernorm",
     "softmax",
+    "minilm",
 ];
 
 /// Dims string per op (mirrors the page-side WGSL runners).
@@ -167,6 +168,7 @@ pub fn op_dims(op: &str) -> &'static str {
         "mlpblock" => "1024x1024",
         "layernorm" => "1024",
         "softmax" => "1024",
+        "minilm" => "1024x1024",
         _ => "?",
     }
 }
@@ -191,6 +193,8 @@ pub fn op_flops(op: &str) -> u64 {
         // elementwise over the 1024-dim vector: sub/add/sqrt (layernorm) / exp+sum+div (softmax)
         "layernorm" => 2_048,
         "softmax" => 2_048,
+        // one mini-LM layer: one block (2 chained matvecs + SiLU) over the token vector
+        "minilm" => 524_288,
         _ => 0,
     }
 }
@@ -221,6 +225,9 @@ pub fn shard_range(shard_id: usize, shards: usize) -> (usize, usize) {
     let chunk = MATVEC_K / shards.max(1);
     (shard_id * chunk, (shard_id + 1) * chunk)
 }
+
+/// Number of layers of the end-to-end mini-LM (`y = W2 * silu(W1 * x)` per layer).
+pub const MINILM_LAYERS: usize = 2;
 
 /// Hidden width of the transformer block (`W1: [256][1024]`, `W2: [1024][256]`).
 pub const BLOCK_HIDDEN: usize = 256;
@@ -268,6 +275,54 @@ pub fn mlp_block_reference() -> Vec<f64> {
 /// Deterministic elementwise vector of the elementwise ops (same generator family).
 fn element_x() -> Vec<f64> {
     (0..MATVEC_K).map(matvec_x).collect()
+}
+
+/// Deterministic input vector of a mini-LM layer for a token: `x[k] = f(token, k)`.
+fn minilm_x(token: usize, k: usize) -> f64 {
+    (((token * 7 + k * 3) % 11) as f64 - 5.0) * 0.25
+}
+
+/// Deterministic block weights of mini-LM layer `layer` for token `token`:
+/// W1 is [256][1024], W2 is [1024][256], both on the same generator family
+/// as the plain block but with a per-layer offset.
+fn minilm_w1(layer: usize, h: usize, k: usize) -> f64 {
+    let off = layer * BLOCK_HIDDEN * MATVEC_K;
+    (((h * MATVEC_K + k + off) % 13) as f64 - 6.0) * 0.125
+}
+
+fn minilm_w2(layer: usize, o: usize, h: usize) -> f64 {
+    let off = layer * BLOCK_HIDDEN * MATVEC_K;
+    (((o * BLOCK_HIDDEN + h + off) % 13) as f64 - 6.0) * 0.125
+}
+
+/// CPU reference of one mini-LM layer: `y = W2 * silu(W1 * x(token, layer))`.
+pub fn minilm_layer_reference(token: usize, layer: usize) -> Vec<f64> {
+    let x: Vec<f64> = (0..MATVEC_K).map(|k| minilm_x(token, k)).collect();
+    let h: Vec<f64> = (0..BLOCK_HIDDEN)
+        .map(|hh| (0..MATVEC_K).map(|k| minilm_w1(layer, hh, k) * x[k]).sum())
+        .collect();
+    (0..1024)
+        .map(|o| {
+            (0..BLOCK_HIDDEN)
+                .map(|i| minilm_w2(layer, o, i) * block_silu(h[i]))
+                .sum()
+        })
+        .collect()
+}
+
+/// Next token of the toy LM: argmax over the softmax of the layer output.
+pub fn minilm_next_token(token: usize, layer: usize) -> usize {
+    let v = minilm_layer_reference(token, layer);
+    let _max = v.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    let sum = v.iter().map(|x| x.exp()).sum::<f64>();
+    let y: Vec<f64> = v.iter().map(|x| x.exp() / sum).collect();
+    (0..y.len())
+        .max_by(|a, b| {
+            y[*a]
+                .partial_cmp(&y[*b])
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .unwrap_or(0)
 }
 
 /// CPU reference of layernorm over the 1024-dim vector: `y[i] = (v[i]-mean)/sqrt(var+eps)`.
@@ -580,6 +635,20 @@ pub fn task_enqueue(data_dir: &Path, body: &Value) -> Result<Value, String> {
     } else {
         1
     };
+    // Band I: token + layer of a mini-LM layer task (defaults keep other ops unchanged).
+    let token = body.get("token").and_then(Value::as_u64).unwrap_or(0) as usize;
+    let layer = body.get("layer").and_then(Value::as_u64).unwrap_or(0) as usize;
+    if op == "minilm" {
+        if token > MATVEC_K - 1 {
+            return Err(format!("field `token` must be 0..={}", MATVEC_K - 1));
+        }
+        if layer >= MINILM_LAYERS {
+            return Err(format!(
+                "field `layer` must be 0..={} for op `minilm`",
+                MINILM_LAYERS - 1
+            ));
+        }
+    }
     let _g = mesh_lock();
     let path = data_dir.join(TASKS_FILE);
     let mut tasks = read_jsonl(&path);
@@ -620,6 +689,10 @@ pub fn task_enqueue(data_dir: &Path, body: &Value) -> Result<Value, String> {
             "status": "queued",
             "created_ts": now_secs(),
         });
+        if op == "minilm" {
+            row["token"] = json!(token);
+            row["layer"] = json!(layer);
+        }
         if shards > 1 {
             row["group_id"] = json!(group_id);
             row["shard_id"] = json!(shard_id);
@@ -893,6 +966,7 @@ button:disabled{opacity:.5}
 <button onclick="enqueueTask('mlpblock',1)">Enqueue mlpblock (transformer block)</button>
 <button onclick="enqueueTask('layernorm',1)">Enqueue layernorm</button>
 <button onclick="enqueueTask('softmax',1)">Enqueue softmax</button>
+<button onclick="enqueueMinilm(7,0)">Enqueue minilm (toy LM layer)</button>
 <button onclick="benchLocal('matvec',64)">Local bench matvec (64x)</button>
 </div>
 <pre id="out">idle</pre>
@@ -991,7 +1065,7 @@ async function buildBlock(device){
   const read=device.createBuffer({size:REF.byteLength,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
   return {device:device,adapterName:adapterName,pipeline:pipeline,bg:bg,out:yBuf,read:read,bytes:REF.byteLength,ref:REF,flops:OPS.mlpblock.flops,dispatch:OPS.mlpblock.dispatch};
 }
-const OPS={matmul64:{flops:524288,dispatch:[8,8]},matvec:{flops:524288,dispatch:[4]},mlpblock:{flops:1048576,dispatch:[16]},layernorm:{flops:2048,dispatch:[16]},softmax:{flops:2048,dispatch:[16]}};
+const OPS={matmul64:{flops:524288,dispatch:[8,8]},matvec:{flops:524288,dispatch:[4]},mlpblock:{flops:1048576,dispatch:[16]},layernorm:{flops:2048,dispatch:[16]},softmax:{flops:2048,dispatch:[16]},minilm:{flops:524288,dispatch:[16]}};
 const CACHE={};
 async function buildRunner(op,shardId,shards){
   if(!navigator.gpu){throw new Error('no navigator.gpu (secure-context gate: see hub notes)');}
@@ -1008,6 +1082,7 @@ async function buildRunner(op,shardId,shards){
     return {device:device,adapterName:adapterName,pipeline:built.pipeline,bg:built.bg,out:built.out,read:built.read,bytes:built.bytes,ref:built.ref,flops:built.flops,dispatch:built.dispatch};
   }
   if(op==='mlpblock'){return await buildBlock(device);}
+  if(op==='minilm'){const r=await buildMinilm(device,shardId||0,shards||0);return r;}
   if(op==='layernorm'){return await buildLayernorm(device);}
   if(op==='softmax'){return await buildSoftmax(device);}
   // matvec_shard: one peer owns a K-range of the reduction and returns a partial.
@@ -1037,7 +1112,7 @@ fn main(@builtin(global_invocation_id) g:vec3<u32>) {
   const read=device.createBuffer({size:REF.byteLength,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
   return {device:device,adapterName:adapterName,pipeline:pipeline,bg:bg,out:yBuf,read:read,bytes:REF.byteLength,ref:REF,flops:2*R*chunk,dispatch:[4]};
 }
-async function getRunner(op,shardId,shards){const key=op+(op==='matvec_shard'?'#'+shardId+'#'+shards:'');if(CACHE[key])return CACHE[key];const r=await buildRunner(op,shardId,shards);CACHE[key]=r;return r;}
+async function getRunner(op,shardId,shards){let key=op;if(op==='matvec_shard'){key=op+'#'+shardId+'#'+shards;}else if(op==='minilm'){key=op+'#'+(shardId||0)+'#'+(shards||0);}if(CACHE[key])return CACHE[key];const r=await buildRunner(op,shardId,shards);CACHE[key]=r;return r;}
 async function buildLayernorm(device){
   const V=new Float32Array(1024),REF=new Float32Array(1024);
   for(let i=0;i<1024;i++){V[i]=((i%7)-3)*0.25;}
@@ -1151,6 +1226,62 @@ async function runSoftmax(){
   log('softmax: '+total.toFixed(2)+'ms max_err='+maxErr.toExponential(2)+' · '+mflops.toFixed(2)+' MFLOPS');
   return {ok:maxErr<1e-3,adapter:r.adapterName,elapsed_ms:Math.round(total*100)/100,max_err:maxErr,iters:1,mflops:Math.round(mflops*100)/100,ops_per_sec:Math.round(opsPerSec*100)/100,device_reused:reused};
 }
+const WGSL_MINILM=`
+@group(0) @binding(0) var<storage,read> w1:array<f32>;
+@group(0) @binding(1) var<storage,read> x:array<f32>;
+@group(0) @binding(2) var<storage,read> w2:array<f32>;
+@group(0) @binding(3) var<storage,read_write> y:array<f32>;
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) g:vec3<u32>) {
+  let o=g.x;
+  if (o>=1024u) { return; }
+  var acc=0.0;
+  for (var i2=0u; i2<256u; i2++) {
+    var s=0.0;
+    for (var k=0u; k<1024u; k++) { s = s + w1[i2*1024u+k]*x[k]; }
+    let hv = s/(1.0+exp(-s));
+    acc = acc + w2[o*256u+i2]*hv;
+  }
+  y[o]=acc;
+}`;
+async function buildMinilm(device,token,layer){
+  const W1=new Float32Array(256*1024),X=new Float32Array(1024),W2=new Float32Array(1024*256),REF=new Float32Array(1024);
+  for(let i=0;i<256*1024;i++){W1[i]=(((i+layer*256*1024)%13)-6)*0.125;}
+  for(let k=0;k<1024;k++){X[k]=(((token*7+k*3)%11)-5)*0.25;}
+  for(let j=0;j<1024*256;j++){W2[j]=(((j+layer*256*1024)%13)-6)*0.125;}
+  for(let o=0;o<1024;o++){let acc=0;for(let h2=0;h2<256;h2++){let s=0;for(let k=0;k<1024;k++){s=s+W1[h2*1024+k]*X[k];}let hv=s/(1.0+Math.exp(-s));acc=acc+W2[o*256+h2]*hv;}REF[o]=acc;}
+  const w1Buf=device.createBuffer({size:W1.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
+  const xBuf=device.createBuffer({size:X.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
+  const w2Buf=device.createBuffer({size:W2.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
+  const yBuf=device.createBuffer({size:REF.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC});
+  device.queue.writeBuffer(w1Buf,0,W1);device.queue.writeBuffer(xBuf,0,X);device.queue.writeBuffer(w2Buf,0,W2);
+  const pipeline=device.createComputePipeline({layout:'auto',compute:{module:device.createShaderModule({code:WGSL_MINILM}),entryPoint:'main'}});
+  const bg=device.createBindGroup({layout:pipeline.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:w1Buf}},{binding:1,resource:{buffer:xBuf}},{binding:2,resource:{buffer:w2Buf}},{binding:3,resource:{buffer:yBuf}}]});
+  const read=device.createBuffer({size:REF.byteLength,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
+  return {device:device,adapterName:adapterName,pipeline:pipeline,bg:bg,out:yBuf,read:read,bytes:REF.byteLength,ref:REF,flops:524288,dispatch:[16]};
+}
+async function runMinilm(token,layer){
+  const key='minilm#'+token+'#'+layer;
+  const reused=!!CACHE[key];
+  const r=await getRunner('minilm',token,layer);
+  const enc=r.device.createCommandEncoder();const pass=enc.beginComputePass();
+  pass.setPipeline(r.pipeline);pass.setBindGroup(0,r.bg);pass.dispatchWorkgroups(r.dispatch[0]);pass.end();
+  enc.copyBufferToBuffer(r.out,0,r.read,0,r.bytes);
+  const t0=performance.now();r.device.queue.submit([enc.finish()]);
+  await r.device.queue.onSubmittedWorkDone();
+  const total=performance.now()-t0;
+  await r.read.mapAsync(GPUMapMode.READ);const C=new Float32Array(r.read.getMappedRange().slice(0));r.read.unmap();
+  let maxErr=0;for(let i=0;i<r.ref.length;i++){const e=Math.abs(C[i]-r.ref[i]);if(e>maxErr){maxErr=e;}}
+  const mflops=524288/((total/1000)*1e6);
+  const maxv=C[0];for(let k=1;k<1024;k++){if(C[k]>maxv){maxv=C[k];}}
+  let s=0;for(let k=0;k<1024;k++){s=s+Math.exp(C[k]-maxv);}
+  const y=new Float32Array(1024);let next=-1;let best=-1;
+  for(let i=0;i<1024;i++){y[i]=Math.exp(C[i]-maxv)/s;const e=Math.abs(y[i]-r.ref[i]);if(e>maxErr){maxErr=e;}if(y[i]>best){best=y[i];next=i;}}
+  const ok=maxErr<1e-3;
+  const opsPerSec=1/(total/1000);
+  log('minilm layer '+(layer||0)+' token '+(token||0)+': '+total.toFixed(2)+'ms max_err='+maxErr.toExponential(2)+' · '+mflops.toFixed(2)+' MFLOPS');
+  return {ok:ok,adapter:r.adapterName,elapsed_ms:Math.round(total*100)/100,max_err:maxErr,iters:1,mflops:Math.round(mflops*100)/100,ops_per_sec:Math.round(opsPerSec*100)/100,device_reused:reused,token:token||0,layer:layer||0,next_token:next,partial:Array.from(C).map(v=>Math.round(v*1e6)/1e6)};
+}
 async function runBlock(){
   const reused=!!CACHE['mlpblock'];
   const r=await getRunner('mlpblock');
@@ -1217,9 +1348,10 @@ async function run(){
   }catch(e){setCap('error: '+e,false);log('error: '+e);await post({ok:false,task_id:'phone-e2e-matmul64',peer:'browser-webgpu',adapter:'error: '+String(e).slice(0,80),dims:'64x64',elapsed_ms:0,max_err:0,ua:String(e).slice(0,120)});}
   await refreshFeed();await refreshMesh();go.disabled=false;
 }
-let WORKER=null;
+let WORKER=null;let minilmSteps=0;
 async function startWorker(){
   if(WORKER){log('worker already running');return;}
+  minilmSteps=0;
   if(!navigator.gpu){setCap('no navigator.gpu — worker cannot start',false);return;}
   try{
     const ad=await navigator.gpu.requestAdapter();let name='adapter';try{const i=ad&&ad.info||{};name=[i.vendor,i.architecture,i.device].filter(Boolean).join('/')||'adapter';}catch(e){}
@@ -1246,7 +1378,12 @@ async function workerLoop(){
       if(d.ok&&d.task){
         const iters=d.task.iters||1;
         log('mesh task '+d.task.task_id+' ('+d.task.op+' x'+iters+')');
-        let r;try{if(d.task.op==='matvec_shard'){r=await runShard(d.task.shard_id||0,d.task.shards||1);}else if(d.task.op==='mlpblock'){r=await runBlock();}else if(d.task.op==='layernorm'){r=await runLayernorm();}else if(d.task.op==='softmax'){r=await runSoftmax();}else{r=await runOp(d.task.op,iters);}}catch(e){r={ok:false,elapsed_ms:0,max_err:0,adapter:'error: '+String(e).slice(0,60)};}
+        let r;try{if(d.task.op==='matvec_shard'){r=await runShard(d.task.shard_id||0,d.task.shards||1);}else if(d.task.op==='mlpblock'){r=await runBlock();}else if(d.task.op==='layernorm'){r=await runLayernorm();}else if(d.task.op==='softmax'){r=await runSoftmax();}else if(d.task.op==='minilm'){r=await runMinilm(d.task.token||0,d.task.layer||0);}else{r=await runOp(d.task.op,iters);}}catch(e){r={ok:false,elapsed_ms:0,max_err:0,adapter:'error: '+String(e).slice(0,60)};}
+        if(d.task.op==='minilm'){
+          const lay=(d.task.layer||0)+1;
+          if(r.ok&&(lay<2)){await fetch('api/wgpu/task/enqueue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'minilm',token:d.task.token||0,layer:lay})});}
+          else if(r.ok){const nt=r.next_token;const tk=d.task.token||0;if(nt!=null&&nt!==tk&&minilmSteps<8){minilmSteps++;await fetch('api/wgpu/task/enqueue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'minilm',token:nt,layer:0});}}
+        }
         log('task '+d.task.task_id+': '+(r.ok?'done':'failed')+' '+r.elapsed_ms+'ms/op max_err='+r.max_err.toExponential(2)+(r.mflops!==undefined?' · '+r.mflops+' MFLOPS · '+r.ops_per_sec+' ops/s':''));
         await fetch('api/wgpu/task/result',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({peer_id:WORKER.peer,task_id:d.task.task_id,ok:r.ok,elapsed_ms:r.elapsed_ms,max_err:r.max_err,iters:r.iters,mflops:r.mflops,ops_per_sec:r.ops_per_sec,device_reused:r.device_reused,partial:r.partial})});
         await refreshMesh();
@@ -1256,6 +1393,7 @@ async function workerLoop(){
   }
 }
 async function enqueueTask(op,iters,shards){const n=parseInt(iters,10)||1;const sh=parseInt(shards,10)||0;const body={op:op||'matmul64',iters:n};if(sh>1)body.shards=sh;try{const d=await(await fetch('api/wgpu/task/enqueue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();log(d.ok?(d.group_id?'queued group '+d.group_id+' ('+d.shards+' shards: '+d.task_ids.join(', ')+')':'queued '+d.task_id+' ('+(op||'matmul64')+' x'+n+' queue='+d.queued+')'):'enqueue error: '+d.error);}catch(e){log('enqueue: '+e);}await refreshMesh();}
+async function enqueueMinilm(token,layer){const body={op:'minilm',token:parseInt(token,10)||0,layer:parseInt(layer,10)||0};try{const d=await(await fetch('api/wgpu/task/enqueue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();log(d.ok?'queued minilm layer task '+(d.task_id||'?')+(d.group_id?' group '+d.group_id:'')+' token='+body.token+' layer='+body.layer:'enqueue error: '+d.error);}catch(e){log('enqueueMinilm: '+e);}await refreshMesh();}
 async function benchLocal(op,iters){const n=parseInt(iters,10)||64;try{const r=await runOp(op,n);setCap(r.ok?'BENCH PASS':'BENCH FAIL',r.ok);log('local bench '+op+': '+r.mflops+' MFLOPS · '+r.ops_per_sec+' ops/s · '+r.elapsed_ms+'ms/op · max_err='+r.max_err.toExponential(2));}catch(e){setCap('bench error: '+e,false);log('bench error: '+e);}await refreshMesh();}
 refreshFeed();refreshMesh();
 </script>
@@ -1345,6 +1483,7 @@ mod tests {
         assert_eq!(op_dims("mlpblock"), "1024x1024");
         assert_eq!(op_dims("layernorm"), "1024");
         assert_eq!(op_dims("softmax"), "1024");
+        assert_eq!(op_dims("minilm"), "1024x1024");
         assert_eq!(op_dims("other"), "?");
         let p = page();
         assert!(p.contains("matvecOnce"));
@@ -1354,6 +1493,7 @@ mod tests {
         assert!(p.contains("Enqueue mlpblock (transformer block)"));
         assert!(p.contains("Enqueue layernorm"));
         assert!(p.contains("Enqueue softmax"));
+        assert!(p.contains("Enqueue minilm (toy LM layer)"));
     }
 
     #[test]
@@ -1558,6 +1698,58 @@ mod tests {
         assert_eq!(op_flops("matmul64"), 524_288);
         assert_eq!(op_flops("matvec"), 524_288);
         assert_eq!(op_flops("unknown"), 0);
+    }
+
+    #[test]
+    fn minilm_layer_reference_is_deterministic_per_token_and_layer() {
+        // Layer 0 of token 7 must differ from layer 0 of token 8 (token-derived x).
+        let l0_7 = minilm_layer_reference(7, 0);
+        let l0_8 = minilm_layer_reference(8, 0);
+        assert_eq!(l0_7.len(), 1024);
+        assert_ne!(l0_7, l0_8);
+        // Layer 1 weights are offset against layer 0 (different generator row).
+        let l1_7 = minilm_layer_reference(7, 1);
+        assert_ne!(l0_7, l1_7);
+        // The next token comes from the softmax argmax of the final layer.
+        let next = minilm_next_token(7, 1);
+        assert!(next < 1024);
+        let d = minilm_layer_reference(7, 1);
+        let _max = d.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        let sum = d.iter().map(|x| x.exp()).sum::<f64>();
+        let y: Vec<f64> = d.iter().map(|x| x.exp() / sum).collect();
+        assert_eq!(
+            next,
+            (0..y.len())
+                .max_by(|a, b| y[*a].partial_cmp(&y[*b]).unwrap())
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn minilm_task_lifecycle_carries_token_and_layer() {
+        let dir = temp_dir("mesh_minilm");
+        let e = task_enqueue(&dir, &json!({"op":"minilm","token":7,"layer":1}))
+            .expect("enqueue minilm");
+        assert_eq!(e["ok"], true);
+        let task_id = e["task_id"].as_str().unwrap().to_string();
+        let j = peer_join(&dir, &json!({"adapter":"a","ua":"u"})).expect("join");
+        let peer = j["peer_id"].as_u64().unwrap();
+        let p = peer_poll(&dir, &json!({"peer_id": peer})).expect("poll");
+        let task = &p["task"];
+        assert_eq!(task["op"], "minilm");
+        assert_eq!(task["token"], 7);
+        assert_eq!(task["layer"], 1);
+        assert_eq!(task["flops_per_iter"], 524_288);
+        let r = task_result(
+            &dir,
+            &json!({"peer_id":peer,"task_id":task_id,"ok":true,"elapsed_ms":2.0,"max_err":0.0,"iters":1,"mflops":262.1,"ops_per_sec":524.3,"device_reused":true,"partial":[0.0,1.0]}),
+        )
+        .expect("result");
+        assert_eq!(r["status"], "done");
+        // Out-of-range token/layer are refused.
+        assert!(task_enqueue(&dir, &json!({"op":"minilm","token":1024})).is_err());
+        assert!(task_enqueue(&dir, &json!({"op":"minilm","layer":2})).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
