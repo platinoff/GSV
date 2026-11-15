@@ -1,17 +1,18 @@
 # Передача контексту новій сесії (GSV)
 
-## Сталий стан (2026-11-08 вечір — OpenCode free lane + WSP prep; vision rev 516, next PH-S3089)
+## Сталий стан (2026-11-15 — MiniCPM mesh + WSP weight-fixing; OpenCode free lane; vision rev 516, next PH-S3089)
 
 | Що | Значення |
 |----|----------|
-| GSV | crate **0.244.0**, live `:9999` MCP 60/60; ratio **99.56%**; S0: після `cargo xtask disk --clean` free **~25G** (було ~0.17G — обов’язковий preflight) |
+| MiniCPM mesh | **Нове (owner 2026-11-15):** розселення MiniCPM-V 4.7-1B по девайсах (phone WebGPU / PC wgpu / CPU 12 threads / llama-rs) через rusty-engine + GSV-WGPU mesh + poolAI; покращення ваг шарів через WSP (NanoJev за cloud-oracle) — plan: [`superpowers/plans/2026-11-15-minicpm-mesh-wsp.md`](superpowers/plans/2026-11-15-minicpm-mesh-wsp.md). Тікети: **MC-7** arch (`t-1794758435656709900`) → **MC-3** store (`t-1794758435734724800`) → **MC-2** real-weight (`t-1794758435803909000`) → **MC-1** ExpertParallelDispatch (`t-1794758435872050000`) → **MC-4** provider row (`t-1794758435965341800`); **MC-5** prefill/decode bench (`t-1794758436045763000`); **MC-6** WSP gate (poolai, `t-1794758436128993400`). Деп.: **WSP-G1** (`t-1794500787830346100`) · **WSP-G1-rusty** (`t-1794500787890861700`) · **WSP-3** (`t-1794500787998945000`) · **PH-1202→1206** · **PH-404/405/407** |
+| GSV | crate **0.248.0**, live `:9999` MCP 60/60; ratio **99.56%**; S0: після `cargo xtask disk --clean` free **~25G** (було ~0.17G — обов’язковий preflight) |
 | OpenCode free | Preferred: **Flint 40B → GLM 5.3 → DeepSeek 1017** (+ Zen fallbacks). Canon: [`gsv/GSV_OPENCODE_FREE_AGENTS.md`](gsv/GSV_OPENCODE_FREE_AGENTS.md) · plan [`superpowers/plans/2026-11-08-opencode-free-eco.md`](superpowers/plans/2026-11-08-opencode-free-eco.md) |
 | ECO done | 6.6–6.10, 7.2/7.5, 8.0, **8.1** (poolAI red-lanes). **skipped:** 7.1, 7.6. Umbrella ECO-6/7.0 closed on board |
-| ECO open | **8.5** poolAI clippy-debt (WIP у дереві; блокер **7.3** tokio) · **8.2** llama-rs sys · **8.3** dep-sweep · **8.4** `:8091` owner-gated · **7.4** date **2026-11-12** · **7.7** rebook books owner · **9.1** poolAI **WSP** feasibility (RL→weight-space) |
-| WSP | Owner: оцінити заміну/гібрид RL/Decision (NanoJev-like) на Weight-Space Programming для фіксу малих моделей. Plan+prompt: [`superpowers/plans/2026-11-08-poolai-wsp-feasibility.md`](superpowers/plans/2026-11-08-poolai-wsp-feasibility.md) · poolAI brief `docs/development/WSP_WEIGHT_SPACE_PROGRAMMING_BRIEF.md` |
+| ECO open | **8.5** poolAI clippy-debt (WIP у дереві; блокер **7.3** tokio) · **8.2** llama-rs sys · **8.3** dep-sweep · **8.4** `:8091` owner-gated · **7.4** date **2026-11-12** · **7.7** rebook books owner · **9.1** poolAI **WSP** feasibility ✅ (done) · **9.2** arch sketch ✅ |
+| WSP | Owner: гібрид RL/Decision (NanoJev-like) + Weight-Space Programming для фіксу малих моделей. ECO-9.1 verdict 55% (threshold 55) → ECO-9.2 arch-sketch done. Plan: [`superpowers/plans/2026-11-08-poolai-wsp-feasibility.md`](superpowers/plans/2026-11-08-poolai-wsp-feasibility.md) · poolAI brief `docs/development/WSP_WEIGHT_SPACE_PROGRAMMING_BRIEF.md` · **MiniCPM mesh (owner 2026-11-15):** [`superpowers/plans/2026-11-15-minicpm-mesh-wsp.md`](superpowers/plans/2026-11-15-minicpm-mesh-wsp.md) |
 | Інфра | keep-live: **gsv + telenetis up**; llama-rs / rusty / omniroute **down** (policy-down ok); poolAI `:8091` **down** (8.4) |
 | Rebook | RB-63…66 **cancelled** на хаб-борді (шум; book work тільки локально в rebook, не claim з GSV free lane) |
-| Далі для free OpenCode | 8.5 → 7.3 → 8.2 → 8.3 → **9.1 WSP docs** → (після 12.11) 7.4; owner: 8.4 / 7.7 |
+| Далі | MiniCPM mesh: **MC-7** (arch) → **MC-3** (store) → **MC-2** (real-weight) → **MC-1** (ExpertParallelDispatch) → **MC-4** (provider row); **MC-5** (split bench) після MC-1; **MC-6** (WSP gate) після MC-1 + WSP-3; owner: 8.4 / 7.7; паралельно free lane: 8.5 → 7.3 |
 
 ## Стан 2026-10-24 (історичний; актуальний — таблиця вище)
 
