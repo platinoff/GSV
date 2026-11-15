@@ -65,7 +65,7 @@
 4. **Ваги в девайсі**: не toy-константи, а реальні Q8 блоки; розповсюдження — content-addressed hub store (sha256, chunked, cache у браузері).
 5. **Перевірка**: кожен remote-результат має `max_err_model` vs CPU shard-reference і verified `op`-echo; інакше задача `failed`.
 6. **WSP lane**: лише block-bitmap patch-at-dequant (rusty-engine) ≥ zero-downtime; llama-rs — offline rewrite + restart; все проходить Uk-golden + chat-fixture counterfactual eval (router/gate frozen), 2/3 кворум, canary, auto-rollback при regression.
-7. **Cloud oracle**: кандидат від хмарної моделі (через OmniRouter `task=reasoning`, `prefer_free=true`) → WSP patch-pack → grid gate → rollback/keep. Обов'язковий фік у product docs (`WSP_WEIGHT_SPACE_PROGRAMMING_BRIEF.md`).
+7. **Candidate generation**: **Inkling 2 Small Free (agent-as-candidate, цей harness)** — audit-guided гіпотези (audit-статистика → blocks), gate вирішує keep/rollback. Cloud-oracle через OmniRouter — опційний «радник» коли з'являться ключі; **не блокер** (рішення owner 2026-11-15). Обов'язковий фік у product docs (`WSP_WEIGHT_SPACE_PROGRAMMING_BRIEF.md`).
 8. **Мовна гарантія**: Uk-golden fixtures — обов'язковий гейт кожного патча та кожного offloaded matvec (freeze router/gate, Uk-golden до/після).
 
 ## 5. Майлстоуни
