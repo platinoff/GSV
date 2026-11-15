@@ -1953,7 +1953,7 @@ async function runWeightsMatvec(tensor,shardId,shards,xArr){
   const key='weights_matvec#'+tensor+'#'+shardId+'#'+shards;
   const reused=!!CACHE[key];
   let r=CACHE[key];
-  if(!r)r=await buildWeightsMatvec((await navigator.gpu.requestAdapter()).requestDevice(),tensor,shardId||0,shards||2);
+  if(!r){const adapter=await navigator.gpu.requestAdapter();const device=await adapter.requestDevice();r=await buildWeightsMatvec(device,tensor,shardId||0,shards||2);}
   const xb=new Float32Array(xArr.length);for(let i=0;i<xArr.length;i++)xb[i]=xArr[i];
   r.device.queue.writeBuffer(r.xBuf,0,xb);
   const enc=r.device.createCommandEncoder();const pass=enc.beginComputePass();
