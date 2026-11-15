@@ -2,43 +2,47 @@
 
 **Дата:** 2026-11-15 · **Owner:** скачати на диск (наявність), далі — розселити експертів по девайсах
 **Продукти:** `rusty-engine` · `gsv-wgpu` · `gsv` · `poolai` · `llama-rs`
-**Статус:** stage = скачування (цей документ); **запуск тут і зараз неможливий**
+**Статус:** stage = model on disk; **запуск тут і зараз неможливий** (RAM)
 
-## 1. Що зроблено (2026-11-15 вечір)
+## 1. Завантажено й верифіковано (2026-11-15)
 
-Запущено завантаження двох офіційних GGUF (Apache-2.0, OpenBMB, `openbmb/MiniCPM-V-4.7-35B-A3B-gguf`):
-
-| Файл | Розмір | sha256 (HF API) | Примітка |
+| Файл | Розмір | sha256 (збігається з HF) | Примітка |
 |---|---|---|---|
-| `MiniCPM-V-4_7-35B-A3B-Q4_K_M.gguf` | 21 166 255 008 B (~19.7 GiB) | `9ecf91e814d7e9adc64325b1b65f8628a9b1bb8da4f61a92869ca7489bfd888e` | основний (MoE, qwen35moe, 8 експертів на токен тощо) |
-| `mmproj-model-f16.gguf` | 1 119 575 840 B (~1.0 GiB) | `bff3b688e14c300eca273092c37c50a0ddfcc2054e079af1a0480edeed5d20f1` | vision projector |
+| `data/models/MiniCPM-V-4_7-35B-A3B-Q4_K_M.gguf` | 21 166 255 008 B (~19.7 GiB) | `9ecf91e814d7e9adc64325b1b65f8628a9b1bb8da4f61a92869ca7489bfd888e` ✅ | основний MoE |
+| `data/models/mmproj-model-f16-35b.gguf` | 1 119 575 840 B (~1.0 GiB) | `bff3b688e14c300eca273092c37c50a0ddfcc2054e079af1a0480edeed5d20f1` ✅ | vision projector (1B mmproj окремо: `mmproj-model-f16.gguf` Oct 24) |
 
-Модель = MoE: 35B усього / ~3B активних на токен; архітектура `qwen35moe`; llama.cpp підтримує з PR #29416.
+Модель = MoE: 35B усього / ~3B активних (8 із 256 experts на токен). Architecture `qwen35moe`;
+llama.cpp підтримує цей формат з PR #29416. Діагностика без запуску: `rusty inspect`.
 
-**Important limit (чесно):** ця машина — 7.7 GB RAM, ~0.8 GB вільних під час збірки/serve.
-**Запустити 35B навіть з mmap тут неможливо** (падіння в своп/kill; MemFree 750–840 MB).
-Модель на диску = підготовка до **виділеного вузла**, не до локального serve.
+## 2. PH-1201 spike (виконано 2026-11-15, inspection only)
 
-## 2. Обсяг робіт (порядок)
+`rusty inspect` показав (зчитано, не виконано обчислень):
 
-1. **PH-1201** (spike): `rusty inspect` на 35B — структурна перевірка qwen35moe
-   (per-layer router, expert weights, M-RoPE metadata). Без запуску. Потрібен тільки download + inspect.
-2. **PH-401..404** (MoE core, є на WO-дошці): top-k router за замовчуванням, expert FFN,
-   shared-expert, ExpertCache LRU — саме для 35B.
-3. **PH-406** (35B E2E greedy-паритет): очікується на виділеному вузлі / після PH-1305-проходу;
-   тут результат — детектор ну і тест corrupt-реліза.
-4. **PH-1204..1206**: vision / serve / 35B node / ExpertCache.
-5. **MC-1** ExpertParallelDispatch (mesh) — тільки після PH-401+ ядра на 35B.
+- `architecture = qwen35moe` · **40 блоків** · **256 experts**, `expert_used_count = 8` ·
+- Embedding 2048 · vocab 248144 · tokenizer `qwen35` · context 262144 · M-RoPE zyxt,
+  section_order `[11,11,10,0]` · quantization_version=2 · file_type=15 (Q4_K_M) ·
+  733 tensors · 19.5 GiB ваг (ffn_*_exps)
+- `ssm` GDN hybrid: conv_kernel=4, state 128, group 16, `full_attention_interval=4`
+  · recurrent layers + full-attn every 4th · `ffn_gate_inp.weight` [2048,256] F32 (роутер ваг)
+- Не виконувалось: 35B на цьому блоці (7.7 GB RAM, ~0.8 вільних під час збірки/serve).
 
-## 3. Чого НЕ робити
+## 3. Далі (передбачає виділений вузол ≥ 24 GiB RAM або cloud-варіант)
 
-- Не запускати 35B на цьому блоці — воркер-відпади, а 35B-mmap у 6.9 GB вільних → занадто нижньобортовий swap.
-- Не міняти каталог `data/models/` одночасно з downloads (уникати PING UPDATE HALF).
-- Не комітити `data/models/*` (ігнорується, вернино).
+1. **PH-401..404** (MoE core, на вузлі): router top-k · expert FFN shared/specialized · ExpertCache LRU.
+2. **PH-406**: 35B E2E greedy-паритет (mmap partial/sharding на вузлі).
+3. **PH-1204..1206**: vision / serve / 35B node.
+4. **MC-1** ExpertParallelDispatch (mesh) — тільки після PH-401+ на 35B.
+5. **Uk-якість**: 35B має суттєво кращу нативну Uk-перфоменс, ніж 1B.
 
-## 4. Stop-умови (перед PH-1201)
+## 4. Чого НЕ робити
 
-- sha256 обох файлів збігається з таблицею вище.
-- `df -h /s` після завантаження — ≥ 80 GiB вільних залишилось.
-- `rusty inspect` на 35B показує 24 повні шари, `qwen35moe` arch keys, >= 8 experts.
-- Виклик `poolai`/`GSV` — після того, як скачування закінчиться; цей документ фіксує статус.
+- Не запускати 35B тут — RAM цього блока не вистачить (~0.75 GB вільних під навантаженням).
+- Не чіпати `data/models/*` (gitignored); не комітити ваги.
+- Не плутати ммproj-и 1B та 35B: використовувати `mmproj-model-f16-35b.gguf` для 35B.
+
+## 5. Stop-умови (виконано 2026-11-15)
+
+- ✅ sha256 обох 35B GGUF збігається з HF
+- ✅ `df -h /s` — ≥ 80 GB вільних після скачування
+- ✅ `rusty inspect` на 35B показує arch/headers (40 blocks, 256 experts)
+- ❌ запуск на цьому блоці — не робити (недостатньо RAM).
