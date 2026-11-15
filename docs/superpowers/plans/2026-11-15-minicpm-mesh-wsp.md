@@ -36,19 +36,20 @@
 ## 4. Архітектура шарів
 
 ```
-[Cloud models via OmniRouter: Flint 40B / GLM 5.3 / DeepSeek 1017]
-        │ weight-fix candidates (WSP patches, NanoJev-style guidance)
+[Inkling 2 Small Free — candidate generation (опційний радник: OmniRouter
+Cloud models Flint 40B / GLM 5.3 / DeepSeek 1017, коли з'являться ключі)]
+        │ weight-fix candidates (audit-guided, WSP patches)
         ▼
-[poolAI grid — ActivationAudit / WeightPatch job kinds; quorum + canary]
+[poolAI grid — ActivationAudit / WeightPatch job kinds (prod lane only)]
         │ signed verdicts → staged rollout
         ▼
-[rusty-engine :8090 — qwen35-hybrid runner35 (CPU, 12 threads)]
+[rusty-engine :8088 (release) — qwen35-hybrid runner35 (CPU, 12 threads)]
         │ per token: MoE expert matvecs offloaded (top-k) as shard groups
         ▼
 [GSV hub :9999 — mesh dispatcher, provider row `rusty-minicpm-mesh`, ledger]
-        │ task envelopes: matvec_shard groups on REAL Q8 weights (ContentAddress store)
+        │ task envelopes: matvec_shard / weights_matvec groups on REAL weights
         ▼
-[browser peers: phone WebGPU (Android) · PC wgpu/DX12] + [llama-rs nodes]
+[browser peers: Android phones (valhall/bifrost) · PC wgpu — LIVE g-72] + [llama-rs nodes]
 ```
 
 ### Ключові рішення
@@ -78,7 +79,7 @@
 | M3 | ExpertParallelDispatch у rusty-engine | M2, WSP-G1 (hub), WSP-G1 (rusty) | **MC-1** (rusty-engine) |
 | M4 | Provider row + telemetry | M3 | **MC-4** (gsv) |
 | M5 | Hybrid prefill/decode split bench | M3 | **MC-5** (rusty-engine) |
-| M6 | WSP gate on MiniCPM path | M3, WSP-3, ECO-9.2, **Uk-golden draft review** | **MC-6** (poolai) |
+| M6 | WSP gate on MiniCPM path — **done: ROLLBACK** (evolution: Inkling-as-candidate) | M3, WSP-G1-rusty, audit, Uk-golden canon | **MC-6** ✅ |
 | B12 | MiniCPM-V full serve (vision) | PH-1306 | PH-1202/1203/1204/1205 → PH-1206 |
 | Perf | MoE core (LRU/offload/bench) | — | PH-404 / PH-405 / PH-407 |
 
@@ -135,7 +136,7 @@ MC-6 (WSP gate) — після MC-1 і WSP-3 (незалежна ланка, м�
 | tokens/s (CPU-only vs mesh) | mesh ≥ CPU-рівень при ≥1 offloaded expert; звіт `docs/benchmarks/MESH_SPLIT_BENCH.md` |
 | `max_err_model` | ≤ 1e-2 на кожному remote shard group (hub CPU reference) |
 | Uk-golden parity | 0 regressions на dispatch-able matvecs (до/після в Uk-golden fixtures) |
-| WSP patches | ≥1 цільовий патч через cloud-oracle + gate; rollback-or-keep decision задокументовано |
+| WSP patches | **2026-11-15: 2 trials, 0 kept, rollback зафіксовано** (Inkling-as-candidate, gate канон; `docs/WSP_TRIAL_VERDICT.md`) |
 | Provider row | chat via mesh з telemetry (mesh tok/s, peers, groups closed) у Galaxy provider card |
 
 ## 8. Ризики
@@ -152,3 +153,14 @@ MC-6 (WSP gate) — після MC-1 і WSP-3 (незалежна ланка, м�
 - Гейти: `cargo fmt --all` → `cargo clippy --all-targets -- -D warnings` → `cargo test` → `gsv-loc-audit --stretch-96` (≥ 96 %).
 - Тікет → claim → робота → done з evidence; 1 band = 1 коміт; push на межі банду.
 - Ваги/Uk-golden: не комітимо; fleet-level eval через `ActivationAudit` + `WeightPatch` job kinds.
+
+## 10. Verdict (2026-11-15, вечір)
+
+- **PH-live**: група `g-72` — реальний MiniCPM-ваги fanout працює на обох Android-телефонах
+  (page-bug un-`await`ed `requestDevice()` `515bbe6`).
+- **MC-6 done (rollback)**: кандидат — **Inkling 2 Small Free** (audit-guided); 2/2 trials
+  відхилено Uk-golden gate (`WSP_TRIAL_VERDICT.md`). fact-2 («Кобзар→Pushkin») не замикається
+  sparse block-патчами на 1B — це knowledge-capacity, не дефект ваги в одному шарі.
+- **Висновок щодо Uk-якості:** наступний важіль — більша модель (PH-1206 35B-A3B у llama-rs /
+  інший bigger checkpoint), а не WSP-дрен силенса 1B.
+- **Інциденти:** 4 тихої смерті gsv-server за день; найімовірніша причина — памʼять (MemTotal ~7.7 GB, MemFree ~0.75–0.84 GB під час збірки та serve). Watchdog відновлюється лише при logon; crash-recovery відсутній. Owner щоразу відновлював вручну. Owner: система потребує RAM/EDR-перевірки.

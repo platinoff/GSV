@@ -79,6 +79,13 @@
 - [ ] ECO-9.1 `done`; ECO-9.2 створено лише якщо рекомендовано йти далі
 - [ ] Жодних бінарних ваг у git
 
+## Outcome update (2026-11-15)
+
+ECO-9.2 sketch виконано альпою: **MC-6 — CLOSED із ROLLBACK вердиктом** (Inkling-as-candidate).
+Trials 01/02 — в `rusty-engine/docs/WSP_TRIAL_VERDICT.md`. Усі інструменти WSP (apply lane,
+ActivationAudit, Uk-golden fixtures, staged patched serve) — робочі; Uk-fact-2 не замикається
+sparse block-патчами на MiniCPM-V 4.7-1B; рекомендований наступний крок — більша Uk-здатна модель.
+
 ## Verdict (ECO-9.1)
 
 **Дата:** 2026-11-09 · **Агент:** GLM 5.3 (OpenCode free lane) · **Тікет:** ECO-9.1 ✅
