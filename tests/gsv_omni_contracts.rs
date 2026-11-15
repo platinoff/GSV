@@ -147,6 +147,36 @@ async fn omni_lists_bunke_rock_local_provider() {
 }
 
 #[tokio::test]
+async fn omni_lists_rusty_minicpm_mesh_provider() {
+    let (app, dir) = {
+        let d = temp_data_dir("mesh");
+        (app(d.clone()), d)
+    };
+    let (status, json) = get(&app, "/api/omni").await;
+    assert_eq!(status, StatusCode::OK);
+    let providers = json["providers"].as_array().expect("providers");
+    let mesh = providers
+        .iter()
+        .find(|p| p["id"] == "rusty-minicpm-mesh")
+        .expect("rusty-minicpm-mesh row");
+    assert_eq!(mesh["kind"], "local");
+    assert_eq!(mesh["free"], true);
+    assert_eq!(mesh["base_url"], "http://127.0.0.1:8099/v1");
+    assert_eq!(
+        mesh["enabled"],
+        // mesh_heartbeat.json is not present in the repo → mesh is not ready.
+        gsv::boxes::omni::catalog::host_ready("rusty-minicpm-mesh")
+    );
+    assert_eq!(
+        mesh["enabled"], false,
+        "mesh must be disabled until heartbeat is fresh"
+    );
+    let models = json["models"].as_array().expect("models");
+    assert!(models.iter().any(|m| m["id"] == "rusty-mesh-v47"));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
 async fn omni_config_read_is_redacted() {
     let (app, dir) = {
         let d = temp_data_dir("config-read");

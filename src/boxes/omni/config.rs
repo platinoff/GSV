@@ -34,6 +34,7 @@ impl Default for RoutingConfig {
             auto: true,
             fallback_order: [
                 "rusty-serve",
+                "rusty-minicpm-mesh",
                 "openai",
                 "xai",
                 "anthropic",

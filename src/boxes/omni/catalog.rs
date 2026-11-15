@@ -37,6 +37,18 @@ pub const RUSTY_SERVE_MODEL_FILE: &str =
 pub const RUSTY_HYBRID_MODEL_FILE: &str =
     "S:/rust/rusty-engine/data/models/MiniCPM-V-4_7-1B-Q4_K_M.gguf";
 
+/// Local rusty-engine **MiniCPM mesh** provider serves the *same* GGUF — the
+/// MiniCPM-V 4.7-1B weights fanout onto the GSV-WGPU mesh by gating on the
+/// presence of the mesh runtime's heartbeat (write by `rusty mesh-serve`).
+pub const RUSTY_MESH_MODEL_FILE: &str =
+    "S:/rust/rusty-engine/data/models/MiniCPM-V-4_7-1B-Q4_K_M.gguf";
+
+/// Heartbeat stamped by the mesh runtime while an inference serve is live on
+/// the box (default `:8099`). Without it the provider shows as disabled — the
+/// real-weights mesh demo is pending owner's WebGPU browser session, but
+/// the provider row shipped first so routing/telemetry have a target.
+pub const RUSTY_MESH_HEARTBEAT_FILE: &str = "S:/rust/rusty-engine/target/live/mesh_heartbeat.json";
+
 /// Heartbeat stamped by `rusty serve` at startup + every connection (PH-504);
 /// the `rusty-serve` host gate reads its mtime (PH-507).
 pub const RUSTY_SERVE_HEARTBEAT_FILE: &str =
@@ -285,6 +297,15 @@ pub fn providers() -> &'static [ProviderSpec] {
             free: true,
             default_base_url: "http://127.0.0.1:8088/v1",
             notes: "Local pure-Rust qwen35 GDN-hybrid lane (PH-1306; rusty serve -m MiniCPM-V-4_7-1B_Q4_K_M :8088, one Completes wire with the dense lane; gated on model file + fresh rusty_heartbeat.json; mmproj-model-f16 sits beside it for the image-prefix band)",
+            quota: QUOTA_PAID,
+        },
+        ProviderSpec {
+            id: "rusty-minicpm-mesh",
+            name: "Rusty MiniCPM mesh (MiniCPM-V fanout on GSV-WGPU)",
+            region: "Local",
+            free: true,
+            default_base_url: "http://127.0.0.1:8099/v1",
+            notes: "MiniCPM-V 4.7-1B Q4_K_M served via GSV-WGPU mesh fanout (product=gsv-wgpu, real workload of the WSP/weights_matvec track); routing only when mesh_heartbeat.json is fresh (else disabled); absent heartbeat = mesh not running — no fallbacks into the mesh port",
             quota: QUOTA_PAID,
         },
         ProviderSpec {
@@ -545,6 +566,19 @@ pub fn models() -> &'static [ModelSpec] {
             "rusty-mcp-v47",
             "Rusty hybrid 1B (rusty-hybrid · rusty-engine qwen35 MiniCPM-V)",
             "rusty-hybrid",
+            Some(32_768),
+            Some(512),
+            true,
+            false,
+            "local",
+            true,
+            true,
+            C_ALL,
+        ),
+        m(
+            "rusty-mesh-v47",
+            "Rusty mesh 1B (rusty-minicpm-mesh · MiniCPM-V fanout on GSV-WGPU)",
+            "rusty-minicpm-mesh",
             Some(32_768),
             Some(512),
             true,
@@ -1120,7 +1154,7 @@ pub fn provider(id: &str) -> Option<&'static ProviderSpec> {
 pub fn provider_kind(id: &str) -> &'static str {
     if matches!(
         id,
-        "bunke-rock" | "bunke-rock-fast" | "rusty-serve" | "rusty-hybrid"
+        "bunke-rock" | "bunke-rock-fast" | "rusty-serve" | "rusty-hybrid" | "rusty-minicpm-mesh"
     ) {
         "local"
     } else {
@@ -1151,6 +1185,7 @@ pub fn local_model_file(id: &str) -> Option<&'static str> {
         "bunke-rock-fast" => Some(BUNKE_ROCK_FAST_MODEL_FILE),
         "rusty-serve" => Some(RUSTY_SERVE_MODEL_FILE),
         "rusty-hybrid" => Some(RUSTY_HYBRID_MODEL_FILE),
+        "rusty-minicpm-mesh" => Some(RUSTY_MESH_MODEL_FILE),
         _ => None,
     }
 }
@@ -1171,6 +1206,12 @@ pub fn host_ready(id: &str) -> bool {
             if id == "rusty-serve" || id == "rusty-hybrid" {
                 return heartbeat_mtime_fresh(
                     std::path::Path::new(RUSTY_SERVE_HEARTBEAT_FILE),
+                    RUSTY_SERVE_FRESH_SECS,
+                );
+            }
+            if id == "rusty-minicpm-mesh" {
+                return heartbeat_mtime_fresh(
+                    std::path::Path::new(RUSTY_MESH_HEARTBEAT_FILE),
                     RUSTY_SERVE_FRESH_SECS,
                 );
             }
@@ -1341,6 +1382,33 @@ mod tests {
             RUSTY_SERVE_FRESH_SECS,
         );
         assert_eq!(host_ready("rusty-hybrid"), model && hb);
+    }
+
+    #[test]
+    fn rusty_minicpm_mesh_is_local_with_model_and_mesh_heartbeat_gate() {
+        let p = provider("rusty-minicpm-mesh").expect("rusty-minicpm-mesh provider");
+        assert!(p.free, "local mesh is free tier");
+        assert_eq!(p.default_base_url, "http://127.0.0.1:8099/v1");
+        assert_eq!(provider_kind("rusty-minicpm-mesh"), "local");
+        assert_eq!(
+            local_model_file("rusty-minicpm-mesh"),
+            Some(RUSTY_MESH_MODEL_FILE)
+        );
+        let spec = find_models("rusty-mesh-v47");
+        assert!(!spec.is_empty(), "rusty-mesh-v47 in catalog");
+        for s in &spec {
+            assert_eq!(s.provider, "rusty-minicpm-mesh");
+            assert_eq!(s.context_window, Some(32_768));
+            assert!(s.free && s.rust, "{} free+rust lane", s.id);
+        }
+        // Mesh gate: model exists AND mesh_heartbeat.json fresh.
+        let file = local_model_file("rusty-minicpm-mesh").expect("local file");
+        let model = std::path::Path::new(file).exists();
+        let hb = heartbeat_mtime_fresh(
+            std::path::Path::new(RUSTY_MESH_HEARTBEAT_FILE),
+            RUSTY_SERVE_FRESH_SECS,
+        );
+        assert_eq!(host_ready("rusty-minicpm-mesh"), model && hb);
     }
 
     #[test]
