@@ -25,7 +25,7 @@
 | MiniCPM-V 4.7-1B | qwen35-гібрид; `runner35` генерує детерміновано (244 тести + 7 ignored); live prefill 961 tok ≈ 5.3–6.4 s (12 threads); decode 10–27 tok/s (залежить від фону) |
 | GSV-WGPU mesh | смужньо: A–J закриті; 7 ops з verified op-echo + hub model check (`max_err_model`); `GET /api/wgpu/capability` — профілі/квоти/роутинг (sticky → fallback), audit `wgpu_quota_audit.jsonl`; live `:9999` rev 516 |
 | ECO-9.1 / ECO-9.2 | done: WSP feasibility вердикт 2026-11-09 — гібрид ~55% ≥ owner-порогу 55 → ECO-9.2 arch-sketch done; API Engine kinds (`ActivationAudit`/`WeightPatch`) схвалено гіпотетично |
-| WSP відкриті | WSP-G1 (GSV hub — task envelope bridge), WSP-G1-rusty (block-bitmap patch-at-dequant + offline llama-rs rewrite), WSP-3 (poolAI — cloud-oracle delta patch pack + grid ActivationAudit/WeightPatch eval gate) |
+| WSP відкриті | WSP-G1 (GSV hub — task envelope bridge) · **WSP-G1-rusty ✅** (block-bitmap patch-at-dequant apply lane, rusty-engine `6e19d3b`, real-model Q6_K smoke ok) · WSP-3 (poolAI — cloud-oracle delta patch pack + grid ActivationAudit/WeightPatch eval gate) |
 | MiniCPM відкриті | PH-1202..1206 (vision tower / serve / 35B), PH-404 (ExpertCache LRU), PH-405 (greedy-parity), PH-407 (tok/s bench vs llama-rs), PH-1305/1306 done |
 | Cloud lane | OpenCode free models: **Flint 40B → GLM 5.3 → DeepSeek 1017** (fallbacks Big Pickle · DeepSeek V4 Flash · Nemotron Ultra Free); 429 → switch; OmniRouter `/api/omni/route` вибір моделі |
 
@@ -109,7 +109,7 @@ MiniCPM-V 4.7-1B — dense. Тому:
 - **MC-6** `poolai` — WSP gate on MiniCPM path: cloud-oracle → patch → Uk-golden gate → rollback/keep.
 
 ### Існуючі (залежності)
-- WSP-G1 (gsv) — task-envelope bridge; WSP-G1 (rusty-engine) — block-bitmap apply lane; WSP-3 (poolai) — cloud-oracle/ActivationAudit eval gate.
+- WSP-G1 (gsv) — task-envelope bridge; **WSP-G1-rusty ✅ 2026-11-15** (rusty-engine `6e19d3b`, block-bitmap patch-at-dequant); WSP-3 (poolai) — cloud-oracle/ActivationAudit eval gate.
 - PH-1202/1203/1204/1205/1206 — MiniCPM-V serve + vision tower + 35B.
 - PH-404/405/407 — MoE perf; PH-1305/1306 done; EN-5/EN-6 done.
 
