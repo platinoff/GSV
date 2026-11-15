@@ -555,6 +555,13 @@ pub fn task_result(data_dir: &Path, body: &Value) -> Result<Value, String> {
         .ok_or("field `task_id` must be a non-empty string")?
         .to_string();
     let ok = body.get("ok").and_then(Value::as_bool).unwrap_or(false);
+    // Band I hardening: optional op echo from the peer (checked against the task).
+    let reported_op = body
+        .get("op")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty() && s.len() <= 64)
+        .map(|s| s.to_string());
     finite_nonneg(body, "elapsed_ms")?;
     finite_nonneg(body, "max_err")?;
     // Band D: optional throughput fields (peers that do not measure them yet
@@ -598,12 +605,63 @@ pub fn task_result(data_dir: &Path, body: &Value) -> Result<Value, String> {
             && t.get("status").and_then(Value::as_str) == Some("claimed")
             && t.get("peer_id").and_then(Value::as_u64) == Some(peer_id)
         {
-            t["status"] = json!(if ok { "done" } else { "failed" });
+            // Band I hardening: a peer echoes the op it actually ran. A page that
+            // does not know the op falls back to another kernel and would report
+            // a bogus `ok` — so a mismatching echo is a failed task, and a missing
+            // echo is kept but flagged as unverified.
+            let task_op = t
+                .get("op")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            let mismatch = match reported_op.as_deref() {
+                Some(op) => op != task_op.as_str(),
+                None => false,
+            };
+            t["status"] = json!(if ok && !mismatch { "done" } else { "failed" });
             t["done_ts"] = json!(now_secs());
             t["elapsed_ms"] = body.get("elapsed_ms").cloned().unwrap_or(json!(0));
             t["max_err"] = body.get("max_err").cloned().unwrap_or(json!(0));
             for (key, value) in extra.iter() {
                 t[key.as_str()] = value.clone();
+            }
+            if mismatch {
+                t["error"] = json!(format!(
+                    "op mismatch: peer ran `{}`, task wants `{task_op}`",
+                    reported_op.as_deref().unwrap_or("?")
+                ));
+            } else if reported_op.is_none() {
+                t["op_unverified"] = json!(true);
+            }
+            // Band I: the hub re-computes the mini-LM layer output with the Rust
+            // model and compares it with the peer's vector, so a mesh result is
+            // evidence (not a self-report) that the layer ran as specified.
+            if task_op == "minilm" && !mismatch {
+                let token = t.get("token").and_then(Value::as_u64).unwrap_or(0) as usize;
+                let layer = t.get("layer").and_then(Value::as_u64).unwrap_or(0) as usize;
+                if let Some(arr) = body.get("partial").and_then(Value::as_array) {
+                    if arr.len() == MATVEC_K {
+                        let model = minilm_layer_reference(token, layer);
+                        let mut max_err = 0.0f64;
+                        for (i, v) in arr.iter().enumerate() {
+                            let got = v.as_f64().unwrap_or(f64::NAN);
+                            if !got.is_finite() {
+                                continue;
+                            }
+                            let e = (got - model[i]).abs();
+                            if e > max_err {
+                                max_err = e;
+                            }
+                        }
+                        t["max_err_model"] = json!(max_err);
+                        if max_err > 1e-2 {
+                            t["status"] = json!("failed");
+                            t["error"] = json!(format!(
+                                "model mismatch: max_err_model {max_err} (token {token}, layer {layer})"
+                            ));
+                        }
+                    }
+                }
             }
             settled = Some((task_id.clone(), t["status"].clone()));
             break;
@@ -1067,12 +1125,17 @@ async function buildBlock(device){
 }
 const OPS={matmul64:{flops:524288,dispatch:[8,8]},matvec:{flops:524288,dispatch:[4]},mlpblock:{flops:1048576,dispatch:[16]},layernorm:{flops:2048,dispatch:[16]},softmax:{flops:2048,dispatch:[16]},minilm:{flops:524288,dispatch:[16]}};
 const CACHE={};
+// Band I fix: the adapter name must be visible to every builder (buildBlock /
+// buildLayernorm / buildSoftmax / buildMinilm are separate functions, so a
+// `let` inside buildRunner shadowed it and every fresh page threw
+// `ReferenceError: adapterName is not defined`).
+let adapterName='adapter';
 async function buildRunner(op,shardId,shards){
   if(!navigator.gpu){throw new Error('no navigator.gpu (secure-context gate: see hub notes)');}
   const adapter=await navigator.gpu.requestAdapter();
   if(!adapter){throw new Error('requestAdapter returned null');}
   const device=await adapter.requestDevice();
-  let adapterName='adapter'; try{const i=adapter.info||{};adapterName=[i.vendor,i.architecture,i.device].filter(Boolean).join('/')||'adapter';}catch(e){}
+  adapterName='adapter'; try{const i=adapter.info||{};adapterName=[i.vendor,i.architecture,i.device].filter(Boolean).join('/')||'adapter';}catch(e){}
   if(op==='matmul64'){
     const built=await buildMatmul(device);
     return {device:device,adapterName:adapterName,pipeline:built.pipeline,bg:built.bg,out:built.out,read:built.read,bytes:built.bytes,ref:built.ref,flops:built.flops,dispatch:built.dispatch};
@@ -1217,7 +1280,7 @@ async function runSoftmax(){
   await r.device.queue.onSubmittedWorkDone();
   const total=performance.now()-t0;
   await r.read.mapAsync(GPUMapMode.READ);const V=new Float32Array(r.read.getMappedRange().slice(0));r.read.unmap();
-  const maxv=V[0];for(let k=1;k<1024;k++){if(V[k]>maxv){maxv=V[k];}}
+  let maxv=V[0];for(let k=1;k<1024;k++){if(V[k]>maxv){maxv=V[k];}}
   let s=0;for(let k=0;k<1024;k++){s=s+Math.exp(V[k]-maxv);}
   const y=new Float32Array(1024);
   let maxErr=0;for(let i=0;i<1024;i++){y[i]=Math.exp(V[i]-maxv)/s;const e=Math.abs(y[i]-r.ref[i]);if(e>maxErr)maxErr=e;}
@@ -1273,10 +1336,10 @@ async function runMinilm(token,layer){
   await r.read.mapAsync(GPUMapMode.READ);const C=new Float32Array(r.read.getMappedRange().slice(0));r.read.unmap();
   let maxErr=0;for(let i=0;i<r.ref.length;i++){const e=Math.abs(C[i]-r.ref[i]);if(e>maxErr){maxErr=e;}}
   const mflops=524288/((total/1000)*1e6);
-  const maxv=C[0];for(let k=1;k<1024;k++){if(C[k]>maxv){maxv=C[k];}}
+  let maxv=C[0];for(let k=1;k<1024;k++){if(C[k]>maxv){maxv=C[k];}}
   let s=0;for(let k=0;k<1024;k++){s=s+Math.exp(C[k]-maxv);}
   const y=new Float32Array(1024);let next=-1;let best=-1;
-  for(let i=0;i<1024;i++){y[i]=Math.exp(C[i]-maxv)/s;const e=Math.abs(y[i]-r.ref[i]);if(e>maxErr){maxErr=e;}if(y[i]>best){best=y[i];next=i;}}
+  for(let i=0;i<1024;i++){y[i]=Math.exp(C[i]-maxv)/s;if(y[i]>best){best=y[i];next=i;}}
   const ok=maxErr<1e-3;
   const opsPerSec=1/(total/1000);
   log('minilm layer '+(layer||0)+' token '+(token||0)+': '+total.toFixed(2)+'ms max_err='+maxErr.toExponential(2)+' · '+mflops.toFixed(2)+' MFLOPS');
@@ -1378,14 +1441,14 @@ async function workerLoop(){
       if(d.ok&&d.task){
         const iters=d.task.iters||1;
         log('mesh task '+d.task.task_id+' ('+d.task.op+' x'+iters+')');
-        let r;try{if(d.task.op==='matvec_shard'){r=await runShard(d.task.shard_id||0,d.task.shards||1);}else if(d.task.op==='mlpblock'){r=await runBlock();}else if(d.task.op==='layernorm'){r=await runLayernorm();}else if(d.task.op==='softmax'){r=await runSoftmax();}else if(d.task.op==='minilm'){r=await runMinilm(d.task.token||0,d.task.layer||0);}else{r=await runOp(d.task.op,iters);}}catch(e){r={ok:false,elapsed_ms:0,max_err:0,adapter:'error: '+String(e).slice(0,60)};}
+        let r;try{if(d.task.op==='matvec_shard'){r=await runShard(d.task.shard_id||0,d.task.shards||1);}else if(d.task.op==='mlpblock'){r=await runBlock();}else if(d.task.op==='layernorm'){r=await runLayernorm();}else if(d.task.op==='softmax'){r=await runSoftmax();}else if(d.task.op==='minilm'){r=await runMinilm(d.task.token||0,d.task.layer||0);}else{r=await runOp(d.task.op,iters);}}catch(e){r={ok:false,elapsed_ms:0,max_err:0,adapter:'error: '+String(e).slice(0,60)};log('task '+d.task.task_id+' ERR: '+r.adapter);}
         if(d.task.op==='minilm'){
           const lay=(d.task.layer||0)+1;
           if(r.ok&&(lay<2)){await fetch('api/wgpu/task/enqueue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'minilm',token:d.task.token||0,layer:lay})});}
-          else if(r.ok){const nt=r.next_token;const tk=d.task.token||0;if(nt!=null&&nt!==tk&&minilmSteps<8){minilmSteps++;await fetch('api/wgpu/task/enqueue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'minilm',token:nt,layer:0});}}
+          else if(r.ok){const nt=r.next_token;const tk=d.task.token||0;if(nt!=null&&nt!==tk&&minilmSteps<8){minilmSteps++;await fetch('api/wgpu/task/enqueue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'minilm',token:nt,layer:0})});}}
         }
         log('task '+d.task.task_id+': '+(r.ok?'done':'failed')+' '+r.elapsed_ms+'ms/op max_err='+r.max_err.toExponential(2)+(r.mflops!==undefined?' · '+r.mflops+' MFLOPS · '+r.ops_per_sec+' ops/s':''));
-        await fetch('api/wgpu/task/result',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({peer_id:WORKER.peer,task_id:d.task.task_id,ok:r.ok,elapsed_ms:r.elapsed_ms,max_err:r.max_err,iters:r.iters,mflops:r.mflops,ops_per_sec:r.ops_per_sec,device_reused:r.device_reused,partial:r.partial})});
+        await fetch('api/wgpu/task/result',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({peer_id:WORKER.peer,task_id:d.task.task_id,op:d.task.op,ok:r.ok,elapsed_ms:r.elapsed_ms,max_err:r.max_err,iters:r.iters,mflops:r.mflops,ops_per_sec:r.ops_per_sec,device_reused:r.device_reused,partial:r.partial})});
         await refreshMesh();
       }
     }catch(e){log('worker: '+e);}
@@ -1693,6 +1756,24 @@ mod tests {
     }
 
     #[test]
+    fn page_declares_adapter_name_once_for_every_builder() {
+        // Band I fix: `buildBlock` / `buildLayernorm` / `buildSoftmax` /
+        // `buildMinilm` are separate functions, so the adapter name has to be a
+        // page-level binding. A `let` inside `buildRunner` shadowed it and every
+        // fresh page threw `ReferenceError: adapterName is not defined`.
+        let p = page();
+        assert_eq!(p.matches("let adapterName='adapter';").count(), 1);
+        assert!(p.contains("adapterName='adapter'; try{const i=adapter.info||{}"));
+        // The builders read the shared binding (not a local copy).
+        assert!(p.matches("adapterName:adapterName").count() >= 4);
+        // A `const` that is reassigned later throws `TypeError: Assignment to
+        // constant variable` in the browser (band I: `maxv` in softmax/minilm).
+        assert!(!p.contains("const maxv="));
+        assert!(p.contains("let maxv=C[0]"));
+        assert!(p.contains("let maxv=V[0]"));
+    }
+
+    #[test]
     fn op_flops_matches_op_dimensions() {
         // matmul64: 2 * 64^3; matvec: 2 * 256 * 1024 — equal by design.
         assert_eq!(op_flops("matmul64"), 524_288);
@@ -1723,6 +1804,60 @@ mod tests {
                 .max_by(|a, b| y[*a].partial_cmp(&y[*b]).unwrap())
                 .unwrap()
         );
+    }
+
+    #[test]
+    fn task_result_rejects_mismatched_op_echo() {
+        // Band I hardening: a peer that echoes another op ran a different
+        // kernel, so its `ok` is not evidence for this task.
+        let dir = temp_dir("mesh_op_echo");
+        let e = task_enqueue(&dir, &json!({"op":"minilm","token":7,"layer":0})).expect("enqueue");
+        let task_id = e["task_id"].as_str().unwrap().to_string();
+        let j = peer_join(&dir, &json!({"adapter":"a","ua":"u"})).expect("join");
+        let peer = j["peer_id"].as_u64().unwrap();
+        let _p = peer_poll(&dir, &json!({"peer_id": peer})).expect("poll");
+        let r = task_result(
+            &dir,
+            &json!({"peer_id":peer,"task_id":task_id,"op":"matvec","ok":true,"elapsed_ms":1.0,"max_err":0.0}),
+        )
+        .expect("result");
+        assert_eq!(r["status"], "failed");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn task_result_checks_minilm_output_against_the_rust_model() {
+        // Band I: the hub re-computes the layer output, so a peer cannot claim
+        // success with a vector that does not match the specified model.
+        let dir = temp_dir("mesh_minilm_model");
+        let e = task_enqueue(&dir, &json!({"op":"minilm","token":7,"layer":0})).expect("enqueue");
+        let task_id = e["task_id"].as_str().unwrap().to_string();
+        let j = peer_join(&dir, &json!({"adapter":"a","ua":"u"})).expect("join");
+        let peer = j["peer_id"].as_u64().unwrap();
+        let _p = peer_poll(&dir, &json!({"peer_id": peer})).expect("poll");
+        let model: Vec<Value> = minilm_layer_reference(7, 0)
+            .iter()
+            .map(|v| json!(v))
+            .collect();
+        let r = task_result(
+            &dir,
+            &json!({"peer_id":peer,"task_id":task_id,"op":"minilm","ok":true,"elapsed_ms":1.0,"max_err":0.0,"partial":model}),
+        )
+        .expect("result");
+        assert_eq!(r["status"], "done");
+
+        // A vector that does not match the model fails the task.
+        let e2 = task_enqueue(&dir, &json!({"op":"minilm","token":7,"layer":1})).expect("enqueue");
+        let task2 = e2["task_id"].as_str().unwrap().to_string();
+        let _p2 = peer_poll(&dir, &json!({"peer_id": peer})).expect("poll");
+        let bad: Vec<Value> = vec![json!(0.0); MATVEC_K];
+        let r2 = task_result(
+            &dir,
+            &json!({"peer_id":peer,"task_id":task2,"op":"minilm","ok":true,"elapsed_ms":1.0,"max_err":0.0,"partial":bad}),
+        )
+        .expect("result");
+        assert_eq!(r2["status"], "failed");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

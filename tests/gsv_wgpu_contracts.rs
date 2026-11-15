@@ -234,6 +234,92 @@ async fn enqueue_minilm_carries_token_and_layer_and_rejects_bad_bounds() {
 }
 
 #[tokio::test]
+async fn task_result_verifies_the_op_echo_against_the_task() {
+    let (app, dir) = app("opecho");
+    let (status, joined) = post(
+        &app,
+        "/api/wgpu/peer/join",
+        serde_json::json!({"adapter": "a", "ua": "u"}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let peer = joined["peer_id"].as_u64().unwrap();
+
+    // Helper: enqueue one minilm layer task, claim it with the peer and settle
+    // it with the given result envelope.
+    async fn settle(app: &axum::Router, peer: u64, body: Value) -> (String, Value) {
+        let (_s, enq) = post(
+            app,
+            "/api/wgpu/task/enqueue",
+            serde_json::json!({"op": "minilm", "token": 7, "layer": 0}),
+        )
+        .await;
+        let task_id = enq["task_id"].as_str().unwrap().to_string();
+        let (_s, _poll) = post(
+            app,
+            "/api/wgpu/task/poll",
+            serde_json::json!({"peer_id": peer}),
+        )
+        .await;
+        let mut envelope = body;
+        envelope["task_id"] = Value::String(task_id.clone());
+        envelope["peer_id"] = Value::from(peer);
+        let (_s, res) = post(app, "/api/wgpu/task/result", envelope).await;
+        (task_id, res)
+    }
+
+    // 1) The peer echoes another op -> the result is not trustworthy -> failed.
+    let (bad_id, bad) = settle(
+        &app,
+        peer,
+        serde_json::json!({"op": "matvec", "ok": true, "elapsed_ms": 1.0, "max_err": 0.0}),
+    )
+    .await;
+    assert_eq!(bad["status"], "failed");
+
+    // 2) The peer echoes the task op -> done.
+    let (good_id, good) = settle(
+        &app,
+        peer,
+        serde_json::json!({"op": "minilm", "ok": true, "elapsed_ms": 1.0, "max_err": 0.0}),
+    )
+    .await;
+    assert_eq!(good["status"], "done");
+
+    // 3) An old peer (no echo) still settles, but the row is flagged.
+    let (old_id, old) = settle(
+        &app,
+        peer,
+        serde_json::json!({"ok": true, "elapsed_ms": 1.0, "max_err": 0.0}),
+    )
+    .await;
+    assert_eq!(old["status"], "done");
+
+    // The flags are visible in the mesh wire (task tail).
+    let (_status, mesh) = get(&app, "/api/wgpu/mesh").await;
+    let tasks = mesh["tasks"].as_array().expect("tasks");
+    let row = |id: &str| {
+        tasks
+            .iter()
+            .find(|t| t["task_id"].as_str() == Some(id))
+            .cloned()
+            .unwrap_or(Value::Null)
+    };
+    let bad_row = row(&bad_id);
+    assert_eq!(bad_row["status"], "failed");
+    assert!(bad_row["error"]
+        .as_str()
+        .unwrap_or("")
+        .contains("op mismatch"));
+    assert_eq!(row(&good_id)["status"], "done");
+    assert_eq!(row(&good_id).get("op_unverified"), None);
+    let old_row = row(&old_id);
+    assert_eq!(old_row["status"], "done");
+    assert_eq!(old_row["op_unverified"], true);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
 async fn task_result_rejects_negative_throughput() {
     let (app, dir) = app("negative");
     let (_, joined) = post(
