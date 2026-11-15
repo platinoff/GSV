@@ -320,6 +320,36 @@ async fn task_result_verifies_the_op_echo_against_the_task() {
 }
 
 #[tokio::test]
+async fn capability_and_mesh_carry_device_class() {
+    let (app, dir) = app("device_class");
+    let (status, joined) = post(
+        &app,
+        "/api/wgpu/peer/join",
+        serde_json::json!({"adapter": "arm/valhall", "ua": "u", "device_class": "phone"}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let peer = joined["peer_id"].as_u64().unwrap();
+
+    let (_, mesh) = get(&app, "/api/wgpu/mesh").await;
+    let peers = mesh["peers"].as_array().unwrap();
+    let row = peers
+        .iter()
+        .find(|p| p["peer_id"] == serde_json::json!(peer))
+        .expect("peer row");
+    assert_eq!(row["device_class"], "phone");
+
+    let (_, cap) = get(&app, "/api/wgpu/capability").await;
+    let rows = cap["peers"].as_array().unwrap();
+    let row = rows
+        .iter()
+        .find(|p| p["peer_id"] == serde_json::json!(peer))
+        .expect("capability row");
+    assert_eq!(row["device_class"], "phone");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
 async fn capability_endpoint_lists_profiles_and_quotas() {
     let (app, dir) = app("capability");
     let (status, joined) = post(

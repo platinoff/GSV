@@ -558,6 +558,20 @@ pub fn peer_join(data_dir: &Path, body: &Value) -> Result<Value, String> {
         .and_then(Value::as_str)
         .map(|s| s.chars().take(160).collect::<String>())
         .unwrap_or_default();
+    // Band MC-7: optional device class advertised by the peer ("phone" |
+    // "pc-wgpu" | "pc-cpu" | "llama-rs" | ...). Lower-cased, alnum + dash,
+    // bounded; unknown/invalid -> "unknown" so old peers stay compatible.
+    let device_class = body
+        .get("device_class")
+        .and_then(Value::as_str)
+        .map(|s| {
+            s.chars()
+                .filter(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || *c == '-')
+                .take(32)
+                .collect::<String>()
+        })
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "unknown".to_string());
     let _g = mesh_lock();
     let path = data_dir.join(PEERS_FILE);
     let mut peers = read_jsonl(&path);
@@ -573,6 +587,7 @@ pub fn peer_join(data_dir: &Path, body: &Value) -> Result<Value, String> {
         "kind": "browser",
         "adapter": adapter,
         "ua": ua,
+        "device_class": device_class,
         "joined_ts": now,
         "last_seen_ts": now,
         "lease_until": now + PEER_LEASE_SECS,
@@ -1060,6 +1075,9 @@ fn capability_rows(peers: &[Value], tasks: &[Value], now: u64) -> Vec<Value> {
             "adapter": row
                 .and_then(|r| r.get("adapter").cloned())
                 .unwrap_or(Value::Null),
+            "device_class": row
+                .and_then(|r| r.get("device_class").cloned())
+                .unwrap_or(json!("unknown")),
             "alive": row.map(|r| row_alive(r, now)).unwrap_or(false),
             "measured": measured,
             "mflops_max": mflops,
@@ -1097,6 +1115,7 @@ pub fn capability_wire(data_dir: &Path) -> Value {
             json!({
                 "peer_id": c["peer_id"],
                 "adapter": c["adapter"],
+                "device_class": c["device_class"],
                 "mflops_max": c["mflops_max"],
                 "ops_per_sec_max": c["ops_per_sec_max"],
             })
@@ -1191,6 +1210,7 @@ pub fn mesh_wire(data_dir: &Path) -> Value {
             json!({
                 "peer_id": p.get("peer_id").cloned().unwrap_or(Value::Null),
                 "adapter": p.get("adapter").cloned().unwrap_or(Value::Null),
+                "device_class": p.get("device_class").cloned().unwrap_or(json!("unknown")),
                 "alive": row_alive(p, now),
                 "age_secs": now - p.get("last_seen_ts").and_then(Value::as_u64).unwrap_or(now),
                 "lease_until": p.get("lease_until").cloned().unwrap_or(Value::Null),
@@ -1670,7 +1690,7 @@ async function startWorker(){
   if(!navigator.gpu){setCap('no navigator.gpu — worker cannot start',false);return;}
   try{
     const ad=await navigator.gpu.requestAdapter();let name='adapter';try{const i=ad&&ad.info||{};name=[i.vendor,i.architecture,i.device].filter(Boolean).join('/')||'adapter';}catch(e){}
-    const j=await(await fetch('api/wgpu/peer/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({adapter:name,ua:navigator.userAgent.slice(0,120)})})).json();
+    const j=await(await fetch('api/wgpu/peer/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({adapter:name,ua:navigator.userAgent.slice(0,120),device_class:(/Android|iPhone|iPad/i.test(navigator.userAgent||'')?'phone':'pc-wgpu')})})).json();
     if(!j.ok){log('join failed: '+(j.error||'?'));return;}
     WORKER={peer:j.peer_id,poll:j.poll_secs||2,lease:j.lease_secs||60,running:true,adapter:name};
     setCap('mesh worker · peer #'+j.peer_id+' · '+name,true);
@@ -1686,7 +1706,7 @@ async function workerLoop(){
       const d=await(await fetch('api/wgpu/task/poll',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({peer_id:WORKER.peer})})).json();
       if(d.ok===false&&(d.code==='unknown_peer'||/unknown peer/i.test(d.error||''))){
         // Band E: the registry was wiped or our row vanished -> re-join instead of dying.
-        const j=await(await fetch('api/wgpu/peer/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({adapter:WORKER.adapter||'adapter',ua:navigator.userAgent.slice(0,120)})})).json();
+        const j=await(await fetch('api/wgpu/peer/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({adapter:WORKER.adapter||'adapter',ua:navigator.userAgent.slice(0,120),device_class:(/Android|iPhone|iPad/i.test(navigator.userAgent||'')?'phone':'pc-wgpu')})})).json();
         if(j.ok){WORKER.peer=j.peer_id;log('peer was gone ('+(d.error||'?')+') -> re-joined as peer #'+j.peer_id);setCap('mesh worker · peer #'+j.peer_id+' · '+(WORKER.adapter||'adapter'),true);}
         else{log('re-join failed: '+(j.error||'?'));}
       }
@@ -2510,6 +2530,52 @@ mod tests {
         backdate_route(&dir, e["task_id"].as_str().unwrap());
         let slow2 = peer_poll(&dir, &json!({"peer_id": p2})).expect("poll slow after sticky");
         assert_eq!(slow2["task"]["task_id"], e["task_id"]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn peer_join_carries_device_class_and_sanitizes_junk() {
+        let dir = temp_dir("mesh_device_class");
+        let j = peer_join(
+            &dir,
+            &json!({"adapter":"arm/valhall","ua":"ua","device_class":"phone"}),
+        )
+        .expect("join");
+        let peer = j["peer_id"].as_u64().expect("peer id");
+        let m = mesh_wire(&dir);
+        let row = m["peers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["peer_id"] == json!(peer))
+            .cloned()
+            .expect("peer row");
+        assert_eq!(row["device_class"], "phone");
+        let cap = capability_wire(&dir);
+        let cap_row = cap["peers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["peer_id"] == json!(peer))
+            .cloned()
+            .expect("capability row");
+        assert_eq!(cap_row["device_class"], "phone");
+        // Uppercase/specials are stripped; empty class falls back to "unknown".
+        let j2 = peer_join(
+            &dir,
+            &json!({"adapter":"a","ua":"u","device_class":"PHONE!!!"}),
+        )
+        .expect("join 2");
+        let peer2 = j2["peer_id"].as_u64().expect("peer2");
+        let m2 = mesh_wire(&dir);
+        let row2 = m2["peers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["peer_id"] == json!(peer2))
+            .cloned()
+            .expect("peer2 row");
+        assert_eq!(row2["device_class"], "unknown");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
