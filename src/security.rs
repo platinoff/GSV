@@ -230,8 +230,17 @@ pub const SECURITY_HEADERS: &[(&str, &str)] = &[
 
 /// Reject POST bodies that advertise a `Content-Length` over [`MAX_BODY_BYTES`].
 pub fn gate_content_length(content_length: Option<u64>) -> Result<(), String> {
+    gate_content_length_bytes(content_length, MAX_BODY_BYTES as u64)
+}
+
+/// Like [`gate_content_length`] but with an explicit bound (used for the
+/// mesh-weight-chunk carve-out in [`crate::server::security_gate`]).
+pub fn gate_content_length_bytes(
+    content_length: Option<u64>,
+    max_bytes: u64,
+) -> Result<(), String> {
     match content_length {
-        Some(n) if n > MAX_BODY_BYTES as u64 => Err("request body too large".to_string()),
+        Some(n) if n > max_bytes => Err("request body too large".to_string()),
         _ => Ok(()),
     }
 }

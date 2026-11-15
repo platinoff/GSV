@@ -108,6 +108,13 @@ fn tracker_wire(state: &AppState) -> Value {
 pub fn router(state: AppState) -> Router {
     // Gzip UI/API (band 235). `/mcp` is merged *after* this layer: Cursor
     // Streamable HTTP (3.21.18) sees 0 tools if RPC is gzip+chunked.
+    let uploads = Router::new()
+        .route("/api/wgpu/weights/chunk", post(api_wgpu_weights_chunk_post))
+        // Mesh weight chunks are trusted, LAN-only content from the mesh's own
+        // weight store; a deliberate, bounded 16 MiB carve-out from the universal
+        // 256 KiB POST cap so real MiniCPM blocks can be uploaded (every other
+        // POST route keeps the band-134 defense-in-depth cap).
+        .layer(DefaultBodyLimit::max(16 * 1024 * 1024));
     let pages = Router::new()
         .route("/", get(index))
         .route("/sw.js", get(api_sw_js))
@@ -166,9 +173,10 @@ pub fn router(state: AppState) -> Router {
         .route("/api/wgpu/mesh", get(api_wgpu_mesh))
         .route("/api/wgpu/capability", get(api_wgpu_capability))
         .route("/api/wgpu/weights/manifest", get(api_wgpu_weights_manifest))
+        .route("/api/wgpu/weights/chunk", get(api_wgpu_weights_chunk_get))
         .route(
-            "/api/wgpu/weights/chunk",
-            get(api_wgpu_weights_chunk_get).post(api_wgpu_weights_chunk_post),
+            "/api/wgpu/weights/register_tensor",
+            post(api_wgpu_weights_register_tensor),
         )
         .route("/api/wgpu/peer/join", post(api_wgpu_peer_join))
         .route("/api/wgpu/task/enqueue", post(api_wgpu_task_enqueue))
@@ -309,6 +317,7 @@ pub fn router(state: AppState) -> Router {
         );
     Router::new()
         .merge(pages)
+        .merge(uploads)
         .layer(DefaultBodyLimit::max(crate::security::MAX_BODY_BYTES))
         .layer(middleware::from_fn(security_gate))
         .with_state(state)
@@ -338,13 +347,22 @@ fn secured(mut res: Response) -> Response {
 /// loopback unless `--allow-lan`.
 async fn security_gate(req: Request, next: Next) -> Response {
     let mcp = req.uri().path() == "/mcp";
+    // Mesh weight chunks are trusted, LAN-only content from the mesh's own
+    // weight store; this one path gets a bounded 16 MiB carve-out (all other
+    // POSTs keep the universal 256 KiB band-134 cap).
+    let weights_upload = req.uri().path() == "/api/wgpu/weights/chunk";
     if req.method() == Method::POST {
         let content_length = req
             .headers()
             .get(header::CONTENT_LENGTH)
             .and_then(|v| v.to_str().ok())
             .and_then(|s| s.parse().ok());
-        if let Err(msg) = crate::security::gate_content_length(content_length) {
+        let gate = if weights_upload {
+            crate::security::gate_content_length_bytes(content_length, 16 * 1024 * 1024)
+        } else {
+            crate::security::gate_content_length(content_length)
+        };
+        if let Err(msg) = gate {
             return secured(err_json(StatusCode::PAYLOAD_TOO_LARGE, msg));
         }
         if !mcp {
@@ -869,6 +887,18 @@ async fn api_wgpu_weights_chunk_get(
             "data_b64": base64::engine::general_purpose::STANDARD.encode(bytes),
         }))
         .into_response(),
+        Err(e) => err_json(StatusCode::BAD_REQUEST, e),
+    }
+}
+
+/// Band MC-3: register a tensor name -> ordered chunk list + dims mapping
+/// (verified against the store — chunks must already be stored).
+async fn api_wgpu_weights_register_tensor(
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> Response {
+    match crate::boxes::weight_store::register_tensor(&state.data_dir, &body) {
+        Ok(v) => Json(v).into_response(),
         Err(e) => err_json(StatusCode::BAD_REQUEST, e),
     }
 }

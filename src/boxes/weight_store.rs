@@ -29,6 +29,7 @@ use std::path::{Path, PathBuf};
 pub const STORE_DIR: &str = "wgpu_weights";
 pub const CHUNKS_DIR: &str = "chunks";
 pub const INDEX_FILE: &str = "index.json";
+pub const TENSORS_FILE: &str = "wgpu_weights_tensors.json";
 pub const AUDIT_FILE: &str = "wgpu_weights_audit.jsonl";
 /// Hard cap for any single chunk (bytes).
 pub const MAX_CHUNK_BYTES: usize = 4 * 1024 * 1024;
@@ -63,6 +64,10 @@ fn audit_path(data_dir: &Path) -> PathBuf {
     data_dir.join(AUDIT_FILE)
 }
 
+fn tensors_path(data_dir: &Path) -> PathBuf {
+    data_dir.join(TENSORS_FILE)
+}
+
 fn sha256_hex(bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(bytes);
@@ -93,6 +98,23 @@ fn read_index(data_dir: &Path) -> Vec<Value> {
         .unwrap_or_default()
 }
 
+/// Read the tensor registry (list of registered weight tensors).
+fn read_tensors(data_dir: &Path) -> Vec<Value> {
+    let path = tensors_path(data_dir);
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+/// Every stored chunk key (set membership lookups).
+fn chunk_keys(data_dir: &Path) -> Vec<String> {
+    read_index(data_dir)
+        .into_iter()
+        .filter_map(|r| r.get("key").and_then(Value::as_str).map(str::to_string))
+        .collect()
+}
+
 fn write_index(data_dir: &Path, rows: &[Value]) -> Result<(), String> {
     let root = store_root(data_dir);
     std::fs::create_dir_all(&root).map_err(|e| format!("store root: {e}"))?;
@@ -100,6 +122,134 @@ fn write_index(data_dir: &Path, rows: &[Value]) -> Result<(), String> {
     let tmp = root.join(format!(".{INDEX_FILE}.tmp"));
     std::fs::write(&tmp, body).map_err(|e| format!("index tmp: {e}"))?;
     std::fs::rename(&tmp, index_path(data_dir)).map_err(|e| format!("index rename: {e}"))
+}
+
+/// Atomically write the tensor registry.
+fn write_tensors(data_dir: &Path, rows: &[Value]) -> Result<(), String> {
+    let path = tensors_path(data_dir);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("tensors dir: {e}"))?;
+    }
+    let body = serde_json::to_string(&json!(rows)).map_err(|e| format!("encode tensors: {e}"))?;
+    let tmp = path.with_extension("tmp");
+    std::fs::write(&tmp, body).map_err(|e| format!("tensors tmp: {e}"))?;
+    std::fs::rename(&tmp, &path).map_err(|e| format!("tensors rename: {e}"))
+}
+
+/// Register a tensor that peers can address by `name`. Chunks must already be
+/// stored; this only records the name -> ordered chunk keys -> dims mapping,
+/// re-verifying total row bytes against `dims` (fail fast on inconsistency).
+pub fn register_tensor(data_dir: &Path, body: &Value) -> Result<Value, String> {
+    let name = body
+        .get("tensor")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty() && s.len() <= 128)
+        .ok_or("field `tensor` must be a non-empty string (<= 128 chars)")?
+        .to_string();
+    if !name
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-' | '/'))
+    {
+        return Err("field `tensor` may contain only [a-zA-Z0-9._/-]".to_string());
+    }
+    let rows = body
+        .get("dims")
+        .and_then(Value::as_array)
+        .and_then(|a| {
+            if a.len() == 2 {
+                let r = a[0].as_u64()?;
+                let c = a[1].as_u64()?;
+                Some((r, c))
+            } else {
+                None
+            }
+        })
+        .ok_or("field `dims` must be [rows, cols]")?;
+    // 4 bytes per f32 value, total must fit the chunk cap spirit.
+    let numel = rows
+        .0
+        .checked_mul(rows.1)
+        .ok_or_else(|| format!("dims overflow: {}x{}", rows.0, rows.1))?;
+    if numel > 64 * 1024 * 1024 {
+        return Err("dims too large (> 64 Mi values)".to_string());
+    }
+    let chunks: Vec<String> = body
+        .get("chunks")
+        .and_then(Value::as_array)
+        .ok_or("field `chunks` must be an array of chunk keys")?
+        .iter()
+        .map(|v| {
+            v.as_str()
+                .map(str::trim)
+                .and_then(|s| {
+                    if s.len() == 64 {
+                        Some(s.to_ascii_lowercase())
+                    } else {
+                        None
+                    }
+                })
+                .ok_or_else(|| "chunk entries must be 64-char lowercase sha256 keys".to_string())
+        })
+        .collect::<Result<_, String>>()?;
+    if chunks.is_empty() {
+        return Err("field `chunks` must list at least one chunk".to_string());
+    }
+    let have: std::collections::HashSet<String> = chunk_keys(data_dir).into_iter().collect();
+    let mut total_bytes = 0u64;
+    for key in &chunks {
+        if !have.contains(key) {
+            return Err(format!("chunk `{key}` is not stored in the weight store"));
+        }
+        total_bytes += chunks_len(data_dir, key)
+            .ok_or_else(|| format!("chunk `{key}` missing from the store"))?;
+    }
+    if total_bytes != numel * 4 {
+        return Err(format!(
+            "chunks total {total_bytes} B does not match dims {rows:?} (expected {} B)",
+            numel * 4
+        ));
+    }
+    let mut tensors = read_tensors(data_dir);
+    tensors.retain(|t| t.get("tensor").and_then(Value::as_str) != Some(name.as_str()));
+    tensors.push(json!({
+        "tensor": name,
+        "dims": [rows.0, rows.1],
+        "chunks": chunks,
+        "dtype": "f32",
+        "numel": numel,
+        "bytes": total_bytes,
+        "registered_ts": now_secs(),
+    }));
+    write_tensors(data_dir, &tensors)?;
+    Ok(json!({ "ok": true, "tensor": name, "chunks": chunks.len(), "bytes": total_bytes }))
+}
+
+fn chunks_len(data_dir: &Path, key: &str) -> Option<u64> {
+    std::fs::metadata(chunks_root(data_dir).join(format!("{key}.bin")))
+        .ok()
+        .map(|m| m.len())
+}
+
+/// Look up one registered tensor entry.
+pub fn tensor_entry(data_dir: &Path, name: &str) -> Option<Value> {
+    read_tensors(data_dir)
+        .into_iter()
+        .find(|t| t.get("tensor").and_then(Value::as_str) == Some(name))
+}
+
+/// Load the bytes of one tensor, verifying chunk availability. Returns the raw
+/// little-endian f32 bytes in tensor row-major order.
+pub fn tensor_bytes(data_dir: &Path, name: &str) -> Option<Vec<u8>> {
+    let entry = tensor_entry(data_dir, name)?;
+    let chunks = entry.get("chunks")?.as_array()?;
+    let mut out = Vec::new();
+    for key in chunks {
+        let key = key.as_str()?;
+        let bytes = std::fs::read(chunks_root(data_dir).join(format!("{key}.bin"))).ok()?;
+        out.extend_from_slice(&bytes);
+    }
+    Some(out)
 }
 
 fn audit(data_dir: &Path, event: &str, fields: Value) {
@@ -259,6 +409,7 @@ pub fn read_chunk(data_dir: &Path, key: &str) -> Result<Vec<u8>, String> {
 pub fn manifest(data_dir: &Path) -> Value {
     let rows = read_index(data_dir);
     let total = total_bytes(&rows);
+    let tensors = read_tensors(data_dir);
     json!({
         "ok": true,
         "model": "minicpm-v-4.7-1b",
@@ -273,6 +424,7 @@ pub fn manifest(data_dir: &Path) -> Value {
             "stored_ts": r.get("stored_ts").cloned().unwrap_or(Value::Null),
             "hits": r.get("hits").cloned().unwrap_or(Value::Null),
         })).collect::<Vec<_>>(),
+        "tensors": tensors,
     })
 }
 
@@ -321,6 +473,37 @@ mod tests {
         let dir = temp_dir("big");
         let big = vec![7u8; MAX_CHUNK_BYTES + 1];
         assert!(store_chunk(&dir, &big).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn register_tensor_lists_and_reads_back() {
+        let dir = temp_dir("register_tensor");
+        // 2 rows x 4 cols of f32 = 32 B — register a tensor whose bytes ARE dims*4.
+        let w = [1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
+        let a: Vec<u8> = w.iter().flat_map(|v| v.to_le_bytes()).collect();
+        let s1 = store_chunk(&dir, &a).expect("store");
+        let k1 = s1["key"].as_str().unwrap().to_string();
+        let t = register_tensor(
+            &dir,
+            &json!({"tensor":"tiny.weight","dims":[2,4],"chunks":[k1]}),
+        )
+        .expect("register");
+        assert_eq!(t["ok"], true);
+        let m = manifest(&dir);
+        let t2 = m["tensors"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|x| x["tensor"] == "tiny.weight")
+            .expect("tensor in manifest");
+        assert_eq!(t2["chunks"].as_array().unwrap().len(), 1);
+        assert_eq!(t2["numel"], 8);
+        let bytes = tensor_bytes(&dir, "tiny.weight").expect("read");
+        assert_eq!(bytes.len(), 32);
+        // misestimating dims must be refused
+        let bad = register_tensor(&dir, &json!({"tensor":"bad","dims":[1,1],"chunks":[k1]}));
+        assert!(bad.is_err());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
