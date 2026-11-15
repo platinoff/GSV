@@ -55,3 +55,30 @@ each becomes its own ticket.
 - `target/` scratch-скрипти (probe/verify/dry-run) автоматично не чистяться — `target/` gitignored, не в реєстрі hygiенно поверхні; ручна періодична зачистка за потреби.
 - **2026-11-08 board:** rebook RB-63…66 **cancelled** on hub `tickets.jsonl` (OpenCode free lane must not claim book content). AGENTS.md CRLF churn across plugins = revert, never commit.
 - **ECO-9:** free OpenCode agents + poolAI WSP feasibility are canon docs — not junk; do not sweep.
+
+## 2026-11-15 — `target/` bloat incident + full cache wipe (owner: «почистити»)
+
+**What happened:** S: drive dropped to **4.7 GiB free** (170 GB total); worst offenders were
+build target caches, not user artifacts:
+
+| repo | `target/` before | dominant sub-dirs |
+|---|---|---|
+| GSV | 60 G | `debug/deps` 48 G · `debug/incremental` 11 G |
+| poolAI | 49 G | `debug/deps` 42 G · `debug/incremental` 7.2 G |
+| LinFS / ORR / CoreBoard / GSV-WGPU / telenetis / rusty-engine | 0.7–1.4 G each | `debug/deps` + `debug/incremental` |
+
+**What was done (2026-11-15, owner-approved):** deleted cargo caches only —
+`debug/{deps,incremental,build,examples,.fingerprint,tmp}` in every registered repo.
+Kept intact: `target/live/` (running live binaries, content-addressed supercopy),
+source/git/docs/tickets, telenetis/target/live, GSV/target/live. No source files touched;
+no git-tracked files changed (`target/` is gitignored). GSV's already-working
+`cargo xtask disk --clean` (CLI; keeps `target/live/`) was used for GSV; sibling repos were
+scrubbed with the same cache-only rule.
+
+**Result:** free **4.7 → 114 GiB** (S: 33% used); GSV `target/` now 4.1 G, poolAI 0.97 G,
+all plugins < 200 M. Live services kept alive all the time (gsv `:9999`, telenetis `:9800`).
+
+**Rule going forward:** when disk < 12 GiB (S0 guard trips) → run
+`cargo xtask disk --clean` in the **offending** repo first (it is safe: keeps `target/live/`),
+then check siblings individually; never `cargo clean` the whole tree — `target/live/` supercopy
+is the running binary. Dep/incremental caches rebuild on next `cargo build/test` automatically.
