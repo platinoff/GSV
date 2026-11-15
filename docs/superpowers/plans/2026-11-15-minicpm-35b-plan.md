@@ -28,11 +28,11 @@ llama.cpp підтримує цей формат з PR #29416. Діагност�
 
 ## 3. Далі (передбачає виділений вузол ≥ 24 GiB RAM або cloud-варіант)
 
-**LIVE ДЕМО НА 35B (2026-11-15, група `g-73`):** піри виконали реальну 35B-вагу
-`blk.0.ffn_down_shexp.weight` (Q6_K, 1 shared-expert блоку 0, dims [512,2048]) —
-обидва шарди over WebGPU на Android, `max_err_model` ≈ 1.4e-6 / 7.2e-7 (хаб верифікував).
+**LIVE ДЕМО НА 35B (2026-11-15, групи `g-73/74/75/76`):** піри виконали реальну 35B-вагу
+`blk.0.ffn_down_shexp.weight` (Q6_K [512,2048]) та повний SwiGLU shared-expert (gate+up+down) блока 0
+на Android-пірах over WebGPU — обидва шарди кожної тензори `done`, `max_err_model` ≈ 3.2e-7 … 1.4e-6.
 **Mesh ⇔ 35B-ваги працює.** Це ще не MoE forward (немає router/GDN/40-блокового циклу),
-але транспорт/доріжка дозріла.
+але транспорт і верифікація ваг дозріли.
 
 1. **PH-401..404** (MoE core, на вузлі): router top-k · expert FFN shared/specialized · ExpertCache LRU.
 2. **PH-406**: 35B E2E greedy-паритет (mmap partial/sharding на вузлі).
@@ -53,5 +53,7 @@ llama.cpp підтримує цей формат з PR #29416. Діагност�
 - ✅ `rusty inspect` на 35B показує arch/headers (40 blocks, 256 experts, qwen35moe)
 - ✅ dump `blk.0.ffn_down_shexp.weight` → 4 MiB fp32 зареєстровано на хабі
 - ✅ **LIVE: mesh на реальних 35B-вагах** (група `g-73`) — обидва шарди `done`,
-  `max_err_model` ≈ 1.4e-6 / 7.2e-7 (валідація на хабі)
+  `max_err_model` ≈ 1.4e-6 / 7.2e-7
+- ✅ **SwiGLU shared-expert повний** (групи `g-74/g-75/g-76`): gate+up+down блока 0
+  виконані на Android-пірах over WebGPU, `max_err_model` ≈ 3.2e-7 … 1.3e-6
 - ❌ повноцінний 35B-inference на цьому блоці — не робити (RAM; потрібно виділений вузол)
