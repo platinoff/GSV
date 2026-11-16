@@ -72,23 +72,52 @@ pub unsafe extern "C" fn mesh_matvec(
     rows: usize,
     k_: usize,
 ) {
+    mesh_matvec_partial(w, x, y, rows, k_, 0, k_);
+}
+
+/// y[r] = Σ_{k in [k0, k1)} W[r*row_stride + k] * X[k] — partial-K matvec used by
+/// the `matvec_shard` op (row-major W with arbitrary row stride; X is indexed
+/// with an absolute base at k0). Enables sharded reductions on mesh peers.
+#[no_mangle]
+#[target_feature(enable = "simd128")]
+pub unsafe extern "C" fn mesh_matvec_partial(
+    w: *const f32,
+    x: *const f32,
+    y: *mut f32,
+    rows: usize,
+    row_stride: usize,
+    k0: usize,
+    k1: usize,
+) {
+    if k1 <= k0 {
+        for r in 0..rows {
+            *y.add(r) = 0.0;
+        }
+        return;
+    }
     for r in 0..rows {
-        let row = w.add(r * k_);
+        let row = w.add(r * row_stride);
         let mut acc = f32x4_splat(0.0);
-        let mut base = 0usize;
-        while base + 4 <= k_ {
+        let mut base = k0;
+        while base + 4 <= k1 {
             let wv = loadx4(row.add(base));
             let xv = loadx4(x.add(base));
             acc = f32x4_add(acc, f32x4_mul(wv, xv));
             base += 4;
         }
         let mut sum = sumx4(acc);
-        while base < k_ {
+        while base < k1 {
             sum += *row.add(base) * *x.add(base);
             base += 1;
         }
         *y.add(r) = sum;
     }
+}
+
+/// ABI marker for the JS side (bump on breaking kernel signature changes).
+#[no_mangle]
+pub extern "C" fn mesh_version() -> u32 {
+    1
 }
 
 /// C[y*64 + x] = Σ_k A[y*64+k] * B[k*64+x] — classic 64×64 f32 matmul.

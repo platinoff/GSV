@@ -1732,7 +1732,7 @@ async function loadMeshWasm(){
     const buf=await resp.arrayBuffer();
     const {instance}=await WebAssembly.instantiate(buf,{});
     WASM.inst=instance.exports;WASM.loaded=true;
-    log('wasm mesh: SIMD128 kernels loaded ('+Math.round(buf.byteLength/1024)+' KB)');
+    log('wasm mesh: SIMD128 kernels loaded ('+Math.round(buf.byteLength/1024)+' KB'+(WASM.inst.mesh_version?(', ABI v'+WASM.inst.mesh_version()):'')+')');
   }catch(e){WASM.failed=true;log('wasm mesh unavailable: '+(e&&e.message?e.message:e)+' — JS reference fallback');}
   return WASM.inst;
 }
@@ -1752,6 +1752,10 @@ function wasmRefMatvec(W,X,R,K){if(!WASM.loaded)return null;
   const w=wasmUpload(W),x=wasmUpload(X);if(!w||!x){if(w)wasmFree(w,W.length);if(x)wasmFree(x,X.length);return null;}
   const y=WASM.inst.mesh_alloc(wasmF32(R));if(!y){wasmFree(w,W.length);wasmFree(x,X.length);return null;}
   WASM.inst.mesh_matvec(w,x,y,R,K);const REF=wasmDownload(y,R);wasmFree(w,W.length);wasmFree(x,X.length);WASM.inst.mesh_free(y,wasmF32(R));return REF;}
+function wasmRefMatvecRange(W,X,R,K,k0,k1){if(!WASM.loaded)return null;
+  const w=wasmUpload(W),x=wasmUpload(X);if(!w||!x){if(w)wasmFree(w,W.length);if(x)wasmFree(x,X.length);return null;}
+  const y=WASM.inst.mesh_alloc(wasmF32(R));if(!y){wasmFree(w,W.length);wasmFree(x,X.length);return null;}
+  WASM.inst.mesh_matvec_partial(w,x,y,R,K,k0,k1);const REF=wasmDownload(y,R);wasmFree(w,W.length);wasmFree(x,X.length);WASM.inst.mesh_free(y,wasmF32(R));return REF;}
 function wasmRefSoftmax(V){if(!WASM.loaded)return null;const p=wasmUpload(V);if(!p)return null;WASM.inst.mesh_softmax(p,V.length);const REF=wasmDownload(p,V.length);wasmFree(p,V.length);return REF;}
 function wasmRefLayernorm(V){if(!WASM.loaded)return null;
   const x=wasmUpload(V);if(!x)return null;
@@ -1887,7 +1891,9 @@ async function buildRunner(op,shardId,shards){
   const W=new Float32Array(R*K),X=new Float32Array(K),REF=new Float32Array(R);
   for(let i=0;i<R*K;i++){W[i]=((i%13)-6)*0.125;}
   for(let k=0;k<K;k++){X[k]=((k%7)-3)*0.25;}
-  for(let r=0;r<R;r++){let acc=0;for(let k=k0;k<k1;k++)acc+=W[r*K+k]*X[k];REF[r]=acc;}
+  await loadMeshWasm();
+  const wasmPart=wasmRefMatvecRange(W,X,R,K,k0,k1);
+  if(wasmPart){REF.set(wasmPart);}else{for(let r=0;r<R;r++){let acc=0;for(let k=k0;k<k1;k++)acc+=W[r*K+k]*X[k];REF[r]=acc;}}
   const wBuf=device.createBuffer({size:W.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
   const xBuf=device.createBuffer({size:X.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
   const yBuf=device.createBuffer({size:REF.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC});
