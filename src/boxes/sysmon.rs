@@ -234,6 +234,14 @@ fn peer_device_class(peer: &Value) -> String {
         .to_string()
 }
 
+fn peer_cores(peer: &Value) -> Option<u64> {
+    peer.get("cores").and_then(Value::as_u64)
+}
+
+fn peer_device_memory(peer: &Value) -> Option<u64> {
+    peer.get("device_memory").and_then(Value::as_u64)
+}
+
 fn peer_id(peer: &Value) -> u64 {
     peer.get("peer_id").and_then(Value::as_u64).unwrap_or(0)
 }
@@ -277,6 +285,8 @@ fn mesh_peers_summary(data_dir: &Path) -> Value {
                 "alive": peer_is_alive(p, now),
                 "mflops": peer_mflops(p),
                 "last_task": peer_last_task(p),
+                "cores": peer_cores(p),
+                "device_memory_gb": peer_device_memory(p),
             })
         })
         .collect();
@@ -356,11 +366,12 @@ main{display:grid;grid-template-columns:1fr 1.3fr;gap:12px;padding:12px 16px}
 .row{display:flex;justify-content:space-between;gap:12px;padding:3px 0;border-bottom:1px dashed #1c2740}
 .row:last-child{border-bottom:0}
 .k{color:var(--muted)}
+.muted{color:var(--muted);font-size:11px;text-align:right}
 .v{color:var(--text);text-align:right}
 .bar{position:relative;height:14px;border-radius:4px;background:#1c2740;overflow:hidden}
 .bar>i{position:absolute;left:0;top:0;bottom:0;background:var(--acc);transition:width .3s linear}
 .bar.warn>i{background:var(--warn)}.bar.crit>i{background:var(--crit)}
-.peer{display:grid;grid-template-columns:auto 1fr auto auto auto auto;gap:10px;align-items:center;padding:7px 6px;border-bottom:1px solid #1c2740}
+.peer{display:grid;grid-template-columns:auto 1fr auto auto auto auto auto;gap:10px;align-items:center;padding:7px 6px;border-bottom:1px solid #1c2740}
 .peer:last-child{border-bottom:0}
 .peer .id{color:var(--muted)}
 .pill{font-size:10px;padding:1px 7px;border-radius:999px;border:1px solid var(--acc);color:var(--acc)}
@@ -461,7 +472,8 @@ function renderPeers(peers) {
     '<span>' + escapeHtml(p.adapter || '?') + ' · ' + escapeHtml(p.device_class || '?') + '</span>' +
     '<span class="pill' + (p.alive ? '' : ' dead') + '">' + (p.alive ? 'alive' : 'stale') + '</span>' +
     '<span>' + (p.mflops ? Math.round(p.mflops) + ' MF' : 'n/a') + '</span>' +
-    '<span class="k">' + escapeHtml(p.last_task || '—') + '</span>' + '</div>'
+    '<span class="k">' + escapeHtml(p.last_task || '—') + '</span>' +
+    '<span class="muted">' + (p.cores != null ? p.cores : '·') + ' c · ' + (p.device_memory_gb != null ? p.device_memory_gb + ' GB' : '·') + '</span>' + '</div>'
   ).join('');
 }
 

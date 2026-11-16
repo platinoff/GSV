@@ -615,6 +615,17 @@ pub fn peer_join(data_dir: &Path, body: &Value) -> Result<Value, String> {
         })
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "unknown".to_string());
+    // Optional self-reported browser hardware hints (navigator.hardwareConcurrency,
+    // navigator.deviceMemory). Both are best-effort browser-reported values,
+    // sanitized to small ranges; absent/invalid -> null.
+    let cores: Option<u64> = body
+        .get("cores")
+        .and_then(Value::as_u64)
+        .filter(|&c| (1..=256).contains(&c));
+    let device_memory: Option<u64> = body
+        .get("device_memory")
+        .and_then(Value::as_u64)
+        .filter(|&m| (1..=512).contains(&m));
     let _g = mesh_lock();
     let path = data_dir.join(PEERS_FILE);
     let mut peers = read_jsonl(&path);
@@ -631,6 +642,8 @@ pub fn peer_join(data_dir: &Path, body: &Value) -> Result<Value, String> {
         "adapter": adapter,
         "ua": ua,
         "device_class": device_class,
+        "cores": cores,
+        "device_memory": device_memory,
         "joined_ts": now,
         "last_seen_ts": now,
         "lease_until": now + PEER_LEASE_SECS,
@@ -1992,7 +2005,7 @@ async function startWorker(){
   if(!navigator.gpu){setCap('no navigator.gpu — worker cannot start',false);return;}
   try{
     const ad=await navigator.gpu.requestAdapter();let name='adapter';try{const i=ad&&ad.info||{};name=[i.vendor,i.architecture,i.device].filter(Boolean).join('/')||'adapter';}catch(e){}
-    const j=await(await fetch('api/wgpu/peer/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({adapter:name,ua:navigator.userAgent.slice(0,120),device_class:(/Android|iPhone|iPad/i.test(navigator.userAgent||'')?'phone':'pc-wgpu')})})).json();
+    const j=await(await fetch('api/wgpu/peer/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({adapter:name,ua:navigator.userAgent.slice(0,120),device_class:(/Android|iPhone|iPad/i.test(navigator.userAgent||'')?'phone':'pc-wgpu'),cores:navigator.hardwareConcurrency||null,device_memory:(typeof navigator.deviceMemory==='number'?navigator.deviceMemory:null)})})).json();
     if(!j.ok){log('join failed: '+(j.error||'?'));return;}
     WORKER={peer:j.peer_id,poll:j.poll_secs||2,lease:j.lease_secs||60,running:true,adapter:name};
     setCap('mesh worker · peer #'+j.peer_id+' · '+name,true);
@@ -2008,7 +2021,7 @@ async function workerLoop(){
       const d=await(await fetch('api/wgpu/task/poll',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({peer_id:WORKER.peer})})).json();
       if(d.ok===false&&(d.code==='unknown_peer'||/unknown peer/i.test(d.error||''))){
         // Band E: the registry was wiped or our row vanished -> re-join instead of dying.
-        const j=await(await fetch('api/wgpu/peer/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({adapter:WORKER.adapter||'adapter',ua:navigator.userAgent.slice(0,120),device_class:(/Android|iPhone|iPad/i.test(navigator.userAgent||'')?'phone':'pc-wgpu')})})).json();
+        const j=await(await fetch('api/wgpu/peer/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({adapter:WORKER.adapter||'adapter',ua:navigator.userAgent.slice(0,120),device_class:(/Android|iPhone|iPad/i.test(navigator.userAgent||'')?'phone':'pc-wgpu'),cores:navigator.hardwareConcurrency||null,device_memory:(typeof navigator.deviceMemory==='number'?navigator.deviceMemory:null)})})).json();
         if(j.ok){WORKER.peer=j.peer_id;log('peer was gone ('+(d.error||'?')+') -> re-joined as peer #'+j.peer_id);setCap('mesh worker · peer #'+j.peer_id+' · '+(WORKER.adapter||'adapter'),true);}
         else{log('re-join failed: '+(j.error||'?'));}
       }
