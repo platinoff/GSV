@@ -132,8 +132,28 @@ pub fn is_cargo_test_harness() -> bool {
 }
 
 /// Whether `exe` is a rustc test harness artifact.
+///
+/// Layout varies by toolchain generation:
+/// - ≤1.99: `target/debug/deps/<pkg>-<hash>.exe`
+/// - ≥1.100 MSYS2 mingw: `target/debug/build/<pkg>/<hash>/out/<pkg>-<hash>.exe`
 pub fn path_is_cargo_test_harness(exe: &Path) -> bool {
-    exe.to_string_lossy().replace('\\', "/").contains("/deps/")
+    let s = exe.to_string_lossy().replace('\\', "/");
+    if s.contains("/deps/") {
+        return true;
+    }
+    // 1.100+: the file hash equals the out-dir hash (parent-of-parent).
+    let file = s.rsplit('/').next().unwrap_or("");
+    let out_dir_hash = s.rsplit('/').nth(2).unwrap_or("");
+    let base = file.strip_suffix(".exe").unwrap_or(file);
+    match base.rsplit_once('-') {
+        Some((pkg, h)) => {
+            !pkg.is_empty()
+                && h.len() == 16
+                && h.chars().all(|c| c.is_ascii_hexdigit())
+                && h == out_dir_hash
+        }
+        None => false,
+    }
 }
 
 /// Emit SSE `offline` and return the apply wire. Caller may `process::exit` after flush.
