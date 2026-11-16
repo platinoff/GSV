@@ -493,6 +493,99 @@ pub fn card_wire(kit_root: &Path, selected: Option<&str>) -> Value {
     w
 }
 
+/// One inventory row per discovered product — best-effort, never fails hard.
+/// Renders HEAD / branch line, dirty count, ahead/behind and last-commit age
+/// per repo so the owner can scan ecosystem states in one command.
+pub fn state(kit_root: &Path) -> Value {
+    let rows = discover(kit_root);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let mut out = Vec::with_capacity(rows.len());
+    for row in &rows {
+        let path = PathBuf::from(&row.path);
+        let head = git_capture(&path, &["rev-parse", "--short", "HEAD"]);
+        let dirty = if row.git {
+            git_capture(&path, &["status", "--porcelain"])
+                .lines()
+                .filter(|l| !l.trim().is_empty())
+                .count()
+        } else {
+            0
+        };
+        let sb = git_capture(&path, &["status", "-sb"]);
+        let branch_line = sb.lines().next().unwrap_or("").trim().to_string();
+        let (ahead, behind) = parse_ahead_behind(&branch_line);
+        let last_commit_ts = git_capture(&path, &["log", "-1", "--format=%ct"])
+            .parse::<u64>()
+            .ok();
+        let crate_version = if row.cargo {
+            cargo_version(&path.join("Cargo.toml"))
+        } else {
+            None
+        };
+        out.push(json!({
+            "id": row.id,
+            "path": display_path(&path),
+            "kind": row.kind,
+            "registered": row.registered,
+            "role": row.role,
+            "head": if head.is_empty() { Value::Null } else { json!(head) },
+            "branch_line": branch_line,
+            "dirty": dirty,
+            "ahead": ahead,
+            "behind": behind,
+            "last_commit_age_secs": last_commit_ts.map(|t| now.saturating_sub(t)),
+            "crate_version": crate_version,
+        }));
+    }
+    json!({ "ok": true, "generated_ts": now, "products": out })
+}
+
+fn parse_ahead_behind(sb: &str) -> (Option<u64>, Option<u64>) {
+    let mut ahead = None;
+    let mut behind = None;
+    let inside = match sb.split_once('[') {
+        Some((_, rest)) => rest.split(']').next().unwrap_or(""),
+        None => return (None, None),
+    };
+    for part in inside.split(',') {
+        let part = part.trim();
+        if let Some(v) = part.strip_prefix("ahead ") {
+            ahead = v.parse().ok();
+        } else if let Some(v) = part.strip_prefix("behind ") {
+            behind = v.parse().ok();
+        }
+    }
+    (ahead, behind)
+}
+
+fn cargo_version(toml: &Path) -> Option<String> {
+    let text = fs::read_to_string(toml).ok()?;
+    let mut in_package = false;
+    for line in text.lines() {
+        let t = line.trim();
+        if t.starts_with('[') {
+            in_package = t == "[package]";
+            continue;
+        }
+        if !in_package {
+            continue;
+        }
+        if let Some(rest) = t.strip_prefix("version") {
+            if !rest.starts_with([' ', '\t', '=']) {
+                continue;
+            }
+            let v = rest
+                .split_once('=')
+                .map(|(_, v)| v.trim().trim_matches('"').to_string())?;
+            return Some(v);
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

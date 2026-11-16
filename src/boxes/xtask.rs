@@ -25,7 +25,7 @@ pub const TASKS: &[(&str, &str)] = &[
     ("catalog", "List xtask names (this help)"),
     (
         "products",
-        "Discover VDT products (TSV; abracadabra / agi Step 0)",
+        "Discover VDT products (TSV; abracadabra / agi Step 0). `--state` adds HEAD/dirty/ahead-behind/last-commit age per repo; `--json` for raw JSON",
     ),
     (
         "adopt",
@@ -396,6 +396,44 @@ pub fn products_tsv(kit_root: &Path) -> String {
             row.live_dir.as_deref().unwrap_or(""),
             wiring,
         ));
+    }
+    out
+}
+
+/// TSV inventory for `cargo xtask products --state` — one line per repo,
+/// best-effort (never fails the command).
+pub fn products_state_tsv(kit_root: &Path) -> String {
+    let wire = crate::boxes::products::state(kit_root);
+    fn cell(p: &Value, k: &str) -> String {
+        match p.get(k) {
+            None | Some(Value::Null) => "-".to_string(),
+            Some(Value::String(s)) => s.clone(),
+            Some(other) => other.to_string(),
+        }
+    }
+    let mut out = String::from(
+        "id\tpath\thead\tbranch_line\tdirty\tahead\tbehind\tlast_commit_age_secs\tcrate_version\tregistered\n",
+    );
+    if let Some(products) = wire.get("products").and_then(Value::as_array) {
+        for p in products {
+            out.push_str(&format!(
+                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                cell(p, "id"),
+                cell(p, "path"),
+                cell(p, "head"),
+                cell(p, "branch_line"),
+                cell(p, "dirty"),
+                cell(p, "ahead"),
+                cell(p, "behind"),
+                cell(p, "last_commit_age_secs"),
+                cell(p, "crate_version"),
+                if p.get("registered") == Some(&json!(true)) {
+                    "yes"
+                } else {
+                    "no"
+                },
+            ));
+        }
     }
     out
 }
@@ -1206,6 +1244,18 @@ mod tests {
             "{tsv}"
         );
         assert!(tsv.contains("\tok\n") || tsv.contains("\tna\n"), "{tsv}");
+    }
+
+    #[test]
+    fn products_state_tsv_has_header_and_rows() {
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let tsv = products_state_tsv(&root);
+        assert!(tsv.starts_with("id\tpath\thead\tbranch_line\tdirty"));
+        assert!(tsv.contains("\tGSV\t") || tsv.contains("gsv\t"), "{tsv}");
+        assert!(
+            tsv.contains("crate_version") || tsv.contains("0.248"),
+            "{tsv}"
+        );
     }
 
     #[test]

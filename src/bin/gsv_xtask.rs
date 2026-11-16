@@ -69,7 +69,19 @@ fn main() -> ExitCode {
             }
         }
         "products" => {
-            print!("{}", xtask::products_tsv(&root));
+            if args.iter().any(|a| a == "--state") {
+                if args.iter().any(|a| a == "--json") {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&gsv::boxes::products::state(&root))
+                            .unwrap_or_default()
+                    );
+                } else {
+                    print!("{}", xtask::products_state_tsv(&root));
+                }
+            } else {
+                print!("{}", xtask::products_tsv(&root));
+            }
             ExitCode::SUCCESS
         }
         "adopt" => {
