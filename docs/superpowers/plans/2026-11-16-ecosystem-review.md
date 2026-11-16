@@ -15,7 +15,7 @@
 | LinFS | `141aab5` 2026-11-09 | 0 · CRLF-шум відкочено | 0/0 | ECO-8.3 ✅ |
 | ORR_DESKTOP | `40298ab` 2026-11-09 | 0 · CRLF-шум відкочено | 0/0 | ECO-8.3 ✅ |
 | sport-forcast | `3d8341e` 2026-11-09 | 0 | 0/0 | ECO-8.3 ✅ |
-| **CoreBoard_Labs_shop** | `91480c2` 2026-11-09 | 0 | **ahead 1** | ECO-8.3 коміт не запушено — **потрібне рішення owner** |
+| **CoreBoard_Labs_shop** | `91480c2` 2026-11-09 | 0 | 0/0 | pushed 2026-11-16 (owner-authorized) |
 | rebook | `6424975` 2026-11-08 | 0 · CRLF-шум відкочено | 0/0 | ECO-7.7 owner-gated |
 | omniroute | `e3d202c` 2026-11-06 | 0 | 0/0 | policy-down |
 | platinoff-profile | `5d81430` 2026-10-29 | 0 | 0/0 | clean |
@@ -48,8 +48,8 @@ CRLF-шум (`AGENTS.md` ×4, WSP brief) відкочено за owner-прав�
 
 ## 3. Адаптовані наступні дії
 
-### 3.1 Негайні (owner)
-- **CoreBoard_Labs_shop**: ahead 1 (`91480c2` ECO-8.3) — запушити (owner) чи залишити?
+### 3.1 Виконано (закритий пункт)
+- **CoreBoard_Labs_shop**: `91480c2` ahead 1 — **запушено 2026-11-16** (owner-authorized), екосистема повністю чиста.
 - **RAM**: 86–91 % завантаження, 2+ смерті хаба за 15.11 — звільнити до наступних збірок; інакше `/sys`-дані будуть недостовірні для placement-рішень.
 
 ### 3.2 Документація (depутале цього ревю)
@@ -64,7 +64,7 @@ CRLF-шум (`AGENTS.md` ×4, WSP brief) відкочено за owner-прав�
 - **PH-A1 dispatch gate ✅ shipped 2026-11-16 (A1 завершено)**: heavyweight `weights_matvec` (реальні MiniCPM тензори) рутяться **лише на ready-пірів** — `task_enqueue` фільтрує ранг по proofs; `peer_poll` відмовляє непробваному піру (`task:null` + `readiness_hint`); probe-класи (`matmul64`/`matvec`/…) лишаються відкритими для bootstrap. Без ready-кандидатів enqueue-нотить `no ready peer alive` і ставить задачу в чергу. Live перевірено: `mt-87` (blk.1 gate) → #35 (live MFLOPS 60.26 outranks), `max_err_model 3.4e-7`. Юніт-тест `peer_poll_gate_blocks_heavyweight_until_probe_proven`.
 - **blk.1 35B shared-expert LIVE ✅ 2026-11-16**: тензори `blk.1.ffn_{gate,up,down}_shexp.weight` декодовано з 35B GGUF (`rusty dump-f32`, ggml=12/12/14) → upload chunks → register (`dims [2048,512]/[2048,512]/[512,2048]`) → enqueue `weights_matvec` shards=2 ×3. **Флот із 3 пірів виконав усе:** g-84 (gate, `max_err_model ≈ 3.4e-7`, #28) · **g-85 (up, `≈ 4.1e-7`, #35 valhall 60.26 MF)** · g-86 (down, `≈ 1.6e-6`, #34/#28). Валхал #35 (новий id після rejoin) став ready (proofs ≥2). Зараз: alive 3 / ready 3, групи видно в `/sys` evidence.
 - **PH-A3** Activation trace: EAM-подібні лічильники експертів у JSONL (наприклад `data/expert_activations.jsonl`) → feeds PH-404 (ExpertCache prioritization).
-- **PH-A4** ✅ **shipped 2026-11-16**: `cargo xtask products --state` — one-liner per repo (HEAD / branch_line / dirty / ahead / behind / last_commit_age_secs / crate_version / registered); `--json` для raw JSON. Запущена наживо 2026-11-16: 14 продуктів, всі чисті крім `gsv dirty=3` (саме ця робота) і `coreboard_labs_shop [ahead 1]` (owner decision). Замінює кустарні bash-огляди.
+- **PH-A4** ✅ **shipped 2026-11-16**: `cargo xtask products --state` — one-liner per repo (HEAD / branch_line / dirty / ahead / behind / last_commit_age_secs / crate_version / registered); `--json` для raw JSON. Запущена наживо 2026-11-16: 14 продуктів, усі чисті (після пуша CoreBoard `91480c2`). Замінює кустарні bash-огляди.
 - **PH-A5** 35B forward на виділеному вузлі (owner decision; потрібен ≥ 24 GB RAM node; PH-401..406).
 
 ### 3.4 Двигуни / rusty-engine (незмінно)

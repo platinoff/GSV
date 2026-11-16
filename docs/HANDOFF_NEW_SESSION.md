@@ -1,6 +1,6 @@
 # Передача контексту новій сесії (GSV)
 
-## Сталий стан (2026-11-15 — MiniCPM mesh + WSP weight-fixing; OpenCode free lane; vision rev 516, next PH-S3089)
+## Сталий стан (2026-11-16 — ecosystem review done; 35B blk.0+blk.1 live; PH-A1 closed; all products clean; vision rev 516, next PH-S3089)
 
 | Що | Значення |
 |----|----------|

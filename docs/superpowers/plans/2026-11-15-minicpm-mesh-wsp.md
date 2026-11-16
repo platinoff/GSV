@@ -164,3 +164,19 @@ MC-6 (WSP gate) — після MC-1 і WSP-3 (незалежна ланка, м�
 - **Висновок щодо Uk-якості:** наступний важіль — більша модель (PH-1206 35B-A3B у llama-rs /
   інший bigger checkpoint), а не WSP-дрен силенса 1B.
 - **Інциденти:** 4 тихої смерті gsv-server за день; найімовірніша причина — памʼять (MemTotal ~7.7 GB, MemFree ~0.75–0.84 GB під час збірки та serve). Watchdog відновлюється лише при logon; crash-recovery відсутній. Owner щоразу відновлював вручну. Owner: система потребує RAM/EDR-перевірки.
+
+## 11. Update 2026-11-16 (вечір) — MiniCPM track на закриття сесії
+
+- **35B shared-expert LIVE на повному флоті**: blk.1 `ffn_{gate,up,down}_shexp.weight`
+  декодовано (`rusty dump-f32`) + залито + зареєстровано (dims `[2048,512]/[2048,512]/[512,2048]`)
+  → shards виконано 3 пристроями (`g-84` #28 · `g-85` #35 valhall **60.26 MF** · `g-86` #28/#34;
+  `max_err_model ≈ 3.4e-7…1.6e-6`). У `/sys` evidence тепер blk.0 + blk.1.
+- **Fleet readiness**: 3/3 alive + ready (#28 pc-wgpu 11 proofs · #34 bifrost 7 proofs ·
+  #35 valhall ≥2; валхал повернувся новим id #35; далі id стабільний через auto-peering).
+- **PH-A1 завершено** (dispatch gate): heavyweight `weights_matvec` лише на ready-пірів у
+  enqueue-роутинг і poll; probe-операції відкриті для bootstrap; `readiness_hint`;
+  unit `peer_poll_gate_blocks_heavyweight_until_probe_proven`; live proof `mt-87` (blk.1 gate) → #35, `max_err_model 3.4e-7`.
+- **Екосистема**: усі 14 зареєстрованих продуктів чисті й запушені (включно з CoreBoard
+  `91480c2`); GSV HEAD `5ced1a7`, crate 0.248.0; `cargo xtask products --state` = чисто.
+- **WSP**: без змін — MC-6 ROLLBACK; наступний WSP-крок лише після явного go owner'а або після PH-A5 node.
+- **Блокер**: dedicated ≥24 GB node для повного 35B forward (PH-A5) — рішення owner.
