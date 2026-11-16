@@ -841,7 +841,7 @@ fn mesh_peers_summary(data_dir: &Path) -> Value {
                 dev_mem.map(|d| ((d as f64 * 0.5 * 10.0).round()) / 10.0);
             let ds = p.get("device_status").cloned().unwrap_or_else(|| json!({}));
             let ds_get = |k: &str| ds.get(k).cloned().unwrap_or(Value::Null);
-            json!({
+            let mut row = json!({
                 "id": id,
                 "adapter": peer_name(p),
                 "device_class": peer_device_class(p),
@@ -875,7 +875,24 @@ fn mesh_peers_summary(data_dir: &Path) -> Value {
                 "wifi_link_quality": ds_get("wifi_link_quality"),
                 "wifi_signal_dbm": ds_get("wifi_signal_dbm"),
                 "wifi_noise_dbm": ds_get("wifi_noise_dbm"),
-            })
+            });
+            if let Value::Object(ref mut m) = row {
+                m.insert("downlink_mbps".into(), ds_get("downlink_mbps"));
+                m.insert("effective_type".into(), ds_get("effective_type"));
+                m.insert("rtt_ms".into(), ds_get("rtt_ms"));
+                m.insert("save_data".into(), ds_get("save_data"));
+                m.insert("battery_level".into(), ds_get("battery_level"));
+                m.insert("battery_charging".into(), ds_get("battery_charging"));
+                m.insert("gpu_max_storage_mb".into(), ds_get("gpu_max_storage_mb"));
+                m.insert("gpu_max_buffer_mb".into(), ds_get("gpu_max_buffer_mb"));
+                m.insert("gpu_max_invocations_per_workgroup".into(), ds_get("gpu_max_invocations_per_workgroup"));
+                m.insert("js_heap_mb".into(), ds_get("js_heap_mb"));
+                m.insert("ua_arch".into(), ds_get("ua_arch"));
+                m.insert("ua_bitness".into(), ds_get("ua_bitness"));
+                m.insert("ua_model".into(), ds_get("ua_model"));
+                m.insert("ua_platform".into(), ds_get("ua_platform"));
+            }
+            row
         })
         .collect();
     let alive_rows: Vec<&Value> = rows.iter().filter(|r| r["alive"] == json!(true)).collect();
@@ -1379,6 +1396,15 @@ function renderPeers(peers) {
       (p.cpu_mhz != null ? '<span>freq <b>' + (p.cpu_mhz / 1000).toFixed(2) + ' GHz</b></span>' : '') +
       (p.temp_c != null ? '<span>temp <b>' + p.temp_c.toFixed(1) + ' °C</b></span>' : '') +
       (p.uptime_secs != null ? '<span>up <b>' + fmtUptime2(p.uptime_secs) + '</b></span>' : '') +
+    '</div>' : (p.effective_type || p.battery_level != null || p.gpu_max_storage_mb != null || p.ua_model ? '<div class="psub"><span>net <b>' + escapeHtml(p.effective_type || '?') + '</b>' +
+      (p.downlink_mbps != null ? ' · ↓' + p.downlink_mbps + ' Mbps' : '') +
+      (p.rtt_ms != null ? ' · rtt ' + p.rtt_ms + 'ms' : '') +
+      (p.save_data ? ' · saveData' : '') +
+      '</span>' +
+      '<span>bat <b>' + (p.battery_level != null ? Math.round(p.battery_level*100) + '%' + (p.battery_charging ? ' ⚡' : '') : 'n/a') + '</b></span>' +
+      '<span>gpu <b>' + (p.gpu_max_storage_mb != null ? p.gpu_max_storage_mb + ' MB' : 'n/a') + '</b></span>' +
+      (p.js_heap_mb != null ? '<span>heap <b>' + p.js_heap_mb + ' MB</b></span>' : '') +
+      (p.ua_model ? '<span><b>' + escapeHtml(p.ua_model) + '</b>' + (p.ua_arch ? ' · ' + escapeHtml(p.ua_arch + (p.ua_bitness ? '/' + p.ua_bitness : '')) : '') + '</span>' : '') +
     '</div>' : '')
   ).join('');
 }
