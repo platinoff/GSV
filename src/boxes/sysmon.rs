@@ -500,6 +500,22 @@ struct TaskAgg {
     /// Best single-task mflops seen for this peer.
     best_mflops: Option<f64>,
     elapsed_sum_ms: f64,
+    /// Capability proofs for the readiness gate: done tasks with
+    /// `max_err_model < 1e-4` (weights) or `max_err < 1e-6` (numeric ops).
+    proofs: u32,
+}
+
+fn task_proof_good(t: &Value) -> bool {
+    if t.get("status").and_then(Value::as_str) != Some("done") {
+        return false;
+    }
+    if let Some(m) = t.get("max_err_model").and_then(Value::as_f64) {
+        return m < 1e-4;
+    }
+    t.get("max_err")
+        .and_then(Value::as_f64)
+        .map(|e| e < 1e-6)
+        .unwrap_or(false)
 }
 
 fn task_aggs(tasks: &[Value]) -> std::collections::HashMap<u64, TaskAgg> {
@@ -510,6 +526,9 @@ fn task_aggs(tasks: &[Value]) -> std::collections::HashMap<u64, TaskAgg> {
         let agg = map.entry(pid).or_default();
         if status == "done" {
             agg.done += 1;
+            if task_proof_good(t) {
+                agg.proofs += 1;
+            }
         } else if status == "failed" {
             agg.failed += 1;
         }
@@ -620,6 +639,7 @@ fn mesh_peers_summary(data_dir: &Path) -> Value {
         .map(|p| {
             let id = peer_id(p);
             let agg = aggs.get(&id);
+            let proofs = agg.map_or(0, |a| a.proofs);
             let dev_mem = peer_device_memory(p);
             // Heuristic for shard partitioning: browser-reported RAM is an
             // upper bound; a browser worker should not hold more than half.
@@ -631,6 +651,10 @@ fn mesh_peers_summary(data_dir: &Path) -> Value {
                 "adapter": peer_name(p),
                 "device_class": peer_device_class(p),
                 "alive": peer_is_alive(p, now),
+                // Readiness gate (PH-A1): a peer is capable of taking mesh work
+                // only after >=1 task proof with good numerical error.
+                "ready": proofs >= 1,
+                "ready_proofs": proofs,
                 "mflops": peer_mflops(p),
                 "last_task": peer_last_task(p),
                 "cores": peer_cores(p),
@@ -646,6 +670,15 @@ fn mesh_peers_summary(data_dir: &Path) -> Value {
         })
         .collect();
     let alive_rows: Vec<&Value> = rows.iter().filter(|r| r["alive"] == json!(true)).collect();
+    let ready_rows: Vec<&Value> = rows
+        .iter()
+        .filter(|r| r["ready"] == json!(true) && r["alive"] == json!(true))
+        .collect();
+    let ready_alive = ready_rows.len();
+    let shard_gb_ready: f64 = ready_rows
+        .iter()
+        .filter_map(|r| r["est_shard_gb"].as_f64())
+        .sum();
     let cores_alive: u64 = alive_rows.iter().filter_map(|r| r["cores"].as_u64()).sum();
     let device_gb_alive: f64 = alive_rows
         .iter()
@@ -664,8 +697,10 @@ fn mesh_peers_summary(data_dir: &Path) -> Value {
         "total": rows.len(),
         "phones_alive": phones_alive,
         "cores_alive": cores_alive,
-        "device_gb_alive": (device_gb_alive * 10.0).round() / 10.0,
-        "shard_gb_alive_est": (shard_gb_alive * 10.0).round() / 10.0,
+        "ready_alive": ready_alive,
+        "shard_gb_ready_est": if shard_gb_ready > 0.0 { (shard_gb_ready * 10.0).round() / 10.0 } else { 0.0 },
+        "device_gb_alive": if device_gb_alive > 0.0 { (device_gb_alive * 10.0).round() / 10.0 } else { 0.0 },
+        "shard_gb_alive_est": if shard_gb_alive > 0.0 { (shard_gb_alive * 10.0).round() / 10.0 } else { 0.0 },
         "tasks_done": done,
         "tasks_failed": failed,
         "total_tasks": tasks.len(),
@@ -692,6 +727,24 @@ mod s_tests {
         } else {
             panic!("os_phys None (GlobalMemoryStatusEx failed)");
         }
+    }
+
+    #[test]
+    fn readiness_gate_counts_good_proofs() {
+        let tasks = vec![
+            json!({"peer_id": 7, "status": "done", "max_err": 0}),
+            json!({"peer_id": 7, "status": "done", "max_err_model": 5e-7}),
+            json!({"peer_id": 7, "status": "done", "max_err_model": 2e-3}),
+            json!({"peer_id": 7, "status": "failed", "max_err": 0}),
+            json!({"peer_id": 8, "status": "done", "max_err_model": 3.2e-6}),
+            json!({"peer_id": 9, "status": "failed"}),
+        ];
+        let aggs = task_aggs(&tasks);
+        assert_eq!(aggs.get(&7).map(|a| a.proofs), Some(2));
+        assert_eq!(aggs.get(&8).map(|a| a.proofs), Some(1));
+        assert_eq!(aggs.get(&9).map(|a| a.proofs), Some(0));
+        assert!(aggs.get(&7).map(|a| a.done) == Some(3));
+        assert!(aggs.get(&7).map(|a| a.failed) == Some(1));
     }
 }
 
@@ -773,7 +826,9 @@ main{display:grid;grid-template-columns:1fr 1.3fr;gap:12px;padding:12px 16px}
 .bar{position:relative;height:14px;border-radius:4px;background:#1c2740;overflow:hidden}
 .bar>i{position:absolute;left:0;top:0;bottom:0;background:var(--acc);transition:width .3s linear}
 .bar.warn>i{background:var(--warn)}.bar.crit>i{background:var(--crit)}
-.peer{display:grid;grid-template-columns:auto 1fr auto auto auto auto;gap:10px;align-items:center;padding:7px 6px 2px;border-bottom:1px solid #1c2740}
+.peer{display:grid;grid-template-columns:auto 1fr auto auto auto auto auto;gap:10px;align-items:center;padding:7px 6px 2px;border-bottom:1px solid #1c2740}
+.pill.rdy{border-color:#6ee7b7;color:#6ee7b7}
+.pill.nrdy{border-color:#33415e;color:#5b6b8f}
 .psub{grid-column:1 / -1;display:flex;gap:14px;flex-wrap:wrap;padding:0 2px 7px;border-bottom:1px solid #141b31;font-size:11px;color:var(--muted)}
 .psub b{color:var(--text);font-weight:600}
 .ev-row{display:grid;grid-template-columns:auto 1fr auto auto;gap:10px;align-items:center;padding:3px 4px;border-bottom:1px solid #141b31;font-size:11px}
@@ -866,8 +921,8 @@ async function tick() {
       '<span class="rss">' + (p.rss_mb ?? 0) + ' MB</span></div>'
     ).join('') || '<div class="top-row"><span class="k">n/a</span></div>';
     $('ts').textContent = new Date(d.ts * 1000).toLocaleTimeString();
-    $('meshSummary').textContent = d.mesh.alive + ' alive / ' + d.mesh.total + ' known · ' + (d.mesh.phones_alive ?? 0) + ' phones · cores Σ ' + (d.mesh.cores_alive ?? 0) + ' · dev Σ ' + (d.mesh.device_gb_alive ?? 0) + ' GB · ' + d.mesh.tasks_done + ' done / ' + d.mesh.tasks_failed + ' failed';
-    $('placement').textContent = 'est. shard candidates: ' + (d.mesh.peers || []).filter(p => p.est_shard_gb != null).sort((a, b) => b.est_shard_gb - a.est_shard_gb).map(p => '#' + p.id + ' ' + shortAdapter(p.adapter) + ' ~' + p.est_shard_gb.toFixed(1) + ' GB').concat(['Σ ~' + (d.mesh.shard_gb_alive_est ?? 0).toFixed(1) + ' GB']).join(' · ');
+    $('meshSummary').textContent = d.mesh.alive + ' alive / ' + d.mesh.total + ' known · ' + (d.mesh.phones_alive ?? 0) + ' phones · cores Σ ' + (d.mesh.cores_alive ?? 0) + ' · dev Σ ' + (d.mesh.device_gb_alive ?? 0) + ' GB · ready ' + (d.mesh.ready_alive ?? 0) + ' (Σ~' + (d.mesh.shard_gb_ready_est ?? 0).toFixed(1) + ' GB) · ' + d.mesh.tasks_done + ' done / ' + d.mesh.tasks_failed + ' failed';
+    $('placement').textContent = 'est. shard candidates: ' + (d.mesh.peers || []).filter(p => p.est_shard_gb != null && p.ready).sort((a, b) => b.est_shard_gb - a.est_shard_gb).map(p => '#' + p.id + ' ' + shortAdapter(p.adapter) + ' ~' + p.est_shard_gb.toFixed(1) + ' GB ✓').concat(['Σ ready ~' + (d.mesh.shard_gb_ready_est ?? 0).toFixed(1) + ' GB']).join(' · ');
     renderPeers(d.mesh.peers);
     renderEvidence(d.mesh.weight_groups || []);
   } catch (e) { ok = false; }
@@ -906,6 +961,7 @@ function renderPeers(peers) {
     '<div class="peer"><span class="id">#' + p.id + '</span>' +
     '<span>' + escapeHtml(p.adapter || '?') + ' · ' + escapeHtml(p.device_class || '?') + '</span>' +
     '<span class="pill' + (p.alive ? '' : ' dead') + '">' + (p.alive ? 'alive' : 'stale') + '</span>' +
+    '<span class="pill' + (p.ready ? ' rdy' : ' nrdy') + '" title="ready proofs: ' + (p.ready_proofs ?? 0) + '">' + (p.ready ? '✓rdy' : '✗') + '</span>' +
     '<span>' + (p.best_task_mflops ? Math.round(p.best_task_mflops) + ' MF best' : (p.mflops ? Math.round(p.mflops) + ' MF' : 'n/a')) + '</span>' +
     '<span class="k" title="last task ' + escapeHtml(p.last_task || '') + '">' + fmtAge(p.last_seen_age_secs) + '</span>' +
     '<span class="muted">' + (p.cores != null ? p.cores : '·') + ' c · ' + (p.device_memory_gb != null ? p.device_memory_gb + ' GB' : '·') + '</span></div>' +

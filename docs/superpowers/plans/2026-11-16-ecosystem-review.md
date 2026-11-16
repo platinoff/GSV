@@ -55,7 +55,8 @@ CRLF-шум (`AGENTS.md` ×4, WSP brief) відкочено за owner-прав�
 ### 3.2 Документація (depутале цього ревю)
 - цей план; `docs/NEXT_SESSION_PROMPT.md` banner (2026-11-16 review); `docs/HANDOFF_NEW_SESSION.md` review row; ECO-10 у `docs/gsv/GSV_TECH_ROADMAP.md` — дослідне node.
 
-### 3.3 Кандидати бендів (за owner pick)
+### 3.3 Кандидати бендів
+- **PH-A1** ✅ **shipped 2026-11-16** (commit `24ff669`+1, deploy `target/live/gsv-server.exe`): пір отримує `ready` лише за ≥1 proof-задачі з `max_err_model < 1e-4` / `max_err < 1e-6` (з `wgpu_tasks.jsonl`); `/api/sys/metrics` — `ready`/`ready_proofs`/`ready_alive`/`shard_gb_ready_est`; `/sys` — ready-колонка + Σ ready; shard-est для pc-wgpu #28 невідомий (adapter не репортить `navigator.deviceMemory`) → 0, чесно. **Живий стан:** alive 3 (#28 pc-wgpu ready=2 proofs; #33/#34 phones not ready — 0 proofs, не брати в placement). Route-гейтинг — у PH-A2 за дизайном.
 - **PH-A1** Readiness gate: пір стає `ready` лише після mt-тестів з `max_err < 1e-4` (за `wgpu_tasks.jsonl`); `/sys` колонка ready; mesh-route виключає unready.
 - **PH-A2** Placement API: `GET /api/mesh/placement?model=minicpm-35b` → детермінований розподіл alive/ready пірів по групах g-73… за `est_shard_gb` + історією `weight_max_err`; fail-loud при нестачі місткості.
 - **PH-A3** Activation trace: EAM-подібні лічильники експертів у JSONL (наприклад `data/expert_activations.jsonl`) → feeds PH-404 (ExpertCache prioritization).
