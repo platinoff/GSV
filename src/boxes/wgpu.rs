@@ -146,6 +146,9 @@ const PEERS_FILE: &str = "wgpu_peers.jsonl";
 const TASKS_FILE: &str = "wgpu_tasks.jsonl";
 const MAX_PEERS: usize = 50;
 const MAX_TASKS: usize = 200;
+/// Rows whose lease expired more than this long ago are dropped on the next
+/// join (auto-prune): stale, unproven peers never accumulate.
+const MESH_STALE_PRUNE_SECS: u64 = 86_400;
 /// Max iterations a peer may run inside one task (band D: sustained bench).
 pub const MAX_ITERS: u64 = 1024;
 
@@ -589,7 +592,57 @@ fn finite_nonneg(v: &Value, key: &str) -> Result<(), String> {
     }
 }
 
-/// Browser peer joins the mesh (fresh `peer_id`, 60 s lease).
+/// Stable fingerprint of a browser device: the same device (same adapter,
+/// UA, class, hardware hints) rejoining under any transport reuses its
+/// `peer_id` instead of minting a new one. Deterministic — nobody has to
+/// "register"; the browser just joins again.
+fn device_key(
+    adapter: &str,
+    ua: &str,
+    device_class: &str,
+    cores: Option<u64>,
+    device_memory: Option<u64>,
+) -> String {
+    use sha2::{Digest, Sha256};
+    let mut h = Sha256::new();
+    let cores_s = cores.map(|c| c.to_string()).unwrap_or_else(|| "?".into());
+    let mem_s = device_memory
+        .map(|m| m.to_string())
+        .unwrap_or_else(|| "?".into());
+    for part in [adapter, ua, device_class, &cores_s, &mem_s] {
+        // length-prefixed so parts can never collide into each other
+        h.update((part.len() as u64).to_le_bytes());
+        h.update(part.as_bytes());
+    }
+    let d = h.finalize();
+    d.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Count of done tasks for `peer_id` with good numerical error
+/// (`max_err_model < 1e-4` or `max_err < 1e-6`) — the evidence that a peer is
+/// not just alive but *proven*. Used to retain rows as mesh evidence.
+fn task_proofs(tasks: &[Value], peer_id: u64) -> u32 {
+    tasks
+        .iter()
+        .filter(|t| t.get("peer_id").and_then(Value::as_u64) == Some(peer_id))
+        .filter(|t| t.get("status").and_then(Value::as_str) == Some("done"))
+        .filter(|t| {
+            t.get("max_err_model")
+                .and_then(Value::as_f64)
+                .map(|m| m < 1e-4)
+                .or_else(|| t.get("max_err").and_then(Value::as_f64).map(|e| e < 1e-6))
+                .unwrap_or(false)
+        })
+        .count() as u32
+}
+
+fn row_last_seen(row: &Value) -> u64 {
+    row.get("last_seen_ts").and_then(Value::as_u64).unwrap_or(0)
+}
+
+/// Browser peer joins the mesh. Same device rejoining reuses its `peer_id`
+/// (device fingerprint); the registry auto-prunes stale, unproven rows so the
+/// mesh does not accumulate dead browsers.
 pub fn peer_join(data_dir: &Path, body: &Value) -> Result<Value, String> {
     let adapter = body
         .get("adapter")
@@ -629,13 +682,30 @@ pub fn peer_join(data_dir: &Path, body: &Value) -> Result<Value, String> {
     let _g = mesh_lock();
     let path = data_dir.join(PEERS_FILE);
     let mut peers = read_jsonl(&path);
-    let peer_id = peers
-        .iter()
-        .filter_map(|p| p.get("peer_id").and_then(Value::as_u64))
-        .max()
-        .unwrap_or(0)
-        + 1;
     let now = now_secs();
+    let key = device_key(&adapter, &ua, &device_class, cores, device_memory);
+    let reused_id = peers
+        .iter()
+        .rev()
+        .find(|p| p.get("device_key").and_then(Value::as_str) == Some(key.as_str()))
+        .and_then(|p| p.get("peer_id").and_then(Value::as_u64));
+    let peer_id = reused_id.unwrap_or_else(|| {
+        peers
+            .iter()
+            .filter_map(|p| p.get("peer_id").and_then(Value::as_u64))
+            .max()
+            .unwrap_or(0)
+            + 1
+    });
+    let joined_ts = peers
+        .iter()
+        .rev()
+        .find(|p| p.get("peer_id").and_then(Value::as_u64) == Some(peer_id))
+        .and_then(|p| p.get("joined_ts").and_then(Value::as_u64))
+        .unwrap_or(now);
+    let reused = peers
+        .iter()
+        .any(|p| p.get("peer_id").and_then(Value::as_u64) == Some(peer_id));
     peers.push(json!({
         "peer_id": peer_id,
         "kind": "browser",
@@ -644,10 +714,25 @@ pub fn peer_join(data_dir: &Path, body: &Value) -> Result<Value, String> {
         "device_class": device_class,
         "cores": cores,
         "device_memory": device_memory,
-        "joined_ts": now,
+        "device_key": key,
+        "joined_ts": joined_ts,
         "last_seen_ts": now,
         "lease_until": now + PEER_LEASE_SECS,
     }));
+    // Auto-prune: drop rows that are stale (lease long expired) AND unproven
+    // (no done task with good error). Live and proven rows are evidence and
+    // stay. This is what keeps the registry from accumulating dead browsers.
+    let tasks = read_jsonl(&data_dir.join(TASKS_FILE));
+    peers.retain(|p| {
+        if row_alive(p, now) {
+            return true;
+        }
+        let pid = p.get("peer_id").and_then(Value::as_u64).unwrap_or(0);
+        if task_proofs(&tasks, pid) > 0 {
+            return true;
+        }
+        now.saturating_sub(row_last_seen(p)) < MESH_STALE_PRUNE_SECS
+    });
     if peers.len() > MAX_PEERS {
         let keep = peers.len() - MAX_PEERS;
         peers.drain(..keep);
@@ -656,6 +741,7 @@ pub fn peer_join(data_dir: &Path, body: &Value) -> Result<Value, String> {
     Ok(json!({
         "ok": true,
         "peer_id": peer_id,
+        "reused_peer": reused_id.is_some() || reused,
         "poll_secs": POLL_SECS,
         "lease_secs": PEER_LEASE_SECS,
     }))
@@ -2663,6 +2749,56 @@ mod tests {
             &json!({"peer_id":peer2,"task_id":task3,"ok":true,"elapsed_ms":1,"max_err":0,"mflops":-5.0}),
         )
         .is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn peer_rejoin_same_device_reuses_id() {
+        let dir = temp_dir("peer_reuse");
+        let j1 = peer_join(
+            &dir,
+            &json!({"adapter":"arm/valhall","ua":"ua-same","cores":8,"device_memory":4}),
+        )
+        .expect("join 1");
+        let j2 = peer_join(
+            &dir,
+            &json!({"adapter":"arm/valhall","ua":"ua-same","cores":8,"device_memory":4}),
+        )
+        .expect("join 2");
+        assert_eq!(j1["peer_id"], j2["peer_id"]);
+        assert_eq!(j2["reused_peer"], true);
+        assert_eq!(j1["reused_peer"], false);
+        let j3 = peer_join(
+            &dir,
+            &json!({"adapter":"arm/bifrost","ua":"other","cores":8,"device_memory":4}),
+        )
+        .expect("join 3");
+        assert_ne!(j3["peer_id"], j1["peer_id"]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn peer_join_autoprunes_stale_unproven_rows() {
+        let dir = temp_dir("peer_prune");
+        std::fs::create_dir_all(&dir).expect("create fixture dir");
+        let stale = json!({
+            "peer_id": 7,
+            "kind": "browser",
+            "adapter": "arm/dead",
+            "ua": "dead",
+            "device_class": "phone",
+            "joined_ts": 10,
+            "last_seen_ts": 10,
+            "lease_until": 20
+        });
+        std::fs::write(
+            dir.join("wgpu_peers.jsonl"),
+            serde_json::to_string(&stale).unwrap() + "\n",
+        )
+        .expect("write stale peers");
+        let _ = peer_join(&dir, &json!({"adapter":"arm/bifrost","ua":"fresh"})).expect("join");
+        let peers = read_jsonl(&dir.join("wgpu_peers.jsonl"));
+        assert!(!peers.iter().any(|p| p["peer_id"] == json!(7)));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

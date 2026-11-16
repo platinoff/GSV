@@ -167,6 +167,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/tickets/next", post(api_tickets_next))
         .route("/api/mds", get(api_mds))
         .route("/api/sys/metrics", get(api_sys_metrics))
+        .route("/api/mesh/placement", get(api_mesh_placement))
         .route("/sys", get(api_sys_page))
         .route("/wgpu", get(api_wgpu_page))
         .route("/api/wgpu", get(api_wgpu))
@@ -834,6 +835,17 @@ async fn api_sys_metrics(
     ))
 }
 
+/// Placement proposal for MiniCPM mesh shards (`GET /api/mesh/placement?model=…`) —
+/// deterministic, fail-loud (PH-A2). Model must be one of `minicpm-1b-blk0`,
+/// `minicpm-35b-shexp-blk0`, `minicpm-35b-full`.
+async fn api_mesh_placement(
+    State(state): State<AppState>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Json<Value> {
+    let model = params.get("model").cloned().unwrap_or_default();
+    Json(crate::boxes::sysmon::placement(&state.data_dir, &model))
+}
+
 /// WGPU phone-test page (`GET /wgpu`) — browser WGSL matmul runner.
 async fn api_wgpu_page() -> Html<&'static str> {
     Html(crate::boxes::wgpu::page())
@@ -1221,7 +1233,7 @@ async fn api_index() -> Json<Value> {
             "/api/vision/", "/api/ui/", "/api/ratio/", "/api/toolchain/",
             "/api/ide/", "/api/omni/", "/api/sli", "/api/tracker", "/api/products",
             "/api/fingerprints", "/api/ranks", "/api/sw", "/api/watchdog", "/api/usage", "/api/settings", "/api/telegram", "/api/telegram/bus", "/api/telegram/ticket", "/api/telegram/poll", "/api/telegram/decode", "/api/tickets", "/api/mds", "/api/rust-intel", "/api/xtask", "/api/disk", "/api/grid", "/api/edge", "/api/apk", "/sw.js",
-            "/api/hooks/", "/api/preview", "/api/terminal", "/data/", "/mcp", "/sys", "/api/sys/metrics"
+            "/api/hooks/", "/api/preview", "/api/terminal", "/data/", "/mcp", "/sys", "/api/sys/metrics", "/api/mesh/placement"
         ],
         "example": "/api/vision",
         "docs": "/assets/vision.svg"

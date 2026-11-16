@@ -616,6 +616,199 @@ fn weight_groups(tasks: &[Value], limit: usize) -> Vec<Value> {
         .collect()
 }
 
+// ───────────────────────── mesh placement (PH-A2) ─────────────────────────
+
+/// One demand shard of a model profile. Sizes are ≈ honest observations from
+/// live mesh runs (f32 chunks), not a substitute for real tensor metadata.
+struct ShardDemand {
+    group: &'static str,
+    tensor: &'static str,
+    bytes: u64,
+}
+
+const KNOWN_MODELS: [&str; 3] = [
+    "minicpm-1b-blk0",
+    "minicpm-35b-shexp-blk0",
+    "minicpm-35b-full",
+];
+
+fn model_profile(model: &str) -> Option<Vec<ShardDemand>> {
+    match model {
+        // 1B blk.0 ffn_down f32 shard (256×1024×4 B = 1 MiB); observed g-72.
+        "minicpm-1b-blk0" => Some(vec![ShardDemand {
+            group: "blk0-1b-ffn-down",
+            tensor: "blk.0.ffn_down.weight",
+            bytes: 1_048_576,
+        }]),
+        // 35B blk.0 shared-expert SwiGLU gate/up/down f32 shards
+        // (2048×512×4 B ≈ 4 MiB each); observed g-73..g-76.
+        "minicpm-35b-shexp-blk0" => Some(vec![
+            ShardDemand {
+                group: "blk0-35b-ffn-gate-shexp",
+                tensor: "blk.0.ffn_gate_shexp.weight",
+                bytes: 4_194_304,
+            },
+            ShardDemand {
+                group: "blk0-35b-ffn-up-shexp",
+                tensor: "blk.0.ffn_up_shexp.weight",
+                bytes: 4_194_304,
+            },
+            ShardDemand {
+                group: "blk0-35b-ffn-down-shexp",
+                tensor: "blk.0.ffn_down_shexp.weight",
+                bytes: 4_194_304,
+            },
+        ]),
+        // 35B whole model — impossible on the current fleet; always shortfall.
+        "minicpm-35b-full" => Some(vec![ShardDemand {
+            group: "full-35b",
+            tensor: "entire 35B-A3B (19.7 GiB Q4_K_M)",
+            bytes: 19_700_000_000,
+        }]),
+        _ => None,
+    }
+}
+
+fn gb_bytes(gb: f64) -> f64 {
+    gb * 1024.0 * 1024.0 * 1024.0
+}
+
+/// Deterministic, fail-loud shard placement. Only alive peers with ≥1 task
+/// proof (readiness gate, PH-A1) and a known est_shard_gb are candidates;
+/// capacity is greedily packed by descending remaining budget. Nothing is
+/// hidden: every exclusion carries a reason.
+pub fn placement(data_dir: &Path, model: &str) -> Value {
+    let demand = match model_profile(model) {
+        Some(d) => d,
+        None => {
+            return json!({
+                "ok": false,
+                "error": format!("unknown model profile: {model}"),
+                "known_models": KNOWN_MODELS,
+            });
+        }
+    };
+    let now = epoch_now();
+    let peers = dedup_peers(&read_jsonl(&data_dir.join(PEERS_FILE)));
+    let tasks = read_jsonl(&data_dir.join(TASKS_FILE));
+    let aggs = task_aggs(&tasks);
+
+    let mut candidates: Vec<(u64, String, String, Option<f64>, u32)> = Vec::new();
+    let mut excluded: Vec<Value> = Vec::new();
+    // Empirically-proven budget for peers that never reported memory: the
+    // live 35B shared-expert shards (g-73..g-76) were ≤4.2 MiB f32 each. A
+    // proven peer may take small shards up to this cap; nothing bigger.
+    const EMPIRICAL_CAP_BYTES: f64 = 32.0 * 1024.0 * 1024.0;
+    for p in &peers {
+        let id = peer_id(p);
+        let name = peer_name(p);
+        let class = peer_device_class(p);
+        let alive = peer_is_alive(p, now);
+        let proofs = aggs.get(&id).map_or(0, |a| a.proofs);
+        if !alive {
+            excluded.push(json!({"id": id, "adapter": name, "reason": "stale (not alive)"}));
+            continue;
+        }
+        if proofs < 1 {
+            excluded.push(json!({"id": id, "adapter": name, "reason": "not ready (0 proofs; run a mesh task first)"}));
+            continue;
+        }
+        candidates.push((
+            id,
+            name,
+            class,
+            peer_device_memory(p).map(|d| d as f64 * 0.5),
+            proofs,
+        ));
+    }
+    candidates.sort_by(|a, b| match (a.3, b.3) {
+        (Some(x), Some(y)) => y.partial_cmp(&x).unwrap_or(std::cmp::Ordering::Equal),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => std::cmp::Ordering::Equal,
+    });
+
+    let total_demand_bytes: u64 = demand.iter().map(|s| s.bytes).sum();
+    let total_capacity_bytes: u64 = candidates
+        .iter()
+        .map(|c| c.3.map(gb_bytes).unwrap_or(EMPIRICAL_CAP_BYTES) as u64)
+        .sum();
+    let mut remaining: Vec<f64> = candidates
+        .iter()
+        .map(|c| c.3.map(gb_bytes).unwrap_or(EMPIRICAL_CAP_BYTES))
+        .collect();
+    let mut shards: Vec<Value> = Vec::new();
+    let mut unplaced = 0usize;
+    for s in &demand {
+        let idx = remaining
+            .iter()
+            .enumerate()
+            .filter(|(_, rem)| **rem >= s.bytes as f64)
+            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|(i, _)| i);
+        match idx {
+            Some(i) => {
+                let before = remaining[i];
+                remaining[i] -= s.bytes as f64;
+                shards.push(json!({
+                    "group": s.group,
+                    "tensor": s.tensor,
+                    "bytes": s.bytes,
+                    "placed": true,
+                    "peer_id": candidates[i].0,
+                    "adapter": candidates[i].1,
+                    "est_before_bytes": before as u64,
+                    "est_after_bytes": remaining[i] as u64,
+                }));
+            }
+            None => {
+                unplaced += 1;
+                shards.push(json!({
+                    "group": s.group,
+                    "tensor": s.tensor,
+                    "bytes": s.bytes,
+                    "placed": false,
+                    "peer_id": Value::Null,
+                    "reason": "insufficient ready capacity",
+                }));
+            }
+        }
+    }
+
+    let candidates_json: Vec<Value> = candidates
+        .iter()
+        .map(|(id, adapter, class, est, proofs)| {
+            json!({
+                "id": id,
+                "adapter": adapter,
+                "device_class": class,
+                "est_shard_gb": est.map(|g| (g * 10.0).round() / 10.0),
+                "proofs": proofs,
+                "capacity_note": if est.is_some() { Value::Null } else { json!("memory unreported — capped to 32 MiB of empirically-proven shards") },
+            })
+        })
+        .collect();
+
+    let mut out = json!({
+        "ok": true,
+        "model": model,
+        "generated_ts": now,
+        "total_demand_bytes": total_demand_bytes,
+        "total_capacity_bytes": total_capacity_bytes,
+        "placed_shards": demand.len() - unplaced,
+        "unplaced_shards": unplaced,
+        "capacity_shortfall": unplaced > 0,
+        "shards": shards,
+        "candidates": candidates_json,
+        "excluded": excluded,
+        "known_models": KNOWN_MODELS,
+    });
+    if model == "minicpm-35b-full" {
+        out["hint"] = json!("35B full forward requires a dedicated >=24 GiB node (PH-A5); the phone mesh cannot hold it");
+    }
+    out
+}
+
 fn mesh_peers_summary(data_dir: &Path) -> Value {
     let now = epoch_now();
     let peers = read_jsonl(&data_dir.join(PEERS_FILE));
@@ -746,6 +939,85 @@ mod s_tests {
         assert!(aggs.get(&7).map(|a| a.done) == Some(3));
         assert!(aggs.get(&7).map(|a| a.failed) == Some(1));
     }
+
+    fn fixture_dir(tag: &str) -> std::path::PathBuf {
+        let d = std::env::temp_dir().join(format!(
+            "gsv-placement-test-{tag}-{}-probe",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).expect("create fixture dir");
+        d
+    }
+
+    fn write_peers(dir: &std::path::Path, now: u64, rows: &[(u64, &str, bool, u64, u64)]) {
+        // (peer_id, adapter, alive, cores, device_memory)
+        let mut s = String::new();
+        for (id, adapter, alive, cores, dev_mem) in rows {
+            let lease = if *alive {
+                now + 3600
+            } else {
+                now.saturating_sub(100)
+            };
+            let last_seen = if *alive { now } else { now.saturating_sub(100) };
+            s.push_str(&format!(
+                "{{\"adapter\":\"{adapter}\",\"joined_ts\":1,\"kind\":\"browser\",\"last_seen_ts\":{last_seen},\"lease_until\":{lease},\"peer_id\":{id},\"device_class\":\"phone\",\"cores\":{cores},\"device_memory\":{dev_mem}}}\n"
+            ));
+        }
+        std::fs::write(dir.join("wgpu_peers.jsonl"), s).expect("write peers");
+    }
+
+    #[test]
+    fn placement_assigns_ready_peer_and_reports_shortfall() {
+        let dir = fixture_dir("ok");
+        let now = epoch_now();
+        write_peers(
+            &dir,
+            now,
+            &[(42, "arm/test", true, 8, 4), (43, "arm/new", true, 8, 4)],
+        );
+        std::fs::write(
+            dir.join("wgpu_tasks.jsonl"),
+            "{\"peer_id\":42,\"status\":\"done\",\"max_err_model\":1e-7,\"op\":\"weights_matvec\",\"group_id\":\"g-1\",\"tensor\":\"t\",\"shards\":2,\"done_ts\":1,\"elapsed_ms\":10,\"mflops\":1.0}\n",
+        )
+        .expect("write tasks");
+
+        let v = placement(&dir, "minicpm-1b-blk0");
+        assert_eq!(v["ok"], true);
+        assert_eq!(v["unplaced_shards"], 0);
+        assert_eq!(v["candidates"][0]["id"], 42);
+        // peer 43 has no proofs -> excluded with reason
+        let excl = v["excluded"].as_array().expect("excluded array");
+        assert!(excl
+            .iter()
+            .any(|e| e["id"] == json!(43)
+                && e["reason"].as_str().unwrap_or("").contains("not ready")));
+
+        let v2 = placement(&dir, "minicpm-35b-full");
+        assert_eq!(v2["ok"], true);
+        assert_eq!(v2["capacity_shortfall"], true);
+
+        let v3 = placement(&dir, "nonsense-model");
+        assert_eq!(v3["ok"], false);
+        assert!(v3["error"]
+            .as_str()
+            .unwrap_or("")
+            .contains("unknown model profile"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn placement_empty_fleet_is_shortfall() {
+        let dir = fixture_dir("empty");
+        std::fs::write(dir.join("wgpu_peers.jsonl"), "").unwrap();
+        std::fs::write(dir.join("wgpu_tasks.jsonl"), "").unwrap();
+        let v = placement(&dir, "minicpm-35b-shexp-blk0");
+        assert_eq!(v["ok"], true);
+        assert_eq!(v["capacity_shortfall"], true);
+        assert_eq!(v["placed_shards"], 0);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
 
 // ───────────────────────── the wire ─────────────────────────
@@ -848,6 +1120,14 @@ main{display:grid;grid-template-columns:1fr 1.3fr;gap:12px;padding:12px 16px}
 .pill{font-size:10px;padding:1px 7px;border-radius:999px;border:1px solid var(--acc);color:var(--acc)}
 .pill.dead{border-color:var(--crit);color:var(--crit)}
 .footer{padding:6px 16px;color:var(--muted);font-size:11px;border-top:1px solid var(--edge)}
+#stick{position:sticky;top:0;z-index:40;display:flex;gap:12px;align-items:center;padding:6px 16px;background:#0d1423;border-bottom:1px solid var(--edge);font-size:11px;color:var(--muted);overflow-x:auto;white-space:nowrap}
+#stick b{color:var(--text);font-weight:600}
+#stick .sep{color:#33415e}
+#stick.warn b#stHubRam{color:var(--warn)}
+#stick.crit b#stHubRam{color:var(--crit)}
+#peersBox{margin-top:10px}
+#peersBox summary{cursor:pointer;color:var(--muted);font-size:11px;user-select:none;padding:4px 0}
+#peersBox summary:hover{color:var(--text)}
 canvas{width:100%;height:48px;background:#0d1423;border-radius:6px;display:block}
 @media(max-width:900px){main{grid-template-columns:1fr}}
 </style>
@@ -865,7 +1145,25 @@ canvas{width:100%;height:48px;background:#0d1423;border-radius:6px;display:block
     <button class="b" data-ms="2000">2s</button>
   </div>
 </header>
+<div id="stick">
+  <span class="sv">Hub <b id="stHubCpu">-</b> CPU · <b id="stHubRam">-</b> RAM · <b id="stCommit">-</b> commit · <b id="stDisk">-</b> disk free</span>
+  <span class="sep">|</span>
+  <span class="sv">Mesh <b id="stMesh">-</b> alive · ready <b id="stReady">-</b> · <b id="stPhones">-</b> phones · Σ<b id="stCores">-</b> cores · Σ<b id="stGb">-</b> GB</span>
+  <span class="sep">|</span>
+  <span class="sv">shard Σ <b id="stShard">-</b> GB ready</span>
+</div>
 <main>
+  <div class="card">
+    <h2>Mesh peers · browser <span id="peersCount" class="muted"></span></h2>
+    <div class="row"><span class="k">Mesh</span><span class="v" id="meshSummary">-</span></div>
+    <div class="h2row"><h2>35B shard evidence</h2></div>
+    <div id="evidence"></div>
+    <div class="row" style="margin-top:8px"><span class="k">Placement</span><span class="v" id="placement">-</span></div>
+    <details id="peersBox">
+      <summary id="peersSummary">peers detail — click to expand</summary>
+      <div id="peers"></div>
+    </details>
+  </div>
   <div class="card">
     <h2>Hub · this box <span id="hubver"></span></h2>
     <canvas id="spark" width="600" height="48"></canvas>
@@ -881,20 +1179,12 @@ canvas{width:100%;height:48px;background:#0d1423;border-radius:6px;display:block
     <div class="h2row"><h2>Top RSS</h2></div>
     <div id="topList"></div>
   </div>
-  <div class="card">
-    <h2>Mesh peers · browser</h2>
-    <div id="peers"></div>
-    <div class="row" style="margin-top:10px"><span class="k">Mesh</span><span class="v" id="meshSummary">-</span></div>
-    <div class="h2row"><h2>35B shard evidence</h2></div>
-    <div id="evidence"></div>
-    <div class="row" style="margin-top:8px"><span class="k">Placement</span><span class="v" id="placement">-</span></div>
-  </div>
 </main>
 <div class="footer">hub: this box via Win32 · browser: scoped (cannot see host CPU/VRAM) · shard est = heuristic (½ of browser-reported GB, not a WebGPU limit) · refresh: <span id="refreshLabel">500</span> ms · <a href="/api/sys/metrics" style="color:var(--info)">/api/sys/metrics</a></div>
 <script>
 const $ = (id) => document.getElementById(id);
 let history = [];
-let refreshMs = 500, timer = null;
+let refreshMs = 500, timer = null, peerCount = 0;
 
 function fmtGiB(mb) { return mb == null ? 'n/a' : (mb / 1024).toFixed(1) + ' GiB'; }
 function fmtUptime(s) { const h = Math.floor(s/3600), m = Math.floor((s%3600)/60); return h + 'h ' + m + 'm'; }
@@ -922,6 +1212,21 @@ async function tick() {
     ).join('') || '<div class="top-row"><span class="k">n/a</span></div>';
     $('ts').textContent = new Date(d.ts * 1000).toLocaleTimeString();
     $('meshSummary').textContent = d.mesh.alive + ' alive / ' + d.mesh.total + ' known · ' + (d.mesh.phones_alive ?? 0) + ' phones · cores Σ ' + (d.mesh.cores_alive ?? 0) + ' · dev Σ ' + (d.mesh.device_gb_alive ?? 0) + ' GB · ready ' + (d.mesh.ready_alive ?? 0) + ' (Σ~' + (d.mesh.shard_gb_ready_est ?? 0).toFixed(1) + ' GB) · ' + d.mesh.tasks_done + ' done / ' + d.mesh.tasks_failed + ' failed';
+    $('peersCount').textContent = d.mesh.peers.length + ' rows · Σ ' + (d.mesh.cores_alive ?? 0) + ' cores';
+    peerCount = d.mesh.peers.length;
+    $('peersSummary').textContent = $('peersBox').open ? 'peers detail (' + d.mesh.peers.length + ') — click to collapse' : 'peers detail (' + d.mesh.peers.length + ') — click to expand';
+    $('stHubCpu').textContent = d.hub.cpu_pct.toFixed(1) + '%';
+    $('stHubRam').textContent = (d.hub.ram_load_pct ?? '?') + '%';
+    $('stCommit').textContent = fmtGiB(d.hub.commit_total_mb) + '/' + fmtGiB(d.hub.commit_limit_mb);
+    $('stDisk').textContent = (d.hub.disk_free_gb ?? '?') + ' GB';
+    $('stMesh').textContent = d.mesh.alive + '/' + d.mesh.total;
+    $('stReady').textContent = d.mesh.ready_alive ?? 0;
+    $('stPhones').textContent = d.mesh.phones_alive ?? 0;
+    $('stCores').textContent = d.mesh.cores_alive ?? 0;
+    $('stGb').textContent = (d.mesh.device_gb_alive ?? 0).toFixed(1);
+    $('stShard').textContent = (d.mesh.shard_gb_ready_est ?? 0).toFixed(1);
+    $('stick').classList.toggle('warn', (d.hub.ram_load_pct ?? 0) > 70);
+    $('stick').classList.toggle('crit', (d.hub.ram_load_pct ?? 0) > 90);
     $('placement').textContent = 'est. shard candidates: ' + (d.mesh.peers || []).filter(p => p.est_shard_gb != null && p.ready).sort((a, b) => b.est_shard_gb - a.est_shard_gb).map(p => '#' + p.id + ' ' + shortAdapter(p.adapter) + ' ~' + p.est_shard_gb.toFixed(1) + ' GB ✓').concat(['Σ ready ~' + (d.mesh.shard_gb_ready_est ?? 0).toFixed(1) + ' GB']).join(' · ');
     renderPeers(d.mesh.peers);
     renderEvidence(d.mesh.weight_groups || []);
@@ -992,6 +1297,9 @@ function setRefresh(ms) {
 }
 
 document.querySelectorAll('[data-ms]').forEach(b => b.addEventListener('click', () => setRefresh(Number(b.dataset.ms))));
+$('peersBox').addEventListener('toggle', () => {
+  $('peersSummary').textContent = $('peersBox').open ? 'peers detail (' + peerCount + ') — click to collapse' : 'peers detail (' + peerCount + ') — click to expand';
+});
 setRefresh(500);
 </script>
 </body>
