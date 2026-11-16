@@ -19,6 +19,23 @@
 | Rebook | RB-63…66 **cancelled** на хаб-борді (шум; book work тільки локально в rebook, не claim з GSV free lane) |
 | Далі | Вперед у 35B-трек: **PH-1201/1202** (spike → real tensors в роботі 35B): `rusty inspect` поверх 35B GGUF → ffn_experts `gate_inp` read + mesh dispatch на пірах; paraлельно **PH-404/405** (ExpertCache, greedy). Owner: звільнити RAM + можливий окремий вузол з ≥24 GiB для 35B-served. Без фолбеків. |
 
+## Наступні задачі (логічно, 2026-11-16 вечір — порядок виконання)
+
+> Lifted by owner request. Виконані вже зачеркнені в HANDOFF row; цей список — буквальна черга.
+
+1. **[owner, 30 хв] RAM/EDR стабільність** — хаб падав ≥ 7 разів за 15–16.11 (RAM 750–840 MB вільних під навантаженням + release-lto=fat збірки + Firefox/serve). Звільнити памʼять (завершити зайве/перенести на інший вузол) або перевірити EDR/антивірус. Інакше Pi4/35B робота нестійка. **Без цього наступні задачі нестабільні.**
+2. **[без owner, ~30 хв] Pi4 SSH key rotate** — замінити `mesh-node/images/debug_key.pem` на персональний `ed25519`-ключ власника в `authorized_keys`, прибрати debug-ключ; закрити доступ по default `pi` паролю (зараз пароля немає — тільки ключ).
+3. **[без owner, ~1 год] Pi4 = перший робочий пір під MiniCPM** — enqueue `weights_matvec` (dispatch gate пропускає #36 як ready): підтвердити, що Pi кладе реальні 35B-тензори (blk.0/blk.1 shexp), виміряти MFLOPS. Розширює fleet доказів без нового заліза.
+4. **[owner, рішення] mesh-node remote** — owner створити `github.com/platinoff/mesh-node`; запушити локальний репо (HEAD `e9e9096`). Без цього образ Pi4 + код агента лише на цьому боксі.
+5. **[owner, рішення] PH-A5 dedicated node ≥ 24 GB** — єдиний блокер повного 35B forward + PH-A3 (EAM). Альтернатива (без нового заліза): Pi-розширення на 2–3 вузли як окремий fleet — але повномасштабний 35B не вміщується.
+6. **[без owner, окрема полоса] ECO-8.2** — llama-rs `llama-cpp-sys-2` bump + patch-set verify. Не змішувати з MiniCPM-боротом.
+7. **[без owner] chat-template fix у rusty-serve** — закрити тікет `t-1794778713443485500` (serve без chat-template; записано у rusty-engine HANDOFF).
+8. **[owner] WSP Phase 2** — тільки після явного go; зараз не брати (після MC-6 rollback не розганяти без нового сигналу).
+9. **[без owner] документація Pi4** — завершено 2026-11-16 (HANDOFF / NEXT_SESSION_PROMPT / ECO-10 за `658838f`).
+10. **[без owner, якщо час] Fleet redundancy** — сканувати Pi/вакансії інших одноплатників (Pi Zero 2W як власник пропонував раніше), записати fleet expansion план у mesh-node репо.
+
+**Не робити:** PH-A3 служить лише на 35B forward на dedicated node; Pi fleet такого не дасть. ECO-8.2 не розширювати в MiniCPM. WSP друга фаза тільки з owner go.
+
 ## Стан 2026-10-24 (історичний; актуальний — таблиця вище)
 
 | Що | Значення |
