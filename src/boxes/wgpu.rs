@@ -233,6 +233,12 @@ fn claimed_by(tasks: &[Value], peer_id: u64) -> u64 {
 }
 
 /// Rank peers for routing: alive first, then measured throughput (desc), then id.
+/// Bootstrap (probation) floor: a peer with zero measurements AND zero task
+/// proofs still enters the routing order at 2.0 MF — otherwise starving green
+/// peers could never earn their first proof. Proven peers with real MFLOPS
+/// always outrank it; measured-zero peers stay behind.
+const PROBATION_FLOOR_MFLOPS: f64 = 2.0;
+
 fn ranked_peers(peers: &[Value], tasks: &[Value], now: u64) -> Vec<(u64, f64, bool)> {
     let mut rows: Vec<(u64, f64, bool)> = Vec::new();
     for p in peers.iter() {
@@ -241,10 +247,17 @@ fn ranked_peers(peers: &[Value], tasks: &[Value], now: u64) -> Vec<(u64, f64, bo
             None => continue,
         };
         let alive = row_alive(p, now);
-        let mflops = capability_rows(std::slice::from_ref(p), tasks, now)
+        let measured = capability_rows(std::slice::from_ref(p), tasks, now)
             .first()
             .and_then(|r| r.get("mflops_max").and_then(Value::as_f64))
             .unwrap_or(0.0);
+        let mflops = if measured > 0.0 {
+            measured
+        } else if task_proofs(tasks, id) == 0 {
+            PROBATION_FLOOR_MFLOPS
+        } else {
+            measured
+        };
         rows.push((id, mflops, alive));
     }
     rows.sort_by(|a, b| {
