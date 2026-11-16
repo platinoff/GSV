@@ -12,7 +12,6 @@ use std::path::PathBuf;
 
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::broadcast;
-use tracing_subscriber::EnvFilter;
 
 use gsv::{mcp, AppState};
 
@@ -44,12 +43,7 @@ fn parse_args() -> (Option<PathBuf>, Option<PathBuf>) {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt()
-        .with_writer(std::io::stderr)
-        .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("warn,gsv=info")),
-        )
-        .init();
+    let _log_guard = gsv::log::init_logging_mcp();
 
     let (repo_root, data_dir) = parse_args();
     let (tx, _rx) = broadcast::channel(32);

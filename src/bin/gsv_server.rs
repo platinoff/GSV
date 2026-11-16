@@ -13,7 +13,6 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use tokio::sync::broadcast;
-use tracing_subscriber::EnvFilter;
 
 use gsv::{AppState, DEFAULT_HOST, DEFAULT_PORT, GSV_SERVER_NAME};
 
@@ -80,11 +79,7 @@ fn prepend_tool_path() {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     prepend_tool_path();
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info,gsv=debug")),
-        )
-        .init();
+    let _log_guard = gsv::log::init_logging();
 
     let (host, port, repo_root, data_dir) = parse_args();
     // Band 233: a wildcard or LAN bind opens the POST origin gate to private

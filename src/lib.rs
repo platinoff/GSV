@@ -20,6 +20,7 @@
 
 pub mod app_error;
 pub mod boxes;
+pub mod log;
 pub mod mcp;
 pub mod net;
 pub mod security;
