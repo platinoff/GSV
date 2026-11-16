@@ -469,10 +469,140 @@ fn peer_last_task(peer: &Value) -> String {
         .to_string()
 }
 
+/// Latest row per `peer_id` (peers re-join with the same id; older rows are
+/// stale and only confusing in the table).
+fn dedup_peers(peers: &[Value]) -> Vec<Value> {
+    let mut best: std::collections::HashMap<u64, Value> = std::collections::HashMap::new();
+    for p in peers {
+        let id = peer_id(p);
+        let ts = p.get("last_seen_ts").and_then(Value::as_u64).unwrap_or(0);
+        let cur = best
+            .get(&id)
+            .and_then(|b| b.get("last_seen_ts"))
+            .and_then(Value::as_u64)
+            .unwrap_or(0);
+        if ts >= cur {
+            best.insert(id, p.clone());
+        }
+    }
+    let mut v: Vec<Value> = best.into_values().collect();
+    v.sort_by_key(peer_id);
+    v
+}
+
+#[derive(Default)]
+struct TaskAgg {
+    done: u32,
+    failed: u32,
+    /// Max `max_err_model` across this peer's done `weights_matvec` tasks —
+    /// the real numerical health of the peer on MiniCPM shards.
+    weight_max_err: Option<f64>,
+    /// Best single-task mflops seen for this peer.
+    best_mflops: Option<f64>,
+    elapsed_sum_ms: f64,
+}
+
+fn task_aggs(tasks: &[Value]) -> std::collections::HashMap<u64, TaskAgg> {
+    let mut map: std::collections::HashMap<u64, TaskAgg> = std::collections::HashMap::new();
+    for t in tasks {
+        let pid = t.get("peer_id").and_then(Value::as_u64).unwrap_or(0);
+        let status = t.get("status").and_then(Value::as_str).unwrap_or("");
+        let agg = map.entry(pid).or_default();
+        if status == "done" {
+            agg.done += 1;
+        } else if status == "failed" {
+            agg.failed += 1;
+        }
+        if let Some(e) = t.get("elapsed_ms").and_then(Value::as_f64) {
+            agg.elapsed_sum_ms += e;
+        }
+        if let Some(m) = t.get("max_err_model").and_then(Value::as_f64) {
+            agg.weight_max_err = Some(agg.weight_max_err.map(|p| p.max(m)).unwrap_or(m));
+        }
+        if let Some(mf) = t.get("mflops").and_then(Value::as_f64) {
+            agg.best_mflops = Some(agg.best_mflops.map(|p| p.max(mf)).unwrap_or(mf));
+        }
+    }
+    map
+}
+
+/// Evidence table of the shared-expert 35B runs: one row per `group_id` from
+/// done `weights_matvec` tasks. Newest groups first, top `limit`.
+fn weight_groups(tasks: &[Value], limit: usize) -> Vec<Value> {
+    #[derive(Default)]
+    struct Group {
+        done_ts: u64,
+        peer_id: u64,
+        tensor: String,
+        shards: u64,
+        max_err: Option<f64>,
+        best_mflops: Option<f64>,
+        tasks: u32,
+    }
+    let mut groups: std::collections::HashMap<String, Group> = std::collections::HashMap::new();
+    for t in tasks {
+        if t.get("op").and_then(Value::as_str) != Some("weights_matvec") {
+            continue;
+        }
+        if t.get("status").and_then(Value::as_str) != Some("done") {
+            continue;
+        }
+        let gid = t
+            .get("group_id")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        if gid.is_empty() {
+            continue;
+        }
+        let g = groups.entry(gid).or_default();
+        g.tasks += 1;
+        g.done_ts = g
+            .done_ts
+            .max(t.get("done_ts").and_then(Value::as_u64).unwrap_or(0));
+        g.peer_id = t.get("peer_id").and_then(Value::as_u64).unwrap_or(0);
+        if g.tensor.is_empty() {
+            g.tensor = t
+                .get("tensor")
+                .and_then(Value::as_str)
+                .unwrap_or("?")
+                .to_string();
+        }
+        g.shards = g
+            .shards
+            .max(t.get("shards").and_then(Value::as_u64).unwrap_or(0));
+        if let Some(m) = t.get("max_err_model").and_then(Value::as_f64) {
+            g.max_err = Some(g.max_err.map(|p| p.max(m)).unwrap_or(m));
+        }
+        if let Some(mf) = t.get("mflops").and_then(Value::as_f64) {
+            g.best_mflops = Some(g.best_mflops.map(|p| p.max(mf)).unwrap_or(mf));
+        }
+    }
+    let mut v: Vec<(String, Group)> = groups.into_iter().collect();
+    v.sort_by_key(|g| std::cmp::Reverse(g.1.done_ts));
+    v.into_iter()
+        .take(limit)
+        .map(|(gid, g)| {
+            json!({
+                "group": gid,
+                "peer_id": g.peer_id,
+                "tensor": g.tensor,
+                "shards": g.shards,
+                "max_err_model": g.max_err,
+                "mflops": g.best_mflops,
+                "tasks": g.tasks,
+                "ts": g.done_ts,
+            })
+        })
+        .collect()
+}
+
 fn mesh_peers_summary(data_dir: &Path) -> Value {
     let now = epoch_now();
     let peers = read_jsonl(&data_dir.join(PEERS_FILE));
     let tasks = read_jsonl(&data_dir.join(TASKS_FILE));
+    let peers = dedup_peers(&peers);
+    let aggs = task_aggs(&tasks);
     let done = tasks
         .iter()
         .filter(|t| t.get("status") == Some(&json!("done")))
@@ -488,25 +618,59 @@ fn mesh_peers_summary(data_dir: &Path) -> Value {
     let rows: Vec<Value> = peers
         .iter()
         .map(|p| {
+            let id = peer_id(p);
+            let agg = aggs.get(&id);
+            let dev_mem = peer_device_memory(p);
+            // Heuristic for shard partitioning: browser-reported RAM is an
+            // upper bound; a browser worker should not hold more than half.
+            // Labeled "est." — NOT a guarantee of WebGPU binding limits.
+            let est_shard_gb =
+                dev_mem.map(|d| ((d as f64 * 0.5 * 10.0).round()) / 10.0);
             json!({
-                "id": peer_id(p),
+                "id": id,
                 "adapter": peer_name(p),
                 "device_class": peer_device_class(p),
                 "alive": peer_is_alive(p, now),
                 "mflops": peer_mflops(p),
                 "last_task": peer_last_task(p),
                 "cores": peer_cores(p),
-                "device_memory_gb": peer_device_memory(p),
+                "device_memory_gb": dev_mem,
+                "est_shard_gb": est_shard_gb,
+                "last_seen_age_secs": p.get("last_seen_ts").and_then(Value::as_u64).map(|t| now.saturating_sub(t)),
+                "tasks_done": agg.map_or(0, |a| a.done),
+                "tasks_failed": agg.map_or(0, |a| a.failed),
+                "weight_max_err": agg.and_then(|a| a.weight_max_err),
+                "best_task_mflops": agg.and_then(|a| a.best_mflops),
+                "elapsed_sum_ms": agg.map(|a| a.elapsed_sum_ms).unwrap_or(0.0),
             })
         })
         .collect();
+    let alive_rows: Vec<&Value> = rows.iter().filter(|r| r["alive"] == json!(true)).collect();
+    let cores_alive: u64 = alive_rows.iter().filter_map(|r| r["cores"].as_u64()).sum();
+    let device_gb_alive: f64 = alive_rows
+        .iter()
+        .filter_map(|r| r["device_memory_gb"].as_f64())
+        .sum();
+    let shard_gb_alive: f64 = alive_rows
+        .iter()
+        .filter_map(|r| r["est_shard_gb"].as_f64())
+        .sum();
+    let phones_alive = alive_rows
+        .iter()
+        .filter(|r| r["device_class"] == json!("phone"))
+        .count();
     json!({
-        "alive": rows.iter().filter(|p| p["alive"] == json!(true)).count(),
+        "alive": alive_rows.len(),
         "total": rows.len(),
+        "phones_alive": phones_alive,
+        "cores_alive": cores_alive,
+        "device_gb_alive": (device_gb_alive * 10.0).round() / 10.0,
+        "shard_gb_alive_est": (shard_gb_alive * 10.0).round() / 10.0,
         "tasks_done": done,
         "tasks_failed": failed,
         "total_tasks": tasks.len(),
         "mflops_best": best_mflops,
+        "weight_groups": weight_groups(&tasks, 8),
         "peers": rows,
     })
 }
@@ -609,13 +773,21 @@ main{display:grid;grid-template-columns:1fr 1.3fr;gap:12px;padding:12px 16px}
 .bar{position:relative;height:14px;border-radius:4px;background:#1c2740;overflow:hidden}
 .bar>i{position:absolute;left:0;top:0;bottom:0;background:var(--acc);transition:width .3s linear}
 .bar.warn>i{background:var(--warn)}.bar.crit>i{background:var(--crit)}
-.peer{display:grid;grid-template-columns:auto 1fr auto auto auto auto auto;gap:10px;align-items:center;padding:7px 6px;border-bottom:1px solid #1c2740}
+.peer{display:grid;grid-template-columns:auto 1fr auto auto auto auto;gap:10px;align-items:center;padding:7px 6px 2px;border-bottom:1px solid #1c2740}
+.psub{grid-column:1 / -1;display:flex;gap:14px;flex-wrap:wrap;padding:0 2px 7px;border-bottom:1px solid #141b31;font-size:11px;color:var(--muted)}
+.psub b{color:var(--text);font-weight:600}
+.ev-row{display:grid;grid-template-columns:auto 1fr auto auto;gap:10px;align-items:center;padding:3px 4px;border-bottom:1px solid #141b31;font-size:11px}
+.ev-row .g{color:var(--info);font-family:ui-monospace,monospace}
+.ev-row .t{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,monospace;font-size:10px}
+.ev-row .e{color:var(--ok,#6ee7b7)}
+.ev-row .e.bad{color:#f87171}
 .h2row{margin:10px 0 2px;border-top:1px solid var(--edge);padding-top:8px}
 .h2row h2{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:0}
 .top-row{display:flex;justify-content:space-between;gap:10px;padding:2px 0}
 .top-row .name{color:var(--text);max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .top-row .rss{color:var(--info)}
 #topList{max-height:260px;overflow:auto}
+#evidence{max-height:220px;overflow:auto}
 .peer:last-child{border-bottom:0}
 .peer .id{color:var(--muted)}
 .pill{font-size:10px;padding:1px 7px;border-radius:999px;border:1px solid var(--acc);color:var(--acc)}
@@ -658,9 +830,12 @@ canvas{width:100%;height:48px;background:#0d1423;border-radius:6px;display:block
     <h2>Mesh peers · browser</h2>
     <div id="peers"></div>
     <div class="row" style="margin-top:10px"><span class="k">Mesh</span><span class="v" id="meshSummary">-</span></div>
+    <div class="h2row"><h2>35B shard evidence</h2></div>
+    <div id="evidence"></div>
+    <div class="row" style="margin-top:8px"><span class="k">Placement</span><span class="v" id="placement">-</span></div>
   </div>
 </main>
-<div class="footer">real-time (browser cannot see host CPU/RAM/VRAM — those cells are browser-scoped or n/a) · refresh: <span id="refreshLabel">500</span> ms · <a href="/api/sys/metrics" style="color:var(--info)">/api/sys/metrics</a></div>
+<div class="footer">hub: this box via Win32 · browser: scoped (cannot see host CPU/VRAM) · shard est = heuristic (½ of browser-reported GB, not a WebGPU limit) · refresh: <span id="refreshLabel">500</span> ms · <a href="/api/sys/metrics" style="color:var(--info)">/api/sys/metrics</a></div>
 <script>
 const $ = (id) => document.getElementById(id);
 let history = [];
@@ -691,8 +866,10 @@ async function tick() {
       '<span class="rss">' + (p.rss_mb ?? 0) + ' MB</span></div>'
     ).join('') || '<div class="top-row"><span class="k">n/a</span></div>';
     $('ts').textContent = new Date(d.ts * 1000).toLocaleTimeString();
-    $('meshSummary').textContent = d.mesh.alive + ' alive (' + d.mesh.total + ' known) · ' + d.mesh.tasks_done + ' done / ' + d.mesh.tasks_failed + ' failed';
+    $('meshSummary').textContent = d.mesh.alive + ' alive / ' + d.mesh.total + ' known · ' + (d.mesh.phones_alive ?? 0) + ' phones · cores Σ ' + (d.mesh.cores_alive ?? 0) + ' · dev Σ ' + (d.mesh.device_gb_alive ?? 0) + ' GB · ' + d.mesh.tasks_done + ' done / ' + d.mesh.tasks_failed + ' failed';
+    $('placement').textContent = 'est. shard candidates: ' + (d.mesh.peers || []).filter(p => p.est_shard_gb != null).sort((a, b) => b.est_shard_gb - a.est_shard_gb).map(p => '#' + p.id + ' ' + shortAdapter(p.adapter) + ' ~' + p.est_shard_gb.toFixed(1) + ' GB').concat(['Σ ~' + (d.mesh.shard_gb_alive_est ?? 0).toFixed(1) + ' GB']).join(' · ');
     renderPeers(d.mesh.peers);
+    renderEvidence(d.mesh.weight_groups || []);
   } catch (e) { ok = false; }
   $('live').classList.toggle('stale', !ok);
 }
@@ -718,6 +895,10 @@ function drawSpark() {
   ctx.stroke();
 }
 
+function shortAdapter(a) { const s = String(a || ''); const m = s.match(/^[a-z]+\/[a-z0-9-]+/i); return m ? m[0] : s.slice(0, 12); }
+function fmtAge(s) { if (s == null) return '?'; if (s < 90) return s + 's ago'; if (s < 5400) return Math.floor(s / 60) + 'm ago'; return Math.floor(s / 3600) + 'h ago'; }
+function fmtErr(e) { return (e == null) ? '—' : (e < 1e-4 ? e.toExponential(1) : e.toFixed(4)); }
+
 function renderPeers(peers) {
   const el = $('peers');
   if (!peers.length) { el.innerHTML = '<div class="row"><span class="k">no peers joined</span></div>'; return; }
@@ -725,9 +906,24 @@ function renderPeers(peers) {
     '<div class="peer"><span class="id">#' + p.id + '</span>' +
     '<span>' + escapeHtml(p.adapter || '?') + ' · ' + escapeHtml(p.device_class || '?') + '</span>' +
     '<span class="pill' + (p.alive ? '' : ' dead') + '">' + (p.alive ? 'alive' : 'stale') + '</span>' +
-    '<span>' + (p.mflops ? Math.round(p.mflops) + ' MF' : 'n/a') + '</span>' +
-    '<span class="k">' + escapeHtml(p.last_task || '—') + '</span>' +
-    '<span class="muted">' + (p.cores != null ? p.cores : '·') + ' c · ' + (p.device_memory_gb != null ? p.device_memory_gb + ' GB' : '·') + '</span>' + '</div>'
+    '<span>' + (p.best_task_mflops ? Math.round(p.best_task_mflops) + ' MF best' : (p.mflops ? Math.round(p.mflops) + ' MF' : 'n/a')) + '</span>' +
+    '<span class="k" title="last task ' + escapeHtml(p.last_task || '') + '">' + fmtAge(p.last_seen_age_secs) + '</span>' +
+    '<span class="muted">' + (p.cores != null ? p.cores : '·') + ' c · ' + (p.device_memory_gb != null ? p.device_memory_gb + ' GB' : '·') + '</span></div>' +
+    '<div class="psub"><span>shard est <b>' + (p.est_shard_gb != null ? '~' + p.est_shard_gb.toFixed(1) + ' GB' : 'n/a') + '</b></span>' +
+    '<span>tasks <b>' + (p.tasks_done ?? 0) + ' done / ' + (p.tasks_failed ?? 0) + ' fail</b></span>' +
+    '<span>weight err <b>' + fmtErr(p.weight_max_err) + '</b></span>' +
+    '<span>last <b>' + escapeHtml(p.last_task || '—') + '</b></span></div>'
+  ).join('');
+}
+
+function renderEvidence(groups) {
+  const el = $('evidence');
+  if (!groups.length) { el.innerHTML = '<div class="ev-row"><span class="k">no MiniCPM weight shards verified yet</span></div>'; return; }
+  el.innerHTML = groups.map(g =>
+    '<div class="ev-row"><span class="g">' + escapeHtml(g.group) + '</span>' +
+    '<span class="t" title="' + escapeHtml(g.tensor || '') + '">' + escapeHtml((g.tensor || '?').replace(/^blk\./, '')) + '</span>' +
+    '<span class="muted">#' + g.peer_id + ' · ' + g.tasks + ' t · ×' + g.shards + '</span>' +
+    '<span class="e' + (g.max_err_model != null && g.max_err_model > 1e-4 ? ' bad' : '') + '">err ' + fmtErr(g.max_err_model) + ' · ' + (g.mflops != null ? g.mflops.toFixed(1) + ' MF' : '—') + '</span></div>'
   ).join('');
 }
 
