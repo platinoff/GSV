@@ -203,6 +203,27 @@ async fn health_response_carries_security_headers() {
 }
 
 #[tokio::test]
+async fn csp_allows_wasm_mesh_kernels() {
+    let app = app();
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/health")
+                .method(Method::GET)
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    let csp = header_str(&res, "content-security-policy");
+    assert!(
+        csp.contains("wasm-unsafe-eval"),
+        "CSP must allow WASM compilation for the /wgpu mesh kernels: {csp}"
+    );
+}
+
+#[tokio::test]
 async fn forbidden_post_also_carries_security_headers() {
     let app = app();
     let res = app

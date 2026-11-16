@@ -1719,6 +1719,49 @@ button:disabled{opacity:.5}
 const out=document.getElementById('out'),feed=document.getElementById('feed'),mesh=document.getElementById('mesh'),cap=document.getElementById('cap'),go=document.getElementById('go'),wjoin=document.getElementById('wjoin'),wstop=document.getElementById('wstop');
 function log(m){out.textContent+=m+'\n';}
 function setCap(t,ok){cap.textContent=t;cap.style.borderColor=ok?'#3aa66a':'#c0392b';}
+// WASM SIMD128 math kernels served by the hub: fewer interpreter cycles, more
+// native WASM. Chromium/Firefox/Safari all validate SIMD128 modules; if the
+// module fails to load (or SIMD is missing), every REF site falls back to JS.
+const WASM={inst:null,loaded:false,failed:false};
+function wasmF32(s){return s*4;}
+async function loadMeshWasm(){
+  if(WASM.loaded||WASM.failed)return WASM.inst;
+  try{
+    const resp=await fetch('/assets/mesh-wasm.wasm');
+    if(!resp.ok)throw new Error('http '+resp.status);
+    const buf=await resp.arrayBuffer();
+    const {instance}=await WebAssembly.instantiate(buf,{});
+    WASM.inst=instance.exports;WASM.loaded=true;
+    log('wasm mesh: SIMD128 kernels loaded ('+Math.round(buf.byteLength/1024)+' KB)');
+  }catch(e){WASM.failed=true;log('wasm mesh unavailable: '+(e&&e.message?e.message:e)+' — JS reference fallback');}
+  return WASM.inst;
+}
+function wasmUpload(data){
+  const bytes=wasmF32(data.length);
+  const p=WASM.inst.mesh_alloc(bytes); if(!p)throw new Error('wasm alloc failed');
+  new Float32Array(WASM.inst.memory.buffer,p,data.length).set(data);
+  return p;
+}
+function wasmDownload(ptr,len){const out=new Float32Array(len);out.set(new Float32Array(WASM.inst.memory.buffer,ptr,len));return out;}
+function wasmFree(ptr,len){WASM.inst.mesh_free(ptr,wasmF32(len));}
+function wasmRefMatmul64(A,B){if(!WASM.loaded)return null;
+  const a=wasmUpload(A),b=wasmUpload(B);if(!a||!b){if(a)wasmFree(a,A.length);if(b)wasmFree(b,B.length);return null;}
+  const c=WASM.inst.mesh_alloc(wasmF32(64*64));if(!c){wasmFree(a,A.length);wasmFree(b,B.length);return null;}
+  WASM.inst.mesh_matmul64(a,b,c);const REF=wasmDownload(c,64*64);wasmFree(a,A.length);wasmFree(b,B.length);WASM.inst.mesh_free(c,wasmF32(64*64));return REF;}
+function wasmRefMatvec(W,X,R,K){if(!WASM.loaded)return null;
+  const w=wasmUpload(W),x=wasmUpload(X);if(!w||!x){if(w)wasmFree(w,W.length);if(x)wasmFree(x,X.length);return null;}
+  const y=WASM.inst.mesh_alloc(wasmF32(R));if(!y){wasmFree(w,W.length);wasmFree(x,X.length);return null;}
+  WASM.inst.mesh_matvec(w,x,y,R,K);const REF=wasmDownload(y,R);wasmFree(w,W.length);wasmFree(x,X.length);WASM.inst.mesh_free(y,wasmF32(R));return REF;}
+function wasmRefSoftmax(V){if(!WASM.loaded)return null;const p=wasmUpload(V);if(!p)return null;WASM.inst.mesh_softmax(p,V.length);const REF=wasmDownload(p,V.length);wasmFree(p,V.length);return REF;}
+function wasmRefLayernorm(V){if(!WASM.loaded)return null;
+  const x=wasmUpload(V);if(!x)return null;
+  const y=WASM.inst.mesh_alloc(wasmF32(V.length));if(!y){wasmFree(x,V.length);return null;}
+  WASM.inst.mesh_layernorm(x,y,V.length);const REF=wasmDownload(y,V.length);wasmFree(x,V.length);WASM.inst.mesh_free(y,wasmF32(V.length));return REF;}
+function wasmRefMlpblock(W1,X,W2,hidden,out,k){if(!WASM.loaded)return null;
+  const w1=wasmUpload(W1),x=wasmUpload(X),w2=wasmUpload(W2);
+  if(!w1||!x||!w2){if(w1)wasmFree(w1,W1.length);if(x)wasmFree(x,X.length);if(w2)wasmFree(w2,W2.length);return null;}
+  const y=WASM.inst.mesh_alloc(wasmF32(out));if(!y){wasmFree(w1,W1.length);wasmFree(x,x.length);wasmFree(w2,W2.length);return null;}
+  WASM.inst.mesh_mlpblock(w1,x,w2,y,hidden,out,k);const REF=wasmDownload(y,out);wasmFree(w1,W1.length);wasmFree(x,x.length);wasmFree(w2,W2.length);WASM.inst.mesh_free(y,wasmF32(out));return REF;}
 async function post(report){try{const r=await fetch('api/wgpu/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(report)});const d=await r.json();log('hub ack: '+JSON.stringify(d));}catch(e){log('hub post failed: '+e);}}
 async function refreshFeed(){try{const d=await(await fetch('api/wgpu')).json();feed.textContent='hub feed: count='+d.count+(d.latest?'\nlatest: '+JSON.stringify(d.latest):'');}catch(e){feed.textContent='hub feed error: '+e;}}
 async function refreshMesh(){try{const d=await(await fetch('api/wgpu/mesh')).json();const caps=(d.capability||[]).filter(c=>c.measured>0).map(c=>'#'+c.peer_id+' '+(c.adapter||'?')+' '+c.mflops_max+' MFLOPS / '+c.ops_per_sec_max+' ops/s');const grp=(d.groups||[]).map(g=>g.group_id+' '+g.done_shards+'/'+g.shards+(g.complete?(' err='+g.max_err.toExponential(1)+(g.ok?' OK':' FAIL')):' pending'));mesh.textContent='mesh: peers='+d.peers.length+' (alive '+d.peers.filter(p=>p.alive).length+') · queued='+d.queued+' claimed='+d.claimed+' done='+d.done+' failed='+d.failed+(caps.length?'\ncapability: '+caps.join(' | '):'')+(d.best_peer&&d.best_peer.peer_id!==undefined?'\nbest peer: #'+d.best_peer.peer_id+' ('+(d.best_peer.adapter||'?')+') '+d.best_peer.mflops_max+' MFLOPS':'')+(grp.length?'\nreduce: '+grp.join(' | '):'')+(d.tasks.length?'\ntasks: '+d.tasks.map(t=>t.task_id+':'+t.status+(t.elapsed_ms!==undefined?' '+t.elapsed_ms+'ms':'')+(t.mflops?' '+t.mflops+'MF':'')).join(' | '):'')+(d.quotas?'\nquota: '+d.quotas.max_flops_per_task+' FLOP/task · '+d.quotas.max_concurrent_per_peer+' task/peer · sticky '+d.quotas.route_sticky_secs+'s':'');}catch(e){mesh.textContent='mesh error: '+e;}}
@@ -1737,7 +1780,9 @@ fn main(@builtin(global_invocation_id) g:vec3<u32>) {
 async function buildMatmul(device){
   const N=64,A=new Float32Array(N*N),B=new Float32Array(N*N),REF=new Float32Array(N*N);
   for(let i=0;i<N*N;i++){A[i]=(i%7)+1;B[i]=((i*3)%5)+1;}
-  for(let y=0;y<N;y++)for(let x=0;x<N;x++){let acc=0;for(let k=0;k<N;k++)acc+=A[y*N+k]*B[k*N+x];REF[y*N+x]=acc;}
+  await loadMeshWasm();
+  const wasm=wasmRefMatmul64(A,B);
+  if(wasm){REF.set(wasm);}else{for(let y=0;y<N;y++)for(let x=0;x<N;x++){let acc=0;for(let k=0;k<N;k++)acc+=A[y*N+k]*B[k*N+x];REF[y*N+x]=acc;}}
   const aBuf=device.createBuffer({size:A.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
   const bBuf=device.createBuffer({size:B.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
   const cBuf=device.createBuffer({size:A.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC});
@@ -1763,7 +1808,9 @@ async function buildMatvec(device){
   const R=256,K=1024,W=new Float32Array(R*K),X=new Float32Array(K),REF=new Float32Array(R);
   for(let i=0;i<R*K;i++){W[i]=((i%13)-6)*0.125;}
   for(let k=0;k<K;k++){X[k]=((k%7)-3)*0.25;}
-  for(let r=0;r<R;r++){let acc=0;for(let k=0;k<K;k++)acc+=W[r*K+k]*X[k];REF[r]=acc;}
+  await loadMeshWasm();
+  const wasm=wasmRefMatvec(W,X,R,K);
+  if(wasm){REF.set(wasm);}else{for(let r=0;r<R;r++){let acc=0;for(let k=0;k<K;k++)acc+=W[r*K+k]*X[k];REF[r]=acc;}}
   const wBuf=device.createBuffer({size:W.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
   const xBuf=device.createBuffer({size:X.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
   const yBuf=device.createBuffer({size:REF.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC});
@@ -1797,7 +1844,9 @@ async function buildBlock(device){
   for(let i=0;i<H*1024;i++){W1[i]=((i%13)-6)*0.125;}
   for(let k=0;k<1024;k++){X[k]=((k%7)-3)*0.25;}
   for(let i=0;i<O*H;i++){W2[i]=((i%13)-6)*0.125;}
-  for(let o=0;o<O;o++){let acc=0;for(let h2=0;h2<H;h2++){let s=0;for(let k=0;k<1024;k++){s=s+W1[h2*1024+k]*X[k];}let hv=s/(1.0+Math.exp(-s));acc=acc+W2[o*H+h2]*hv;}REF[o]=acc;}
+  await loadMeshWasm();
+  const wasm=wasmRefMlpblock(W1,X,W2,H,O,1024);
+  if(wasm){REF.set(wasm);}else{for(let o=0;o<O;o++){let acc=0;for(let h2=0;h2<H;h2++){let s=0;for(let k=0;k<1024;k++){s=s+W1[h2*1024+k]*X[k];}let hv=s/(1.0+Math.exp(-s));acc=acc+W2[o*H+h2]*hv;}REF[o]=acc;}}
   const w1Buf=device.createBuffer({size:W1.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
   const xBuf=device.createBuffer({size:X.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
   const w2Buf=device.createBuffer({size:W2.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
@@ -1864,11 +1913,15 @@ async function getRunner(op,shardId,shards){let key=op;if(op==='matvec_shard'){k
 async function buildLayernorm(device){
   const V=new Float32Array(1024),REF=new Float32Array(1024);
   for(let i=0;i<1024;i++){V[i]=((i%7)-3)*0.25;}
+  await loadMeshWasm();
+  const wasm=wasmRefLayernorm(V);
+  if(wasm){REF.set(wasm);}else{
   let sum=0;for(let i=0;i<1024;i++){sum=sum+V[i];}
   const mean=sum/1024;
   let varSum=0;for(let i=0;i<1024;i++){const d=V[i]-mean;varSum=varSum+d*d;}
   const varr=varSum/1024;
   for(let i=0;i<1024;i++){REF[i]=(V[i]-mean)/Math.sqrt(varr+1e-5);}
+  }
   const WGSL_LN=`
 @group(0) @binding(0) var<storage,read> x:array<f32>;
 @group(0) @binding(1) var<storage,read_write> y:array<f32>;
@@ -1895,9 +1948,13 @@ fn main(@builtin(global_invocation_id) g:vec3<u32>) {
 async function buildSoftmax(device){
   const V=new Float32Array(1024),REF=new Float32Array(1024);
   for(let i=0;i<1024;i++){V[i]=((i%7)-3)*0.25;}
+  await loadMeshWasm();
+  const wasm=wasmRefSoftmax(V);
+  if(wasm){REF.set(wasm);}else{
   let maxv=V[0];for(let k=1;k<1024;k++){if(V[k]>maxv){maxv=V[k];}}
   let s=0;for(let k=0;k<1024;k++){s=s+Math.exp(V[k]-maxv);}
   for(let i=0;i<1024;i++){REF[i]=Math.exp(V[i]-maxv)/s;}
+  }
   const WGSL_SM=`
 @group(0) @binding(0) var<storage,read> x:array<f32>;
 @group(0) @binding(1) var<storage,read_write> y:array<f32>;
@@ -1997,7 +2054,9 @@ async function buildMinilm(device,token,layer){
   for(let i=0;i<256*1024;i++){W1[i]=(((i+layer*256*1024)%13)-6)*0.125;}
   for(let k=0;k<1024;k++){X[k]=(((token*7+k*3)%11)-5)*0.25;}
   for(let j=0;j<1024*256;j++){W2[j]=(((j+layer*256*1024)%13)-6)*0.125;}
-  for(let o=0;o<1024;o++){let acc=0;for(let h2=0;h2<256;h2++){let s=0;for(let k=0;k<1024;k++){s=s+W1[h2*1024+k]*X[k];}let hv=s/(1.0+Math.exp(-s));acc=acc+W2[o*256+h2]*hv;}REF[o]=acc;}
+  await loadMeshWasm();
+  const wasm=wasmRefMlpblock(W1,X,W2,256,1024,1024);
+  if(wasm){REF.set(wasm);}else{for(let o=0;o<1024;o++){let acc=0;for(let h2=0;h2<256;h2++){let s=0;for(let k=0;k<1024;k++){s=s+W1[h2*1024+k]*X[k];}let hv=s/(1.0+Math.exp(-s));acc=acc+W2[o*256+h2]*hv;}REF[o]=acc;}}
   const w1Buf=device.createBuffer({size:W1.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
   const xBuf=device.createBuffer({size:X.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
   const w2Buf=device.createBuffer({size:W2.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});

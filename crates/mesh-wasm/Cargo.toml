@@ -1,0 +1,10 @@
+[package]
+name = "mesh-wasm"
+version = "0.1.0"
+edition = "2021"
+description = "GSV mesh browser WASM SIMD math (matmul64 / matvec / softmax / layernorm / mlpblock) — replaces hot JS CPU-reference paths in ui /wgpu page"
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]

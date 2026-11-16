@@ -36,6 +36,12 @@ pub const INDEX_HTML: &str = include_str!("../../ui/index.html");
 /// Ported vision diagram (`GSV/ui/vision.svg`), ratio-safe: `.svg` is audit-ignored.
 pub const VISION_SVG: &str = include_str!("../../ui/vision.svg");
 
+/// Browser WASM SIMD128 math kernels (matmul/matvec/softmax/layernorm/mlpblock)
+/// built from `crates/mesh-wasm` (Rust, ~26 KB). Committed artifact — rebuilt
+/// with `cargo build --release -p mesh-wasm --target wasm32-unknown-unknown`
+/// and copied to `ui/assets/mesh-wasm.wasm` (see crates/mesh-wasm/src/lib.rs).
+pub const MESH_WASM: &[u8] = include_bytes!("../../ui/assets/mesh-wasm.wasm");
+
 /// SSE notification poll interval.
 const SSE_POLL_MS: u64 = 400;
 
@@ -295,6 +301,7 @@ pub fn router(state: AppState) -> Router {
         .route("/data/{file}", get(api_data_file))
         .route("/events", get(events))
         .route("/assets/vision.svg", get(api_vision_svg))
+        .route("/assets/mesh-wasm.wasm", get(api_mesh_wasm))
         .route(
             "/mcp",
             get(api_mcp_get).post(api_mcp_post).delete(api_mcp_delete),
@@ -428,6 +435,19 @@ async fn api_vision_svg() -> Response {
             ("Cache-Control", "no-cache"),
         ],
         VISION_SVG,
+    )
+        .into_response()
+}
+
+async fn api_mesh_wasm() -> Response {
+    (
+        StatusCode::OK,
+        [
+            ("Content-Type", "application/wasm"),
+            ("Cache-Control", "no-cache"),
+            ("X-Content-Type-Options", "nosniff"),
+        ],
+        MESH_WASM,
     )
         .into_response()
 }

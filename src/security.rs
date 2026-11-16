@@ -198,10 +198,12 @@ pub fn data_file_name(file: &str) -> Result<String, String> {
 pub const MAX_BODY_BYTES: usize = 256 * 1024;
 
 /// Content-Security-Policy for the embedded UI (inline script/style stay
-/// `'unsafe-inline'` until the glue is external files).
+/// `'unsafe-inline'` until the glue is external files). `wasm-unsafe-eval`
+/// lets the /wgpu mesh page instantiate the hub-served `mesh-wasm.wasm`
+/// SIMD128 kernels; it does not re-enable JS `eval`.
 pub const CSP: &str = concat!(
     "default-src 'self'; ",
-    "script-src 'self' 'unsafe-inline'; ",
+    "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; ",
     "worker-src 'self'; ",
     "style-src 'self' 'unsafe-inline'; ",
     "img-src 'self' data:; ",
