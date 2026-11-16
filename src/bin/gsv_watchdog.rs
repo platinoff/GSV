@@ -230,6 +230,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut last_respawn = 0u64;
     let mut last_apply_status = 0u16;
     let mut lockstep_note = String::new();
+    let mut last_sys_history = 0u64;
     loop {
         let probe = probe(&client, &url).await;
         let ok = probe.ok;
@@ -294,6 +295,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     action = "spawn-err";
                     eprintln!("gsv-watchdog: spawn failed: {e}");
                 }
+            }
+        }
+        // Auto-sample the /sys Resources·live history ring every 60s (cargo xtask
+        // sys-history without the process spawn). Skipping on write failure is
+        // fine — one missing point in the 24h chart is hardly noticeable.
+        if now.saturating_sub(last_sys_history) >= 60 {
+            let wire = gsv::boxes::sysmon::wire(&cfg.repo_root, &cfg.repo_root.join("data"), 500);
+            match gsv::boxes::sysmon::append_history(
+                &cfg.repo_root.join("data"),
+                &gsv::boxes::sysmon::history_row(&wire),
+            ) {
+                Ok(()) => {
+                    last_sys_history = now;
+                }
+                Err(e) => eprintln!("gsv-watchdog: sys-history append failed: {e}"),
             }
         }
         let hb = Heartbeat {
