@@ -232,6 +232,15 @@ fn claimed_by(tasks: &[Value], peer_id: u64) -> u64 {
         .count() as u64
 }
 
+/// Operations that act on REAL MiniCPM tensors (production work), as opposed
+/// to synthetic probe ops. Only ready peers (≥1 done task with good error)
+/// may claim these — the last piece of the PH-A1 readiness gate. Probe ops
+/// (`matmul64`, `matvec`, `matvec_shard`, …) stay open so an unproven peer
+/// can bootstrap its first proof.
+fn is_heavyweight(op: &str) -> bool {
+    matches!(op, "weights_matvec")
+}
+
 /// Rank peers for routing: alive first, then measured throughput (desc), then id.
 /// Bootstrap (probation) floor: a peer with zero measurements AND zero task
 /// proofs still enters the routing order at 2.0 MF — otherwise starving green
@@ -829,8 +838,21 @@ pub fn peer_poll(data_dir: &Path, body: &Value) -> Result<Value, String> {
     // alive peer stays queued for the sticky window, after which any alive peer
     // may take it (routing without starvation).
     let sticky = route_sticky_secs();
+    let my_proofs = task_proofs(&tasks, peer_id);
+    let mut blocked_heavy = false;
     for t in tasks.iter_mut() {
         if t.get("status").and_then(Value::as_str) != Some("queued") {
+            continue;
+        }
+        // PH-A1 gate: heavyweight (real MiniCPM) tasks require a proven peer.
+        // Unproven peers get probe work instead — never a live tensor.
+        let heavy = t
+            .get("op")
+            .and_then(Value::as_str)
+            .map(is_heavyweight)
+            .unwrap_or(false);
+        if heavy && my_proofs == 0 {
+            blocked_heavy = true;
             continue;
         }
         if let Some(route) = t.get("route_peer").and_then(Value::as_u64) {
@@ -857,11 +879,17 @@ pub fn peer_poll(data_dir: &Path, body: &Value) -> Result<Value, String> {
         }));
     }
     write_jsonl(&tasks_path, &tasks)?;
-    Ok(json!({
+    let mut out = json!({
         "ok": true,
         "task": Value::Null,
         "quota": { "limit": limit, "claimed": claimed_now },
-    }))
+    });
+    if blocked_heavy {
+        out["readiness_hint"] = json!(
+            "peer not ready: run probe tasks to earn ≥1 proof (good error) before MiniCPM work"
+        );
+    }
+    Ok(out)
 }
 
 /// Peer reports a task result (done/failed envelope).
@@ -1255,15 +1283,21 @@ pub fn task_enqueue(data_dir: &Path, body: &Value) -> Result<Value, String> {
     // shards over the ranked peers; a single task goes to the fastest peer that
     // is still within its concurrent quota. `peer_poll` honours the route for a
     // short sticky window and then falls back to any alive peer.
+    // PH-A1 gate: heavyweight (real MiniCPM) work routes ONLY to ready peers;
+    // when nobody ready is alive the task queues with a `no_ready_peer` note
+    // instead of route to an unproven device.
     let now = now_secs();
+    let restrict_ready = is_heavyweight(op);
     let peers_now = read_jsonl(&data_dir.join(PEERS_FILE));
+    let ready_of = |pid: u64| task_proofs(&tasks, pid) > 0;
     let ranked: Vec<u64> = ranked_peers(&peers_now, &tasks, now)
         .into_iter()
         .filter(|(_, _, alive)| *alive)
         .map(|(id, _, _)| id)
+        .filter(|id| !restrict_ready || ready_of(*id))
         .collect();
     let single_route = if shards == 1 {
-        best_peer_for_task(&peers_now, &tasks, now)
+        best_peer_for_task(&peers_now, &tasks, now).filter(|pid| !restrict_ready || ready_of(*pid))
     } else {
         None
     };
@@ -1288,8 +1322,13 @@ pub fn task_enqueue(data_dir: &Path, body: &Value) -> Result<Value, String> {
         "total_flops": total_flops,
         "max_concurrent_per_peer": max_concurrent_per_peer(),
     });
+    let no_ready = if restrict_ready && ranked.is_empty() {
+        Some("no ready peer alive — MiniCPM work queued until a proven device polls".to_string())
+    } else {
+        None
+    };
     if shards > 1 {
-        Ok(json!({
+        let mut out = json!({
             "ok": true,
             "group_id": group_id,
             "task_ids": task_ids,
@@ -1298,9 +1337,13 @@ pub fn task_enqueue(data_dir: &Path, body: &Value) -> Result<Value, String> {
             "iters": iters,
             "route_peers": ranked,
             "quota": quota,
-        }))
+        });
+        if let Some(n) = no_ready {
+            out["note"] = json!(n);
+        }
+        Ok(out)
     } else {
-        Ok(json!({
+        let mut out = json!({
             "ok": true,
             "task_id": task_id,
             "task_ids": task_ids,
@@ -1308,7 +1351,11 @@ pub fn task_enqueue(data_dir: &Path, body: &Value) -> Result<Value, String> {
             "iters": iters,
             "route_peer": single_route.map(Value::from).unwrap_or(Value::Null),
             "quota": quota,
-        }))
+        });
+        if let Some(n) = no_ready {
+            out["note"] = json!(n);
+        }
+        Ok(out)
     }
 }
 
@@ -2766,6 +2813,53 @@ mod tests {
     }
 
     #[test]
+    fn peer_poll_gate_blocks_heavyweight_until_probe_proven() {
+        let dir = temp_dir("poll_gate");
+        std::fs::create_dir_all(&dir).expect("fixture dir");
+        let j = peer_join(&dir, &json!({"adapter":"arm/gate","ua":"g-gate"})).expect("join");
+        let pid = j["peer_id"].as_u64().unwrap();
+        let heavy = json!({
+            "task_id": "mt-gate-1",
+            "op": "weights_matvec",
+            "tensor": "t",
+            "shards": 2,
+            "status": "queued",
+            "created_ts": 1,
+            "iters": 1,
+            "flops_per_iter": 1,
+            "max_flops_per_iter": 1,
+            "x": [1.0],
+            "route_peer": pid
+        });
+        std::fs::write(
+            dir.join("wgpu_tasks.jsonl"),
+            serde_json::to_string(&heavy).unwrap() + "\n",
+        )
+        .expect("write tasks");
+        let out = peer_poll(&dir, &json!({"peer_id": pid})).expect("poll gate");
+        assert!(out["task"].is_null());
+        assert!(out.get("readiness_hint").is_some());
+
+        let _ = task_enqueue(&dir, &json!({"op": "matmul64"})).expect("enqueue probe");
+        let p = peer_poll(&dir, &json!({"peer_id": pid})).expect("poll probe");
+        let probe_id = p["task"]["task_id"].as_str().unwrap().to_string();
+        let _ = task_result(
+            &dir,
+            &json!({
+                "peer_id": pid,
+                "task_id": probe_id,
+                "ok": true,
+                "elapsed_ms": 1.0,
+                "max_err": 0.0
+            }),
+        )
+        .expect("settle probe");
+        let out2 = peer_poll(&dir, &json!({"peer_id": pid})).expect("poll after proof");
+        assert_eq!(out2["task"]["task_id"], "mt-gate-1");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn peer_rejoin_same_device_reuses_id() {
         let dir = temp_dir("peer_reuse");
         let j1 = peer_join(
@@ -3097,6 +3191,21 @@ mod tests {
 
         let j = peer_join(&dir, &json!({"adapter":"a","ua":"u"})).expect("join");
         let peer = j["peer_id"].as_u64().unwrap();
+        // PH-A1 gate: MiniCPM work requires a proof — complete a probe first.
+        let _ = task_enqueue(&dir, &json!({"op":"matmul64"})).expect("enqueue probe");
+        let pp = peer_poll(&dir, &json!({"peer_id": peer})).expect("poll probe");
+        let probe_id = pp["task"]["task_id"].as_str().unwrap().to_string();
+        let _ = task_result(
+            &dir,
+            &json!({
+                "peer_id": peer,
+                "task_id": probe_id,
+                "ok": true,
+                "elapsed_ms": 1.0,
+                "max_err": 0.0
+            }),
+        )
+        .expect("settle probe");
         // y[r] = W[r,:] . x ; row0 = 1+4+9+16 = 30, row1 = 5+12+21+32 = 70
         let p1 = peer_poll(&dir, &json!({"peer_id": peer})).expect("poll 1");
         let r0 = task_result(
