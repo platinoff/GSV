@@ -701,6 +701,10 @@ pub fn peer_join(data_dir: &Path, body: &Value) -> Result<Value, String> {
         .get("device_memory")
         .and_then(Value::as_u64)
         .filter(|&m| (1..=512).contains(&m));
+    // PH-A6: native agent telemetry (browser peers simply omit this key).
+    // Keep it as an opaque bag — the hub never depends on it to run, it only
+    // forwards it to peers JSONL + /sys.
+    let device_status: Option<Value> = body.get("device_status").filter(|v| v.is_object()).cloned();
     let _g = mesh_lock();
     let path = data_dir.join(PEERS_FILE);
     let mut peers = read_jsonl(&path);
@@ -728,7 +732,7 @@ pub fn peer_join(data_dir: &Path, body: &Value) -> Result<Value, String> {
     let reused = peers
         .iter()
         .any(|p| p.get("peer_id").and_then(Value::as_u64) == Some(peer_id));
-    peers.push(json!({
+    let mut row = json!({
         "peer_id": peer_id,
         "kind": "browser",
         "adapter": adapter,
@@ -740,7 +744,11 @@ pub fn peer_join(data_dir: &Path, body: &Value) -> Result<Value, String> {
         "joined_ts": joined_ts,
         "last_seen_ts": now,
         "lease_until": now + PEER_LEASE_SECS,
-    }));
+    });
+    if let Some(ds) = device_status {
+        row["device_status"] = ds;
+    }
+    peers.push(row);
     // Auto-prune: drop rows that are stale (lease long expired) AND unproven
     // (no done task with good error). Live and proven rows are evidence and
     // stay. This is what keeps the registry from accumulating dead browsers.
@@ -787,17 +795,27 @@ pub fn peer_poll(data_dir: &Path, body: &Value) -> Result<Value, String> {
     let now = now_secs();
     let peers_path = data_dir.join(PEERS_FILE);
     let mut peers = read_jsonl(&peers_path);
+    // Update the FRESHEST row for this peer (greatest last_seen_ts). Older
+    // rows for the same device stay untouched — they are historical evidence.
     let mut known = false;
-    for p in peers.iter_mut() {
+    let mut newest_idx: Option<usize> = None;
+    let mut newest_ts: u64 = 0;
+    for (i, p) in peers.iter().enumerate() {
         if p.get("peer_id").and_then(Value::as_u64) == Some(peer_id) {
             known = true;
-            p["last_seen_ts"] = json!(now);
-            p["lease_until"] = json!(now + PEER_LEASE_SECS);
-            break;
+            let ts = p.get("last_seen_ts").and_then(Value::as_u64).unwrap_or(0);
+            if ts >= newest_ts {
+                newest_ts = ts;
+                newest_idx = Some(i);
+            }
         }
     }
     if !known {
         return Err(format!("unknown peer: {peer_id}"));
+    }
+    if let Some(i) = newest_idx {
+        peers[i]["last_seen_ts"] = json!(now);
+        peers[i]["lease_until"] = json!(now + PEER_LEASE_SECS);
     }
     let alive: Vec<u64> = peers
         .iter()

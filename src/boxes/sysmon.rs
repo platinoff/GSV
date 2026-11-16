@@ -839,6 +839,8 @@ fn mesh_peers_summary(data_dir: &Path) -> Value {
             // Labeled "est." — NOT a guarantee of WebGPU binding limits.
             let est_shard_gb =
                 dev_mem.map(|d| ((d as f64 * 0.5 * 10.0).round()) / 10.0);
+            let ds = p.get("device_status").cloned().unwrap_or_else(|| json!({}));
+            let ds_get = |k: &str| ds.get(k).cloned().unwrap_or(Value::Null);
             json!({
                 "id": id,
                 "adapter": peer_name(p),
@@ -859,6 +861,20 @@ fn mesh_peers_summary(data_dir: &Path) -> Value {
                 "weight_max_err": agg.and_then(|a| a.weight_max_err),
                 "best_task_mflops": agg.and_then(|a| a.best_mflops),
                 "elapsed_sum_ms": agg.map(|a| a.elapsed_sum_ms).unwrap_or(0.0),
+                // PH-A6 (native agent telemetry, e.g. Pi4)
+                "meminfo_avail_mb": ds_get("meminfo_avail_mb"),
+                "loadavg1": ds_get("loadavg1"),
+                "uptime_secs": ds_get("uptime_secs"),
+                "cpu_mhz": ds_get("cpu_mhz"),
+                "temp_c": ds_get("temp_c"),
+                "iface": ds_get("iface"),
+                "carrier": ds_get("carrier"),
+                "net_rx_bytes": ds_get("net_rx_bytes"),
+                "net_tx_bytes": ds_get("net_tx_bytes"),
+                "link_speed_mbps": ds_get("link_speed_mbps"),
+                "wifi_link_quality": ds_get("wifi_link_quality"),
+                "wifi_signal_dbm": ds_get("wifi_signal_dbm"),
+                "wifi_noise_dbm": ds_get("wifi_noise_dbm"),
             })
         })
         .collect();
@@ -938,6 +954,82 @@ mod s_tests {
         assert_eq!(aggs.get(&9).map(|a| a.proofs), Some(0));
         assert!(aggs.get(&7).map(|a| a.done) == Some(3));
         assert!(aggs.get(&7).map(|a| a.failed) == Some(1));
+    }
+
+    #[test]
+    fn device_status_flows_from_live_peers_file() {
+        let tmp = std::env::temp_dir().join("gsv-live-peers-probe");
+        let _ = std::fs::create_dir_all(&tmp);
+        let peers_path = std::path::Path::new("S:/rust/GSV/data/wgpu_peers.jsonl");
+        if !peers_path.is_file() {
+            eprintln!("peers file missing — skipped");
+            return;
+        }
+        let dir = peers_path.parent().unwrap().to_path_buf();
+        let wd = wire(&dir, &dir, 500);
+        let ach = &wd["mesh"]["peers"];
+        let p36 = ach
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["id"] == 36)
+            .cloned();
+        match p36 {
+            Some(row) => {
+                eprintln!("row 36 from live peers file via wire: {row}");
+                assert!(
+                    row["iface"] == json!("wlan0") || row["iface"] == Value::Null,
+                    "unexpected iface {row}"
+                );
+            }
+            None => eprintln!("no peer 36 in live peers (hub churn?)"),
+        }
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn device_status_fields_flow_into_mesh_metrics() {
+        let dir = fixture_dir("devstat");
+        let now = epoch_now();
+        let lease = now + 3600;
+        let row = format!(
+            "{{\"adapter\":\"arm/cortex-a72\",\"ua\":\"mesh-node/test\",\"kind\":\"browser\",\"joined_ts\":1,\"last_seen_ts\":{now},\"lease_until\":{lease},\"peer_id\":36,\"device_class\":\"pi4-cpu\",\"cores\":4,\"device_memory\":3,\"device_status\":{{\"iface\":\"wlan0\",\"carrier\":1,\"cpu_mhz\":1800,\"meminfo_avail_mb\":3549,\"loadavg1\":0.12,\"uptime_secs\":5228,\"temp_c\":29.2,\"net_rx_bytes\":236547702,\"net_tx_bytes\":3126415,\"link_speed_mbps\":null,\"wifi_link_quality\":49,\"wifi_signal_dbm\":-61,\"wifi_noise_dbm\":null}}}}\n"
+        );
+        std::fs::write(dir.join("wgpu_peers.jsonl"), row).unwrap();
+        std::fs::write(dir.join("wgpu_tasks.jsonl"), "").unwrap();
+        let wire = wire(&dir, &dir, 500);
+        let peers = wire["mesh"]["peers"].as_array().expect("peers array");
+        let row36 = peers
+            .iter()
+            .find(|p| p["id"] == json!(36))
+            .expect("peer 36 missing");
+        eprintln!("peer 36 wire: {row36}");
+        assert_eq!(
+            row36["iface"],
+            json!("wlan0"),
+            "iface from device_status dropped"
+        );
+        assert_eq!(
+            row36["wifi_signal_dbm"],
+            json!(-61),
+            "wifi_signal_dbm from device_status dropped"
+        );
+        assert_eq!(
+            row36["cpu_mhz"],
+            json!(1800),
+            "cpu_mhz from device_status dropped"
+        );
+        assert_eq!(
+            row36["meminfo_avail_mb"],
+            json!(3549),
+            "meminfo_avail_mb from device_status dropped"
+        );
+        assert_eq!(
+            row36["uptime_secs"],
+            json!(5228),
+            "uptime_secs from device_status dropped"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     fn fixture_dir(tag: &str) -> std::path::PathBuf {
@@ -1188,6 +1280,8 @@ let refreshMs = 500, timer = null, peerCount = 0;
 
 function fmtGiB(mb) { return mb == null ? 'n/a' : (mb / 1024).toFixed(1) + ' GiB'; }
 function fmtUptime(s) { const h = Math.floor(s/3600), m = Math.floor((s%3600)/60); return h + 'h ' + m + 'm'; }
+function fmtMiB(b) { if (b == null) return 'n/a'; if (b >= 1024*1024*1024) return (b / (1024*1024*1024)).toFixed(1) + ' GB'; if (b >= 1024*1024) return (b / (1024*1024)).toFixed(1) + ' MB'; if (b >= 1024) return (b / 1024).toFixed(1) + ' KB'; return b + ' B'; }
+function fmtUptime2(s) { if (s == null) return 'n/a'; const d = Math.floor(s/86400), h = Math.floor((s%86400)/3600), m = Math.floor((s%3600)/60); return (d > 0 ? d + 'd ' : '') + h + 'h ' + m + 'm'; }
 
 async function tick() {
   let ok = false;
@@ -1273,7 +1367,19 @@ function renderPeers(peers) {
     '<div class="psub"><span>shard est <b>' + (p.est_shard_gb != null ? '~' + p.est_shard_gb.toFixed(1) + ' GB' : 'n/a') + '</b></span>' +
     '<span>tasks <b>' + (p.tasks_done ?? 0) + ' done / ' + (p.tasks_failed ?? 0) + ' fail</b></span>' +
     '<span>weight err <b>' + fmtErr(p.weight_max_err) + '</b></span>' +
-    '<span>last <b>' + escapeHtml(p.last_task || '—') + '</b></span></div>'
+    '<span>last <b>' + escapeHtml(p.last_task || '—') + '</b></span></div>' +
+    (p.iface ? '<div class="psub"><span>iface <b>' + escapeHtml(p.iface) + '</b>' +
+      (p.carrier != null ? ' · up ' + p.carrier : '') +
+      (p.wifi_signal_dbm != null ? ' · WiFi <b>' + p.wifi_signal_dbm + ' dBm</b> (link ' + (p.wifi_link_quality ?? '?') + '/70)' : '') +
+      (p.net_rx_bytes != null ? ' · ↓' + fmtMiB(p.net_rx_bytes) : '') +
+      (p.net_tx_bytes != null ? ' · ↑' + fmtMiB(p.net_tx_bytes) : '') +
+      (p.link_speed_mbps != null ? ' · ' + p.link_speed_mbps + ' Mbps' : '') + '</span>' +
+      '<span>mem avail <b>' + (p.meminfo_avail_mb != null ? Math.round(p.meminfo_avail_mb) + ' MB' : 'n/a') + '</b></span>' +
+      (p.loadavg1 != null ? '<span>load <b>' + p.loadavg1.toFixed(2) + '</b></span>' : '') +
+      (p.cpu_mhz != null ? '<span>freq <b>' + (p.cpu_mhz / 1000).toFixed(2) + ' GHz</b></span>' : '') +
+      (p.temp_c != null ? '<span>temp <b>' + p.temp_c.toFixed(1) + ' °C</b></span>' : '') +
+      (p.uptime_secs != null ? '<span>up <b>' + fmtUptime2(p.uptime_secs) + '</b></span>' : '') +
+    '</div>' : '')
   ).join('');
 }
 
