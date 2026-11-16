@@ -370,6 +370,14 @@ fn main() -> ExitCode {
                 }
             }
         }
+        "sys-history" => match xtask::record_sys(&root) {
+            Ok(0) => ExitCode::SUCCESS,
+            Ok(_) => ExitCode::FAILURE,
+            Err(e) => {
+                eprintln!("sys-history: {e}");
+                ExitCode::FAILURE
+            }
+        },
         "record-scenario-bench" => match xtask::record_scenario_bench(&root) {
             Ok(0) => ExitCode::SUCCESS,
             Ok(_) => ExitCode::FAILURE,

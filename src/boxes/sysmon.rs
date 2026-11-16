@@ -1177,6 +1177,93 @@ pub fn wire(repo_root: &Path, data_dir: &Path, sample_ms: u64) -> Value {
         .unwrap_or_else(|_| json!({ "ok": false, "error": "sysmon encode failed" }))
 }
 
+// ───────────────────────── history (automation) ─────────────────────────
+
+pub const HISTORY_FILE: &str = "sys_metrics_history.jsonl";
+/// 24 h @ 60 s cadence.
+pub const HISTORY_CAP: usize = 1440;
+
+/// Compact single-sample resource row for the JSONL history — built from the
+/// same wire the /sys page consumes, so Prometheus-ish retention stays cheap.
+pub fn history_row(wire: &Value) -> Value {
+    let h = &wire["hub"];
+    let m = &wire["mesh"];
+    let peers: Vec<Value> = m["peers"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|p| {
+            json!({
+                "id": p["id"],
+                "alive": p["alive"],
+                "ready": p["ready"],
+                "proofs": p["ready_proofs"],
+                "class": p["device_class"],
+                "adapter": p["adapter"],
+                "mf": p["best_task_mflops"],
+                "done": p["tasks_done"],
+                "fail": p["tasks_failed"],
+            })
+        })
+        .collect();
+    json!({
+        "ts": wire["ts"],
+        "cpu_pct": h["cpu_pct"],
+        "ram_load_pct": h["ram_load_pct"],
+        "ram_used_mb": h["ram_used_mb"],
+        "disk_free_gb": h["disk_free_gb"],
+        "commit_total_mb": h["commit_total_mb"],
+        "uptime_secs": h["uptime_secs"],
+        "alive": m["alive"],
+        "ready": m["ready_alive"],
+        "cores_alive": m["cores_alive"],
+        "dev_gb_alive": m["device_gb_alive"],
+        "shard_gb_ready_est": m["shard_gb_ready_est"],
+        "tasks_done": m["tasks_done"],
+        "tasks_failed": m["tasks_failed"],
+        "peers": peers,
+    })
+}
+
+/// Append `row` to `data/sys_metrics_history.jsonl`, rotating to HISTORY_CAP lines.
+pub fn append_history(data_dir: &Path, row: &Value) -> std::io::Result<()> {
+    let path = data_dir.join(HISTORY_FILE);
+    let text = std::fs::read_to_string(&path).unwrap_or_default();
+    let mut lines: Vec<String> = text
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(str::to_string)
+        .collect();
+    lines.push(row.to_string());
+    if lines.len() > HISTORY_CAP {
+        lines = lines.split_off(lines.len() - HISTORY_CAP);
+    }
+    let tmp = data_dir.join(".sys_metrics_history.jsonl.tmp");
+    let body = lines.join("\n") + "\n";
+    std::fs::write(&tmp, body)?;
+    std::fs::rename(&tmp, &path)
+}
+
+/// Last `limit` history rows, oldest..newest (bounded read of the whole file — the
+/// file is capped at HISTORY_CAP rows anyway, so this is cheap).
+pub fn read_history(data_dir: &Path, limit: usize) -> Vec<Value> {
+    let path = data_dir.join(HISTORY_FILE);
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return Vec::new();
+    };
+    text.lines()
+        .filter_map(|l| serde_json::from_str::<Value>(l).ok())
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .take(limit.max(1))
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect()
+}
+
 // ───────────────────────── the /sys page (btop-styled, no deps) ─────────────────────────
 
 pub const PAGE: &str = r#"<!doctype html>
@@ -1229,6 +1316,7 @@ main{display:grid;grid-template-columns:1fr 1.3fr;gap:12px;padding:12px 16px}
 .pill{font-size:10px;padding:1px 7px;border-radius:999px;border:1px solid var(--acc);color:var(--acc)}
 .pill.dead{border-color:var(--crit);color:var(--crit)}
 .footer{padding:6px 16px;color:var(--muted);font-size:11px;border-top:1px solid var(--edge)}
+.hist-card{margin:0 12px 12px}
 #stick{position:sticky;top:0;z-index:40;display:flex;gap:12px;align-items:center;padding:6px 16px;background:#0d1423;border-bottom:1px solid var(--edge);font-size:11px;color:var(--muted);overflow-x:auto;white-space:nowrap}
 #stick b{color:var(--text);font-weight:600}
 #stick .sep{color:#33415e}
@@ -1293,6 +1381,10 @@ canvas{width:100%;height:48px;background:#0d1423;border-radius:6px;display:block
     <div id="topList"></div>
   </div>
 </main>
+<div class="card hist-card" style="margin-top:0"><h2>Resources · history (last 24 h) <span class="muted">cargo xtask sys-history · 60 s cadence</span></h2>
+<canvas id="hist" width="900" height="64" style="width:100%;height:64px"></canvas>
+<div class="row" style="margin-top:6px"><span class="k">summary</span><span class="v" id="histSummary">—</span></div>
+</div>
 <div class="footer">hub: this box via Win32 · browser: scoped (cannot see host CPU/VRAM) · shard est = heuristic (½ of browser-reported GB, not a WebGPU limit) · refresh: <span id="refreshLabel">500</span> ms · <a href="/api/sys/metrics" style="color:var(--info)">/api/sys/metrics</a></div>
 <script>
 const $ = (id) => document.getElementById(id);
@@ -1480,6 +1572,25 @@ function renderEvidence(groups) {
 
 function escapeHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+async function drawHistory() {
+  const summary = $('histSummary');
+  try {
+    const d = await (await fetch('/api/sys/history?limit=288')).json();
+    const rows = d.rows || [];
+    if (rows.length < 2) { summary.textContent = 'history warming up — ' + rows.length + ' samples so far (cargo xtask sys-history appends)'; return; }
+    const cpu = rows.map(r => +r.cpu_pct || 0);
+    const ram = rows.map(r => +r.ram_load_pct || 0);
+    const avg = a => Math.round(a.reduce((s, v) => s + v, 0) / a.length * 10) / 10;
+    summary.textContent = rows.length + ' samples · cpu avg ' + avg(cpu) + '% / max ' + Math.max(...cpu).toFixed(1) + '% · ram avg ' + avg(ram) + '% / max ' + Math.max(...ram) + '% · free ' + (rows[rows.length - 1].disk_free_gb ?? '?') + ' GB';
+    const c = $('hist'), ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, c.width, c.height);
+    ctx.lineWidth = 1.4;
+    ctx.strokeStyle = '#6ee7b7'; ctx.beginPath();
+    rows.forEach((r, i) => { const x = (i / (rows.length - 1)) * c.width, y = c.height - (Math.min(100, Math.max(0, +r.cpu_pct || 0)) / 100) * c.height; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke();
+    ctx.strokeStyle = '#fbbf24'; ctx.beginPath();
+    rows.forEach((r, i) => { const x = (i / (rows.length - 1)) * c.width, y = c.height - (Math.min(100, Math.max(0, +r.ram_load_pct || 0)) / 100) * c.height; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke();
+  } catch (e) { summary.textContent = 'history unavailable'; }
+}
 function setRefresh(ms) {
   refreshMs = ms; $('refreshLabel').textContent = ms;
   document.querySelectorAll('[data-ms]').forEach(b => b.classList.toggle('active', Number(b.dataset.ms) === ms));
@@ -1491,7 +1602,55 @@ $('peersBox').addEventListener('toggle', () => {
   $('peersSummary').textContent = $('peersBox').open ? 'peers detail (' + peerCount + ') — click to collapse' : 'peers detail (' + peerCount + ') — click to expand';
 });
 setRefresh(500);
+drawHistory();
+setInterval(drawHistory, 60000);
 </script>
 </body>
 </html>
 "#;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn history_row_keeps_resource_fields() {
+        let wire = json!({
+            "ts": 42,
+            "hub": {"cpu_pct": 41.5, "ram_load_pct": 89, "ram_used_mb": 6754, "disk_free_gb": 75.1, "commit_total_mb": 15434, "uptime_secs": 310},
+            "mesh": {
+                "alive": 2, "ready_alive": 1, "cores_alive": 12,
+                "device_gb_alive": 7.0, "shard_gb_ready_est": 3.5,
+                "tasks_done": 126, "tasks_failed": 16,
+                "peers": [{"id": 36, "alive": true, "ready": true, "ready_proofs": 7, "device_class": "pi4-cpu", "adapter": "arm/cortex-a72", "best_task_mflops": 5.2, "tasks_done": 7, "tasks_failed": 1}],
+            },
+        });
+        let row = history_row(&wire);
+        assert_eq!(row["ts"], 42);
+        assert_eq!(row["cpu_pct"], 41.5);
+        assert_eq!(row["ram_load_pct"], 89);
+        assert_eq!(row["alive"], 2);
+        assert_eq!(row["tasks_done"], 126);
+        assert_eq!(row["peers"][0]["id"], 36);
+        assert_eq!(row["peers"][0]["class"], "pi4-cpu");
+    }
+
+    #[test]
+    fn history_roundtrip_and_cap() {
+        let dir = std::env::temp_dir().join(format!("gsv-sysmon-hist-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        for i in 0..(HISTORY_CAP as u64 + 7) {
+            let row = json!({"ts": i});
+            append_history(&dir, &row).unwrap();
+        }
+        let rows = read_history(&dir, HISTORY_CAP + 100);
+        assert_eq!(rows.len(), HISTORY_CAP);
+        assert_eq!(rows[0]["ts"], 7);
+        assert_eq!(rows[HISTORY_CAP - 1]["ts"], HISTORY_CAP as u64 + 6);
+        let five = read_history(&dir, 5);
+        assert_eq!(five.len(), 5);
+        assert_eq!(five[4]["ts"], HISTORY_CAP as u64 + 6);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

@@ -805,6 +805,25 @@ pub fn record_scenario_bench(repo_root: &Path) -> Result<i32, String> {
     }
 }
 
+/// Record one resource sample into `data/sys_metrics_history.jsonl`.
+/// First (seed) sample is discarded by callers when they need CPU% honesty;
+/// here we sleep 500 ms between the two samples so CPU delta is real.
+pub fn record_sys(repo_root: &Path) -> Result<i32, String> {
+    let data = repo_root.join("data");
+    std::fs::create_dir_all(&data).map_err(|e| e.to_string())?;
+    let _ = crate::boxes::sysmon::report(repo_root, &data, 500);
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    let w = serde_json::to_value(crate::boxes::sysmon::report(repo_root, &data, 500))
+        .map_err(|e| e.to_string())?;
+    let row = crate::boxes::sysmon::history_row(&w);
+    crate::boxes::sysmon::append_history(&data, &row).map_err(|e| e.to_string())?;
+    println!(
+        "sys-history: sampled cpu={}% ram={}% mesh alive={} ready={} done={}",
+        row["cpu_pct"], row["ram_load_pct"], row["alive"], row["ready"], row["tasks_done"]
+    );
+    Ok(0)
+}
+
 /// Vision sync / drift (library, no extra cargo).
 pub fn vision_sync(repo_root: &Path, check_only: bool) -> Result<String, String> {
     let data = repo_root.join("data");

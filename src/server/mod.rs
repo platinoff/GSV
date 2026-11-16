@@ -173,6 +173,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/tickets/next", post(api_tickets_next))
         .route("/api/mds", get(api_mds))
         .route("/api/sys/metrics", get(api_sys_metrics))
+        .route("/api/sys/history", get(api_sys_history))
         .route("/api/mesh/placement", get(api_mesh_placement))
         .route("/sys", get(api_sys_page))
         .route("/wgpu", get(api_wgpu_page))
@@ -838,7 +839,7 @@ async fn api_sys_page() -> Html<&'static str> {
     Html(crate::boxes::sysmon::PAGE)
 }
 
-/// Metrics feed for the panel (`GET /api/sys/metrics?sample_ms=500`).
+/// Live resource feed for the panel (`GET /api/sys/metrics?sample_ms=500`).
 async fn api_sys_metrics(
     State(state): State<AppState>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
@@ -853,6 +854,26 @@ async fn api_sys_metrics(
         &state.data_dir,
         sample_ms,
     ))
+}
+
+/// Resource history tail (`GET /api/sys/history?limit=N`) — append-only ring
+/// fed by `cargo xtask sys-history`; capped at 1440 rows (24 h @ 60 s).
+async fn api_sys_history(
+    State(state): State<AppState>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Json<Value> {
+    let limit = params
+        .get("limit")
+        .and_then(|s| s.parse::<usize>().ok())
+        .unwrap_or(100)
+        .clamp(1, 500);
+    let rows = crate::boxes::sysmon::read_history(&state.data_dir, limit);
+    Json(json!({
+        "ok": true,
+        "count": rows.len(),
+        "file": "data/sys_metrics_history.jsonl",
+        "rows": rows,
+    }))
 }
 
 /// Placement proposal for MiniCPM mesh shards (`GET /api/mesh/placement?model=…`) —
@@ -1253,7 +1274,7 @@ async fn api_index() -> Json<Value> {
             "/api/vision/", "/api/ui/", "/api/ratio/", "/api/toolchain/",
             "/api/ide/", "/api/omni/", "/api/sli", "/api/tracker", "/api/products",
             "/api/fingerprints", "/api/ranks", "/api/sw", "/api/watchdog", "/api/usage", "/api/settings", "/api/telegram", "/api/telegram/bus", "/api/telegram/ticket", "/api/telegram/poll", "/api/telegram/decode", "/api/tickets", "/api/mds", "/api/rust-intel", "/api/xtask", "/api/disk", "/api/grid", "/api/edge", "/api/apk", "/sw.js",
-            "/api/hooks/", "/api/preview", "/api/terminal", "/data/", "/mcp", "/sys", "/api/sys/metrics", "/api/mesh/placement"
+            "/api/hooks/", "/api/preview", "/api/terminal", "/data/", "/mcp", "/sys", "/api/sys/metrics", "/api/sys/history", "/api/mesh/placement"
         ],
         "example": "/api/vision",
         "docs": "/assets/vision.svg"
