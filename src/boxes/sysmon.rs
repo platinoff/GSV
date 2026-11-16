@@ -101,7 +101,7 @@ fn cpu_pct() -> f64 {
 // ───────────────────────── windows host primitives ─────────────────────────
 
 #[cfg(windows)]
-fn os_phys() -> Option<(u64, u64, u32)> {
+fn os_phys() -> Option<(u64, u64, u32, u64, u64)> {
     #[repr(C)]
     #[allow(dead_code)]
     struct MemoryStatusEx {
@@ -134,12 +134,18 @@ fn os_phys() -> Option<(u64, u64, u32)> {
     if ok == 0 {
         None
     } else {
-        Some((s.ull_total_phys, s.ull_avail_phys, s.dw_memory_load))
+        Some((
+            s.ull_total_phys,
+            s.ull_avail_phys,
+            s.dw_memory_load,
+            s.ull_total_page_file,
+            s.ull_avail_page_file,
+        ))
     }
 }
 
 #[cfg(not(windows))]
-fn os_phys() -> Option<(u64, u64, u32)> {
+fn os_phys() -> Option<(u64, u64, u32, u64, u64)> {
     None
 }
 
@@ -239,56 +245,17 @@ fn host_sys_info() -> (u32, u32) {
     (0, 0)
 }
 
-/// Commit status via `GetPerformanceInfo` (not the same as RAM: includes
-/// page-file backing). Useful to catch "RAM tight, hub about to die".
+/// Commit status inferred from `GlobalMemoryStatusEx` page-file counters.
+/// `(commit_used_mb, commit_limit_mb)`. Page file = the bound of what the
+/// system will commit in total (physical RAM + page-file space).
 #[cfg(windows)]
 fn commit_stats() -> Option<(u64, u64)> {
-    #[repr(C)]
-    struct PerformanceInfo {
-        cb: u32,
-        kernel_total_significant: u64,
-        kernel_total_loaded: u64,
-        kernel_swap_total: u64,
-        commit_total: u64,
-        commit_limit: u64,
-        commit_peak: u64,
-        physical_total: u64,
-        physical_available: u64,
-        system_cache: u64,
-        kernel_paged: u64,
-        kernel_nonpaged: u64,
-    }
-    #[link(name = "psapi")]
-    extern "system" {
-        fn GetPerformanceInfo(pperf: *mut PerformanceInfo, cb_size: u32) -> i32;
-    }
-    let mut perf = PerformanceInfo {
-        cb: std::mem::size_of::<PerformanceInfo>() as u32,
-        kernel_total_significant: 0,
-        kernel_total_loaded: 0,
-        kernel_swap_total: 0,
-        commit_total: 0,
-        commit_limit: 0,
-        commit_peak: 0,
-        physical_total: 0,
-        physical_available: 0,
-        system_cache: 0,
-        kernel_paged: 0,
-        kernel_nonpaged: 0,
-    };
-    // Safety: GetPerformanceInfo is a small struct read; kernel handles cb_size
-    // defensively. Same class as mds.rs GlobalMemoryStatusEx usage.
-    let ok = unsafe { GetPerformanceInfo(&mut perf, perf.cb) };
-    if ok == 0 {
-        None
-    } else {
-        // Convert pages -> bytes (page size from the system).
-        let page = 4096u64;
-        Some((
-            perf.commit_total.saturating_mul(page),
-            perf.commit_limit.saturating_mul(page),
-        ))
-    }
+    os_phys().map(|(_, _, _, total_pf, avail_pf)| {
+        let total = total_pf / (1024 * 1024);
+        let free = avail_pf / (1024 * 1024);
+        let used = total.saturating_sub(free);
+        (used, total)
+    })
 }
 
 #[cfg(not(windows))]
@@ -299,12 +266,17 @@ fn commit_stats() -> Option<(u64, u64)> {
 /// Top N processes by working-set RSS — top offenders for hub RAM pressure.
 #[cfg(windows)]
 fn top_rss_processes(limit: usize) -> Vec<Value> {
+    /// Layout per Microsoft documentation (`PROCESSENTRY32W`, x86_64):
+    /// `th32DefaultHeapID` is `ULONG_PTR` (8 bytes) and backs the 8-byte alignment.
     #[allow(non_snake_case)]
     #[repr(C)]
     struct ProcessEntry32 {
         dwSize: u32,
         cntUsage: u32,
         th32ProcessID: u32,
+        th32DefaultHeapID: u64,
+        th32ModuleID: u32,
+        cntThreads: u32,
         th32ParentProcessID: u32,
         pcPriClassBase: i32,
         dwFlags: u32,
@@ -353,6 +325,9 @@ fn top_rss_processes(limit: usize) -> Vec<Value> {
         dwSize: std::mem::size_of::<ProcessEntry32>() as u32,
         cntUsage: 0,
         th32ProcessID: 0,
+        th32DefaultHeapID: 0,
+        th32ModuleID: 0,
+        cntThreads: 0,
         th32ParentProcessID: 0,
         pcPriClassBase: 0,
         dwFlags: 0,
@@ -536,6 +511,26 @@ fn mesh_peers_summary(data_dir: &Path) -> Value {
     })
 }
 
+/// PerformanceInfo lazy init for the probe harness.
+#[cfg(test)]
+mod s_tests {
+    use super::*;
+
+    #[test]
+    fn probe_os_phys_fields() {
+        let v = os_phys();
+        if let Some((t, a, l, pft, pfa)) = v {
+            eprintln!("total_phys={t} avail_phys={a} load={l} total_page_file={pft} avail_page_file={pfa}");
+            assert!(t > 0, "phys total reported zero");
+            assert!(pft > 0, "page file total reported zero");
+            assert!(a <= t);
+            assert!(pfa <= pft);
+        } else {
+            panic!("os_phys None (GlobalMemoryStatusEx failed)");
+        }
+    }
+}
+
 // ───────────────────────── the wire ─────────────────────────
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -548,7 +543,7 @@ pub struct SysWire {
 }
 
 pub fn report(repo_root: &Path, data_dir: &Path, sample_ms: u64) -> SysWire {
-    let (ram_total, ram_avail, load) = os_phys().unwrap_or((0, 0, 0));
+    let (ram_total, ram_avail, load, _pf_total, _pf_avail) = os_phys().unwrap_or((0, 0, 0, 0, 0));
     let ram_total_mb = ram_total / (1024 * 1024);
     let ram_avail_mb = ram_avail / (1024 * 1024);
     let ram_used_mb = ram_total_mb.saturating_sub(ram_avail_mb);
@@ -571,8 +566,8 @@ pub fn report(repo_root: &Path, data_dir: &Path, sample_ms: u64) -> SysWire {
             "disk_total_gb": disk.map(|(_, t)| (t as f64) / (1024.0 * 1024.0 * 1024.0)).map(|v| (v * 10.0).round() / 10.0),
             "ncpus": ncpus,
             "physical_cores": phys,
-            "commit_total_mb": commit.map(|(t, _)| t / (1024 * 1024)),
-            "commit_limit_mb": commit.map(|(_, l)| l / (1024 * 1024)),
+            "commit_total_mb": commit.map(|(t, _)| t),
+            "commit_limit_mb": commit.map(|(_, l)| l),
             "top_rss": top,
         }),
         mesh: mesh_peers_summary(data_dir),
