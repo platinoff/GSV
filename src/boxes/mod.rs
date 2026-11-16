@@ -26,6 +26,7 @@
 //! | Telegram | `telegram` | `/api/telegram` · `/api/telegram/bus` · `/api/telegram/ticket` · `/api/telegram/poll` · `/api/telegram/decode` | Godfather bind + MCP bus + ticket ingest + inbound poll + MCP-readable envelope decode (dry-run queue in tests) |
 //! | Tickets | `tickets` | `/api/tickets` · `/api/tickets/claim` · `/api/tickets/done` · `/api/tickets/error` · `/api/tickets/presence` · `/api/tickets/walk` · `/api/tickets/hook` · `/api/tickets/bench` · `/api/tickets/next` | git JSONL board + MCP claim/solo-squad + scenario band walk + roadmap/plan hook + scenario bench + next-action inbox |
 //! | MDS | `mds` | `/api/mds` | light memory/disk/speed probe (`gsv-mds`) |
+//! | Monitor | `sysmon` | `/sys` · `/api/sys/metrics` | live ecosystem panel (btop/Conky-like): hub RAM/CPU/disk, mesh peers |
 //! | Rules drift | `rules` | MCP `rules` (read) · `cargo xtask rules-check` | gates: git HEAD, fingerprint, vision drift, product registry, Rust ratio, SLI pool, bench freshness, live version lockstep |
 //! | RustSec/OSV radar | `rust_intel` | `cargo xtask intel` · `data/gsv_rustsec.json` | OSV `querybatch` over `Cargo.lock` deps → severity-bucketed advisories (cached; soft `rules-check` gate) |
 //! | cargo-deny radar | `deny` | `cargo xtask intel` · `data/gsv_deny.json` | `cargo deny check licenses/bans/advisories` over `deny.toml` → license/ban/advisory counts (cached; HARD `rules-check` gate, escape `GSV_DENY_HARD=off`) |
@@ -58,6 +59,7 @@ pub mod rust_intel;
 pub mod settings;
 pub mod sli;
 pub mod sw;
+pub mod sysmon;
 pub mod telegram;
 pub mod terminal;
 pub mod tickets;

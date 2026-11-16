@@ -166,6 +166,8 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/tickets/next", post(api_tickets_next))
         .route("/api/mds", get(api_mds))
+        .route("/api/sys/metrics", get(api_sys_metrics))
+        .route("/sys", get(api_sys_page))
         .route("/wgpu", get(api_wgpu_page))
         .route("/api/wgpu", get(api_wgpu))
         .route("/api/wgpu/reports", get(api_wgpu_reports))
@@ -810,6 +812,28 @@ async fn api_mds(State(state): State<AppState>) -> Json<Value> {
     Json(crate::boxes::mds::wire(&state.repo_root))
 }
 
+/// Conky-style btop/nvtop-like ecosystem monitor (`GET /sys`).
+async fn api_sys_page() -> Html<&'static str> {
+    Html(crate::boxes::sysmon::PAGE)
+}
+
+/// Metrics feed for the panel (`GET /api/sys/metrics?sample_ms=500`).
+async fn api_sys_metrics(
+    State(state): State<AppState>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Json<Value> {
+    let sample_ms = params
+        .get("sample_ms")
+        .and_then(|s| s.parse::<u64>().ok())
+        .unwrap_or(500)
+        .clamp(100, 60_000);
+    Json(crate::boxes::sysmon::wire(
+        &state.repo_root,
+        &state.data_dir,
+        sample_ms,
+    ))
+}
+
 /// WGPU phone-test page (`GET /wgpu`) — browser WGSL matmul runner.
 async fn api_wgpu_page() -> Html<&'static str> {
     Html(crate::boxes::wgpu::page())
@@ -1197,7 +1221,7 @@ async fn api_index() -> Json<Value> {
             "/api/vision/", "/api/ui/", "/api/ratio/", "/api/toolchain/",
             "/api/ide/", "/api/omni/", "/api/sli", "/api/tracker", "/api/products",
             "/api/fingerprints", "/api/ranks", "/api/sw", "/api/watchdog", "/api/usage", "/api/settings", "/api/telegram", "/api/telegram/bus", "/api/telegram/ticket", "/api/telegram/poll", "/api/telegram/decode", "/api/tickets", "/api/mds", "/api/rust-intel", "/api/xtask", "/api/disk", "/api/grid", "/api/edge", "/api/apk", "/sw.js",
-            "/api/hooks/", "/api/preview", "/api/terminal", "/data/", "/mcp"
+            "/api/hooks/", "/api/preview", "/api/terminal", "/data/", "/mcp", "/sys", "/api/sys/metrics"
         ],
         "example": "/api/vision",
         "docs": "/assets/vision.svg"
