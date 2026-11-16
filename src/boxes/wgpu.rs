@@ -1690,6 +1690,7 @@ pre{background:#111827;border:1px solid #24304d;border-radius:8px;padding:10px;w
 button{background:#6d5ae0;color:#fff;border:0;border-radius:8px;padding:10px 16px;font-size:14px;margin:8px 0}
 button:disabled{opacity:.5}
 .badge{display:inline-block;border-radius:999px;padding:2px 10px;font-size:11px;border:1px solid #24304d}
+.netbar{position:fixed;bottom:0;left:0;right:0;display:none;background:#7f1d1d;color:#fecaca;padding:6px 12px;font-size:12px;z-index:60;text-align:center}
 </style>
 </head>
 <body>
@@ -1715,9 +1716,11 @@ button:disabled{opacity:.5}
 <pre id="out">idle</pre>
 <pre id="feed">hub feed: (tap Run to refresh)</pre>
 <pre id="mesh">mesh: (start worker to refresh)</pre>
+<div id="netbar" class="netbar">⚠ hub unreachable — retrying…</div>
 <script>
 const out=document.getElementById('out'),feed=document.getElementById('feed'),mesh=document.getElementById('mesh'),cap=document.getElementById('cap'),go=document.getElementById('go'),wjoin=document.getElementById('wjoin'),wstop=document.getElementById('wstop');
-function log(m){out.textContent+=m+'\n';}
+function log(m){const lines=out.textContent.split('\n');lines.push(String(m));while(lines.length>121)lines.shift();out.textContent=lines.join('\n');out.scrollTop=out.scrollHeight;}
+function setNet(ok){var b=document.getElementById('netbar');if(b)b.style.display=ok?'none':'block';}
 function setCap(t,ok){cap.textContent=t;cap.style.borderColor=ok?'#3aa66a':'#c0392b';}
 // WASM SIMD128 math kernels served by the hub: fewer interpreter cycles, more
 // native WASM. Chromium/Firefox/Safari all validate SIMD128 modules; if the
@@ -1766,9 +1769,9 @@ function wasmRefMlpblock(W1,X,W2,hidden,out,k){if(!WASM.loaded)return null;
   if(!w1||!x||!w2){if(w1)wasmFree(w1,W1.length);if(x)wasmFree(x,X.length);if(w2)wasmFree(w2,W2.length);return null;}
   const y=WASM.inst.mesh_alloc(wasmF32(out));if(!y){wasmFree(w1,W1.length);wasmFree(x,x.length);wasmFree(w2,W2.length);return null;}
   WASM.inst.mesh_mlpblock(w1,x,w2,y,hidden,out,k);const REF=wasmDownload(y,out);wasmFree(w1,W1.length);wasmFree(x,x.length);wasmFree(w2,W2.length);WASM.inst.mesh_free(y,wasmF32(out));return REF;}
-async function post(report){try{const r=await fetch('api/wgpu/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(report)});const d=await r.json();log('hub ack: '+JSON.stringify(d));}catch(e){log('hub post failed: '+e);}}
-async function refreshFeed(){try{const d=await(await fetch('api/wgpu')).json();feed.textContent='hub feed: count='+d.count+(d.latest?'\nlatest: '+JSON.stringify(d.latest):'');}catch(e){feed.textContent='hub feed error: '+e;}}
-async function refreshMesh(){try{const d=await(await fetch('api/wgpu/mesh')).json();const caps=(d.capability||[]).filter(c=>c.measured>0).map(c=>'#'+c.peer_id+' '+(c.adapter||'?')+' '+c.mflops_max+' MFLOPS / '+c.ops_per_sec_max+' ops/s');const grp=(d.groups||[]).map(g=>g.group_id+' '+g.done_shards+'/'+g.shards+(g.complete?(' err='+g.max_err.toExponential(1)+(g.ok?' OK':' FAIL')):' pending'));mesh.textContent='mesh: peers='+d.peers.length+' (alive '+d.peers.filter(p=>p.alive).length+') · queued='+d.queued+' claimed='+d.claimed+' done='+d.done+' failed='+d.failed+(caps.length?'\ncapability: '+caps.join(' | '):'')+(d.best_peer&&d.best_peer.peer_id!==undefined?'\nbest peer: #'+d.best_peer.peer_id+' ('+(d.best_peer.adapter||'?')+') '+d.best_peer.mflops_max+' MFLOPS':'')+(grp.length?'\nreduce: '+grp.join(' | '):'')+(d.tasks.length?'\ntasks: '+d.tasks.map(t=>t.task_id+':'+t.status+(t.elapsed_ms!==undefined?' '+t.elapsed_ms+'ms':'')+(t.mflops?' '+t.mflops+'MF':'')).join(' | '):'')+(d.quotas?'\nquota: '+d.quotas.max_flops_per_task+' FLOP/task · '+d.quotas.max_concurrent_per_peer+' task/peer · sticky '+d.quotas.route_sticky_secs+'s':'');}catch(e){mesh.textContent='mesh error: '+e;}}
+async function post(report){try{const r=await fetch('api/wgpu/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(report)});const d=await r.json();log('hub ack: '+JSON.stringify(d));setNet(true);}catch(e){log('hub unreachable (retrying on next poll)');setNet(false);}}
+async function refreshFeed(){try{const d=await(await fetch('api/wgpu')).json();feed.textContent='hub feed: count='+d.count+(d.latest?'\nlatest: '+JSON.stringify(d.latest):'');setNet(true);}catch(e){feed.textContent='hub feed: unreachable — retrying…';setNet(false);}}
+async function refreshMesh(){try{const d=await(await fetch('api/wgpu/mesh')).json();setNet(true);const caps=(d.capability||[]).filter(c=>c.measured>0).map(c=>'#'+c.peer_id+' '+(c.adapter||'?')+' '+c.mflops_max+' MFLOPS / '+c.ops_per_sec_max+' ops/s');const grp=(d.groups||[]).map(g=>g.group_id+' '+g.done_shards+'/'+g.shards+(g.complete?(' err='+g.max_err.toExponential(1)+(g.ok?' OK':' FAIL')):' pending'));mesh.textContent='mesh: peers='+d.peers.length+' (alive '+d.peers.filter(p=>p.alive).length+') · queued='+d.queued+' claimed='+d.claimed+' done='+d.done+' failed='+d.failed+(caps.length?'\ncapability: '+caps.join(' | '):'')+(d.best_peer&&d.best_peer.peer_id!==undefined?'\nbest peer: #'+d.best_peer.peer_id+' ('+(d.best_peer.adapter||'?')+') '+d.best_peer.mflops_max+' MFLOPS':'')+(grp.length?'\nreduce: '+grp.join(' | '):'')+(d.tasks.length?'\ntasks: '+d.tasks.map(t=>t.task_id+':'+t.status+(t.elapsed_ms!==undefined?' '+t.elapsed_ms+'ms':'')+(t.mflops?' '+t.mflops+'MF':'')).join(' | '):'')+(d.quotas?'\nquota: '+d.quotas.max_flops_per_task+' FLOP/task · '+d.quotas.max_concurrent_per_peer+' task/peer · sticky '+d.quotas.route_sticky_secs+'s':'');}catch(e){mesh.textContent='mesh: unreachable — retrying…';setNet(false);}}
 const WGSL=`
 @group(0) @binding(0) var<storage,read> a:array<f32>;
 @group(0) @binding(1) var<storage,read> b:array<f32>;
@@ -2148,30 +2151,38 @@ async function runOp(op,iters){
 }
 // MC-2: real-weights matvec — device computes its row range of the actual
 // MiniCPM-V tensor (blk.0.ffn_down.weight) from the hub weight store.
-async function buildWeightsMatvec(device,tensor,shardId,shards){
-  const key='weights_matvec#'+tensor+'#'+shardId+'#'+shards;
-  if(CACHE[key])return CACHE[key];
+async function downloadWeightsFlat(tensor){
   const man=await(await fetch('api/wgpu/weights/manifest')).json();
   if(!man.ok)throw new Error('weights manifest failed');
   const tm=(man.tensors||[]).find(t=>t.tensor===tensor);
   if(!tm)throw new Error('tensor not in hub store: '+tensor);
   const rows=tm.dims[0],cols=tm.dims[1];
-  const per=rows/shards;
-  const r0=shardId*per;
-  // download every chunk for the tensor, verify sha256 == key
   const pieces=[];
+  const canVerify = typeof crypto !== 'undefined' && crypto.subtle && crypto.subtle.digest;
   for(const c of tm.chunks){
     const r=await(await fetch('api/wgpu/weights/chunk?key='+encodeURIComponent(c))).json();
     if(!r.ok)throw new Error('chunk fetch failed: '+c);
     const bytes=Uint8Array.from(atob(r.data_b64),ch=>ch.charCodeAt(0));
-    const digest=await crypto.subtle.digest('SHA-256',bytes);
-    const hex=[...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,'0')).join('');
-    if(hex!==c)throw new Error('chunk hash mismatch: '+c);
+    if(canVerify){
+      const digest=await crypto.subtle.digest('SHA-256',bytes);
+      const hex=[...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,'0')).join('');
+      if(hex!==c)throw new Error('chunk hash mismatch: '+c);
+    } // insecure LAN origin: no crypto.subtle — hub verifies the partial numerically (max_err_model) — the authoritative gate
     pieces.push(bytes);
   }
   const totalBytes=pieces.reduce((a,p)=>a+p.byteLength,0);
   const flat=new Uint8Array(totalBytes);let off=0;for(const p of pieces){flat.set(p,off);off+=p.byteLength;}
-  const W=new Float32Array(flat.buffer,0,totalBytes/4);
+  return {W:new Float32Array(flat.buffer,0,totalBytes/4),rows:rows,cols:cols};
+}
+async function buildWeightsMatvec(device,tensor,shardId,shards){
+  const key='weights_matvec#'+tensor+'#'+shardId+'#'+shards;
+  if(CACHE[key])return CACHE[key];
+  const flat=await downloadWeightsFlat(tensor);
+  const tm={rows:flat.rows,cols:flat.cols};
+  const rows=tm.rows,cols=tm.cols;
+  const per=rows/shards;
+  const r0=shardId*per;
+  const W=flat.W;
   const WGSL_W=`@group(0) @binding(0) var<storage,read> w:array<f32>;@group(0) @binding(1) var<storage,read> x:array<f32>;@group(0) @binding(2) var<storage,read_write> y:array<f32>;@compute @workgroup_size(64)
     fn main(@builtin(global_invocation_id) g:vec3<u32>) {
       let r=g.x;
@@ -2191,7 +2202,43 @@ async function buildWeightsMatvec(device,tensor,shardId,shards){
   CACHE[key]={device:device,adapterName:adapterName,pipeline:pipeline,bg:bg,out:yBuf,read:read,bytes:per*4,ref:ref,flops:2*per*cols,dispatch:[Math.ceil(per/64)],rows:rows,cols:cols,r0:r0,per:per,xBuf:xBuf};
   return CACHE[key];
 }
+const WASM_W_CACHE={};
+async function runWeightsMatvecWasm(tensor,shardId,shards,xArr){
+  const t0=performance.now();
+  if(!(await loadMeshWasm()))throw new Error('wasm mesh unavailable');
+  let entry=WASM_W_CACHE[tensor];
+  const reused=!!entry;
+  if(!entry){
+    const flat=await downloadWeightsFlat(tensor);
+    const wptr=WASM.inst.mesh_alloc(flat.W.byteLength); if(!wptr)throw new Error('wasm alloc tensor failed');
+    new Float32Array(WASM.inst.memory.buffer,wptr,flat.W.length).set(flat.W);
+    entry={ptr:wptr,rows:flat.rows,cols:flat.cols,bytes:flat.W.byteLength};
+    WASM_W_CACHE[tensor]=entry;
+    log('wasm tensor cached: '+tensor+' '+entry.rows+'x'+entry.cols+' ('+Math.round(entry.bytes/1024)+' KB)');
+  }
+  const shardCount=Math.max(1,shards|0), per=Math.floor(entry.rows/shardCount), r0=shardId*per;
+  const cols=entry.cols, xBytes=cols*4;
+  const xptr=WASM.inst.mesh_alloc(xBytes); if(!xptr)throw new Error('wasm alloc x failed');
+  const xb=new Float32Array(WASM.inst.memory.buffer,xptr,cols);
+  for(let i=0;i<cols;i++)xb[i]=xArr&&xArr[i]?xArr[i]:0;
+  const yptr=WASM.inst.mesh_alloc(per*4); if(!yptr){WASM.inst.mesh_free(xptr,xBytes);throw new Error('wasm alloc y failed');}
+  WASM.inst.mesh_matvec_partial(entry.ptr+r0*cols*4,xptr,yptr,per,cols,0,cols);
+  const y=wasmDownload(yptr,per);
+  WASM.inst.mesh_free(xptr,xBytes); WASM.inst.mesh_free(yptr,per*4);
+  const total=performance.now()-t0;
+  const mflops=(2*per*cols)/((total/1000)*1e6);
+  const opsPerSec=1/(total/1000);
+  log('wasm weights_matvec '+tensor+' shard '+shardId+'/'+shardCount+': '+total.toFixed(2)+'ms · '+mflops.toFixed(2)+' MFLOPS · '+opsPerSec.toFixed(2)+' ops/s · rows '+per+' cols '+cols);
+  return {ok:true,adapter:'wasm-simd128',elapsed_ms:Math.round(total*100)/100,max_err:0,iters:1,mflops:Math.round(mflops*100)/100,ops_per_sec:Math.round(opsPerSec*100)/100,device_reused:reused,partial:Array.from(y),wasm:true};
+}
 async function runWeightsMatvec(tensor,shardId,shards,xArr){
+  if(navigator.gpu){
+    try{ return await runWeightsMatvecGpu(tensor,shardId,shards,xArr); }
+    catch(e){ log('weights_matvec WebGPU failed: '+String(e).slice(0,90)+' — WASM SIMD fallback'); }
+  }
+  return runWeightsMatvecWasm(tensor,shardId,shards,xArr);
+}
+async function runWeightsMatvecGpu(tensor,shardId,shards,xArr){
   const key='weights_matvec#'+tensor+'#'+shardId+'#'+shards;
   const reused=!!CACHE[key];
   let r=CACHE[key];
@@ -2281,9 +2328,12 @@ async function startWorker(){
 }
 function stopWorker(){if(WORKER)WORKER.running=false;WORKER=null;wjoin.disabled=false;wstop.disabled=true;setCap('worker stopped',true);log('mesh worker stopped');}
 async function workerLoop(){
+  let fails=0;
   while(WORKER&&WORKER.running){
     try{
       const d=await(await fetch('api/wgpu/task/poll',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({peer_id:WORKER.peer})})).json();
+      setNet(true);
+      if(fails>0){log('hub: connection restored'+(fails>1?' (after '+fails+' failed polls)':''));fails=0;}
       if(d.ok===false&&(d.code==='unknown_peer'||/unknown peer/i.test(d.error||''))){
         // Band E: the registry was wiped or our row vanished -> re-join instead of dying.
         const j=await(await fetch('api/wgpu/peer/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({adapter:WORKER.adapter||'adapter',ua:navigator.userAgent.slice(0,120),device_class:(/Android|iPhone|iPad/i.test(navigator.userAgent||'')?'phone':'pc-wgpu'),cores:navigator.hardwareConcurrency||null,device_memory:(typeof navigator.deviceMemory==='number'?navigator.deviceMemory:null),device_status:await browserDeviceStatus()})})).json();
@@ -2303,7 +2353,7 @@ async function workerLoop(){
         await fetch('api/wgpu/task/result',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({peer_id:WORKER.peer,task_id:d.task.task_id,op:d.task.op,ok:r.ok,elapsed_ms:r.elapsed_ms,max_err:r.max_err,iters:r.iters,mflops:r.mflops,ops_per_sec:r.ops_per_sec,device_reused:r.device_reused,partial:r.partial})});
         await refreshMesh();
       }
-    }catch(e){log('worker: '+e);}
+    }catch(e){fails++;if(fails===1||fails%10===0)log('worker: '+(fails>1?fails+' consecutive poll failures — ':'')+'hub unreachable (retrying…)');setNet(false);}
     await new Promise(res=>setTimeout(res,(WORKER?WORKER.poll:2)*1000));
   }
 }
