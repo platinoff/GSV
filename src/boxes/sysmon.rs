@@ -1237,6 +1237,9 @@ main{display:grid;grid-template-columns:1fr 1.3fr;gap:12px;padding:12px 16px}
 #peersBox{margin-top:10px}
 #peersBox summary{cursor:pointer;color:var(--muted);font-size:11px;user-select:none;padding:4px 0}
 #peersBox summary:hover{color:var(--text)}
+#joinfeed{margin-top:6px;font-size:11px;color:var(--acc)}
+.peer-new{animation:peerFlash 1.1s ease 3;border-left:2px solid var(--acc)}
+@keyframes peerFlash{0%,100%{background:transparent}50%{background:rgba(110,231,183,.14)}}
 canvas{width:100%;height:48px;background:#0d1423;border-radius:6px;display:block}
 @media(max-width:900px){main{grid-template-columns:1fr}}
 </style>
@@ -1268,6 +1271,7 @@ canvas{width:100%;height:48px;background:#0d1423;border-radius:6px;display:block
     <div class="h2row"><h2>35B shard evidence</h2></div>
     <div id="evidence"></div>
     <div class="row" style="margin-top:8px"><span class="k">Placement</span><span class="v" id="placement">-</span></div>
+    <div id="joinfeed"></div>
     <details id="peersBox">
       <summary id="peersSummary">peers detail — click to expand</summary>
       <div id="peers"></div>
@@ -1294,6 +1298,10 @@ canvas{width:100%;height:48px;background:#0d1423;border-radius:6px;display:block
 const $ = (id) => document.getElementById(id);
 let history = [];
 let refreshMs = 500, timer = null, peerCount = 0;
+const seenLive = new Set();
+let peersInit = false;
+let newLive = new Set();
+let joinLog = [];
 
 function fmtGiB(mb) { return mb == null ? 'n/a' : (mb / 1024).toFixed(1) + ' GiB'; }
 function fmtUptime(s) { const h = Math.floor(s/3600), m = Math.floor((s%3600)/60); return h + 'h ' + m + 'm'; }
@@ -1339,6 +1347,30 @@ async function tick() {
     $('stick').classList.toggle('warn', (d.hub.ram_load_pct ?? 0) > 70);
     $('stick').classList.toggle('crit', (d.hub.ram_load_pct ?? 0) > 90);
     $('placement').textContent = 'est. shard candidates: ' + (d.mesh.peers || []).filter(p => p.est_shard_gb != null && p.ready).sort((a, b) => b.est_shard_gb - a.est_shard_gb).map(p => '#' + p.id + ' ' + shortAdapter(p.adapter) + ' ~' + p.est_shard_gb.toFixed(1) + ' GB ✓').concat(['Σ ready ~' + (d.mesh.shard_gb_ready_est ?? 0).toFixed(1) + ' GB']).join(' · ');
+    const nowLive = new Set();
+    for (const p of (d.mesh.peers || [])) { if (p.alive) nowLive.add(p.id); }
+    const rejoining = [];
+    if (peersInit) {
+      for (const id of nowLive) { if (!seenLive.has(id)) rejoining.push(id); }
+    }
+    newLive = new Set(rejoining);
+    for (const id of seenLive) { if (!nowLive.has(id)) seenLive.delete(id); }
+    for (const id of nowLive) seenLive.add(id);
+    peersInit = true;
+    if (rejoining.length) {
+      const feed = $('joinfeed');
+      if (feed) {
+        const ts = new Date().toLocaleTimeString();
+        const lines = rejoining.map(id => {
+          const p = (d.mesh.peers || []).find(x => x.id === id) || {};
+          const desc = [p.device_class || p.adapter || 'peer', p.cores != null ? p.cores + ' c' : null, p.device_memory_gb != null ? p.device_memory_gb + ' GB' : null, p.ua_model || null].filter(Boolean).join(' · ');
+          return '<div class="jline"><span class="t">' + ts + '</span> peer #' + id + ' active — <b>' + escapeHtml(desc) + '</b></div>';
+        });
+        joinLog = lines.concat(joinLog).slice(0, 4);
+        feed.innerHTML = joinLog.join('');
+      }
+      $('peersBox').open = true;
+    }
     renderPeers(d.mesh.peers);
     renderEvidence(d.mesh.weight_groups || []);
   } catch (e) { ok = false; }
@@ -1370,6 +1402,7 @@ function shortAdapter(a) { const s = String(a || ''); const m = s.match(/^[a-z]+
 function fmtAge(s) { if (s == null) return '?'; if (s < 90) return s + 's ago'; if (s < 5400) return Math.floor(s / 60) + 'm ago'; return Math.floor(s / 3600) + 'h ago'; }
 function fmtErr(e) { return (e == null) ? '—' : (e < 1e-4 ? e.toExponential(1) : e.toFixed(4)); }
 
+function fmtElapsed(ms) { if (ms == null) return '—'; const s = Math.round(ms/1000); if (s < 60) return s + 's'; const m = Math.floor(s/60); return m + 'm ' + (s%60) + 's'; }
 function renderPeerSub(p) {
   const isBrowser = !!(p.ua_model || p.ua_platform || p.effective_type || p.battery_level != null || p.gpu_max_storage_mb != null || p.js_heap_mb != null);
   if (isBrowser) {
@@ -1380,15 +1413,18 @@ function renderPeerSub(p) {
       (p.save_data ? ' · saveData' : '') +
       '</span>' +
       '<span>bat <b>' + (p.battery_level != null ? Math.round(p.battery_level*100) + '%' + (p.battery_charging ? ' ⚡' : '') : 'n/a') + '</b></span>' +
-      '<span>gpu <b>' + (p.gpu_max_storage_mb != null ? p.gpu_max_storage_mb + ' MB' : 'n/a') + '</b></span>' +
+      '<span>gpu <b>' + (p.gpu_max_storage_mb != null ? p.gpu_max_storage_mb + ' MB' : 'n/a') +
+      (p.gpu_max_buffer_mb != null ? '/' + p.gpu_max_buffer_mb + ' MB buf' : '') +
+      (p.gpu_max_invocations_per_workgroup != null ? '/' + p.gpu_max_invocations_per_workgroup + ' inv' : '') + '</b></span>' +
       (p.js_heap_mb != null ? '<span>heap <b>' + p.js_heap_mb + ' MB</b></span>' : '') +
+      (p.ua_platform ? '<span>' + escapeHtml(p.ua_platform) + '</span>' : '') +
       (p.ua_model ? '<span><b>' + escapeHtml(p.ua_model) + '</b>' + (p.ua_arch ? ' · ' + escapeHtml(p.ua_arch + (p.ua_bitness ? '/' + p.ua_bitness : '')) : '') + '</span>' : '') +
       '</div>';
   }
   if (p.cpu_mhz != null || p.temp_c != null || p.meminfo_avail_mb != null || p.loadavg1 != null || p.uptime_secs != null) {
     return '<div class="psub"><span>iface <b>' + escapeHtml(p.iface || '?') + '</b>' +
       (p.carrier != null ? ' · up ' + p.carrier : '') +
-      (p.wifi_signal_dbm != null ? ' · WiFi <b>' + p.wifi_signal_dbm + ' dBm</b> (link ' + (p.wifi_link_quality ?? '?') + '/70)' : '') +
+      (p.wifi_signal_dbm != null ? ' · WiFi <b>' + p.wifi_signal_dbm + ' dBm</b> (link ' + (p.wifi_link_quality ?? '?') + '/70' + (p.wifi_noise_dbm != null ? ', noise ' + p.wifi_noise_dbm + ' dBm' : '') + ')' : '') +
       (p.net_rx_bytes != null ? ' · ↓' + fmtMiB(p.net_rx_bytes) : '') +
       (p.net_tx_bytes != null ? ' · ↑' + fmtMiB(p.net_tx_bytes) : '') +
       (p.link_speed_mbps != null ? ' · ' + p.link_speed_mbps + ' Mbps' : '') + '</span>' +
@@ -1399,14 +1435,23 @@ function renderPeerSub(p) {
       (p.uptime_secs != null ? '<span>up <b>' + fmtUptime2(p.uptime_secs) + '</b></span>' : '') +
       '</div>';
   }
+  if (p.iface) {
+    // browser-reported navigator.connection.type without anything else — render honest net row
+    return '<div class="psub"><span>net <b>' + escapeHtml(p.effective_type || 'wifi') + '</b>' +
+      (p.iface ? ' · ' + escapeHtml(p.iface) : '') +
+      (p.downlink_mbps != null ? ' · ↓' + p.downlink_mbps + ' Mbps' : '') +
+      (p.rtt_ms != null ? ' · rtt ' + p.rtt_ms + 'ms' : '') +
+      '</span></div>';
+  }
   return '';
 }
 
 function renderPeers(peers) {
   const el = $('peers');
   if (!peers.length) { el.innerHTML = '<div class="row"><span class="k">no peers joined</span></div>'; return; }
-  el.innerHTML = peers.map(p =>
-    '<div class="peer"><span class="id">#' + p.id + '</span>' +
+  el.innerHTML = peers.map(p => {
+    const isNew = newLive.has(p.id);
+    return '<div class="peer' + (isNew ? ' peer-new' : '') + '"><span class="id">#' + p.id + (isNew ? ' <span class="pill">NEW</span>' : '') + '</span>' +
     '<span>' + escapeHtml(p.adapter || '?') + ' · ' + escapeHtml(p.device_class || '?') + '</span>' +
     '<span class="pill' + (p.alive ? '' : ' dead') + '">' + (p.alive ? 'alive' : 'stale') + '</span>' +
     '<span class="pill' + (p.ready ? ' rdy' : ' nrdy') + '" title="ready proofs: ' + (p.ready_proofs ?? 0) + '">' + (p.ready ? '✓rdy' : '✗') + '</span>' +
@@ -1416,9 +1461,10 @@ function renderPeers(peers) {
     '<div class="psub"><span>shard est <b>' + (p.est_shard_gb != null ? '~' + p.est_shard_gb.toFixed(1) + ' GB' : 'n/a') + '</b></span>' +
     '<span>tasks <b>' + (p.tasks_done ?? 0) + ' done / ' + (p.tasks_failed ?? 0) + ' fail</b></span>' +
     '<span>weight err <b>' + fmtErr(p.weight_max_err) + '</b></span>' +
+    (p.elapsed_sum_ms != null ? '<span>busy <b>' + fmtElapsed(p.elapsed_sum_ms) + '</b></span>' : '') +
     '<span>last <b>' + escapeHtml(p.last_task || '—') + '</b></span></div>' +
-    renderPeerSub(p)
-  ).join('');
+    renderPeerSub(p);
+  }).join('');
 }
 
 function renderEvidence(groups) {
