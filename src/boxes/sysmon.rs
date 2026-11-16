@@ -193,6 +193,241 @@ fn drive_root(repo_root: &Path) -> String {
     root
 }
 
+#[cfg(windows)]
+fn host_sys_info() -> (u32, u32) {
+    #[repr(C)]
+    struct SystemInfo {
+        w_processor_architecture: u16,
+        w_reserved: u16,
+        dw_page_size: u32,
+        lp_minimum_application_address: u64,
+        lp_maximum_application_address: u64,
+        dw_active_processor_mask: u64,
+        dw_number_of_processors: u32,
+        dw_processor_type: u32,
+        dw_allocation_granularity: u32,
+        w_processor_level: u16,
+        w_processor_revision: u16,
+    }
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetSystemInfo(info: *mut SystemInfo);
+    }
+    let mut si = SystemInfo {
+        w_processor_architecture: 0,
+        w_reserved: 0,
+        dw_page_size: 0,
+        lp_minimum_application_address: 0,
+        lp_maximum_application_address: 0,
+        dw_active_processor_mask: 0,
+        dw_number_of_processors: 0,
+        dw_processor_type: 0,
+        dw_allocation_granularity: 0,
+        w_processor_level: 0,
+        w_processor_revision: 0,
+    };
+    // Safety: kernel32 is always present on Windows; `si` is a plain repr(C) POD.
+    unsafe { GetSystemInfo(&mut si) };
+    let ncpus = si.dw_number_of_processors.max(1);
+    // Physical core count estimate: logical // 2 if hyper-threaded, clamp to 1.
+    let physical = (ncpus / 2).max(1);
+    (ncpus, physical)
+}
+
+#[cfg(not(windows))]
+fn host_sys_info() -> (u32, u32) {
+    (0, 0)
+}
+
+/// Commit status via `GetPerformanceInfo` (not the same as RAM: includes
+/// page-file backing). Useful to catch "RAM tight, hub about to die".
+#[cfg(windows)]
+fn commit_stats() -> Option<(u64, u64)> {
+    #[repr(C)]
+    struct PerformanceInfo {
+        cb: u32,
+        kernel_total_significant: u64,
+        kernel_total_loaded: u64,
+        kernel_swap_total: u64,
+        commit_total: u64,
+        commit_limit: u64,
+        commit_peak: u64,
+        physical_total: u64,
+        physical_available: u64,
+        system_cache: u64,
+        kernel_paged: u64,
+        kernel_nonpaged: u64,
+    }
+    #[link(name = "psapi")]
+    extern "system" {
+        fn GetPerformanceInfo(pperf: *mut PerformanceInfo, cb_size: u32) -> i32;
+    }
+    let mut perf = PerformanceInfo {
+        cb: std::mem::size_of::<PerformanceInfo>() as u32,
+        kernel_total_significant: 0,
+        kernel_total_loaded: 0,
+        kernel_swap_total: 0,
+        commit_total: 0,
+        commit_limit: 0,
+        commit_peak: 0,
+        physical_total: 0,
+        physical_available: 0,
+        system_cache: 0,
+        kernel_paged: 0,
+        kernel_nonpaged: 0,
+    };
+    // Safety: GetPerformanceInfo is a small struct read; kernel handles cb_size
+    // defensively. Same class as mds.rs GlobalMemoryStatusEx usage.
+    let ok = unsafe { GetPerformanceInfo(&mut perf, perf.cb) };
+    if ok == 0 {
+        None
+    } else {
+        // Convert pages -> bytes (page size from the system).
+        let page = 4096u64;
+        Some((
+            perf.commit_total.saturating_mul(page),
+            perf.commit_limit.saturating_mul(page),
+        ))
+    }
+}
+
+#[cfg(not(windows))]
+fn commit_stats() -> Option<(u64, u64)> {
+    None
+}
+
+/// Top N processes by working-set RSS — top offenders for hub RAM pressure.
+#[cfg(windows)]
+fn top_rss_processes(limit: usize) -> Vec<Value> {
+    #[allow(non_snake_case)]
+    #[repr(C)]
+    struct ProcessEntry32 {
+        dwSize: u32,
+        cntUsage: u32,
+        th32ProcessID: u32,
+        th32ParentProcessID: u32,
+        pcPriClassBase: i32,
+        dwFlags: u32,
+        szExeFile: [u16; 260],
+    }
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn CreateToolhelp32Snapshot(dwFlags: u32, th32ProcessID: u32) -> *mut std::ffi::c_void;
+        fn Process32FirstW(hSnapshot: *mut std::ffi::c_void, lppe: *mut ProcessEntry32) -> i32;
+        fn Process32NextW(hSnapshot: *mut std::ffi::c_void, lppe: *mut ProcessEntry32) -> i32;
+        fn CloseHandle(hObject: *mut std::ffi::c_void) -> i32;
+    }
+    #[repr(C)]
+    struct ProcessMemoryCounters {
+        cb: u32,
+        page_fault_count: u32,
+        peak_working_set_size: u64,
+        working_set_size: u64,
+        quota_peak_paged_pool_usage: u64,
+        quota_paged_pool_usage: u64,
+        quota_peak_non_paged_pool_usage: u64,
+        quota_non_paged_pool_usage: u64,
+        pagefile_usage: u64,
+        peak_pagefile_usage: u64,
+    }
+    #[link(name = "psapi")]
+    extern "system" {
+        fn K32GetProcessMemoryInfo(
+            hProcess: *mut std::ffi::c_void,
+            pmc: *mut ProcessMemoryCounters,
+            cb: u32,
+        ) -> i32;
+        fn OpenProcess(
+            dwDesiredAccess: u32,
+            bInheritHandle: i32,
+            dwProcessId: u32,
+        ) -> *mut std::ffi::c_void;
+    }
+    const TH32CS_SNAPPROCESS: u32 = 0x00000002;
+    let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
+    if snapshot.is_null() {
+        return Vec::new();
+    }
+    let mut rows: Vec<(u32, String, u64)> = Vec::new();
+    let mut pe = ProcessEntry32 {
+        dwSize: std::mem::size_of::<ProcessEntry32>() as u32,
+        cntUsage: 0,
+        th32ProcessID: 0,
+        th32ParentProcessID: 0,
+        pcPriClassBase: 0,
+        dwFlags: 0,
+        szExeFile: [0u16; 260],
+    };
+    let ok = unsafe { Process32FirstW(snapshot, &mut pe) };
+    if ok == 0 {
+        unsafe { CloseHandle(snapshot) };
+        return Vec::new();
+    }
+    loop {
+        let len = pe
+            .szExeFile
+            .iter()
+            .position(|c| *c == 0)
+            .unwrap_or(pe.szExeFile.len());
+        if len > 0 {
+            // Safety: opening with PROCESS_QUERY_LIMITED_INFORMATION — kernel32
+            // either grants a handle or NULL; neither case leaks memory.
+            let handle = unsafe { OpenProcess(0x0400, 0, pe.th32ProcessID) };
+            if !handle.is_null() {
+                let mut pmc = ProcessMemoryCounters {
+                    cb: std::mem::size_of::<ProcessMemoryCounters>() as u32,
+                    page_fault_count: 0,
+                    peak_working_set_size: 0,
+                    working_set_size: 0,
+                    quota_peak_paged_pool_usage: 0,
+                    quota_paged_pool_usage: 0,
+                    quota_peak_non_paged_pool_usage: 0,
+                    quota_non_paged_pool_usage: 0,
+                    pagefile_usage: 0,
+                    peak_pagefile_usage: 0,
+                };
+                let ok = unsafe { K32GetProcessMemoryInfo(handle, &mut pmc, pmc.cb) };
+                unsafe { CloseHandle(handle) };
+                if ok != 0 {
+                    let exe_name: String = String::from_utf16_lossy(&pe.szExeFile[..len]);
+                    rows.push((pe.th32ProcessID, exe_name, pmc.working_set_size));
+                }
+            }
+        }
+        let ok = unsafe { Process32NextW(snapshot, &mut pe) };
+        if ok == 0 {
+            break;
+        }
+    }
+    unsafe { CloseHandle(snapshot) };
+    rows.sort_by_key(|r| std::cmp::Reverse(r.2));
+    rows.into_iter()
+        .take(limit)
+        .map(|(pid, name, rss)| {
+            json!({
+                "pid": pid,
+                "name": name,
+                "rss_mb": rss / (1024 * 1024),
+            })
+        })
+        .collect()
+}
+
+#[cfg(not(windows))]
+fn host_sys_info() -> (u32, u32) {
+    (0, 0)
+}
+
+#[cfg(not(windows))]
+fn commit_stats() -> Option<(u64, u64)> {
+    None
+}
+
+#[cfg(not(windows))]
+fn top_rss_processes(_limit: usize) -> Vec<Value> {
+    Vec::new()
+}
+
 // ───────────────────────── mesh peers (browser) ─────────────────────────
 
 fn read_jsonl(path: &Path) -> Vec<Value> {
@@ -318,6 +553,9 @@ pub fn report(repo_root: &Path, data_dir: &Path, sample_ms: u64) -> SysWire {
     let ram_avail_mb = ram_avail / (1024 * 1024);
     let ram_used_mb = ram_total_mb.saturating_sub(ram_avail_mb);
     let disk = disk_free_total(&drive_root(repo_root));
+    let (ncpus, phys) = host_sys_info();
+    let commit = commit_stats();
+    let top = top_rss_processes(8);
     SysWire {
         ok: true,
         ts: epoch_now(),
@@ -331,6 +569,11 @@ pub fn report(repo_root: &Path, data_dir: &Path, sample_ms: u64) -> SysWire {
             "ram_load_pct": load,
             "disk_free_gb": disk.map(|(f, _)| (f as f64) / (1024.0 * 1024.0 * 1024.0)).map(|v| (v * 10.0).round() / 10.0),
             "disk_total_gb": disk.map(|(_, t)| (t as f64) / (1024.0 * 1024.0 * 1024.0)).map(|v| (v * 10.0).round() / 10.0),
+            "ncpus": ncpus,
+            "physical_cores": phys,
+            "commit_total_mb": commit.map(|(t, _)| t / (1024 * 1024)),
+            "commit_limit_mb": commit.map(|(_, l)| l / (1024 * 1024)),
+            "top_rss": top,
         }),
         mesh: mesh_peers_summary(data_dir),
     }
@@ -372,6 +615,12 @@ main{display:grid;grid-template-columns:1fr 1.3fr;gap:12px;padding:12px 16px}
 .bar>i{position:absolute;left:0;top:0;bottom:0;background:var(--acc);transition:width .3s linear}
 .bar.warn>i{background:var(--warn)}.bar.crit>i{background:var(--crit)}
 .peer{display:grid;grid-template-columns:auto 1fr auto auto auto auto auto;gap:10px;align-items:center;padding:7px 6px;border-bottom:1px solid #1c2740}
+.h2row{margin:10px 0 2px;border-top:1px solid var(--edge);padding-top:8px}
+.h2row h2{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:0}
+.top-row{display:flex;justify-content:space-between;gap:10px;padding:2px 0}
+.top-row .name{color:var(--text);max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.top-row .rss{color:var(--info)}
+#topList{max-height:260px;overflow:auto}
 .peer:last-child{border-bottom:0}
 .peer .id{color:var(--muted)}
 .pill{font-size:10px;padding:1px 7px;border-radius:999px;border:1px solid var(--acc);color:var(--acc)}
@@ -403,8 +652,12 @@ canvas{width:100%;height:48px;background:#0d1423;border-radius:6px;display:block
     <div class="row" style="margin-top:8px"><span class="k">RAM</span><span class="v" id="ram">-</span></div>
     <div class="bar" id="ramBar"><i style="width:0%"></i></div>
     <div class="row" style="margin-top:8px"><span class="k">Disk</span><span class="v" id="disk">-</span></div>
+    <div class="row" style="margin-top:8px"><span class="k">Commit</span><span class="v" id="commit">-</span></div>
+    <div class="row"><span class="k">Cores (logical/phys)</span><span class="v" id="cores">-</span></div>
     <div class="row"><span class="k">Uptime</span><span class="v" id="uptime">-</span></div>
     <div class="row"><span class="k">Version</span><span class="v" id="version">-</span></div>
+    <div class="h2row"><h2>Top RSS</h2></div>
+    <div id="topList"></div>
   </div>
   <div class="card">
     <h2>Mesh peers · browser</h2>
@@ -434,8 +687,14 @@ async function tick() {
     $('ram').textContent = ' ' + fmtGiB(d.hub.ram_used_mb) + ' / ' + fmtGiB(d.hub.ram_total_mb) + ' used (' + d.hub.ram_load_pct + ' %)';
     setBar($('ramBar'), d.hub.ram_total_mb ? (d.hub.ram_used_mb / d.hub.ram_total_mb) * 100 : d.hub.ram_load_pct);
     $('disk').textContent = ' ' + (d.hub.disk_free_gb ?? 'n/a') + ' GiB free / ' + (d.hub.disk_total_gb ?? '?') + ' GiB';
+    $('commit').textContent = ' ' + fmtGiB(d.hub.commit_total_mb) + ' / ' + fmtGiB(d.hub.commit_limit_mb) + ' committed';
+    $('cores').textContent = ' ' + (d.hub.ncpus ?? '?') + ' / ' + (d.hub.physical_cores ?? '?');
     $('uptime').textContent = fmtUptime(d.hub.uptime_secs);
     $('version').textContent = d.hub.version;
+    $('topList').innerHTML = (d.hub.top_rss || []).map(p =>
+      '<div class="top-row"><span class="name">' + escapeHtml(p.name || '?') + ' <span class="muted">#' + p.pid + '</span></span>' +
+      '<span class="rss">' + (p.rss_mb ?? 0) + ' MB</span></div>'
+    ).join('') || '<div class="top-row"><span class="k">n/a</span></div>';
     $('ts').textContent = new Date(d.ts * 1000).toLocaleTimeString();
     $('meshSummary').textContent = d.mesh.alive + ' alive (' + d.mesh.total + ' known) · ' + d.mesh.tasks_done + ' done / ' + d.mesh.tasks_failed + ' failed';
     renderPeers(d.mesh.peers);
