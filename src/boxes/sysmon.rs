@@ -1370,6 +1370,38 @@ function shortAdapter(a) { const s = String(a || ''); const m = s.match(/^[a-z]+
 function fmtAge(s) { if (s == null) return '?'; if (s < 90) return s + 's ago'; if (s < 5400) return Math.floor(s / 60) + 'm ago'; return Math.floor(s / 3600) + 'h ago'; }
 function fmtErr(e) { return (e == null) ? '—' : (e < 1e-4 ? e.toExponential(1) : e.toFixed(4)); }
 
+function renderPeerSub(p) {
+  const isBrowser = !!(p.ua_model || p.ua_platform || p.effective_type || p.battery_level != null || p.gpu_max_storage_mb != null || p.js_heap_mb != null);
+  if (isBrowser) {
+    return '<div class="psub"><span>net <b>' + escapeHtml(p.effective_type || '?') + '</b>' +
+      (p.iface ? ' · ' + escapeHtml(p.iface) : '') +
+      (p.downlink_mbps != null ? ' · ↓' + p.downlink_mbps + ' Mbps' : '') +
+      (p.rtt_ms != null ? ' · rtt ' + p.rtt_ms + 'ms' : '') +
+      (p.save_data ? ' · saveData' : '') +
+      '</span>' +
+      '<span>bat <b>' + (p.battery_level != null ? Math.round(p.battery_level*100) + '%' + (p.battery_charging ? ' ⚡' : '') : 'n/a') + '</b></span>' +
+      '<span>gpu <b>' + (p.gpu_max_storage_mb != null ? p.gpu_max_storage_mb + ' MB' : 'n/a') + '</b></span>' +
+      (p.js_heap_mb != null ? '<span>heap <b>' + p.js_heap_mb + ' MB</b></span>' : '') +
+      (p.ua_model ? '<span><b>' + escapeHtml(p.ua_model) + '</b>' + (p.ua_arch ? ' · ' + escapeHtml(p.ua_arch + (p.ua_bitness ? '/' + p.ua_bitness : '')) : '') + '</span>' : '') +
+      '</div>';
+  }
+  if (p.cpu_mhz != null || p.temp_c != null || p.meminfo_avail_mb != null || p.loadavg1 != null || p.uptime_secs != null) {
+    return '<div class="psub"><span>iface <b>' + escapeHtml(p.iface || '?') + '</b>' +
+      (p.carrier != null ? ' · up ' + p.carrier : '') +
+      (p.wifi_signal_dbm != null ? ' · WiFi <b>' + p.wifi_signal_dbm + ' dBm</b> (link ' + (p.wifi_link_quality ?? '?') + '/70)' : '') +
+      (p.net_rx_bytes != null ? ' · ↓' + fmtMiB(p.net_rx_bytes) : '') +
+      (p.net_tx_bytes != null ? ' · ↑' + fmtMiB(p.net_tx_bytes) : '') +
+      (p.link_speed_mbps != null ? ' · ' + p.link_speed_mbps + ' Mbps' : '') + '</span>' +
+      '<span>mem avail <b>' + (p.meminfo_avail_mb != null ? Math.round(p.meminfo_avail_mb) + ' MB' : 'n/a') + '</b></span>' +
+      (p.loadavg1 != null ? '<span>load <b>' + p.loadavg1.toFixed(2) + '</b></span>' : '') +
+      (p.cpu_mhz != null ? '<span>freq <b>' + (p.cpu_mhz / 1000).toFixed(2) + ' GHz</b></span>' : '') +
+      (p.temp_c != null ? '<span>temp <b>' + p.temp_c.toFixed(1) + ' °C</b></span>' : '') +
+      (p.uptime_secs != null ? '<span>up <b>' + fmtUptime2(p.uptime_secs) + '</b></span>' : '') +
+      '</div>';
+  }
+  return '';
+}
+
 function renderPeers(peers) {
   const el = $('peers');
   if (!peers.length) { el.innerHTML = '<div class="row"><span class="k">no peers joined</span></div>'; return; }
@@ -1385,27 +1417,7 @@ function renderPeers(peers) {
     '<span>tasks <b>' + (p.tasks_done ?? 0) + ' done / ' + (p.tasks_failed ?? 0) + ' fail</b></span>' +
     '<span>weight err <b>' + fmtErr(p.weight_max_err) + '</b></span>' +
     '<span>last <b>' + escapeHtml(p.last_task || '—') + '</b></span></div>' +
-    (p.iface ? '<div class="psub"><span>iface <b>' + escapeHtml(p.iface) + '</b>' +
-      (p.carrier != null ? ' · up ' + p.carrier : '') +
-      (p.wifi_signal_dbm != null ? ' · WiFi <b>' + p.wifi_signal_dbm + ' dBm</b> (link ' + (p.wifi_link_quality ?? '?') + '/70)' : '') +
-      (p.net_rx_bytes != null ? ' · ↓' + fmtMiB(p.net_rx_bytes) : '') +
-      (p.net_tx_bytes != null ? ' · ↑' + fmtMiB(p.net_tx_bytes) : '') +
-      (p.link_speed_mbps != null ? ' · ' + p.link_speed_mbps + ' Mbps' : '') + '</span>' +
-      '<span>mem avail <b>' + (p.meminfo_avail_mb != null ? Math.round(p.meminfo_avail_mb) + ' MB' : 'n/a') + '</b></span>' +
-      (p.loadavg1 != null ? '<span>load <b>' + p.loadavg1.toFixed(2) + '</b></span>' : '') +
-      (p.cpu_mhz != null ? '<span>freq <b>' + (p.cpu_mhz / 1000).toFixed(2) + ' GHz</b></span>' : '') +
-      (p.temp_c != null ? '<span>temp <b>' + p.temp_c.toFixed(1) + ' °C</b></span>' : '') +
-      (p.uptime_secs != null ? '<span>up <b>' + fmtUptime2(p.uptime_secs) + '</b></span>' : '') +
-    '</div>' : (p.effective_type || p.battery_level != null || p.gpu_max_storage_mb != null || p.ua_model ? '<div class="psub"><span>net <b>' + escapeHtml(p.effective_type || '?') + '</b>' +
-      (p.downlink_mbps != null ? ' · ↓' + p.downlink_mbps + ' Mbps' : '') +
-      (p.rtt_ms != null ? ' · rtt ' + p.rtt_ms + 'ms' : '') +
-      (p.save_data ? ' · saveData' : '') +
-      '</span>' +
-      '<span>bat <b>' + (p.battery_level != null ? Math.round(p.battery_level*100) + '%' + (p.battery_charging ? ' ⚡' : '') : 'n/a') + '</b></span>' +
-      '<span>gpu <b>' + (p.gpu_max_storage_mb != null ? p.gpu_max_storage_mb + ' MB' : 'n/a') + '</b></span>' +
-      (p.js_heap_mb != null ? '<span>heap <b>' + p.js_heap_mb + ' MB</b></span>' : '') +
-      (p.ua_model ? '<span><b>' + escapeHtml(p.ua_model) + '</b>' + (p.ua_arch ? ' · ' + escapeHtml(p.ua_arch + (p.ua_bitness ? '/' + p.ua_bitness : '')) : '') + '</span>' : '') +
-    '</div>' : '')
+    renderPeerSub(p)
   ).join('');
 }
 
