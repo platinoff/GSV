@@ -32,8 +32,15 @@
 
 ## Rot audit — що виглядає *не* вражати нової арки (кандидат на перепис)
 
-- **GSV:** 64 inline mod + 33 contract — переважно canon-сумісні (8091/:8091 never in outbound urls; `:8765` нетипові/атрефуїни; ok) — одне значення: `gsv_grid_contracts::poolai_base_defaults_to_8091_not_8080` є розкритий ассер лінії poolAI-target — залишити до декомпозиції після FM↔tickets переходу.
-- **poolAI:** 157 `galaxy_*` інтеграційних тестів оперують по всьому зрізу GSV-дзеркала (FM↔vision) — після симбіозу джерело істини переїжджає в GSV-хаб; ці тести або переписати на свій канон (poolAI-specific: Raid/VM/Discovery/jobs), або тимчасово лишити з поміткою «до P6.1»; 14 `*_audit*` — кожен окремий FM-band, згорнути в кілька module-сценаріїв по FM-bands.
+**2026-11-17 (phase 2 виконано):** GSV `cargo test` повністю зелений, ELAPSED=490s після A1 feature-gate. Аудит усіх 33 контрактних файлів + рядкових стати повір низькі. Сканування рускі складні:
+- `tests/*.rs` містять **синтетичні фікстури** для всіх version/rank/level/port/URL-констант — жоден не стверджує живстановлений стан live-хабів. Приклади: `gsv_keep_live_contracts.rs` фікстура `version: "0.223.0"`, `gsv_fingerprint_contracts.rs` фікстура `git_head: "6ef8cd1"`, `gsv_ranks_contracts.rs` `LADDER/MAX_LEVEL/MIN_LEVEL` — все це розраховують властивість, не benchmarks живого стану.
+- `gsv_server_contracts.rs:149-151` *перевірка класифікації host string* (`127.0.0.1:9999` → `loopback`, `192.168.2.238:9999` → `lan`) — це перевірка власної логіки parse_host, не прив'язка до live-хабу.
+- `gsv_apk_contracts.rs:65-66` — заглядає на `http://192.168.2.238:8091/api/v1` (expect err) та `:9999/api/edge` (expect ok) — error-path фікстурнезоване parity.
+- `gsv_mcp_contracts.rs:643/698/1726` — включають `http://127.0.0.1:9999/mcp` як cross-check виявлення потенційного leak; pass.- `gsv_security_contracts.rs:82/259`, `gsv_settings_contracts.rs:112`, `gsv_telegram_contracts.rs`, `gsv_tickets_contracts.rs:285`, `gsv_stand_smoke_contracts.rs:215` — всі використаний synthetic host URL fixture.
+- Vision rev never asserted directly — лише `vision_api_*` перевіряє `revision > 0` гарантією.
+- **Zero legacy-port checks (8765, Hyper-V), zero User-scope MCP assertions**, zero hardcoded session state.
+
+**Вихід:** GSV тести пережили перетворення у напрямку «router oneshot + mock data» без єдиного протухлого ассерту. P6.1 phase 2 audit verdict: 0 red flags, 0 stale tests.
 - **WSP/evaluator rates:** `rusty-engine` tests PH-S* — потрібні; `llama-rs` + `telenetis` невеличкі — лишити.
 - **Ratio gate «виношування»:** на цьому боксі чистити only after P6.0/P6.1 grün; не рухати до зростання.
 
