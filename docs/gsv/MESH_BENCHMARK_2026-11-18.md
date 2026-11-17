@@ -51,3 +51,24 @@
 - 8-shard dispatch verified WORKING for `weights_matvec` (ALLOWED_SHARDS=[1,2,4,8]) — Mesh accepts and phones wake via hot-swap seeing larger fan-out.
 - FF-PC's perpetual 27 stop indicates tab-backgrounded webGPU-strand suspension — not mesh bug.
 - Phones were alternately alive/dead across session (hot-swap); active phone tasks available at snapshots: valhall + bifrost group
+
+## R7 addendum — percentiles over ALL logged `weights_matvec` (n=150, through g-199)
+
+Fleet-wide distribution is **bimodal** — Pi4-class ARM CPU vs WebGPU phones — so overall percentiles mix two populations; per-peer table is the honest view:
+
+| Metric | Value |
+|---|---:|
+| n (all done `weights_matvec`) | 150 |
+| p50 | 1693.7 ms |
+| p90 | 6706.2 ms |
+| p99 | 12702.5 ms |
+| min / max | 6.8 / 19341.9 ms |
+
+| peer | n | p50 | p90 | p99 |
+|---|---:|---:|---:|---:|
+| #35 valhall | 11 | **17.9 ms** | 74.2 ms | 74.2 ms |
+| #36 Pi4 | 84 | 3923.7 ms | 8245.9 ms | **18792.3 ms** |
+| #37 FF-PC | 23 | 87.0 ms | 135.0 ms | 280.0 ms |
+| #38 bifrost | 32 | **123.0 ms** | 379.8 ms | 424.1 ms |
+
+Notes: `#36` tail (p99 18.8 s) drove the overall p99 — route weighting (R1) should keep Pi4 as tier-2/bulk, not the tail-of-fleet predictor. `minilm` reference (n=35): p50 ≈ 155 ms, p99 ≈ 337 ms.

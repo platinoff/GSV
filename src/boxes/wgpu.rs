@@ -2018,6 +2018,66 @@ async function buildBlock(device){
 }
 const OPS={matmul64:{flops:524288,dispatch:[8,8]},matvec:{flops:524288,dispatch:[4]},mlpblock:{flops:1048576,dispatch:[16]},layernorm:{flops:2048,dispatch:[16]},softmax:{flops:2048,dispatch:[16]},minilm:{flops:524288,dispatch:[16]},weights_matvec:{flops:7340032,dispatch:[28]}};
 const CACHE={};
+// R3: persistent chunk cache (IndexedDB). Chunks are SHA-256 content-addressed, so a cache HIT is always safe and staleness is impossible by construction; a miss downloads + verifies (as before) then stores for the next session. LRU eviction keeps total under IDB_CAP; failures fall back to the network silently.
+const IDB_DB='gsv-mesh-weights';
+const IDB_STORE='chunks';
+const IDB_META='meta';
+const IDB_CAP=128*1024*1024; // 128 MiB — phone-friendly
+let idbPromise=null;
+function idbOpen(){
+  if(idbPromise)return idbPromise;
+  idbPromise=new Promise(function(resolve,reject){
+    if(typeof indexedDB==='undefined'){reject(new Error('indexeddb unavailable'));return;}
+    const rq=indexedDB.open(IDB_DB,1);
+    rq.onupgradeneeded=function(e){const db=e.target.result;
+      if(!db.objectStoreNames.contains(IDB_STORE))db.createObjectStore(IDB_STORE);
+      if(!db.objectStoreNames.contains(IDB_META))db.createObjectStore(IDB_META);};
+    rq.onsuccess=function(){resolve(rq.result);};
+    rq.onerror=function(){reject(rq.error);};
+  });
+  return idbPromise;
+}
+function idbGet(key){
+  return idbOpen().then(function(db){return new Promise(function(resolve,reject){
+    const tx=db.transaction([IDB_STORE,IDB_META],'readwrite');
+    const g=tx.objectStore(IDB_STORE).get(key);
+    g.onsuccess=function(){
+      if(g.result){tx.objectStore(IDB_META).put({bytes:(g.result&&g.result.byteLength)||0,ts:Date.now()},key);resolve(g.result);}else{resolve(null);}
+    };
+    g.onerror=function(){reject(g.error);};
+  });}).catch(function(){return null;});
+}
+function idbPut(key,buf){
+  return idbOpen().then(function(db){return new Promise(function(resolve){
+    const tx=db.transaction([IDB_STORE,IDB_META],'readwrite');
+    tx.objectStore(IDB_STORE).put(buf,key);
+    tx.objectStore(IDB_META).put({bytes:(buf&&buf.byteLength)||0,ts:Date.now()},key);
+    tx.oncomplete=function(){resolve();};
+    tx.onerror=function(){resolve();};
+  });}).then(idbEvict).catch(function(){return null;});
+}
+function idbEvict(){
+  return idbOpen().then(function(db){return new Promise(function(resolve){
+    const tx=db.transaction([IDB_META],'readonly');
+    const av=tx.objectStore(IDB_META).getAll();
+    const ak=tx.objectStore(IDB_META).getAllKeys();
+    let vals=null,keys=null;
+    function go(){
+      if(vals===null||keys===null)return;
+      let total=0;for(let i=0;i<vals.length;i++)total+=(vals[i]&&vals[i].bytes)||0;
+      if(total<=IDB_CAP){resolve();return;}
+      const ord=vals.map(function(v,i){return {b:(v&&v.bytes)||0,ts:(v&&v.ts)||0,i:i};}).sort(function(a,b){return a.ts-b.ts;});
+      const del=[];
+      for(let j=0;j<ord.length&&total>IDB_CAP;j++){total-=ord[j].b;del.push(keys[ord[j].i]);}
+      const t2=db.transaction([IDB_STORE,IDB_META],'readwrite');
+      del.forEach(function(k){t2.objectStore(IDB_STORE).delete(k);t2.objectStore(IDB_META).delete(k);});
+      t2.oncomplete=function(){resolve();};
+      t2.onerror=function(){resolve();};
+    }
+    av.onsuccess=function(){vals=av.result||[];go();};
+    ak.onsuccess=function(){keys=ak.result||[];go();};
+  });}).catch(function(){return null;});
+}
 // Band I fix: the adapter name must be visible to every builder (buildBlock /
 // buildLayernorm / buildSoftmax / buildMinilm are separate functions, so a
 // `let` inside buildRunner shadowed it and every fresh page threw
@@ -2312,6 +2372,8 @@ async function downloadWeightsFlat(tensor){
   const pieces=[];
   const canVerify = typeof crypto !== 'undefined' && crypto.subtle && crypto.subtle.digest;
   for(const c of tm.chunks){
+    const cached=await idbGet(c);
+    if(cached){pieces.push(new Uint8Array(cached));continue;}
     const r=await(await fetch('api/wgpu/weights/chunk?key='+encodeURIComponent(c))).json();
     if(!r.ok)throw new Error('chunk fetch failed: '+c);
     const bytes=Uint8Array.from(atob(r.data_b64),ch=>ch.charCodeAt(0));
@@ -2320,6 +2382,7 @@ async function downloadWeightsFlat(tensor){
       const hex=[...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,'0')).join('');
       if(hex!==c)throw new Error('chunk hash mismatch: '+c);
     } // insecure LAN origin: no crypto.subtle — hub verifies the partial numerically (max_err_model) — the authoritative gate
+    idbPut(c,bytes.buffer); // fire & forget — persist for the next session
     pieces.push(bytes);
   }
   const totalBytes=pieces.reduce((a,p)=>a+p.byteLength,0);
@@ -2639,6 +2702,31 @@ mod tests {
         assert!(p.contains("Enqueue bench matvec (64x)"));
         assert!(p.contains("Local bench matvec (64x)"));
         assert!(p.contains("const CACHE={}"));
+    }
+
+    #[test]
+    fn page_carries_persistent_cache_markers() {
+        // R3: persistent IndexedDB chunk cache survives page reloads.
+        let p = page();
+        for marker in [
+            "indexedDB",
+            "gsv-mesh-weights",
+            "IDB_CAP",
+            "idbOpen",
+            "idbGet",
+            "idbPut",
+            "idbEvict",
+        ] {
+            assert!(p.contains(marker), "missing R3 marker: {marker}");
+        }
+        // The in-memory fast path stays (tests assert on it).
+        assert!(p.contains("const CACHE={}"));
+        // Persistent cache is consulted before the network fetch.
+        let cached = p.find("idbGet(c)").expect("idb read before fetch");
+        let net = p
+            .find("api/wgpu/weights/chunk?key=")
+            .expect("chunk fetch path");
+        assert!(cached < net, "idb read must precede chunk fetch");
     }
 
     #[test]
