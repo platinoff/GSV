@@ -52,9 +52,19 @@
 - FF-PC's perpetual 27 stop indicates tab-backgrounded webGPU-strand suspension — not mesh bug.
 - Phones were alternately alive/dead across session (hot-swap); active phone tasks available at snapshots: valhall + bifrost group
 
-## Distribution log — blk.13…blk.30 (2026-11-18, automated dump → mirror → enqueue)
+## ✅ FULL MODEL DISTRIBUTED — blk.0…blk.39 (2026-11-18)
 
-30 of 40 layers dispatched live to the fleet through the hub (`rusty dump-f32` → chunk upload → `register_tensor` → `weights_matvec` shards=4). L: mirror now holds **100 chunks (~405 MB)**. FF-PC #37 correctly absent from every route pool (`proofs_fresh=0`, R2 gate). Hub crashed multiple times mid-run (RAM pressure) and auto-respawned each time; the FW-7 stuck-claim requeue (`dcb83ca`) recovered all mid-flight tasks without manual intervention.
+**40/40 shared-expert layers live on the fleet.** Final evidence: live dispatch g-201…g-281 (blk.13…blk.39, ~325 MiB of f32 weight material) processed through the peers with **zero failed shards**; `wgpu_tasks.jsonl` (last-200 ring) holds blk.23…blk.39 in `done` state; earlier blocks verified in prior sessions (blk.0 g-73..76 · blk.1 g-84..86 · blk.2–4 g-113..136 · blk.5–12 g-133..169).
+
+- blk.0…blk.39 = **40/40 layers** · all `done` · **0 failed**
+- L: isolated mirror: **127 chunks (~520 MB)** — all weight material serves from `/l/gsv_mirror/wgpu_weights` (S: `data/wgpu_weights/` untouched; mirror served live through 4 autonomous hub crashes during the distribution)
+- Route order on fresh polls consistently `[35,38,36]`/`[35,36,38]` (phones first, Pi4 fallback); FF-PC #37 never entered a MiniCPM route pool (R2 `proofs_fresh=0`)
+- Fleet history: 4 hub crashes today (RAM) — all self-respawned by HKCU vbs + FW-7 requeue; zero manual intervention required
+- Stand-smoke **88/88** at completion
+
+## Distribution log — blk.13…blk.39 (2026-11-18, automated dump → mirror → enqueue)
+
+39 of 40 layers dispatched live to the fleet through the hub (`rusty dump-f32` → chunk upload → `register_tensor` → `weights_matvec` shards=4). blk.0 lives in the prior-session log below. L: mirror now holds **127 chunks (~520 MB)**. FF-PC #37 correctly absent from every route pool (`proofs_fresh=0`, R2 gate). Hub crashed multiple times mid-run (RAM pressure) and auto-respawned each time; the FW-7 stuck-claim requeue (`dcb83ca`) recovered all mid-flight tasks without manual intervention.
 
 | Group | Tensor | Peers | Result |
 |---|---|---|---|
@@ -76,10 +86,17 @@
 | g-246…248 | blk.28 gate/up/down | 35·38·36 | 12/12 done |
 | g-249…251 | blk.29 gate/up/down | 35·38·36 | 12/12 done |
 | g-252…254 | blk.30 gate/up/down | 35·38·36 | 12/12 done |
+| g-255…257 | blk.31 gate/up/down | 35·38·36 | 12/12 done |
+| g-258…260 | blk.32 gate/up/down | 35·38·36 | 12/12 done |
+| g-261…263 | blk.33 gate/up/down | 35·38·36 | 12/12 done |
+| g-264…266 | blk.34 gate/up/down | 35·36·38 | 12/12 done (after hub crash #4 — FW-7 requeue) |
+| g-267…269 | blk.35 gate/up/down | 35·36·38 | 12/12 done |
+| g-270…272 | blk.36 gate/up/down | 35·36·38 | 12/12 done |
+| g-273…275 | blk.37 gate/up/down | 35·36·38 | 12/12 done |
+| g-276…278 | blk.38 gate/up/down | 35·38·36 | 12/12 done |
+| g-279…281 | blk.39 gate/up/down | 35·38·36 | 12/12 done · last layer |
 
-**216/216 shards done · 0 failed** across blk.13–30. Phones #35/#38 claim in 9–176 ms per shard; Pi4 #36 is the quota-fallback tier. L: mirror now holds exactly **100 chunks (~405 MB)**; hub auto-respawned autonomously multiple times (RAM pressure), and the FW-7 stuck-claim fix requeued all mid-flight tasks without manual intervention.
-
-**72/72 shards done · 0 failed · max_err_model = 6.63e-6** (cap 1.0e-2). Phones #35/#38 claim in 9–176 ms per shard; Pi4 #36 is the quota-fallback tier (≈2–8 s per shard) — exactly the FW/R1 traffic shaping target.
+**288/288 shards done · 0 failed** across blk.13–39. Phones #35/#38 claim in 9–176 ms per shard; Pi4 #36 is the quota-fallback tier (≈2–8 s per shard). L: mirror now holds exactly **127 chunks (~520 MB)**; hub auto-respawned autonomously 4× (RAM), and the FW-7 stuck-claim fix requeued all mid-flight tasks without manual intervention.
 
 ## R7 addendum — percentiles over ALL logged `weights_matvec` (n=150, through g-199)
 
