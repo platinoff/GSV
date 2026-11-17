@@ -4,42 +4,13 @@
 //! forbidden, `/data/{file}` stays on the allowlist, Omni GET has no `api_key`,
 //! responses carry CSP / nosniff / no-store, oversized POST is 413.
 
-use std::path::PathBuf;
+mod common;
+use common::{get, router_app as app};
 
 use axum::body::Body;
 use axum::http::{header, Method, Request, StatusCode};
-use gsv::server::router;
-use gsv::AppState;
 use serde_json::Value;
-use tokio::sync::broadcast;
 use tower::ServiceExt;
-
-fn app() -> axum::Router {
-    let (tx, _rx) = broadcast::channel(64);
-    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let state = AppState::new(Some(repo_root), None, tx);
-    router(state)
-}
-
-async fn get(app: &axum::Router, path: &str) -> (StatusCode, Value) {
-    let res = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .uri(path)
-                .method(Method::GET)
-                .body(Body::empty())
-                .expect("request"),
-        )
-        .await
-        .expect("response");
-    let status = res.status();
-    let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
-        .await
-        .expect("body");
-    let json = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
-    (status, json)
-}
 
 async fn post_with(
     app: &axum::Router,

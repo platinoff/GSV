@@ -4,6 +4,9 @@
 //! the wire data, and unknown cards must 404. Uses `tower::ServiceExt::oneshot`
 //! against the axum router (no port binding).
 
+mod common;
+use common::app;
+
 use std::path::PathBuf;
 
 use axum::body::Body;
@@ -14,13 +17,6 @@ use gsv::AppState;
 use serde_json::Value;
 use tokio::sync::broadcast;
 use tower::ServiceExt;
-
-fn app() -> (axum::Router, AppState) {
-    let (tx, _rx) = broadcast::channel(64);
-    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let state = AppState::new(Some(repo_root), None, tx);
-    (router(state.clone()), state)
-}
 
 async fn get_card(app: &axum::Router, name: &str) -> (StatusCode, Value) {
     let res = app

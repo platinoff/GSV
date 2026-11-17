@@ -3,12 +3,10 @@
 //! GitHub plays SMIL inside standalone SVG `<img>` files. The old PNG tiles
 //! were never committed; these files must stay in-tree and script-free.
 
-use std::fs;
-use std::path::PathBuf;
+mod common;
+use common::kit_root;
 
-fn kit_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-}
+use std::fs;
 
 const PRESENTATIONS: &[&str] = &["gsv-hero.svg", "gsv-install.svg", "gsv-flow.svg"];
 

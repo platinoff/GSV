@@ -3,44 +3,15 @@
 //! Uses `tower::ServiceExt::oneshot` against the axum router (no port binding).
 //! Scope: IDE session listing and selection endpoints return expected JSON shapes.
 
-use std::path::PathBuf;
+mod common;
+use common::{app, get};
 
 use axum::body::Body;
 use axum::http::{header, Method, Request, StatusCode};
-use gsv::server::router;
-use gsv::AppState;
 use serde_json::Value;
-use tokio::sync::broadcast;
 use tower::ServiceExt;
 
 /// Build a fresh app state + router for one test.
-fn app() -> (axum::Router, AppState) {
-    let (tx, _rx) = broadcast::channel(64);
-    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let state = AppState::new(Some(repo_root), None, tx);
-    (router(state.clone()), state)
-}
-
-async fn get(app: &axum::Router, path: &str) -> (StatusCode, Value) {
-    let res = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .uri(path)
-                .method(Method::GET)
-                .body(Body::empty())
-                .expect("request"),
-        )
-        .await
-        .expect("response");
-    let status = res.status();
-    let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
-        .await
-        .expect("body");
-    let json = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
-    (status, json)
-}
-
 async fn post(app: &axum::Router, path: &str, body: Value) -> (StatusCode, Value) {
     let res = app
         .clone()

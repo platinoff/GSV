@@ -3,27 +3,16 @@
 //! Product tests, benches, and scripts are `.rs`. `GET /api/xtask` and
 //! `GET /api/disk` wrap the same box as MCP `gsv_xtask` / `gsv_disk`.
 
+mod common;
+use common::{kit_root, router_app as app};
+
 use std::fs;
-use std::path::PathBuf;
 
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
 use gsv::boxes::xtask;
-use gsv::server::router;
-use gsv::AppState;
 use serde_json::Value;
-use tokio::sync::broadcast;
 use tower::ServiceExt;
-
-fn kit_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-}
-
-fn app() -> axum::Router {
-    let (tx, _rx) = broadcast::channel(8);
-    let state = AppState::new(Some(kit_root()), None, tx);
-    router(state)
-}
 
 async fn get_json(app: &axum::Router, uri: &str) -> (StatusCode, Value) {
     let res = app

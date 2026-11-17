@@ -3,6 +3,9 @@
 //! Automatic per-session counts from OmniRouter completions, MCP bot sessions,
 //! and OmniRoute stats — persisted and mirrored on vision-sync.
 
+mod common;
+use common::kit_root;
+
 use std::path::PathBuf;
 
 use axum::body::Body;
@@ -16,10 +19,6 @@ use gsv::AppState;
 use serde_json::{json, Value};
 use tokio::sync::broadcast;
 use tower::ServiceExt;
-
-fn kit_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-}
 
 fn temp_data(tag: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("gsv-usage-{tag}-{}", std::process::id()));

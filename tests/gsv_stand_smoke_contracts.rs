@@ -14,23 +14,14 @@
 //! 4. The SVG routes respond 200 (the smoke `check_status` gate).
 //! 5. Report shape fields (`base_url/ok/passed/failed/cases`) are stable.
 
-use std::path::PathBuf;
+mod common;
+use common::app;
 
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
 use gsv::boxes::ui::CARD_NAMES;
-use gsv::server::router;
-use gsv::AppState;
 use serde_json::Value;
-use tokio::sync::broadcast;
 use tower::ServiceExt;
-
-fn app() -> (axum::Router, AppState) {
-    let (tx, _rx) = broadcast::channel(64);
-    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let state = AppState::new(Some(repo_root), None, tx);
-    (router(state.clone()), state)
-}
 
 async fn get_json(app: &axum::Router, uri: &str) -> (StatusCode, Value) {
     let res = app

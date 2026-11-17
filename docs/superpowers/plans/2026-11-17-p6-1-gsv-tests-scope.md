@@ -32,7 +32,7 @@
 1. **Freeze baseline** — збережено exit 0 сьогодні (ELAPSED=654s); `test_gate.rs` фактично існує як завжди A' environment.
 2. **Contract family audit**: inventory-документ (`2026-11-17-tests-symbiosis-inventory.md`) затиснув; проводимо відсічку протухлих ассертів наступно.
 3. **Live-hub tests guard**: **виконано 2026-11-17 (A1, owner 2026-11-17)** — `gsv_stand_smoke_contracts.rs` фіче-гейтнутий через `#![cfg(feature = "stand_smoke")]`, default `cargo test` повністю пропускає файл; `cargo test --features stand_smoke --test gsv_stand_smoke_contracts` → **9 passed, 0 failed**; `Cargo.toml [features] stand_smoke = []`; header doc цього пояснює. Це і є відповідь на відкрите питання зі списку (див. §Відкриті питання 1 нижче).
-4. **Dedup mocks**: склеїти omni/edge/grid mocks в один спільний helper only after green baseline, with one commit and ratio check before/after.
+4. **Dedup mocks**: склеїти omni/edge/grid mocks в один спільний helper only after green baseline, with one commit and ratio check before/after. **Виконано 2026-11-17 (phase 4)** — `tests/common/mod.rs` (idiomatic `mod common`, не `harness.rs`): `kit_root()`, `app()` (64-cap, `AppState::new(Some(kit_root()), None, tx)`), `router_app()` (alias-import `use common::router_app as app` мінімізував diff), `get()` (oneshot GET → `(StatusCode, Value)`). 27 контрактних файлів переведено на спільний harness (−493 рядки, +77); `mod common;` інжективно вставлявся перед першим `use`; unused imports прибрані точково (жодних масових видалень — після першої спроби, що зламала `apk`/`grid`/`telegram`/`wgpu`, файли відновлювались з HEAD і перероблювались з нуля); stand_smoke_contracts лишився з власними хелперами + своїм cfg-gate. Gates: `cargo test` **exit 0** (ELAPSED=567s), ratio stretch **99.61%**, `cargo clippy --all-targets` **0 warnings**, stand_smoke feature-check clean, fmt clean.
 5. **Vision gate**: GSV PR для vision rev використовує `--check`; тести, що прописують конкретний rev у файлах очікування — переписати на "rev ≥ фіксованої межі" або "rev рівний manifest".
 
 ## Ворота
@@ -44,3 +44,5 @@
 ## Закриті розв'язки (2026-11-17)
 1. **stand_smoke_contracts feature-gate** — **зроблено (e1b37ee)**: default `cargo test` пропускає; `--features stand_smoke` → 9 passed.
 2. **Vision rev mirror** — відкрито; потрібен owner-decree: GSV canon rev 516 проти poolAI rev 499 — правило "rev == manifest" чи "rev ≥ фіксованої межі".
+3. **Dedup mocks (phase 4)** — **зроблено 2026-11-17**: `tests/common/mod.rs` (kit_root/app/router_app/get), 27 файлів, −493 рядки; `cargo test` exit 0 (567s), ratio 99.61% stretch, clippy 0 warnings.
+4. **Цикл зламання-відновлення** — перший прохід (blanket-видалення `use` lines) зламав 11 файлів; відновлено `git checkout HEAD -- tests/`, перероблено точково за списком попереджень компілятора. Урок: не видаляти імпорти масово.

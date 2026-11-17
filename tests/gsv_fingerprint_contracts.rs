@@ -3,22 +3,15 @@
 //! JSONL append/latest, `GET /api/fingerprints`, ops card `fingerprints`.
 //! Version tests compare `env!("CARGO_PKG_VERSION")` (no hardcoded `0.1.0`).
 
+mod common;
+use common::{app, get, kit_root};
+
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use axum::body::Body;
-use axum::http::{Method, Request, StatusCode};
+use axum::http::StatusCode;
 use gsv::boxes::fingerprint::{self, Fingerprint};
 use gsv::boxes::ui::{render_card, CARD_NAMES};
-use gsv::server::router;
-use gsv::AppState;
-use serde_json::Value;
-use tokio::sync::broadcast;
-use tower::ServiceExt;
-
-fn kit_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-}
 
 fn tmp_jsonl() -> PathBuf {
     let nanos = SystemTime::now()
@@ -41,32 +34,6 @@ fn sample(summary: &str) -> Fingerprint {
         summary: summary.into(),
         product: "gsv".into(),
     }
-}
-
-fn app() -> (axum::Router, AppState) {
-    let (tx, _rx) = broadcast::channel(64);
-    let state = AppState::new(Some(kit_root()), None, tx);
-    (router(state.clone()), state)
-}
-
-async fn get(app: &axum::Router, path: &str) -> (StatusCode, Value) {
-    let res = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .uri(path)
-                .method(Method::GET)
-                .body(Body::empty())
-                .expect("request"),
-        )
-        .await
-        .expect("response");
-    let status = res.status();
-    let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
-        .await
-        .expect("body");
-    let json = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
-    (status, json)
 }
 
 #[test]

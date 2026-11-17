@@ -5,6 +5,9 @@
 //! webhook, no Cloudflare. Band 174: `/ticket` ingest → board row; solo MCP
 //! auto-claims. `gsv_telegram_create_ticket` stays unused (name is `gsv_telegram_ticket`).
 
+mod common;
+use common::kit_root;
+
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -22,10 +25,6 @@ use gsv::AppState;
 use serde_json::{json, Value};
 use tokio::sync::broadcast;
 use tower::ServiceExt;
-
-fn kit_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-}
 
 fn temp_data(tag: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("gsv-telegram-http-{tag}-{}", std::process::id()));

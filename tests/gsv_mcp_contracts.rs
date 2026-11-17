@@ -15,6 +15,9 @@
 //! Band 207: re-initialize reuses a live session; notifications-only POST →
 //! 202 Accepted; initialize batch marks listed on the issued session id.
 
+mod common;
+use common::router_app as app;
+
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -27,13 +30,6 @@ use gsv::AppState;
 use serde_json::{json, Value};
 use tokio::sync::broadcast;
 use tower::ServiceExt;
-
-fn app() -> axum::Router {
-    let (tx, _rx) = broadcast::channel(32);
-    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let state = AppState::new(Some(repo_root), None, tx);
-    router(state)
-}
 
 async fn mcp_post(app: &axum::Router, body: Value) -> (StatusCode, Value) {
     let res = app

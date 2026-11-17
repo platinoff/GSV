@@ -2,24 +2,17 @@
 //!
 //! `GET /api/mds` and MCP `gsv_mds` wrap `boxes::mds::report`. No secrets.
 
+mod common;
+use common::router_app as app;
+
 use std::path::PathBuf;
 
 use axum::body::Body;
 use axum::http::{header, Method, Request, StatusCode};
 use gsv::boxes::mds;
 use gsv::mcp;
-use gsv::server::router;
-use gsv::AppState;
 use serde_json::{json, Value};
-use tokio::sync::broadcast;
 use tower::ServiceExt;
-
-fn app() -> axum::Router {
-    let (tx, _rx) = broadcast::channel(8);
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let state = AppState::new(Some(root), None, tx);
-    router(state)
-}
 
 async fn get_json(app: &axum::Router, path: &str) -> (StatusCode, Value) {
     let res = app

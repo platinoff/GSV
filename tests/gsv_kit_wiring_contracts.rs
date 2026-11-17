@@ -6,12 +6,11 @@
 //! exist, so the loop is honestly empty — same keep-what-is-on-disk pattern
 //! as the grid ring.
 
-use gsv::boxes::products;
-use std::path::{Path, PathBuf};
+mod common;
+use common::kit_root;
 
-fn kit_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-}
+use gsv::boxes::products;
+use std::path::Path;
 
 #[test]
 fn every_registered_plugin_window_is_wired() {

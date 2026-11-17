@@ -3,6 +3,9 @@
 //! Redacted GET/POST, env override, CSRF on POST, MCP read without `bot_token`,
 //! `GET /data/gsv_settings.json` not served.
 
+mod common;
+use common::kit_root;
+
 use std::path::PathBuf;
 
 use axum::body::Body;
@@ -15,10 +18,6 @@ use gsv::AppState;
 use serde_json::{json, Value};
 use tokio::sync::broadcast;
 use tower::ServiceExt;
-
-fn kit_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-}
 
 fn temp_data(tag: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("gsv-settings-http-{tag}-{}", std::process::id()));

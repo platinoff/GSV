@@ -5,6 +5,9 @@
 //! envelopes, and publishes the machine-readable `unknown_peer` code that lets
 //! a browser peer re-join itself (band E).
 
+mod common;
+use common::get;
+
 use std::path::PathBuf;
 
 use axum::body::Body;
@@ -26,28 +29,6 @@ fn app(tag: &str) -> (axum::Router, PathBuf) {
     std::fs::create_dir_all(&data_dir).expect("data dir");
     let state = AppState::new(Some(repo_root), Some(data_dir.clone()), tx);
     (router(state), data_dir)
-}
-
-async fn get(app: &axum::Router, path: &str) -> (StatusCode, Value) {
-    let res = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .uri(path)
-                .method(Method::GET)
-                .body(Body::empty())
-                .expect("request"),
-        )
-        .await
-        .expect("response");
-    let status = res.status();
-    let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
-        .await
-        .expect("body");
-    (
-        status,
-        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
-    )
 }
 
 async fn post(app: &axum::Router, path: &str, body: Value) -> (StatusCode, Value) {

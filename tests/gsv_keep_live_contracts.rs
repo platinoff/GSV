@@ -5,29 +5,17 @@
 //! keep-live` and MCP. `ok` stays `true` when a sub-service is down (the
 //! `disk_ok` band-181 pattern).
 
-use std::path::PathBuf;
+mod common;
+use common::router_app as app;
 
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
 use gsv::boxes::ui::{render_card, CARD_NAMES};
-use gsv::server::router;
-use gsv::AppState;
 use serde_json::{json, Value};
-use tokio::sync::broadcast;
 use tower::ServiceExt;
 
 /// Serialize env-mutating peer-probe tests (probe vars are process-global).
 static ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
-
-fn kit_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-}
-
-fn app() -> axum::Router {
-    let (tx, _rx) = broadcast::channel(64);
-    let state = AppState::new(Some(kit_root()), None, tx);
-    router(state)
-}
 
 /// Point every peer at a dead port + missing heartbeat so probes fail fast
 /// (connection-refused) and are hermetic.

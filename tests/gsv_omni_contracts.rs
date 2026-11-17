@@ -5,6 +5,9 @@
 //! with `X-Omni-Dry-Run: 1` so no network is ever hit; config is written to a
 //! temp data dir so the durable store is untouched.
 
+mod common;
+use common::get;
+
 use std::path::PathBuf;
 
 use axum::body::Body;
@@ -26,22 +29,6 @@ fn app(data_dir: PathBuf) -> axum::Router {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let state = AppState::new(Some(repo_root), Some(data_dir), tx);
     router(state)
-}
-
-async fn get(app: &axum::Router, path: &str) -> (StatusCode, Value) {
-    let res = app
-        .clone()
-        .oneshot(Request::get(path).body(Body::empty()).expect("req"))
-        .await
-        .expect("resp");
-    let status = res.status();
-    let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
-        .await
-        .expect("body");
-    (
-        status,
-        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
-    )
 }
 
 async fn post(app: &axum::Router, path: &str, body: Value) -> (StatusCode, Value) {
