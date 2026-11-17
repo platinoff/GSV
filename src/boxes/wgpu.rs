@@ -11,6 +11,7 @@
 use serde_json::{json, Value};
 use std::io::Write;
 use std::path::Path;
+use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Canonical report keys (everything else is dropped at the gate).
@@ -496,9 +497,55 @@ pub fn weights_shard_range(cols: usize, shard_id: usize, shards: usize) -> (usiz
     (shard_id * chunk, (shard_id + 1) * chunk)
 }
 
+/// Content-fingerprint memo for the parsed tensor bytes. Chunks are
+/// SHA-256 content-addressed and `register_tensor` entries are immutable in
+/// practice, so keying on `tensor#(dims|chunk-keys)` is safe; if a tensor is
+/// ever re-registered the signature changes and the cache naturally misses.
+/// Cap is small: the mesh proof path touches a handful of tensors per block.
+struct WeightsMemo(Mutex<Vec<(String, Vec<f32>)>>);
+
+static WEIGHTS_MEMO: OnceLock<WeightsMemo> = OnceLock::new();
+const WEIGHTS_MEMO_CAP: usize = 6;
+
+fn weights_memo() -> &'static WeightsMemo {
+    WEIGHTS_MEMO.get_or_init(|| WeightsMemo(Mutex::new(Vec::new())))
+}
+
+fn tensor_signature(entry: &Value) -> String {
+    let dims = entry
+        .get("dims")
+        .cloned()
+        .unwrap_or(Value::Null)
+        .to_string();
+    let chunks = entry
+        .get("chunks")
+        .cloned()
+        .unwrap_or(Value::Null)
+        .to_string();
+    format!("{dims}|{chunks}")
+}
+
+fn matvec_rows(floats: &[f32], rows: usize, cols: usize, x: &[f64]) -> Option<Vec<f64>> {
+    let mut y = Vec::with_capacity(rows);
+    for r in 0..rows {
+        let row = floats.get(r * cols..r * cols + cols)?;
+        let mut acc = 0.0f64;
+        for (k, w) in row.iter().enumerate() {
+            acc += f64::from(*w) * x[k];
+        }
+        y.push(acc);
+    }
+    Some(y)
+}
+
 /// CPU reference of the full `weights_matvec` (`y = W * x` from the hub store,
 /// real tensor bytes big-endian → f32). Returns None if the tensor is not
 /// registered or `x` length mismatches.
+///
+/// Memoized: parsed `Vec<f32>` is cached process-wide keyed on the tensor's
+/// `tensor#(dims|chunk-keys)` signature — the previous implementation re-read
+/// and re-decoded the whole 4 MiB tensor on every dispatch verification
+/// (~6 ms parse-dominant, vs ~1 ms of actual dot products).
 pub fn weights_matvec_reference(data_dir: &Path, tensor: &str, x: &[f64]) -> Option<Vec<f64>> {
     let entry = crate::boxes::weight_store::tensor_entry(data_dir, tensor)?;
     let dims = entry.get("dims")?.as_array()?;
@@ -506,6 +553,12 @@ pub fn weights_matvec_reference(data_dir: &Path, tensor: &str, x: &[f64]) -> Opt
     let cols = dims.get(1)?.as_u64()? as usize;
     if x.len() != cols {
         return None;
+    }
+    let sig = format!("{tensor}#{}", tensor_signature(&entry));
+    if let Ok(cache) = weights_memo().0.lock() {
+        if let Some((_, floats)) = cache.iter().find(|(k, _)| k == &sig) {
+            return matvec_rows(floats, rows, cols, x);
+        }
     }
     let bytes = crate::boxes::weight_store::tensor_bytes(data_dir, tensor)?;
     let floats: Vec<f32> = bytes
@@ -517,16 +570,13 @@ pub fn weights_matvec_reference(data_dir: &Path, tensor: &str, x: &[f64]) -> Opt
     if floats.len() != rows.checked_mul(cols)? {
         return None;
     }
-    let mut y = Vec::with_capacity(rows);
-    for r in 0..rows {
-        let row = floats.get(r * cols..r * cols + cols)?;
-        let mut acc = 0.0f64;
-        for (k, w) in row.iter().enumerate() {
-            acc += f64::from(*w) * x[k];
+    if let Ok(mut cache) = weights_memo().0.lock() {
+        if cache.len() >= WEIGHTS_MEMO_CAP {
+            cache.remove(0);
         }
-        y.push(acc);
+        cache.push((sig, floats.clone()));
     }
-    Some(y)
+    matvec_rows(&floats, rows, cols, x)
 }
 
 /// Number of layers of the end-to-end mini-LM (`y = W2 * silu(W1 * x)` per layer).
