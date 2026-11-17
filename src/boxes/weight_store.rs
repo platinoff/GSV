@@ -519,7 +519,7 @@ mod tests {
     #[test]
     fn store_root_defaults_under_data_dir() {
         // env unset: default `{data_dir}/wgpu_weights`.
-        crate::boxes::ENV_LOCK
+        let _guard = crate::boxes::ENV_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         // SAFETY: we own the env var for this test under ENV_LOCK.
@@ -535,7 +535,7 @@ mod tests {
 
     #[test]
     fn store_root_honors_env_override() {
-        crate::boxes::ENV_LOCK
+        let _guard = crate::boxes::ENV_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         unsafe { std::env::set_var("GSV_WEIGHTS_STORE_DIR", "/tmp/gsv-isolated") };

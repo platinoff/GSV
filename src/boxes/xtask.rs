@@ -464,6 +464,18 @@ pub fn run_live(repo_root: &Path, host: &str, port: u16) -> Result<(), String> {
     loop {
         let live = watchdog::copy_debug_to_live(repo_root)?;
         let mut child = Command::new(&live);
+        // Optional L: isolated mirror passthrough (owner 2026-11-18): no
+        // requirement to set env — fall back to auto-detect on disk.
+        if let Ok(mirror) = std::env::var("GSV_WEIGHTS_STORE_DIR") {
+            child.env("GSV_WEIGHTS_STORE_DIR", mirror);
+        } else if std::path::Path::new("/l/gsv_mirror/wgpu_weights").is_dir() {
+            child.env(
+                "GSV_WEIGHTS_STORE_DIR",
+                std::path::Path::new("/l/gsv_mirror/wgpu_weights")
+                    .to_string_lossy()
+                    .into_owned(),
+            );
+        }
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;

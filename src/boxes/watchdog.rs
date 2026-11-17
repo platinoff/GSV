@@ -721,6 +721,24 @@ pub fn spawn_live(repo_root: &Path, host: &str, port: u16) -> Result<SpawnOutcom
     if !crate::security::is_loopback_host(host) {
         cmd.arg("--allow-lan");
     }
+    // L: isolated mirror pilot (owner 2026-11-18): propagate an explicit
+    // env override, or auto-detect `/l/gsv_mirror/wgpu_weights` once that
+    // tree exists. Source fell back to the default S: store otherwise.
+    let mirror_override = std::env::var("GSV_WEIGHTS_STORE_DIR")
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty());
+    if let Some(m) = mirror_override {
+        cmd.env("GSV_WEIGHTS_STORE_DIR", m);
+    } else {
+        let auto_detect = std::path::Path::new("/l/gsv_mirror/wgpu_weights");
+        if auto_detect.is_dir() {
+            cmd.env(
+                "GSV_WEIGHTS_STORE_DIR",
+                auto_detect.to_string_lossy().into_owned(),
+            );
+        }
+    }
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
