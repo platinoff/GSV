@@ -46,6 +46,26 @@ fn main() {
     ));
     let _ = std::fs::create_dir_all(kit.join("docs/gsv"));
     let _ = std::fs::create_dir_all(kit.join("data"));
+    // FW-3: synthetic 4 MiB tensor so the hub-side weights-verify path can be
+    // benchmarked without the L: mirror or any "real" model weights.
+    let wkit = std::env::temp_dir().join(format!("gsv-weights-bench-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&wkit);
+    std::fs::create_dir_all(&wkit).expect("weights bench dir");
+    {
+        let mut w = Vec::with_capacity(2048 * 512 * 4);
+        for i in 0..2048 * 512usize {
+            w.extend_from_slice(&(((i % 1024) as f32) / 512.0).to_le_bytes());
+        }
+        let stored = gsv::boxes::weight_store::store_chunk(&wkit, &w).expect("store");
+        let key = stored["key"].as_str().expect("key").to_string();
+        let t = gsv::boxes::weight_store::register_tensor(
+            &wkit,
+            &serde_json::json!({"tensor":"bench.ffn_gate_shexp.weight","dims":[2048,512],"chunks":[key]}),
+        )
+        .expect("register");
+        debug_assert_eq!(t["ok"], true);
+    }
+    let wx: Vec<f64> = (0..512).map(|k| (((k % 7) as f64) - 3.0) * 0.25).collect();
     gsv::boxes::settings::save(
         &kit.join("data"),
         &gsv::boxes::settings::SettingsFile {
@@ -112,6 +132,7 @@ fn main() {
         ("hook_roadmap_band", 16usize),
         ("session_walk_abrakadabra", 4usize),
         ("tickets_next_action", 10_000usize),
+        ("weights_matvec_reference", 8usize),
     ] {
         let start = Instant::now();
         for i in 0..n {
@@ -199,6 +220,13 @@ fn main() {
                 }
                 "disk_report" => {
                     let _ = xtask::disk_report(&root, false);
+                }
+                "weights_matvec_reference" => {
+                    let _ = gsv::boxes::wgpu::weights_matvec_reference(
+                        &wkit,
+                        "bench.ffn_gate_shexp.weight",
+                        &wx,
+                    );
                 }
                 _ => unreachable!("gsv_dev: no bench case named {name}"),
             }
