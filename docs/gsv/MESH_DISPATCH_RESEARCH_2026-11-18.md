@@ -1,6 +1,7 @@
 # Dispatch Research 2026-11-18 — як проєкти оркеструють MoE / distributed inference (і що з цього дістається нашому флоту)
 
 **Date:** 2026-11-18 · **Author:** GSV drain session · **Audience:** owner + future agents
+**Status:** R1+R2 implemented & deployed live (commit `3ba2353`), A/B-verified via dispatch `g-199`; R3 refined (content-addressed chunks ⇒ no invalidation needed, only persistence).
 **Question (owner):** «проресерч як у кого в проектах релізовано логічно найкраще» — тобто як vLLM / Ray Serve / llm-d / Megatron-Core / KubeRay релізують паралельне виконання MoE, routing/scheduling, shared-expert placement, і що з цього відтворюється на нашому канвасі (fleet: Pi4 #36 cortex-a72, FF-PC #37 RDNA-2/Firefox-WebGPU, phones #35 valhall / #38 bifrost, усі за `https://LAN:9999`, hot-swap, Wi-Fi/4g, fleet замкнений).
 
 **Scope boundary:** код не змінюється; це документ-синтез + практичні висновки.
@@ -104,7 +105,7 @@ Industry standard — **predicted-latency routing** (llm-d) або **session-aff
 | Per-peer latency EWMA | `elapsed_ms` з кожного done task → EMA (α=0.3) в hub registry; enqueue обирає peer з найменшою EWMA, а не фіксований порядок |
 | Stale ready peers | `ready=true` з `last_seen_age_secs > TTL` → пропускати (аналог llm-d predicted-latency health) |
 | Phones sleep/wake | lease + requeue (у нас є claim/lease, треба гарантувати re-route при sleeper, а не failed) |
-| Battery/network aware | phoniics при 4g ~1.5 Mbps → upload 16 MiB/tensor ≈ 90 s; **ніколи не upload'ити повторно** — peer cache обов'язковий (у нас chunk registry на peer-фланзі вже відбувся: 46→86 chunks) |
+| Battery/network aware | phoniics при 4g ~1.5 Mbps → upload 16 MiB/tensor ≈ 90 s; **ніколи не upload'ити повторно** — persistent peer cache обов'язковий (hub-side у нас L: mirror 46→86 chunks; peer-side — лише per-session memory, див. R3) |
 | FF-PC freeze (27 tasks) | industry fix = health probe + LB de-register. У нас `last_seen_age_secs=1` при 0 claim — означає page живий, JS-цикл зупинений; причина: WebGPU suspend/resume після tab freeze — поза нашим контролем |
 
 ### 2.4 Verification
@@ -113,10 +114,10 @@ Industry: жоден фреймворк **не верифікує** числов
 
 ### 2.5 Шо є Non-Ideal у нашій реалізації (чесно)
 
-1. **Router**: `route_peers=[35,38,37,36]` — фіксований порядок; Pi4 (4.5 s/shard) отримав 83/140 завдань проти phones (10× швидше) — waste. Industry fix: predicted-latency weighting.
-2. **FF-PC ghost**: `ready=true proofs=25 tasks_done=26→25` — хтось де-дублює/переоблічує; подозра — enqueued task упав і був reclaimed, `ready_proofs` lagging. Діагностувати в `wgpu.rs` enqueue filter.
+1. ~~**Router**: `route_peers=[35,38,37,36]` — фіксований порядок~~ → **FIXED 2026-11-18 (R1/R2, `3ba2353`)**: EWMA-tier ranking; FF-PC ghost виключено; evidence у §3.1.
+2. ~~**FF-PC ghost**: `ready=true proofs=25 tasks_done=26→25`~~ → **FIXED 2026-11-18 (R2)**: `fresh_proofs` gate; FF-PC тепер `proofs_fresh=0` у /sys і **виключений з heavyweight route pool** до свіжого proofs.
 3. **No routed-expert EP**: найбільший perf-direct для 35B — 160 routed-expert tensors/blk (256 experts) лишаються un-distributed; при вазі ~48 MiB/blk×40 ≈ 1.9 GB, це viable лише через **precision-aware pre-load**, не per-token.
-4. **L: mirror vs peer cache**: L: (180 MB) — джерело істини для upload; peer-side частина повторної роботи при падінні peer — потребує peer-cache invalidation (у нас зараз chunk registry тільки hub-side; peer просто мовчки скіпнув старий chunk при rejoin через gate фільтр).
+4. ~~**L: mirror vs peer cache**~~ → **R3 refined (див. §3)**: peer-side cache — **per-session only** (`const CACHE={}` у page-JS, первинний процес page-reload на кожну сесію); persistence відсутній; staleness неможлива by construction (chunks = SHA-256 content-addressed) — бракує лише persistence+eviction.
 5. **No collective-protocol support** (AllToAll): будь-яке майбутнє EP/P-D впровадження потребує транспортний шар; LoC висока, вигоди сумнівна при Wi-Fi.
 
 ### 2.6 Що НЕ переноситься на наш канвас (і чому)
@@ -135,26 +136,45 @@ Industry: жоден фреймворк **не верифікує** числов
 
 ## 3. Прикладні рекомендації для GSV mesh (за зростанням зусиль)
 
-| # | Рекомендація | Зусилля | Ефект | Де |
+| # | Рекомендація | Зусилля | Ефект | Статус |
 |---|---|---|---|---|
-| R1 | **Predicted-latency EWMA routing** у `route_peers` selection: шардувати 3:1 phones:Pi4 при рівній готовності; Pi4 — лише bulk fallback | S (1–2 години, `weight_store`/`wgpu.rs`) | −60..80% makespan для blk dispatch | `src/boxes/wgpu.rs` enqueue route |
-| R2 | **Stale-proof TTL**: `ready_proofs` свіжістю < 300 s; інакше de-register з route pool (аналог llm-d predicted-latency) | S | FF-PC-подібні ghosts не плутатимуться | `wgpu.rs` ready filter |
-| R3 | **Peer-side chunk cache invalidation note** при `weights/manifest` bump — GSV hub уже віддає manifest; peer JS мусить re-fetch при delta | S (peer code поза GSV; doc + ticket) | Безпечні hot updates без 4 MiB re-upload-шторм | peer agent, spec |
-| R4 | **Multi-tensor task envelope**: `op=weights_matvec_block` env with 3 tensors in one task → один HTTP round-trip на block | M | −66% wake overhead на phones | `wgpu.rs` op design + peer |
-| R5 | **Replicated-shexp local-inference mode** (16/32/48 MiB/peer): якщо peer може тримати 1 blk — виконує без mesh round-trip | M–L | Найбільший speedup для phones | new mode flag |
-| R6 | **EP exploration для 35B routed experts** — тільки після R4/R5; попередньо model-side аналіз (кількість routed tensors в 35B, їх точність, можливість FP4) | L + owner gate | Диспетчіалізація 1.9 GB | research ticket |
-| R7 | **Keep max_err_model golden-x** як dispatch correctness gate, але додати **percentile p50/p99** report у benchmark (pi-writer) | S | Краще SLO visibility | `MESH_BENCHMARK_*.md` harness |
-| R8 | **FF-PC root-cause**: diagnostic read `about:config` WebGPU suspend log; власний трек | S owner | Повернути RDNA2 як eager-tier | owner / FF |
+| R1 | **Predicted-latency EWMA routing** in `route_peers`: tier-0 = fresh EWMA of recent `weights_matvec` samples (< 3600 s horizon, α=0.3), followed by fresh-proofed → stale-proofed → unproven probation | S | −60..80% makespan for blk dispatch | ✅ **DONE `3ba2353`** — live A/B `g-199` |
+| R2 | **Stale-proof TTL**: heavyweight gate requires ≥1 fresh proof (< `PROOF_FRESH_SECS=3600`) while any fresh peer is alive; falls back to all-time proofs when nothing is fresh fleet-wide (no lockout). `ready`/`ready_proofs` telemetry unchanged; new `proofs_fresh` field | S | FF-PC ghost excluded from MiniCPM dispatch | ✅ **DONE `3ba2353`** (+ `peer_poll` + enqueue gate, `proof_gate()`; telemetry in `/api/sys/metrics`) |
+| R3 | **Persistent peer chunk cache** (IndexedDB/OPFS): peer-JS currently keeps chunks in memory only (`const CACHE={}`, per-page-session) → every fresh page load re-downloads ~16 MiB per tensor over 4g Wi-Fi. Chunks are **SHA-256 content-addressed** (`chunk?key=` + `crypto.subtle.digest` verify in page-JS), so staleness is impossible by construction — **no invalidation protocol needed**, only an LRU quota + manifest-`(tensors[])` presence check. Same page, same hub endpoints, pure peer-side change | M | −16 MiB × tensor re-download per session; phone wake latency ↓↓ | OPEN — page-JS lives in `wgpu.rs :: page()` |
+| R4 | **Multi-tensor task envelope**: `op=weights_matvec_block` env with 3 tensors in one task → один HTTP round-trip на block | M | −66% wake overhead на phones | OPEN — wire-change, **owner gate** |
+| R5 | **Replicated-shexp local-inference mode** (16/32/48 MiB/peer): якщо peer може тримати 1 blk — виконує без mesh round-trip | M–L | Найбільший speedup для phones | OPEN — needs design note |
+| R6 | **EP exploration for 35B routed experts** — only after R4/R5 | L + owner gate | Диспетчіалізація 1.9 GB | OPEN |
+| R7 | **Keep max_err_model golden-x** as dispatch correctness gate, plus **p50/p99** report in benchmark | S | Краще SLO visibility | OPEN — bench harness change |
+| R8 | **FF-PC root-cause**: `about:config` WebGPU suspend log; or accept FF-PC as QA-tier | S owner | Повернути RDNA2 як eager-tier | OPEN — owner |
+
+### 3.1 Live A/B evidence — dispatch `g-199` (2026-11-18, post `3ba2353`)
+
+Dispatched `weights_matvec blk.12.ffn_gate_shexp.weight` shards=4 via `/api/wgpu/task/enqueue`:
+
+```json
+{"group_id":"g-199","route_peers":[35,38,36],"task_ids":["mt-199-0","mt-199-1","mt-199-2","mt-199-3"]}
+```
+
+**FF-PC (37) is absent** from the heavyweight route pool — `proofs_fresh=0` (all 25 proofs older than the 3600 s horizon), while valhall (18) and bifrost (21) are fresh. Claims followed route hint + sticky window with any-alive fallback:
+
+| task | peer | elapsed | max_err_model |
+|---|---|---:|---:|
+| mt-199-0 | #35 valhall | **22 ms** | 4.47e-7 |
+| mt-199-1 | #36 Pi4 (fallback claim) | 1668 ms | 6.57e-7 |
+| mt-199-2 | #38 bifrost | **13.7 ms** | 4.52e-7 |
+| mt-199-3 | #38 bifrost | **176 ms** | 3.66e-7 |
+
+Phones claimed instantly; Pi4 took one shard via fallback — exactly the intended traffic shaping (before R1, the fixed `[35,38,37,37,36]` handed FF-PC up to half the shards with zero completions). `/api/sys/metrics` now carries `proofs_fresh` next to `ready_proofs`.
 
 ---
 
 ## 4. Що конкретно робити ДАЛІ (практично)
 
-1. **Цей резервний документ** — підшитий у канон (посилання з HANDOFF/NEXT).
-2. **R1 + R2** — фактично це одна зміна в `wgpu.rs`: `route_peers` selection на основі `(ready, proofs-fresh, EWMA(elapsed_ms))` замість фіксованого `[35,38,37,36]`. Гейти: `cargo test --lib`, stand-smoke 86/86, одна commit.
-3. **R4** — обговорити власника: extension op `weights_matvec_block` (один request → 3 done directives, один wake). Це **єдина** зміна в wire protocol, потрібна для phones-sleep.
-4. **R6** — покласти в backlog доки не буде consumer; нічого не будувати.
-5. **Документ не потребує власника** — discovery-only; виконання R1/R2/R4/R8 — окремі тікети.
+1. ~~**R1 + R2**~~ — **DONE** (`3ba2353`; 509/509 lib, clippy 0, fmt clean; live take-over via `/api/update/apply`; HKCU vbs auto-respawn verified ≈10 s outage; A/B `g-199` green).
+2. **R7** — p50/p99 in the next benchmark re-run; `data/wgpu_tasks.jsonl` is the source.
+3. **R3** — peer persistent cache (IndexedDB/OPFS, LRU, no protocol change); candidate: page-JS `downloadWeightsFlat` + `CACHE` wrapper keyed by chunk SHA-256; note the GSV service worker precaches the Galaxy *shell* (band 148) — this is the weights path, not the shell.
+4. **R4** — still owner-gated wire change (`weights_matvec_block`), not started.
+5. Document remains discovery/decision canon — owner gates unchanged.
 
 ---
 
