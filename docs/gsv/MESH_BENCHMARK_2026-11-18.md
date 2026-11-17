@@ -52,6 +52,21 @@
 - FF-PC's perpetual 27 stop indicates tab-backgrounded webGPU-strand suspension — not mesh bug.
 - Phones were alternately alive/dead across session (hot-swap); active phone tasks available at snapshots: valhall + bifrost group
 
+## Distribution log — blk.13…blk.18 (2026-11-18, automated dump → mirror → enqueue)
+
+18 of 40 layers dispatched live to the fleet through the hub (`rusty dump-f32` → chunk upload → `register_tensor` → `weights_matvec` shards=4). L: mirror now holds **55 chunks** (~220 MB). FF-PC #37 correctly absent (`proofs_fresh=0`, R2 gate) throughout.
+
+| Group | Tensor | Peers | Result |
+|---|---|---|---|
+| g-201…203 | blk.13 gate/up/down | 35·38·36 | 12/12 done · err ≤ 3.0e-6 |
+| g-204…206 | blk.14 gate/up/down | 35·38·36 | 12/12 done · err ≤ 3.2e-6 |
+| g-207…209 | blk.15 gate/up/down | 35·38·36 | 12/12 done · err ≤ 2.9e-6 |
+| g-210…212 | blk.16 gate/up/down | 35·38·36 | 12/12 done · err ≤ 2.8e-6 |
+| g-213…215 | blk.17 gate/up/down | 35·38·36 | 12/12 done |
+| g-216…218 | blk.18 gate/up/down | 35·38·36 | 12/12 done |
+
+**72/72 shards done · 0 failed · max_err_model = 6.63e-6** (cap 1.0e-2). Phones #35/#38 claim in 9–176 ms per shard; Pi4 #36 is the quota-fallback tier (≈2–8 s per shard) — exactly the FW/R1 traffic shaping target.
+
 ## R7 addendum — percentiles over ALL logged `weights_matvec` (n=150, through g-199)
 
 Fleet-wide distribution is **bimodal** — Pi4-class ARM CPU vs WebGPU phones — so overall percentiles mix two populations; per-peer table is the honest view:
