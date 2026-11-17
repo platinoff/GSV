@@ -862,6 +862,10 @@ fn mesh_peers_summary(data_dir: &Path) -> Value {
                 // FW-2: WebGPU device loss counter (from the peer poll body).
                 "device_lost_count": p.get("device_lost_count").cloned().unwrap_or(Value::Null),
                 "device_lost_reason": p.get("device_lost_reason").cloned().unwrap_or(Value::Null),
+                // FW-4: browser-reported WebGPU features (shader-f16 …) — router nudge.
+                "features": ds_get("features"),
+                "maxBufferMB": ds_get("maxBufferMB"),
+                "maxStorageMB": ds_get("maxStorageMB"),
                 "mflops": peer_mflops(p),
                 "last_task": peer_last_task(p),
                 "cores": peer_cores(p),

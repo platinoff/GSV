@@ -241,6 +241,17 @@ fn is_heavyweight(op: &str) -> bool {
     matches!(op, "weights_matvec")
 }
 
+/// FW-4: true when the peer advertised the `shader-f16` WebGPU feature
+/// (row `device_status.features`, written by the page at join time).
+/// Routing tie-break only — gate (R2) and EWMA (R1) are unchanged.
+pub(crate) fn peer_has_f16(p: &Value) -> bool {
+    p.get("device_status")
+        .and_then(|d| d.get("features"))
+        .and_then(Value::as_array)
+        .map(|a| a.iter().any(|f| f.as_str() == Some("shader-f16")))
+        .unwrap_or(false)
+}
+
 /// Rank peers for routing: alive first, then tier (fresh-predicted latency →
 /// fresh-proofed → stale-proofed → unproven), then evidence within tier.
 /// Bootstrap (probation) floor: a peer with zero measurements AND zero task
@@ -322,6 +333,7 @@ fn ranked_peers(peers: &[Value], tasks: &[Value], now: u64) -> Vec<(u64, f64, bo
         alive: bool,
         tier: u8,
         key: f64,
+        has_f16: bool,
     }
     let mut rows: Vec<Ranked> = Vec::new();
     for p in peers.iter() {
@@ -358,12 +370,16 @@ fn ranked_peers(peers: &[Value], tasks: &[Value], now: u64) -> Vec<(u64, f64, bo
             alive,
             tier,
             key,
+            has_f16: peer_has_f16(p),
         });
     }
     rows.sort_by(|a, b| {
         b.alive
             .cmp(&a.alive)
             .then(a.tier.cmp(&b.tier))
+            // FW-4: f16-capable peers get a persuasion nudge inside the tier
+            // (WGSL fp16 dot products are register-dense on Mali/Apple GPUs).
+            .then(b.has_f16.cmp(&a.has_f16))
             .then(if a.tier == 0 {
                 // EWMA: smaller predicted makespan first.
                 a.key
@@ -2535,6 +2551,19 @@ async function browserDeviceStatus(){
     }
   }catch(e){}
   try{
+    if(navigator.gpu){
+      const ad=await navigator.gpu.requestAdapter();
+      if(ad){
+        const f=ad.features||new Set();
+        s.features=[];
+        if(typeof f.has==='function'){['shader-f16','subgroups','chromium-experimental-subgroups','timestamp-query','texture-compression-astc'].forEach(k=>{if(f.has(k))s.features.push(k);});}
+        const lim=ad.limits||{};
+        s.maxBufferMB=lim.maxBufferSize?Math.floor(lim.maxBufferSize/(1024*1024)):null;
+        s.maxStorageMB=lim.maxStorageBufferBindingSize?Math.floor(lim.maxStorageBufferBindingSize/(1024*1024)):null;
+      }
+    }
+  }catch(e){s.features=[];}
+  try{
     if(navigator.getBattery){const b=await navigator.getBattery();s.battery_level=b.level??null;s.battery_charging=!!b.charging;}
   }catch(e){}
   try{
@@ -2736,6 +2765,33 @@ mod tests {
         assert!(p.contains("Enqueue bench matvec (64x)"));
         assert!(p.contains("Local bench matvec (64x)"));
         assert!(p.contains("const CACHE={}"));
+    }
+
+    #[test]
+    fn page_carries_features_probe_markers() {
+        // FW-4: peers advertise WebGPU features at join time (router nudge).
+        let p = page();
+        for marker in ["shader-f16", "chromium-experimental-subgroups", "features"] {
+            assert!(p.contains(marker), "missing FW-4 marker: {marker}");
+        }
+    }
+
+    #[test]
+    fn ranked_peers_prefers_f16_within_same_tier() {
+        let now = 1_000_000u64;
+        let mut f16_peer = test_peer(51, now);
+        f16_peer["device_status"] = json!({"features": ["shader-f16"]});
+        let plain = test_peer(52, now);
+        let peers = vec![f16_peer, plain];
+        // Identical non-weights samples → both in tier 0 (fallback EWMA), tied
+        // on EWMA → f16 must win.
+        let tasks = vec![
+            done_task(51, "matvec", now - 10, 100.0, 10.0),
+            done_task(52, "matvec", now - 10, 100.0, 10.0),
+        ];
+        let ranked = ranked_peers(&peers, &tasks, now);
+        assert_eq!(ranked[0].0, 51);
+        assert_eq!(ranked[1].0, 52);
     }
 
     #[test]
