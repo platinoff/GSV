@@ -239,7 +239,7 @@ fn claimed_by(tasks: &[Value], peer_id: u64) -> u64 {
 /// (`matmul64`, `matvec`, `matvec_shard`, …) stay open so an unproven peer
 /// can bootstrap its first proof.
 fn is_heavyweight(op: &str) -> bool {
-    matches!(op, "weights_matvec")
+    matches!(op, "weights_matvec" | "weights_matvec_block")
 }
 
 /// FW-4: true when the peer advertised the `shader-f16` WebGPU feature
@@ -410,7 +410,7 @@ fn best_peer_for_task(peers: &[Value], tasks: &[Value], now: u64) -> Option<u64>
 }
 
 /// Operations a mesh peer can execute (page-side WGSL runners).
-pub const SUPPORTED_OPS: [&str; 8] = [
+pub const SUPPORTED_OPS: [&str; 9] = [
     "matmul64",
     "matvec",
     "matvec_shard",
@@ -419,6 +419,7 @@ pub const SUPPORTED_OPS: [&str; 8] = [
     "softmax",
     "minilm",
     "weights_matvec",
+    "weights_matvec_block",
 ];
 
 /// Dims string per op (mirrors the page-side WGSL runners).
@@ -432,6 +433,7 @@ pub fn op_dims(op: &str) -> &'static str {
         "softmax" => "1024",
         "minilm" => "1024x1024",
         "weights_matvec" => "by-tensor",
+        "weights_matvec_block" => "by-block",
         _ => "?",
     }
 }
@@ -1319,6 +1321,92 @@ pub fn task_result(data_dir: &Path, body: &Value) -> Result<Value, String> {
                     }
                 }
             }
+            // R4: multi-tensor block — hub re-verifies every item in the block
+            // before accepting the outcome (per-item golden-x + row-slice compare).
+            if task_op == "weights_matvec_block" && !mismatch {
+                let items = t
+                    .get("items")
+                    .and_then(Value::as_array)
+                    .cloned()
+                    .unwrap_or_default();
+                let posted = body
+                    .get("items")
+                    .and_then(Value::as_array)
+                    .cloned()
+                    .unwrap_or_default();
+                if items.len() != posted.len() {
+                    t["status"] = json!("failed");
+                    t["error"] = json!(format!(
+                        "block item count mismatch: posted {} vs task {}",
+                        posted.len(),
+                        items.len()
+                    ));
+                } else {
+                    let mut block_max: f64 = 0.0;
+                    let mut failures: Vec<String> = Vec::new();
+                    for (i, item) in items.iter().enumerate() {
+                        let tensor = item
+                            .get("tensor")
+                            .and_then(Value::as_str)
+                            .unwrap_or("")
+                            .to_string();
+                        let x: Vec<f64> = item
+                            .get("x")
+                            .and_then(Value::as_array)
+                            .map(|a| a.iter().map(|v| v.as_f64().unwrap_or(0.0)).collect())
+                            .unwrap_or_default();
+                        let row_start =
+                            item.get("row_start").and_then(Value::as_u64).unwrap_or(0) as usize;
+                        let row_end =
+                            item.get("row_end").and_then(Value::as_u64).unwrap_or(0) as usize;
+                        let partial: Vec<Value> = posted
+                            .get(i)
+                            .and_then(|p| p.get("partial"))
+                            .and_then(Value::as_array)
+                            .cloned()
+                            .unwrap_or_default();
+                        if partial.is_empty() {
+                            failures.push(format!("items[{i}] ({tensor}): no partial"));
+                            continue;
+                        }
+                        let Some(full) = weights_matvec_reference(data_dir, &tensor, &x) else {
+                            failures
+                                .push(format!("items[{i}] ({tensor}): unknown tensor in registry"));
+                            continue;
+                        };
+                        if row_end > full.len() {
+                            failures
+                                .push(format!("items[{i}] ({tensor}): row range out of bounds"));
+                            continue;
+                        }
+                        let seg = &full[row_start..row_end];
+                        if partial.len() != seg.len() {
+                            failures.push(format!(
+                                "items[{i}] ({tensor}): partial length mismatch: got {} vs seg {}",
+                                partial.len(),
+                                seg.len()
+                            ));
+                            continue;
+                        }
+                        let mut max = 0.0f64;
+                        for (j, v) in partial.iter().enumerate() {
+                            let e = (v.as_f64().unwrap_or(f64::NAN) - seg[j]).abs();
+                            if e > max {
+                                max = e;
+                            }
+                        }
+                        if max > 1e-2 {
+                            failures.push(format!("items[{i}] ({tensor}): model mismatch: {max}"));
+                        }
+                        block_max = block_max.max(max);
+                    }
+                    t["max_err_model"] = json!(block_max);
+                    if !failures.is_empty() {
+                        t["status"] = json!("failed");
+                        t["error"] = json!(format!("block mismatch: {}", failures.join("; ")));
+                    }
+                }
+            }
             if task_op == "matvec_shard" && !mismatch {
                 // A shard task that returns no partial is not a success — mark
                 // failed so the generic branch cannot report `done` for it.
@@ -1368,6 +1456,195 @@ pub fn task_result(data_dir: &Path, body: &Value) -> Result<Value, String> {
 }
 
 /// Owner/hub enqueues one mesh task (`op` must be a supported page runner).
+/// R4: multi-tensor block dispatch. ONE task per shard executes every item
+/// (`{tensor, x}`) in sequence — the phone wakes once per block instead of
+/// once per tensor, which is the whole point of the block op (fewer wake
+/// cycles, bigger quanta, fewer HTTP round-trips). Shards split each item's
+/// row range evenly; per-shard peers execute all items for their own slice.
+/// Verification is per-item identical to `weights_matvec` (hub-side
+/// golden-x re-compute + max_err_model).
+fn enqueue_weights_matvec_block(data_dir: &Path, body: &Value) -> Result<Value, String> {
+    const MAX_ITEMS: usize = 8;
+    let shards = parse_shards(body)?;
+    let items = body
+        .get("items")
+        .and_then(Value::as_array)
+        .ok_or("field `items` must be an array of {tensor,x} objects (1..=8)")?;
+    if items.is_empty() || items.len() > MAX_ITEMS {
+        return Err(format!("field `items` must have 1..={MAX_ITEMS} entries"));
+    }
+    // Validate every item against the weight store registry.
+    struct Item {
+        tensor: String,
+        rows: usize,
+        cols: usize,
+        x: Vec<f64>,
+    }
+    let mut out: Vec<Item> = Vec::with_capacity(items.len());
+    for (i, item) in items.iter().enumerate() {
+        let tensor = item
+            .get("tensor")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|s| !s.is_empty() && s.len() <= 128)
+            .ok_or_else(|| format!("items[{i}].tensor must be a non-empty string"))?;
+        if !tensor
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-' | '/'))
+        {
+            return Err(format!(
+                "items[{i}].tensor may contain only [a-zA-Z0-9._/-]"
+            ));
+        }
+        let entry =
+            crate::boxes::weight_store::tensor_entry(data_dir, tensor).ok_or_else(|| {
+                format!("items[{i}] tensor `{tensor}` is not registered in the weight store")
+            })?;
+        let dims_v = entry
+            .get("dims")
+            .and_then(Value::as_array)
+            .ok_or_else(|| format!("items[{i}] tensor entry has no dims"))?;
+        let rows = dims_v
+            .first()
+            .and_then(Value::as_u64)
+            .ok_or_else(|| format!("items[{i}].dims[0] must be a number"))?
+            as usize;
+        let cols = dims_v
+            .get(1)
+            .and_then(Value::as_u64)
+            .ok_or_else(|| format!("items[{i}].dims[1] must be a number"))?
+            as usize;
+        if rows == 0 || !rows.is_multiple_of(shards) {
+            return Err(format!(
+                "items[{i}] rows {rows} must divide evenly into {shards} shards"
+            ));
+        }
+        let x = item
+            .get("x")
+            .and_then(Value::as_array)
+            .ok_or_else(|| format!("items[{i}].x must be an array"))?
+            .iter()
+            .map(|v| {
+                let f = v
+                    .as_f64()
+                    .ok_or_else(|| format!("items[{i}].x entries must be numbers"))?;
+                if !f.is_finite() {
+                    return Err(format!("items[{i}].x entries must be finite"));
+                }
+                Ok(f)
+            })
+            .collect::<Result<Vec<f64>, String>>()?;
+        if x.len() != cols {
+            return Err(format!(
+                "items[{i}].x must have exactly {cols} floats (got {})",
+                x.len()
+            ));
+        }
+        out.push(Item {
+            tensor: tensor.to_string(),
+            rows,
+            cols,
+            x,
+        });
+    }
+    let flops_per_shard = out
+        .iter()
+        .map(|it| (it.rows as u64) * (it.cols as u64) * 2 / shards as u64)
+        .sum::<u64>();
+    let flops_limit = max_flops_per_task();
+    if flops_per_shard > flops_limit {
+        audit_quota(
+            data_dir,
+            "enqueue_over_quota",
+            json!({"op": "weights_matvec_block", "shards": shards, "flops_per_shard": flops_per_shard, "limit": flops_limit}),
+        );
+        return Err(format!(
+            "block shard work {flops_per_shard} FLOP exceeds the quota {flops_limit} FLOP"
+        ));
+    }
+    let now = now_secs();
+    let _g = mesh_lock();
+    let path = data_dir.join(TASKS_FILE);
+    let mut tasks = read_jsonl(&path);
+    let seq = tasks
+        .iter()
+        .filter_map(|t| {
+            t.get("task_id")
+                .and_then(Value::as_str)
+                .and_then(|s| s.strip_prefix("mt-"))
+                .and_then(|s| s.split('-').next())
+                .and_then(|s| s.parse::<u64>().ok())
+        })
+        .max()
+        .unwrap_or(0)
+        + 1;
+    let group_id = format!("g-{seq}");
+    // Block is heavyweight — ready gate applies.
+    let peers_now = read_jsonl(&data_dir.join(PEERS_FILE));
+    let restrict_ready = true;
+    let ranked: Vec<u64> = ranked_peers(&peers_now, &tasks, now)
+        .into_iter()
+        .filter(|(_, _, alive)| *alive)
+        .map(|(id, _, _)| id)
+        .filter(|id| !restrict_ready || proof_gate(&peers_now, &tasks, *id, now))
+        .collect();
+    if ranked.is_empty() {
+        return Err(
+            "no ready peer alive — MiniCPM block queued until a proven device polls".to_string(),
+        );
+    }
+    // Each shard task carries ALL items for its own row slice of each item.
+    for shard_id in 0..shards {
+        let route = ranked.get(shard_id % ranked.len()).copied();
+        let row = {
+            let items_json: Vec<Value> = out
+                .iter()
+                .map(|it| {
+                    let per = it.rows / shards;
+                    json!({
+                        "tensor": it.tensor,
+                        "rows": it.rows,
+                        "cols": it.cols,
+                        "x": it.x,
+                        "row_start": shard_id * per,
+                        "row_end": (shard_id + 1) * per,
+                    })
+                })
+                .collect();
+            json!({
+                "task_id": format!("mt-{seq}-{shard_id}"),
+                "op": "weights_matvec_block",
+                "created_ts": now,
+                "status": "queued",
+                "shards": shards,
+                "shard_id": shard_id,
+                "shard_index": shard_id,
+                "group_id": group_id,
+                "route_peer": route,
+                "route_ts": now,
+                "flops_per_iter": flops_per_shard,
+                "iters": 1,
+                "items": items_json,
+            })
+        };
+        tasks.push(row);
+    }
+    if tasks.len() > MAX_TASKS {
+        let keep = tasks.len() - MAX_TASKS;
+        tasks.drain(..keep);
+    }
+    write_jsonl(&path, &tasks)?;
+    Ok(json!({
+        "ok": true,
+        "group_id": group_id,
+        "shards": shards,
+        "task_ids": (0..shards).map(|s| format!("mt-{seq}-{s}")).collect::<Vec<String>>(),
+        "route_peers": ranked,
+        "items": out.len(),
+        "total_flops": flops_per_shard,
+    }))
+}
+
 pub fn task_enqueue(data_dir: &Path, body: &Value) -> Result<Value, String> {
     let op = body
         .get("op")
@@ -1378,6 +1655,9 @@ pub fn task_enqueue(data_dir: &Path, body: &Value) -> Result<Value, String> {
             "unsupported op `{op}` (supported: {})",
             SUPPORTED_OPS.join(", ")
         ));
+    }
+    if op == "weights_matvec_block" {
+        return enqueue_weights_matvec_block(data_dir, body);
     }
     let dims = op_dims(op);
     let iters = parse_iters(body)?;
@@ -2588,6 +2868,28 @@ async function runWeightsMatvecGpu(tensor,shardId,shards,xArr){
   return {ok:true,adapter:r.adapterName,elapsed_ms:Math.round(total*100)/100,max_err:0,iters:1,mflops:Math.round(mflops*100)/100,ops_per_sec:Math.round(opsPerSec*100)/100,device_reused:reused,partial:Array.from(C)};
 }
 
+async function runWeightsMatvecBlock(items, shardId, shards){
+  const results=[];
+  let ok=true, maxErr=0, totalFlops=0;
+  const t0=performance.now();
+  for(const it of (items||[])){
+    const r=await runWeightsMatvec(it.tensor, shardId||0, shards||1, it.x||[]);
+    maxErr=Math.max(maxErr, r.max_err||0);
+    ok = ok && !!r.ok;
+    totalFlops += (it.rows||0)*(it.cols||0)*2;
+    results.push({tensor: it.tensor, ok: !!r.ok, partial: r.partial||[], max_err: r.max_err||0,
+      rows: it.rows, cols: it.cols, row_start: it.row_start, row_end: it.row_end,
+      elapsed_ms: r.elapsed_ms, device_reused: r.device_reused});
+  }
+  const total=performance.now()-t0;
+  const mflops=totalFlops/((total/1000)*1e6);
+  log('weights_matvec_block shard '+(shardId||0)+'/'+(shards||1)+': '+total.toFixed(2)+'ms · '+mflops.toFixed(2)+' MFLOPS · '+(items||[]).length+' tensors');
+  return {ok:ok, elapsed_ms:Math.round(total*100)/100, max_err:maxErr, iters:1, items:results,
+    mflops:Math.round(mflops*100)/100,
+    ops_per_sec:Math.round(((items||[]).length/((total/1000)||1e-9))*100)/100,
+    adapter:results.length&&results[0].adapter?results[0].adapter:'webgpu'};
+}
+
 async function matmulOnce(){return await runOp('matmul64',1);}
 async function matvecOnce(){return await runOp('matvec',1);}
 async function run(){
@@ -2699,7 +3001,7 @@ async function workerLoop(){
       if(d.ok&&d.task){
         const iters=d.task.iters||1;
         log('mesh task '+d.task.task_id+' ('+d.task.op+' x'+iters+')');
-        let r;try{if(d.task.op==='matvec_shard'){r=await runShard(d.task.shard_id||0,d.task.shards||1);}else if(d.task.op==='mlpblock'){r=await runBlock();}else if(d.task.op==='layernorm'){r=await runLayernorm();}else if(d.task.op==='softmax'){r=await runSoftmax();}else if(d.task.op==='minilm'){r=await runMinilm(d.task.token||0,d.task.layer||0);}else if(d.task.op==='weights_matvec'){r=await runWeightsMatvec(d.task.tensor,d.task.shard_index||0,d.task.shards||2,d.task.x||[]);}else{r=await runOp(d.task.op,iters);}}catch(e){r={ok:false,elapsed_ms:0,max_err:0,adapter:'error: '+String(e).slice(0,60)};log('task '+d.task.task_id+' ERR: '+r.adapter);}
+        let r;try{if(d.task.op==='matvec_shard'){r=await runShard(d.task.shard_id||0,d.task.shards||1);}else if(d.task.op==='mlpblock'){r=await runBlock();}else if(d.task.op==='layernorm'){r=await runLayernorm();}else if(d.task.op==='softmax'){r=await runSoftmax();}else if(d.task.op==='minilm'){r=await runMinilm(d.task.token||0,d.task.layer||0);}else if(d.task.op==='weights_matvec'){r=await runWeightsMatvec(d.task.tensor,d.task.shard_index||0,d.task.shards||2,d.task.x||[]);}else if(d.task.op==='weights_matvec_block'){r=await runWeightsMatvecBlock(d.task.items||[],d.task.shard_index||0,d.task.shards||1);}else{r=await runOp(d.task.op,iters);}}catch(e){r={ok:false,elapsed_ms:0,max_err:0,adapter:'error: '+String(e).slice(0,60)};log('task '+d.task.task_id+' ERR: '+r.adapter);}
         if(d.task.op==='minilm'){
           const lay=(d.task.layer||0)+1;
           if(r.ok&&(lay<2)){await fetch('api/wgpu/task/enqueue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'minilm',token:d.task.token||0,layer:lay})});}
@@ -2926,6 +3228,87 @@ mod tests {
         ] {
             assert!(p.contains(marker), "missing FW-2 marker: {marker}");
         }
+    }
+
+    #[test]
+    fn page_carries_block_op_markers() {
+        // R4: multi-tensor block op — one phone wake per block.
+        let p = page();
+        for marker in ["weights_matvec_block", "runWeightsMatvecBlock"] {
+            assert!(p.contains(marker), "missing R4 marker: {marker}");
+        }
+    }
+
+    #[test]
+    fn enqueue_weights_matvec_block_validates_and_shards() {
+        let dir = temp_dir("mesh_block_enq");
+        // Set up a peer with a fake weights proof so the heavyweight gate passes.
+        let a = peer_join(&dir, &json!({"adapter":"a","ua":"u"})).expect("join");
+        let pid_a = a["peer_id"].as_u64().unwrap();
+        {
+            let path = dir.join(TASKS_FILE);
+            let mut tasks = read_jsonl(&path);
+            tasks.push(json!({
+                "task_id": "mt-fake-1",
+                "status": "done",
+                "peer_id": pid_a,
+                "op": "weights_matvec",
+                "done_ts": now_secs(),
+                "max_err_model": 5e-7,
+                "elapsed_ms": 10.0,
+                "mflops": 10.0,
+            }));
+            write_jsonl(&path, &tasks).unwrap();
+        }
+        // Register a tiny tensor in the store: 4×2 f32 = 32 B.
+        let payload: Vec<u8> = [1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
+            .iter()
+            .flat_map(|v| v.to_le_bytes())
+            .collect();
+        let s1 = crate::boxes::weight_store::store_chunk(&dir, &payload).expect("store");
+        let key = s1["key"].as_str().expect("key").to_string();
+        crate::boxes::weight_store::register_tensor(
+            &dir,
+            &json!({"tensor":"tiny_a","dims":[2,4],"chunks":[key]}),
+        )
+        .expect("register a");
+        crate::boxes::weight_store::register_tensor(
+            &dir,
+            &json!({"tensor":"tiny_b","dims":[2,4],"chunks":[key]}),
+        )
+        .expect("register b");
+        // Happy path: 2 items × 2 shards → 2 tasks.
+        let e = task_enqueue(
+            &dir,
+            &json!({"op":"weights_matvec_block","items":[
+                {"tensor":"tiny_a","x":[1.0,1.0,1.0,1.0]},
+                {"tensor":"tiny_b","x":[1.0,1.0,1.0,1.0]}
+            ],"shards":2}),
+        )
+        .expect("enqueue block");
+        assert_eq!(e["ok"], true);
+        assert_eq!(e["items"], 2);
+        assert_eq!(e["shards"], 2);
+        assert_eq!(e["task_ids"].as_array().unwrap().len(), 2);
+        // Empty items rejected.
+        assert!(task_enqueue(&dir, &json!({"op":"weights_matvec_block","items":[]})).is_err());
+        // Unknown tensor rejected.
+        assert!(task_enqueue(
+            &dir,
+            &json!({"op":"weights_matvec_block","items":[
+                {"tensor":"no_such_tensor","x":[1.0,1.0,1.0,1.0]}
+            ]})
+        )
+        .is_err());
+        // x of wrong length rejected.
+        assert!(task_enqueue(
+            &dir,
+            &json!({"op":"weights_matvec_block","items":[
+                {"tensor":"tiny_a","x":[1.0,1.0]}
+            ]})
+        )
+        .is_err());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
