@@ -7,7 +7,7 @@
 use serde_json::{json, Value};
 
 /// Cache Storage name (bump when PRECACHE membership changes).
-pub const CACHE_NAME: &str = "gsv-shell-v2";
+pub const CACHE_NAME: &str = "gsv-shell-v3";
 
 /// Same-origin GET paths installed on `install`. No `/mcp`, `/events`, POST.
 pub const PRECACHE: &[&str] = &[

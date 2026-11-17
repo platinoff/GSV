@@ -3008,7 +3008,7 @@ async function workerLoop(){
           else if(r.ok){const nt=r.next_token;const tk=d.task.token||0;if(nt!=null&&nt!==tk&&minilmSteps<8){minilmSteps++;await fetch('api/wgpu/task/enqueue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'minilm',token:nt,layer:0})});}}
         }
         log('task '+d.task.task_id+': '+(r.ok?'done':'failed')+' '+r.elapsed_ms+'ms/op max_err='+r.max_err.toExponential(2)+(r.mflops!==undefined?' · '+r.mflops+' MFLOPS · '+r.ops_per_sec+' ops/s':''));
-        await postResultWithRetry({peer_id:WORKER.peer,task_id:d.task.task_id,op:d.task.op,ok:r.ok,elapsed_ms:r.elapsed_ms,max_err:r.max_err,iters:r.iters,mflops:r.mflops,ops_per_sec:r.ops_per_sec,device_reused:r.device_reused,partial:r.partial});
+        await postResultWithRetry({peer_id:WORKER.peer,task_id:d.task.task_id,op:d.task.op,ok:r.ok,elapsed_ms:r.elapsed_ms,max_err:r.max_err,iters:r.iters,mflops:r.mflops,ops_per_sec:r.ops_per_sec,device_reused:r.device_reused,partial:r.partial,items:r.items});
         await refreshMesh();
       }
     }catch(e){fails++;if(fails===1||fails%10===0)log('worker: '+(fails>1?fails+' consecutive poll failures — ':'')+'hub unreachable (retrying…)');setNet(false);}
