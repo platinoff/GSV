@@ -17,24 +17,25 @@
 
 ## 0.3 L:\rust_swap — peer swap fabric (owner 2026-11-17)
 
-**Стан:** підготовлено ініціалізацію; робоча термоподібниця — телефон/PC читають HTTP-блоби через хаб; Pi4 вже має 2 GB zram (найкращий варіант swap для неї — RAM-based, kernel-level, SD не зачіпається).
+**Стан:** підготовлено кінцеву інфраструктуру; пірів читають HTTP-блоби через хаб; Pi4 вже має 2 GB zram (найкращий варіант swap для неї — RAM-based, kernel-level, SD не зачіпається).
+
+- `L:/wmswap/rust_swap.vdi` (32 GB VirtualBox-диск-образ) — **видалено owner-власником 2026-11-17** після збігу всіх доказів того, що воно не реєстроване ні в одній живій VM (порожня `.VirtualBox/Machines/`, `VBoxManage list hdds` порожній, обидві live VM records E_ACCESSDENIED з Dec 2023; `/c/Users/plati/VirtualBox VMs/` порожня). Жодні дані не втрачені. Диск звільнився на L: (53G → 21G used, 9.9G → 42G free). `L:/wmswap/` тепер порожня; `L:/rust_swap/` зберігає растущий peer-swap ledger/cache.
 
 | Компонент | Розташування | Статус |
 |-----------|--------------|--------|
 | NTFS cache | L:\rust_swap\cache | ✓ існує, порожній — чекає на імпорт блобів |
 | lease | L:\rust_swap\lease | ✓ існує — сюди йтимуть TTL-оригіни; життєвий цикл — hub-side |
 | ledger | L:\rust_swap\ledger | ✓ існує — JSONL audit trail |
-| swap_spec | L:\rust_swap\notes\SPEC.md | ✓ написано (формат — читається, опис контур заготовка) |
-| VDI swap | L:\wmswap\rust_swap.vdi (32 GB) | рементрі — власник ще встановить VM, поки ж без CPU |
-| Pi4 zram | /dev/zram0 (2 GB, priority 100, zstd) | ✓ вже активне — не чіпаємо |
-| Hub blob endpoint | `POST /api/wgpu/weights/chunk` / `GET .../chunk?key=<sha256>` | ✓ вже працює — аксіоматичний шлях блобів до peer-ів |
+| swap_spec | L:\rust_swap\notes\SPEC.md | ✓ опис контур заготовка |
+| VDI swap | L:\wmswap\rust_swap.vdi | **видал. 2026-11-17** (VirtualBox порожній каталог; Layout оновленим рішенням використати VM-режим GSV-арки — при оголошення call-to-action — має бути прошу owner-версія; тепер зберігаємо L:\rust_swap/ як fragmented blob store) |
+| Pi4 zram | /dev/zram0 (2 GB, priority 100, zstd) | ✓ активне — не чіпаємо |
+| Hub blob endpoint | `POST /api/wgpu/weights/chunk` / `GET .../chunk?key=<sha256>` | ✓ вже працює — простіш від monotonic route blob exchange |
 
-**Має перевірити власника:**
-- яка саме VM має монтувати VDI як swap (розмір/resources/типи)
-- чи треба прив'язати телефон-пірів до leased IDs через hub петлю досі
-- чи конструюється HTTP blob синхронізації через hub (раніше вже пішов маршрут) чи буде альт PW-меню
+**Має рішити власник:**
+- чи працювати далі на HTTP-блоб проксі як ядро для реальності storage L:\rust_swap (збагачення, не ламати)?
+- чи окремий Windows-сервіс для NBD/WS-шпиг — це поза сили не адмін/користувач (м больше) чи власник сам робить (owner-rights PC or server config).
 
-**НЕ робити:** Pi4 SD не зачіпати — RAM L2 swap достатній для демонстрації. NBD на Windows відсутній і не адміністраторський route.
+**НЕ робити:** Pi4 SD не зачіпати — RAM L2 swap достатній. NBD/NFS-сервер на цьому боксі не підняти без адміна/сервер-ліцензії; HTTP :9999 вже робить цю роботу радше саме.
 
 **Правило:** усі тести, які виконуються на пірах, роблять це без використання їхнього диску. Пирі (Pi 4, телефони) використовуємо тільки як виконавців, не як host для збірки чи запису фікстур.
 
