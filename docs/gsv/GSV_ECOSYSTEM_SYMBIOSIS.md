@@ -4,16 +4,19 @@
 
 ## 0. TL;DR
 
-- **GSV = тато (операційний план).** Galaxy UI, vision board, tickets board, ranks, keep-live,
+- **GSV = мама (операційний план, хаб).** Galaxy UI, vision board, tickets board, ranks, keep-live,
   watchdog, mesh (WASM + `/api/wgpu/*`), MCP sandbox, rolling logs, products discovery, vision docs.
   GSV **не** копіює FM poolAI; poolAI **не** друкує у GSV.
-- **poolAI = мама (FM/management план).** Function Management journal, sprint/FM board,
+- **poolAI = тато (FM/management план, генетичний фонт коду).** Function Management journal, sprint/FM board,
   концепт inference-orchestration (edge / RAID / VM), VDT-процедури, `poolai-vision-sync`,
   WSP-план (MiniCPM 35B). poolAI не тягає Galaxy; GSV не лізе в FM.
 - **Решта репозиторіїв — плагіни (діти).** Власні git-дерева, власний `target/`, власні локальні
   правила. GSV дає кров (kit, MCP, tickets, logs), poolAI дає ДНК (FM/WSP/генетичні патерни).
 - Цей документ — **узгоджений стан екосистеми на 2026-11-17** + **адаптований план симбіозу і
   розвантаження poolAI** + **повторюваний протокол пошуку зламаних і дубльованих речей**.
+- **Owner 2026-11-17 (flip):** poolAI = **тато** (генетичний фонт коду — перший проєкт власниці, на ньому вона вчилась);
+  GSV = **мама** (хаб — керує всією екосистемою, народжує плагіни/виконавців і тримає їх живими).
+  Метафору перевернуто owner'ом 2026-11-17; фактичний розподіл праці не міняється.
 
 ## 0.3 L:\rust_swap — peer swap fabric (owner 2026-11-17)
 
@@ -73,8 +76,8 @@
 
 | # | Вузол | Роль |
 |---|-------|------|
-| GSV `:9999` | хаб / тато (PC, 12 ядер, 7.6 GB RAM) | Galaxy UI + API + MCP + keep-live + watchdog |
-| poolAI | мама (FM/менеджмент; `:8091` полісі-даун) | FM journal, менджмент плагінів |
+| GSV `:9999` | хаб / мама (PC, 12 ядер, 7.6 GB RAM) | Galaxy UI + API + MCP + keep-live + watchdog |
+| poolAI | тато (FM/менеджмент; `:8091` полісі-даун) | FM journal, менджмент плагінів |
 | #35 valhall | Samsung SM-A546W (WebGPU телефон) | mesh-worker (Android) |
 | #36 pi4-cpu | Raspberry Pi 4 (cortex-a72, 4 ядра, 3 GB, wlan0 192.168.2.168) | mesh + llama_serve (будуємо llama-rs) |
 | #37 pc-wgpu | PC через Firefox (CPU-орієнтований, 12 ядра) | mesh (CPU/GPU test bolt) |
@@ -120,7 +123,7 @@
 | sport-forcast | `S:/rust/sport-forcast` | main | `3d8341e` | 0 / synced | 0.1.0 | yes | ok | приватний |
 | coreboard_labs_shop | `S:/rust/CoreBoard_Labs_shop` | main | `91480c2` | 0 / synced | 0.1.0 | yes | ok | приватний |
 | freebeat.ai | `S:/rust/freebeat.ai` | main | `87daf9e` | 0 / synced | — | **no** | n/a | безартефактного продукту; 18д тише |
-| mesh-node | `S:/rust/mesh-node` | main | `bc102c3` | 0 / **немає upstream** | — | **no** | n/a | Pi 4 agent; очікує `platinoff/mesh-node` (owner) |
+| mesh-node | `S:/rust/mesh-node` | main | `449726a` | 0 / **немає upstream** | — | **зареєстровано 2026-11-17** | n/a | Pi 4 agent; remote owner-gated |
 | platinoff-profile | `S:/rust/platinoff-profile` | main | `5d81430` | 0 / synced | — | **no** | n/a | 19д тише |
 | reebeat.ai | `S:/rust/reebeat.ai` | — | — | **не git-репо** | — | n/a | n/a | порожнє/лишилось після QK |
 | Tokenomica | `S:/rust/Tokenomica` | — | — | **не git-репо** | — | n/a | n/a | одноразовий rust→svg конвертер usage-даних |
@@ -146,7 +149,7 @@
 | `:8090/:8092` rusty_serve | **rusty-engine** | dormant | MoE/MiniCPM serve |
 | `:9800` telenetis | **telenetis** | live | commutation (switching) плагін |
 | `:20128` omniroute | **omniroute** | policy-down | usage dashboard (Node) |
-| `:8091` poolAI | **poolai** | **policy-down** (ECO-8.4) | inference оркестрація; мама-план |
+| `:8091` poolAI | **poolai** | **policy-down** (ECO-8.4) | inference оркестрація; тато-план |
 | `:9741` sport-forcast | **sport-forcast** | offline | Poland football forecast (private) |
 | mesh (Android ×2 + Pi + Firefox) | GSV/agents | **3/4 live** (bifrost, pi4, pc-wgpu) | WASM SIMD shards, verified `max_err_model ≤ 2.5e-6` |
 | `apk_edge` (Android phones) | engines | degraded | phone-edge worker |
@@ -190,15 +193,14 @@
   ~7.3 дні. → потребує оновлення банером на цей канон (фаза P1).
 - **telenetis**: HANDOFF/NEXT відсутні (лише `AGENTS.md`) — overnight band 227+ не знав про 228/233
   станів. → P1.
-- **mesh-node**: без HANDOFF (AGENTS.md + README) — прийнятно до реєстрації; після remote — дзерна
-  в PRODUCTS.md.
+- **mesh-node**: без HANDOFF (AGENTS.md + README) — зареєстровано в `PRODUCTS.md` 2026-11-17 як Pi-агент; remote `platinoff/mesh-node` лишається owner-gated.
 - **GSV-WGPU**: HANDOFF/NEXT родяться в ньому, але ніхто їх не читає (orphan). → ескорити в archive.
 - **GSV HANDOFF**: актуальний (ревізію оновлено 2026-11-17).
 
 ## 4. Розвантаження poolAI та симбіоз (адаптований план)
 
-**Цільова модель:** GSV — «тато» сервіси (сенсори, пам'ять, дія, безпека, мережа), poolAI —
-«мама» сервіси (план, ризик, FM, ритм релізів, концепт), плагіни — виконавці (engines/commutation).
+**Цільова модель (owner 2026-11-17 — метафору перевернуто):** GSV — «мама» сервіси (сенсори, пам'ять, дія, безпека, мережа — хаб, що керує екосистемою, народжує плагіни й тримає все живе; власниця вчилась на poolAI, тому генетичний фонт коду — тато), poolAI —
+«тато» сервіси (план, ризик, FM, ритм релізів, концепт — генетичний фонт коду, перший проєкт власниці), плагіни — виконавці (engines/commutation).
  poolAI **розвантажується** від того, що вже живе краще в GSV (vision-sync вірогідно, keep-live,
  products state/wiring, hygiene checks) і **концентрується** на власній FM-лінії, WSP/35B-дослідженнях
  та менеджменті плагінів.
@@ -282,7 +284,7 @@ heartbeats ≤ 60с; health ok.
 
 1. **RAM/EDR** — блокер №1 (хаб падав тричі 2026-11-17; RAM 750–810 MB вільних). Swап
    Firefox +/або перенесення `cargo`/serve на інший вузол; або EDR allowlist на `gsv-server.exe`.
-2. **mesh-node remote** (`github.com/platinoff/mesh-node`) — плюс register у PRODUCTS.md.
+2. **mesh-node remote** (`github.com/platinoff/mesh-node`) — register у PRODUCTS.md **зроблено 2026-11-17**; remote лишається owner-gated.
 3. **Orphan-дерева**: `GSV-WGPU` архів чи прибрати; `freebeat.ai`/`platinoff-profile` register чи
    архів; `reebeat.ai`/`Tokenomica` видалити чи перетворити в репо.
 4. **P1 go** — дозволити poolAI docs archive sweep + HANDOFF/NEXT банер + telenetis HANDOFF.

@@ -2,7 +2,7 @@
 
 Registered **plugins** the host skill [`abracadabra`](../../.agents/skills/abracadabra/SKILL.md) can **drain** (HANDOFF, tests, ratio). Node rows are enrichment only — no PH-S* invent, no GSV loc-audit.
 
-> **Екосистема як пара «тато і мама»:** [`GSV_ECOSYSTEM_SYMBIOSIS.md`](./GSV_ECOSYSTEM_SYMBIOSIS.md) — GSV (операційний план) / poolAI (FM/management план), живий стан 2026-11-17, дублі, протокол пошуку зламаних функцій, адаптований план розвантаження poolAI. **Функційний реєстр усіх проєктів:** [`GSV_FUNCTION_MANAGEMENT.md`](./GSV_FUNCTION_MANAGEMENT.md) — звірка функцій по репо, дублі (D1–D15), шар симбіозу, скелет per-project FM і відкриті owner-рішення.
+> **Екосистема як пара «тато і мама» (flip 2026-11-17):** [`GSV_ECOSYSTEM_SYMBIOSIS.md`](./GSV_ECOSYSTEM_SYMBIOSIS.md) — poolAI (FM/management план, **тато** — генетичний фонт коду) / GSV (операційний план, **мама** — хаб, народжує плагіни); живий стан 2026-11-17, дублі, протокол пошуку зламаних функцій, адаптований план розвантаження poolAI. **Функційний реєстр усіх проєктів:** [`GSV_FUNCTION_MANAGEMENT.md`](./GSV_FUNCTION_MANAGEMENT.md) — звірка функцій по репо, дублі (D1–D15), шар симбіозу, скелет per-project FM і owner-рішення.
 
 **Host vs plugin:** the rust folder that contains GSV is the host (`S:/rust/GSV`). Every other row is a **portable plugin** (own git tree, own `target/`). Canon: [`GSV_AGI_PATH.md`](./GSV_AGI_PATH.md).
 
@@ -27,6 +27,7 @@ This file only **enriches** a pick that is already registered.
 | **rusty-engine** | `S:/rust/rusty-engine` | `S:/rust/rusty-engine/docs/HANDOFF_NEW_SESSION.md` | `S:/rust/rusty-engine/docs/NEXT_SESSION_PROMPT.md` | `cargo fmt --all` → `cargo clippy --all-targets -- -D warnings` → `cargo test` (MIT, portable plugin; Rust-MoE core; **target model: MiniCPM-V 4.7 — official GGUF, no Python (B12)**; Docker only Win/Linux, Android via cargo-ndk) | Rust **95–100%** |
 | **sport-forcast** | `S:/rust/sport-forcast` | `S:/rust/sport-forcast/docs/HANDOFF_NEW_SESSION.md` | `S:/rust/sport-forcast/docs/NEXT_SESSION_PROMPT.md` | `cargo fmt --all` → `cargo clippy --all-targets -- -D warnings` → `cargo test` (proprietary, **private repo**, binary releases only; Poland football first; `:9741`) | Rust **95–100%** |
 | **gsv-wgpu** | `S:/rust/GSV-WGPU` | `S:/rust/GSV-WGPU/docs/HANDOFF_NEW_SESSION.md` | `S:/rust/GSV-WGPU/docs/NEXT_SESSION_PROMPT.md` | `cargo fmt --all` → `cargo clippy --all-targets -- -D warnings` → `cargo test` (MIT, WebGPU plugin core; band G0 scaffold: `GpuBroker`/scopes/tasks/grants) | Rust **95–100%** |
+| **mesh-node** | `S:/rust/mesh-node` | `S:/rust/mesh-node/AGENTS.md` (немає HANDOFF/NEXT; Pi-only агент) | — (немає drain; зареєстровано 2026-11-17 як Pi mesh-agent) | `cargo fmt -- --check` → `cargo clippy --all-targets` → `cargo test` (на ПК; на Pi 4 — лише `mesh-node selftest`) | n/a (agent) |
 
 **gsv-wgpu mesh plan (2026-11-12, owner):** bands A/B/C closed — browser mesh worker loop
 (join/poll/result), 2+ peers fan-out, `matvec` LLM shard as a mesh op; live mesh = 3 browser
