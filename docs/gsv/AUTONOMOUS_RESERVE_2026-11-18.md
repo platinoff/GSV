@@ -58,7 +58,7 @@
 | (research baseline) | R1 routing · R2 stale-proof gate · R3 IndexedDB chunk cache · R7 percentiles · R5 parked | `3ba2353`…`4148823` |
 | FW-1 | stand-smoke `wgpu_page_r3` (88 checks, live `wgpu_page_r3=ok`) | `a3d0810` |
 | FW-2 | `device.lost` watch + `device_lost_count/reason` in poll body → hub peer row + /sys pill + history JSONL | `a3d0810` |
-| FW-3 | bench op `weights_matvec_reference` (4 MiB synthetic tensor in `gsv_dev`); verify path measures **6.13 ms/iter** (parse-dominant) — candidate for memoization cache later | bench committed `a3d0810` cycle |
+| FW-3 | bench op `weights_matvec_reference` (4 MiB synthetic tensor in `gsv_dev`): measured 6.13 ms/iter parse-dominant → **optimized memo** keyed on `tensor#(dims\|chunk-keys)` (chunks SHA-256 content-addressed) → **1.83 ms/iter mean**, ~1 ms warm (the production case). Live A/B `g-200` verified | `780d5d0` |
 | FW-4 | page `features` probe (shader-f16/subgroups/maxBufferMB) → `device_status` → /sys + `ranked_peers` in-tier f16 nudge | `c7fff7c` |
 | FW-5 | **PARKED** — analysis only: page already does per-session runner + buffer caching, single-fused-dispatch kernels, SiLU inline, R3 persistence, WASM fallback | `AUTONOMOUS_RESERVE` §FW-5 |
 
