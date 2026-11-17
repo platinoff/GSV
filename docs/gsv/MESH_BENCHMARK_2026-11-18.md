@@ -44,7 +44,10 @@
 
 - Pi 4 is the **workhorse**: 83 of 140 tasks but most expensive per task (4.54 s/task).
 - Phones are **cheaper per task & similar quality** (~10× faster than Pi4) — WebGPU accelerated.
-- FF-PC 27 tasks stalled this session (Firefox suspend/return only).
+- FF-PC 27 tasks stalled this session (Firefox suspend/return only; not productive in bench slots) — FF-PC webGPU seems to be suspended/inactive for tasks.
 - 65 chunks served live through `L:/gsv_mirror/wgpu_weights` via `GSV_WEIGHTS_STORE_DIR` env var (`04feab3`).
 - Hub stayed alive through heavy load (watchdog auto-respawn).
 - Rust-side baseline bench (`cargo bench --bench gsv_dev` — not run this session due to EDR pressure).
+- 8-shard dispatch verified WORKING for `weights_matvec` (ALLOWED_SHARDS=[1,2,4,8]) — Mesh accepts and phones wake via hot-swap seeing larger fan-out.
+- FF-PC's perpetual 27 stop indicates tab-backgrounded webGPU-strand suspension — not mesh bug.
+- Phones were alternately alive/dead across session (hot-swap); active phone tasks available at snapshots: valhall + bifrost group
