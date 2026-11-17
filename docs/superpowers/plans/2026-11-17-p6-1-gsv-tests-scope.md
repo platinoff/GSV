@@ -42,5 +42,5 @@
 - stand-smoke 87/87 через `cargo test --features stand_smoke --test gsv_stand_smoke_contracts` та `cargo run --bin gsv-http-stand-smoke -- --base-url http://192.168.2.238:9999`
 
 ## Закриті розв'язки (2026-11-17)
-1. **stand_smoke_contracts feature-gate** — **зроблено owner-decreet e1b37ee**: default `cargo test` пропускає; `--features stand_smoke` → 9 passed.
+1. **stand_smoke_contracts feature-gate** — **зроблено (e1b37ee)**: default `cargo test` пропускає; `--features stand_smoke` → 9 passed.
 2. **Vision rev mirror** — відкрито; потрібен owner-decree: GSV canon rev 516 проти poolAI rev 499 — правило "rev == manifest" чи "rev ≥ фіксованої межі".
