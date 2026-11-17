@@ -59,3 +59,28 @@
 - `RATIO` ≥ 95 formal; ≥ 96 stretch.
 - `.pytest/jest` — нуль (у цьому домені: no Python e2e counterparty).
 - poolAI FM↔GSV tickets перевірки — тільки після P2 (виконано 2026-11-17).
+
+## P6.3 plugins audit (2026-11-18, owner "продовжуй")
+
+Evidence-based per-plugin pass; nothing green-claimed without a live run. Telenetis fixed in one
+fix-band after discovering the actual blockers (EDR wiping `target/debug/deps/` + renaming test
+exe out of `/deps/`; unguarded process-global env in parallel tests; `%TEMP%` fixtures). **This
+box cannot build/run Rust reliably — EDR is the dominant factor; every flake trace below is FS/env, not logic.**
+
+| Плагін | Стан тестів (живий прогін 2026-11-18) | Вердикт |
+|--------|----------------------------------------|---------|
+| sport-forcast | `cargo test` ✅ 39 passed | green, no changes |
+| telenetis | baseline fail 2 → **fix-band** (`is_cargo_test_harness` `cfg!(test)`; `%TEMP%` → `target/test-tmp`; `VENDOR_DIR` guard + nanos unique tmp) → ✅ **314/314 ×8 runs**; окремо зафіксовано: bin `telenetis-live.exe` в live (не чіпаємо) | green після фікс-банду (`9a8ae5b`) |
+| ORR_DESKTOP | `cargo test` ✅ 33 passed (2 ignored, pre-existing) | green |
+| CoreBoard_Labs_shop | `cargo test` ✅ 524 passed (513 lib + 11) | green |
+| LinFS | у роботі (фон) | pending |
+| llama-rs | 77 test fns; llama-cpp-sys-2 =0.1.154 + patches; системні ризики Pi/bindgen | pending (risk: sys build) |
+| rusty-engine | 300 test fns; parity/`#[ignore]` real-model (вартість ~1 GiB GGUF) | pending |
+
+**Cross-plugin-truth scan:** llama-rs `src/bin/llama_edge.rs:915–975` — synthetic synthetic-URL
+fixtures (token-mask + Endpoint), **не** live-hub await — PASS. rusty-engine `src/patch.rs:1008,1052` —
+absolute own-tree path under `#[ignore]` (real-GGUF smoke, owner-run) — PASS. telenetis doc-only
+references — PASS. **0 cross-plugin assertion dependencies found.**
+
+**Канон-урок (edr=owner-черга №1):** `%TEMP%` заборонено для фікстур; scratch у `target/test-tmp/`;
+process-global env мутації серіалізуються `ENV_GUARD`; тест-фікстури мають nanos-унікальні шляхи.
