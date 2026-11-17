@@ -304,3 +304,10 @@ heartbeats ≤ 60с; health ok.
 - Жодного переміщення файлів — P1 цього не робить без owner go.
 - Жодного скидання ревізій vision — rev 516 лишається.
 - Жодного touch на poolAI коді/target/.
+
+## 10. Live L: mirror persistent (added 2026-11-18)
+- **`GSV_WEIGHTS_STORE_DIR` landinged in GSV code** (`src/boxes/weight_store.rs` + watchdog spawn + `xtask run_live`) — 2 incr unit tests, `cargo test --lib 503/503` green, clippy 0 warnings.
+- **Auto-detect on boot:** if `GSV_WEIGHTS_STORE_DIR` is unset, watchdog/live auto-fills from `/l/gsv_mirror/wgpu_weights` when that path exists.
+- **Windows boot chain confirmed end-to-end:** `HKCU\CurrentVersion\Run\GSV-watchdog` (`wscript.exe → target/live/gsv_watchdog_start.vbs → gsv-watchdog.exe`) — reboot-simulation passed: after `kill` of both processes, running the registered command alone spawned live hub (`disk_ok=true`) correctly serving L: mirror (`86 chunks` in manifest). **No registry/schtasks change needed.**
+- **Default stays unchanged:** without L: or without folder, falls back to `{repo-root}/data/wgpu_weights/`.
+- **Owner gate resolved for persistence** (closed the prior owner-懸; not a Windows-side ops change).
