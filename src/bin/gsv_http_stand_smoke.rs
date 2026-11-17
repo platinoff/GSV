@@ -195,6 +195,45 @@ async fn check_status(client: &Client, base: &str, path: &str) -> Result<(), Str
     Ok(())
 }
 
+/// 200-level response whose body is `/wgpu` HTML and must carry the
+/// R3 (persistent peer chunk cache) markers in the correct order —
+/// `idbGet(c)` runs before the network fetch of the chunk.
+async fn check_wgpu_page_r3(client: &Client, base: &str) -> Result<(), String> {
+    let url = api_url(base, "/wgpu");
+    let resp = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("{url}: {e}"))?;
+    let status = resp.status();
+    if !status.is_success() {
+        return Err(format!("{url}: HTTP {}", status.as_u16()));
+    }
+    let body = resp.text().await.map_err(|e| format!("{url}: {e}"))?;
+    for marker in [
+        "indexedDB",
+        "gsv-mesh-weights",
+        "IDB_CAP",
+        "idbGet",
+        "idbPut",
+        "const CACHE={}",
+    ] {
+        if !body.contains(marker) {
+            return Err(format!("{url}: missing R3 marker `{marker}`"));
+        }
+    }
+    let cached = body
+        .find("idbGet(c)")
+        .ok_or_else(|| format!("{url}: idbGet(c) not found"))?;
+    let net = body
+        .find("api/wgpu/weights/chunk?key=")
+        .ok_or_else(|| format!("{url}: chunk fetch path not found"))?;
+    if cached >= net {
+        return Err(format!("{url}: R3 read must precede network fetch"));
+    }
+    Ok(())
+}
+
 /// `/api/ui/card/{name}` renders a non-empty `html` fragment with `ok: true`.
 async fn check_card(client: &Client, base: &str, card: &str) -> Result<(), String> {
     let url = api_url(base, &format!("/api/ui/card/{card}"));
@@ -388,6 +427,12 @@ async fn run_smokes(cli: &Cli) -> SmokeReport {
     )
     .await;
     record(&mut cases, "mcp", check_ok(&client, &cli.base_url, "/mcp")).await;
+    record(
+        &mut cases,
+        "wgpu_page_r3",
+        check_wgpu_page_r3(&client, &cli.base_url),
+    )
+    .await;
     record(
         &mut cases,
         "tracker",

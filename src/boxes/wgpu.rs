@@ -966,6 +966,29 @@ pub fn peer_poll(data_dir: &Path, body: &Value) -> Result<Value, String> {
     if let Some(i) = newest_idx {
         peers[i]["last_seen_ts"] = json!(now);
         peers[i]["lease_until"] = json!(now + PEER_LEASE_SECS);
+        // FW-2: peer-reported WebGPU device losses (FF-PC-class ghosts become visible).
+        let lost = body
+            .get("device_lost_count")
+            .and_then(Value::as_u64)
+            .unwrap_or(0);
+        if lost > 0 {
+            let cur = peers[i]
+                .get("device_lost_count")
+                .and_then(Value::as_u64)
+                .unwrap_or(0);
+            if lost > cur {
+                peers[i]["device_lost_count"] = json!(lost);
+            }
+        }
+        if let Some(r) = body
+            .get("device_lost_reason")
+            .and_then(Value::as_str)
+            .map(|s| s.chars().take(120).collect::<String>())
+        {
+            if !r.is_empty() {
+                peers[i]["device_lost_reason"] = json!(r);
+            }
+        }
     }
     let alive: Vec<u64> = peers
         .iter()
@@ -2083,11 +2106,22 @@ function idbEvict(){
 // `let` inside buildRunner shadowed it and every fresh page threw
 // `ReferenceError: adapterName is not defined`).
 let adapterName='adapter';
+let deviceLostCount=0;let deviceLostReason='';
+function watchDevice(device){
+  if(!device||typeof device.lost==='undefined')return;
+  device.lost.then(function(info){
+    deviceLostCount++;
+    const r=(info&&(info.message||info.reason))||'lost';
+    deviceLostReason=String(r).slice(0,120);
+    log('webgpu device lost #'+deviceLostCount+' ('+deviceLostReason+') — hub will see it on the next poll');
+  });
+}
 async function buildRunner(op,shardId,shards){
   if(!navigator.gpu){throw new Error('no navigator.gpu (secure-context gate: see hub notes)');}
   const adapter=await navigator.gpu.requestAdapter();
   if(!adapter){throw new Error('requestAdapter returned null');}
   const device=await adapter.requestDevice();
+  watchDevice(device);
   adapterName='adapter'; try{const i=adapter.info||{};adapterName=[i.vendor,i.architecture,i.device].filter(Boolean).join('/')||'adapter';}catch(e){}
   if(op==='matmul64'){
     const built=await buildMatmul(device);
@@ -2546,7 +2580,7 @@ async function workerLoop(){
   let fails=0;
   while(WORKER&&WORKER.running){
     try{
-      const d=await(await fetch('api/wgpu/task/poll',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({peer_id:WORKER.peer})})).json();
+      const d=await(await fetch('api/wgpu/task/poll',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({peer_id:WORKER.peer,device_lost_count:deviceLostCount,device_lost_reason:deviceLostReason||undefined})})).json();
       setNet(true);
       if(fails>0){log('hub: connection restored'+(fails>1?' (after '+fails+' failed polls)':''));fails=0;}
       if(d.ok===false&&(d.code==='unknown_peer'||/unknown peer/i.test(d.error||''))){
@@ -2702,6 +2736,22 @@ mod tests {
         assert!(p.contains("Enqueue bench matvec (64x)"));
         assert!(p.contains("Local bench matvec (64x)"));
         assert!(p.contains("const CACHE={}"));
+    }
+
+    #[test]
+    fn page_carries_device_lost_markers() {
+        // FW-2: WebGPU device loss becomes visible to the hub instead of
+        // leaving a silent ghost peer behind.
+        let p = page();
+        for marker in [
+            "deviceLostCount",
+            "watchDevice",
+            "device.lost",
+            "device_lost_count",
+            "device_lost_reason",
+        ] {
+            assert!(p.contains(marker), "missing FW-2 marker: {marker}");
+        }
     }
 
     #[test]

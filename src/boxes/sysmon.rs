@@ -859,6 +859,9 @@ fn mesh_peers_summary(data_dir: &Path) -> Value {
                 // shard (EWMA over recent weights_matvec samples; falls back
                 // to all done tasks). null with zero samples.
                 "ewma_elapsed_ms": ewma_elapsed_ms(&tasks, id).map(|(e, _)| (e * 100.0).round() / 100.0),
+                // FW-2: WebGPU device loss counter (from the peer poll body).
+                "device_lost_count": p.get("device_lost_count").cloned().unwrap_or(Value::Null),
+                "device_lost_reason": p.get("device_lost_reason").cloned().unwrap_or(Value::Null),
                 "mflops": peer_mflops(p),
                 "last_task": peer_last_task(p),
                 "cores": peer_cores(p),
@@ -1210,6 +1213,7 @@ pub fn history_row(wire: &Value) -> Value {
                 "proofs": p["ready_proofs"],
                 "proofs_fresh": p["proofs_fresh"],
                 "ewma_ms": p["ewma_elapsed_ms"],
+                "lost": p["device_lost_count"],
                 "class": p["device_class"],
                 "adapter": p["adapter"],
                 "mf": p["best_task_mflops"],
@@ -1564,6 +1568,7 @@ function renderPeers(peers) {
     '<div class="psub"><span>shard est <b>' + (p.est_shard_gb != null ? '~' + p.est_shard_gb.toFixed(1) + ' GB' : 'n/a') + '</b></span>' +
     '<span>tasks <b>' + (p.tasks_done ?? 0) + ' done / ' + (p.tasks_failed ?? 0) + ' fail</b></span>' +
     '<span title="EWMA of recent weights_matvec makespan (R1 routing predictor)">ewma <b>' + (p.ewma_elapsed_ms != null ? (p.ewma_elapsed_ms >= 1000 ? (p.ewma_elapsed_ms / 1000).toFixed(2) + ' s' : Math.round(p.ewma_elapsed_ms) + ' ms') : 'n/a') + '</b></span>' +
+    (p.device_lost_count ? '<span title="' + escapeHtml(p.device_lost_reason || 'webgpu device lost') + '">lost <b>' + p.device_lost_count + '</b></span>' : '') +
     '<span>weight err <b>' + fmtErr(p.weight_max_err) + '</b></span>' +
     (p.elapsed_sum_ms != null ? '<span>busy <b>' + fmtElapsed(p.elapsed_sum_ms) + '</b></span>' : '') +
     '<span>last <b>' + escapeHtml(p.last_task || '—') + '</b></span></div>' +
