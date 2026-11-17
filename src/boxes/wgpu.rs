@@ -1064,7 +1064,15 @@ pub fn peer_poll(data_dir: &Path, body: &Value) -> Result<Value, String> {
     write_jsonl(&peers_path, &peers)?;
     let tasks_path = data_dir.join(TASKS_FILE);
     let mut tasks = read_jsonl(&tasks_path);
-    // Requeue claims held by dead peers (lease expired -> back to the queue).
+    /// FW-7: requeue a stuck `claimed` regardless of holder liveness — a peer
+    /// that keeps polling but never posts a result (hub restart mid-flight)
+    /// would otherwise pin the task (and its shard) forever. Re-verification is
+    /// the whole point of golden-x, so the recompute is harmless by design.
+    /// Small enough that a truly-hung peer loses the task instead of stalling
+    /// the fleet; large enough that slow phone chunks are not yanked mid-flight.
+    const TASK_CLAIM_REQUEUE_SECS: u64 = 300;
+    // Requeue claims held by dead peers AND claims whose lease on the work
+    // expired (holder alive but claim older than the stuck window).
     for t in tasks.iter_mut() {
         if t.get("status").and_then(Value::as_str) == Some("claimed") {
             let holder_alive = t
@@ -1072,9 +1080,15 @@ pub fn peer_poll(data_dir: &Path, body: &Value) -> Result<Value, String> {
                 .and_then(Value::as_u64)
                 .map(|id| alive.contains(&id))
                 .unwrap_or(false);
-            if !holder_alive {
+            let stuck = t
+                .get("claimed_ts")
+                .and_then(Value::as_u64)
+                .map(|ts| now.saturating_sub(ts) > TASK_CLAIM_REQUEUE_SECS)
+                .unwrap_or(false);
+            if !holder_alive || stuck {
                 t["status"] = json!("queued");
                 t["requeued_ts"] = json!(now);
+                t["requeued_reason"] = json!(if stuck { "stuck-claim" } else { "holder-dead" });
             }
         }
     }
@@ -2655,6 +2669,20 @@ async function startWorker(){
   }catch(e){log('worker start error: '+e);}
 }
 function stopWorker(){if(WORKER)WORKER.running=false;WORKER=null;wjoin.disabled=false;wstop.disabled=true;setCap('worker stopped',true);log('mesh worker stopped');}
+async function postResultWithRetry(payload){
+  // FW-7: result POSTs die with the hub on deploys/restarts; retry with simple
+  // backoff so one task isn't pinned as `claimed` forever. If the hub is gone
+  // for good the task will be re-verified by another peer via golden-x.
+  for(let i=0;i<3;i++){
+    try{
+      const r=await fetch('api/wgpu/task/result',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      if(r.ok)return true;
+    }catch(e){}
+    if(i<2)await new Promise(res=>setTimeout(res,(i+1)*2000));
+  }
+  log('task result post FAILED after 3 attempts — shard will be re-verified by the next peer');
+  return false;
+}
 async function workerLoop(){
   let fails=0;
   while(WORKER&&WORKER.running){
@@ -2678,7 +2706,7 @@ async function workerLoop(){
           else if(r.ok){const nt=r.next_token;const tk=d.task.token||0;if(nt!=null&&nt!==tk&&minilmSteps<8){minilmSteps++;await fetch('api/wgpu/task/enqueue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'minilm',token:nt,layer:0})});}}
         }
         log('task '+d.task.task_id+': '+(r.ok?'done':'failed')+' '+r.elapsed_ms+'ms/op max_err='+r.max_err.toExponential(2)+(r.mflops!==undefined?' · '+r.mflops+' MFLOPS · '+r.ops_per_sec+' ops/s':''));
-        await fetch('api/wgpu/task/result',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({peer_id:WORKER.peer,task_id:d.task.task_id,op:d.task.op,ok:r.ok,elapsed_ms:r.elapsed_ms,max_err:r.max_err,iters:r.iters,mflops:r.mflops,ops_per_sec:r.ops_per_sec,device_reused:r.device_reused,partial:r.partial})});
+        await postResultWithRetry({peer_id:WORKER.peer,task_id:d.task.task_id,op:d.task.op,ok:r.ok,elapsed_ms:r.elapsed_ms,max_err:r.max_err,iters:r.iters,mflops:r.mflops,ops_per_sec:r.ops_per_sec,device_reused:r.device_reused,partial:r.partial});
         await refreshMesh();
       }
     }catch(e){fails++;if(fails===1||fails%10===0)log('worker: '+(fails>1?fails+' consecutive poll failures — ':'')+'hub unreachable (retrying…)');setNet(false);}
@@ -2842,6 +2870,46 @@ mod tests {
         let ranked = ranked_peers(&peers, &tasks, now);
         assert_eq!(ranked[0].0, 51);
         assert_eq!(ranked[1].0, 52);
+    }
+
+    #[test]
+    fn peer_poll_requeues_stuck_claims_regardless_of_liveness() {
+        // FW-7: a peer that holds a claim but never reports (hub restart
+        // mid-flight) must not pin the task forever.
+        let dir = temp_dir("mesh_stuck_requeue");
+        let a = peer_join(&dir, &json!({"adapter":"a","ua":"u1"})).expect("join a");
+        let pid_a = a["peer_id"].as_u64().unwrap();
+        let e = task_enqueue(&dir, &json!({"op":"matvec"})).expect("enqueue");
+        let task_id = e["task_id"].as_str().unwrap().to_string();
+        let claim = peer_poll(&dir, &json!({"peer_id": pid_a})).expect("claim");
+        assert_eq!(claim["task"]["task_id"], json!(task_id.as_str()));
+        // Backdate the claim AND the route beyond the stuck window (the
+        // route is sticky to the holder during the window, by design).
+        {
+            let _g = mesh_lock();
+            let path = dir.join(TASKS_FILE);
+            let mut tasks = read_jsonl(&path);
+            for t in tasks.iter_mut() {
+                if t.get("task_id").and_then(Value::as_str) == Some(task_id.as_str()) {
+                    t["claimed_ts"] = json!(0);
+                    t["route_ts"] = json!(0);
+                }
+            }
+            write_jsonl(&path, &tasks).expect("backdate");
+        }
+        // Peer b polls — the stuck claim is requeued and handed off.
+        let b = peer_join(&dir, &json!({"adapter":"b","ua":"u2"})).expect("join b");
+        let pid_b = b["peer_id"].as_u64().unwrap();
+        let _ = peer_poll(&dir, &json!({"peer_id": pid_b})).expect("poll b");
+        let tasks = read_jsonl(&dir.join(TASKS_FILE));
+        let t = tasks
+            .iter()
+            .find(|t| t.get("task_id").and_then(Value::as_str) == Some(task_id.as_str()))
+            .expect("task present");
+        assert_eq!(t["status"], "claimed");
+        assert_eq!(t["peer_id"], json!(pid_b));
+        assert_eq!(t["requeued_reason"], "stuck-claim");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
