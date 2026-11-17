@@ -51,6 +51,12 @@
 
 ---
 
+### FW-6a (auto) — FW-7 stuck-claim requeue (after 3 hub crashes mid-distribution)
+
+- **Found live:** the fleet lost tasks when the hub died mid-claim — peers keep polling (lease refreshes), so `claimed` tasks never requeued and stuck empty forever (`mt-225-1`…`mt-236-*` affected).
+- **Fix:** `peer_poll` requeues any claim older than **300 s** regardless of holder liveness (`requeued_reason: stuck-claim`), and the page retries result POSTs 3× with backoff. Re-verification by golden-x makes the recompute harmless by design.
+- **Result:** all 36 previously-stuck shards completed automatically after the fix rolled out; 180/180 blk.13–27 green, hub crash #3 included.
+
 ## Done (moved out of reserve)
 
 | ID | What | Commit |
@@ -61,6 +67,7 @@
 | FW-3 | bench op `weights_matvec_reference` (4 MiB synthetic tensor in `gsv_dev`): measured 6.13 ms/iter parse-dominant → **optimized memo** keyed on `tensor#(dims\|chunk-keys)` (chunks SHA-256 content-addressed) → **1.83 ms/iter mean**, ~1 ms warm (the production case). Live A/B `g-200` verified | `780d5d0` |
 | FW-4 | page `features` probe (shader-f16/subgroups/maxBufferMB) → `device_status` → /sys + `ranked_peers` in-tier f16 nudge | `c7fff7c` |
 | FW-5 | **PARKED** — analysis only: page already does per-session runner + buffer caching, single-fused-dispatch kernels, SiLU inline, R3 persistence, WASM fallback | `AUTONOMOUS_RESERVE` §FW-5 |
+| FW-7 | stuck-claim requeue (300 s, liveness-independent) + page result-POST retry ×3 — proven by 3 live hub crashes; 180/180 blk.13–27 green | `dcb83ca` |
 
 ---
 

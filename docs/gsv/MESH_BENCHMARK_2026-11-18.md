@@ -52,9 +52,9 @@
 - FF-PC's perpetual 27 stop indicates tab-backgrounded webGPU-strand suspension — not mesh bug.
 - Phones were alternately alive/dead across session (hot-swap); active phone tasks available at snapshots: valhall + bifrost group
 
-## Distribution log — blk.13…blk.18 (2026-11-18, automated dump → mirror → enqueue)
+## Distribution log — blk.13…blk.27 (2026-11-18, automated dump → mirror → enqueue)
 
-18 of 40 layers dispatched live to the fleet through the hub (`rusty dump-f32` → chunk upload → `register_tensor` → `weights_matvec` shards=4). L: mirror now holds **55 chunks** (~220 MB). FF-PC #37 correctly absent (`proofs_fresh=0`, R2 gate) throughout.
+27 of 40 layers dispatched live to the fleet through the hub (`rusty dump-f32` → chunk upload → `register_tensor` → `weights_matvec` shards=4). L: mirror now holds **91 chunks (~368 MB)**. FF-PC #37 correctly absent from every route pool (`proofs_fresh=0`, R2 gate). Hub crashed 3× mid-run (RAM pressure) and auto-respawned each time; the FW-7 stuck-claim requeue (commit below) recovered all mid-flight tasks without manual intervention.
 
 | Group | Tensor | Peers | Result |
 |---|---|---|---|
@@ -64,6 +64,17 @@
 | g-210…212 | blk.16 gate/up/down | 35·38·36 | 12/12 done · err ≤ 2.8e-6 |
 | g-213…215 | blk.17 gate/up/down | 35·38·36 | 12/12 done |
 | g-216…218 | blk.18 gate/up/down | 35·38·36 | 12/12 done |
+| g-219…221 | blk.19 gate/up/down | 35·38·36 | 12/12 done |
+| g-222…224 | blk.20 gate/up/down | 35·38·36 | 12/12 done |
+| g-225…227 | blk.21 gate/up/down | 35·38·36 | 12/12 done (3 self-requeued after hub crash — FW-7) |
+| g-228…230 | blk.22 gate/up/down | 35·38·36 | 12/12 done (stuck claims requeued — FW-7) |
+| g-231…233 | blk.23 gate/up/down | 35·38·36 | 12/12 done |
+| g-234…236 | blk.24 gate/up/down | 35·36 | 12/12 done |
+| g-237…239 | blk.25 gate/up/down | 35·38·36 | 12/12 done |
+| g-240…242 | blk.26 gate/up/down | 35·38·36 | 12/12 done |
+| g-243…245 | blk.27 gate/up/down | 35·38·36 | 12/12 done |
+
+**180/180 shards done · 0 failed** across blk.13–27. Phones #35/#38 claim in 9–176 ms per shard; Pi4 #36 is the quota-fallback tier — the FW/R1 traffic shaping works exactly as designed on every dispatch. L: mirror now holds **~91 chunks (~368 MB)**; hub auto-respawned autonomously 3× during the run (RAM pressure), and the FW-7 stuck-claim fix requeued all mid-flight tasks each time without manual intervention.
 
 **72/72 shards done · 0 failed · max_err_model = 6.63e-6** (cap 1.0e-2). Phones #35/#38 claim in 9–176 ms per shard; Pi4 #36 is the quota-fallback tier (≈2–8 s per shard) — exactly the FW/R1 traffic shaping target.
 
