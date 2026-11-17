@@ -2216,47 +2216,102 @@ const PAGE: &str = r#"<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GSV-WGPU phone test</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content='#0b0f1a'>
+<title>GSV Mesh — worker</title>
 <style>
-body{font-family:ui-monospace,monospace;background:#0b0f1a;color:#d8e2f0;margin:0;padding:16px;line-height:1.5}
-h1{font-size:16px;margin:0 0 12px}
-pre{background:#111827;border:1px solid #24304d;border-radius:8px;padding:10px;white-space:pre-wrap;word-break:break-word;font-size:12px}
-button{background:#6d5ae0;color:#fff;border:0;border-radius:8px;padding:10px 16px;font-size:14px;margin:8px 0}
-button:disabled{opacity:.5}
-.badge{display:inline-block;border-radius:999px;padding:2px 10px;font-size:11px;border:1px solid #24304d}
-.netbar{position:fixed;bottom:0;left:0;right:0;display:none;background:#7f1d1d;color:#fecaca;padding:6px 12px;font-size:12px;z-index:60;text-align:center}
+:root{--bg:#0b0f1a;--panel:#111827;--line:#24304d;--ink:#d8e2f0;--muted:#7b86a3;--accent:#6d5ae0;--accent2:#22c55e;--warn:#f59e0b;--bad:#ef4444}
+*{box-sizing:border-box}
+body{font-family:ui-monospace,monospace;background:var(--bg);color:var(--ink);margin:0;padding:8px env(safe-area-inset-right) 84px env(safe-area-inset-left);line-height:1.4;-webkit-text-size-adjust:100%}
+.hdr{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
+h1{font-size:13px;margin:0;color:#e2e8f0;letter-spacing:.3px}
+.badge{display:inline-block;border-radius:999px;padding:2px 8px;font-size:10px;border:1px solid var(--line);white-space:nowrap}
+.badge.on{border-color:#22c55e;color:#86efac}
+.badge.off{border-color:#f59e0b;color:#fcd34d}
+.badge.bad{border-color:#ef4444;color:#fca5a5}
+.kp{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:6px 0}
+.kp .k{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+.kp .v{font-size:15px;color:#e2e8f0;font-variant-numeric:tabular-nums}
+.kp .v.small{font-size:12px}
+pre{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px;white-space:pre-wrap;word-break:break-word;font-size:10px;max-height:180px;overflow:auto;margin:0}
+button{background:#6d5ae0;color:#fff;border:0;border-radius:10px;padding:11px 13px;font-size:12px;min-height:44px}
+button:disabled{opacity:.4}
+.btn-row{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+.btn-row button{flex:1 1 auto;min-width:100px}
+details{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin:6px 0}
+summary{cursor:pointer;padding:9px 10px;font-size:12px;user-select:none;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::after{content:'▸';float:right;color:var(--muted)}
+details[open] summary::after{content:'▾'}
+.detail-body{padding:6px 10px 10px;border-top:1px solid var(--line)}
+.sticky{position:fixed;left:0;right:0;bottom:0;display:flex;gap:8px;padding:8px env(safe-area-inset-right) 8px env(safe-area-inset-left);background:rgba(11,15,26,.92);backdrop-filter:blur(8px);border-top:1px solid var(--line);z-index:70}
+.sticky button{flex:1;min-height:52px;font-size:13px;font-weight:600}
+.sticky button.go{background:#16a34a}
+.sticky button.stop{background:#dc2626}
+.netbar{position:fixed;bottom:72px;left:0;right:0;display:none;background:#7f1d1d;color:#fecaca;padding:6px 10px;font-size:11px;text-align:center;z-index:60}
+.row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.muted{color:var(--muted);font-size:10px}
 </style>
 </head>
 <body>
-<h1>GSV-WGPU · phone browser test (matmul 64×64)</h1>
-<div><span id="cap" class="badge">checking WebGPU…</span></div>
-<button id="go" onclick="run()">Run matmul on this device</button>
-<div>
-<button id="wjoin" onclick="startWorker()">Start mesh worker</button>
-<button id="wstop" onclick="stopWorker()" disabled>Stop worker</button>
-<button onclick="enqueueTask('matmul64')">Enqueue matmul</button>
-<button onclick="enqueueTask('matvec')">Enqueue matvec (LLM shard)</button>
-<button onclick="enqueueTask('matvec',64)">Enqueue bench matvec (64x)</button>
-<button onclick="enqueueTask('matmul64',64)">Enqueue bench matmul (64x)</button>
-<button onclick="enqueueTask('matvec_shard',1,2)">Enqueue matvec shard (2x)</button>
-<button onclick="enqueueTask('matvec_shard',1,4)">Enqueue matvec shard (4x)</button>
-<button onclick="enqueueTask('mlpblock',1)">Enqueue mlpblock (transformer block)</button>
-<button onclick="enqueueTask('layernorm',1)">Enqueue layernorm</button>
-<button onclick="enqueueTask('softmax',1)">Enqueue softmax</button>
-<button onclick="enqueueMinilm(7,0)">Enqueue minilm (toy LM layer)</button>
-<button onclick="enqueueWeightsMatvec()">Enqueue real-weights matvec (shard 2x)</button>
-<button onclick="benchLocal('matvec',64)">Local bench matvec (64x)</button>
-</div>
-<pre id="out">idle</pre>
-<pre id="feed">hub feed: (tap Run to refresh)</pre>
-<pre id="mesh">mesh: (start worker to refresh)</pre>
+<header class="hdr">
+  <h1>GSV · mesh worker</h1>
+  <span id="cap" class="badge">checking…</span>
+</header>
+<section class="kp">
+  <div class="row"><span class="k">Local model (peers)</span><span class="k" style="color:var(--accent2)">● Live</span></div>
+  <div class="v" id="kpStats">—</div>
+</section>
+<details open>
+  <summary>Dispatch — quick</summary>
+  <div class="detail-body">
+    <div class="btn-row">
+      <button onclick="enqueueTask('matmul64')">Matmul 64</button>
+      <button onclick="enqueueTask('matvec')">Matvec</button>
+      <button onclick="enqueueTask('mlpblock')">MLP block</button>
+      <button onclick="enqueueTask('layernorm')">LayerNorm</button>
+      <button onclick="enqueueTask('softmax')">Softmax</button>
+      <button onclick="enqueueMinilm(7,0)">MiniLM L0</button>
+    </div>
+    <div class="btn-row">
+      <button onclick="enqueueTask('matvec_shard',1,2)">Shard 2×</button>
+      <button onclick="enqueueTask('matvec_shard',1,4)">Shard 4×</button>
+      <button onclick="enqueueWeightsMatvec()">Real-weights ×2</button>
+      <button onclick="enqueueTask('matvec',64)">Bench matvec ×64</button>
+    </div>
+  </div>
+</details>
+<details>
+  <summary>Benchmark</summary>
+  <div class="detail-body">
+    <div class="btn-row">
+      <button onclick="benchLocal('matvec',64)">Local matvec ×64</button>
+      <button onclick="benchLocal('matmul64',64)">Local matmul ×64</button>
+    </div>
+  </div>
+</details>
+<details open>
+  <summary>Mesh feed</summary>
+  <div class="detail-body">
+    <pre id="feed">— tap a dispatch button —</pre>
+    <pre id="mesh" style="margin-top:6px">mesh: (start worker)</pre>
+  </div>
+</details>
+<details>
+  <summary>Diagnostic log</summary>
+  <div class="detail-body"><pre id="out">idle</pre></div>
+</details>
 <div id="netbar" class="netbar">⚠ hub unreachable — retrying…</div>
+<div class="sticky">
+  <button id="wjoin" class="go" onclick="startWorker()">Start mesh worker</button>
+  <button id="wstop" class="stop" onclick="stopWorker()" disabled>Stop</button>
+</div>
+<button id="go" hidden onclick="run()"></button>
 <script>
 const out=document.getElementById('out'),feed=document.getElementById('feed'),mesh=document.getElementById('mesh'),cap=document.getElementById('cap'),go=document.getElementById('go'),wjoin=document.getElementById('wjoin'),wstop=document.getElementById('wstop');
 function log(m){const lines=out.textContent.split('\n');lines.push(String(m));while(lines.length>121)lines.shift();out.textContent=lines.join('\n');out.scrollTop=out.scrollHeight;}
 function setNet(ok){var b=document.getElementById('netbar');if(b)b.style.display=ok?'none':'block';}
-function setCap(t,ok){cap.textContent=t;cap.style.borderColor=ok?'#3aa66a':'#c0392b';}
+function setCap(t,ok){const c=document.getElementById('cap');if(!c)return;c.textContent=t;c.className='badge '+(ok===true?'on':ok===false?'bad':'off');}
 // WASM SIMD128 math kernels served by the hub: fewer interpreter cycles, more
 // native WASM. Chromium/Firefox/Safari all validate SIMD128 modules; if the
 // module fails to load (or SIMD is missing), every REF site falls back to JS.
@@ -2306,7 +2361,7 @@ function wasmRefMlpblock(W1,X,W2,hidden,out,k){if(!WASM.loaded)return null;
   WASM.inst.mesh_mlpblock(w1,x,w2,y,hidden,out,k);const REF=wasmDownload(y,out);wasmFree(w1,W1.length);wasmFree(x,x.length);wasmFree(w2,W2.length);WASM.inst.mesh_free(y,wasmF32(out));return REF;}
 async function post(report){try{const r=await fetch('api/wgpu/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(report)});const d=await r.json();log('hub ack: '+JSON.stringify(d));setNet(true);}catch(e){log('hub unreachable (retrying on next poll)');setNet(false);}}
 async function refreshFeed(){try{const d=await(await fetch('api/wgpu')).json();feed.textContent='hub feed: count='+d.count+(d.latest?'\nlatest: '+JSON.stringify(d.latest):'');setNet(true);}catch(e){feed.textContent='hub feed: unreachable — retrying…';setNet(false);}}
-async function refreshMesh(){try{const d=await(await fetch('api/wgpu/mesh')).json();setNet(true);const caps=(d.capability||[]).filter(c=>c.measured>0).map(c=>'#'+c.peer_id+' '+(c.adapter||'?')+' '+c.mflops_max+' MFLOPS / '+c.ops_per_sec_max+' ops/s');const grp=(d.groups||[]).map(g=>g.group_id+' '+g.done_shards+'/'+g.shards+(g.complete?(' err='+g.max_err.toExponential(1)+(g.ok?' OK':' FAIL')):' pending'));mesh.textContent='mesh: peers='+d.peers.length+' (alive '+d.peers.filter(p=>p.alive).length+') · queued='+d.queued+' claimed='+d.claimed+' done='+d.done+' failed='+d.failed+(caps.length?'\ncapability: '+caps.join(' | '):'')+(d.best_peer&&d.best_peer.peer_id!==undefined?'\nbest peer: #'+d.best_peer.peer_id+' ('+(d.best_peer.adapter||'?')+') '+d.best_peer.mflops_max+' MFLOPS':'')+(grp.length?'\nreduce: '+grp.join(' | '):'')+(d.tasks.length?'\ntasks: '+d.tasks.map(t=>t.task_id+':'+t.status+(t.elapsed_ms!==undefined?' '+t.elapsed_ms+'ms':'')+(t.mflops?' '+t.mflops+'MF':'')).join(' | '):'')+(d.quotas?'\nquota: '+d.quotas.max_flops_per_task+' FLOP/task · '+d.quotas.max_concurrent_per_peer+' task/peer · sticky '+d.quotas.route_sticky_secs+'s':'');}catch(e){mesh.textContent='mesh: unreachable — retrying…';setNet(false);}}
+async function refreshMesh(){try{const d=await(await fetch('api/wgpu/mesh')).json();setNet(true);const k=document.getElementById('kpStats');if(k){const alive=d.peers.filter(p=>p.alive).length;k.textContent='ready '+d.peers.filter(p=>p.ready).length+' · alive '+alive+'/'+d.peers.length+' · done '+d.done+' · fail '+d.failed;k.style.color=(alive?'#86efac':'#fca5a5');}const caps=(d.capability||[]).filter(c=>c.measured>0).map(c=>'#'+c.peer_id+' '+(c.adapter||'?')+' '+c.mflops_max+' MFLOPS / '+c.ops_per_sec_max+' ops/s');const grp=(d.groups||[]).map(g=>g.group_id+' '+g.done_shards+'/'+g.shards+(g.complete?(' err='+g.max_err.toExponential(1)+(g.ok?' OK':' FAIL')):' pending'));mesh.textContent='mesh: peers='+d.peers.length+' (alive '+d.peers.filter(p=>p.alive).length+') · queued='+d.queued+' claimed='+d.claimed+' done='+d.done+' failed='+d.failed+(caps.length?'\ncapability: '+caps.join(' | '):'')+(d.best_peer&&d.best_peer.peer_id!==undefined?'\nbest peer: #'+d.best_peer.peer_id+' ('+(d.best_peer.adapter||'?')+') '+d.best_peer.mflops_max+' MFLOPS':'')+(grp.length?'\nreduce: '+grp.join(' | '):'')+(d.tasks.length?'\ntasks: '+d.tasks.map(t=>t.task_id+':'+t.status+(t.elapsed_ms!==undefined?' '+t.elapsed_ms+'ms':'')+(t.mflops?' '+t.mflops+'MF':'')).join(' | '):'')+(d.quotas?'\nquota: '+d.quotas.max_flops_per_task+' FLOP/task · '+d.quotas.max_concurrent_per_peer+' task/peer · sticky '+d.quotas.route_sticky_secs+'s':'');}catch(e){mesh.textContent='mesh: unreachable — retrying…';const k=document.getElementById('kpStats');if(k){k.textContent='offline';k.style.color='#fca5a5';}setNet(false);}}
 const WGSL=`
 @group(0) @binding(0) var<storage,read> a:array<f32>;
 @group(0) @binding(1) var<storage,read> b:array<f32>;
@@ -3102,7 +3157,7 @@ mod tests {
         assert!(p.contains("navigator.gpu"));
         assert!(p.contains("api/wgpu/report"));
         assert!(p.contains("@compute @workgroup_size(8,8)"));
-        assert!(p.contains("matmul 64×64"));
+        assert!(p.contains("Matmul 64"));
     }
 
     #[test]
@@ -3127,13 +3182,13 @@ mod tests {
         let p = page();
         assert!(p.contains("matvecOnce"));
         assert!(p.contains("r*1024u+k"));
-        assert!(p.contains("Enqueue matvec (LLM shard)"));
+        assert!(p.contains("Matvec"));
         assert!(p.contains("mlpblock"));
-        assert!(p.contains("Enqueue mlpblock (transformer block)"));
-        assert!(p.contains("Enqueue layernorm"));
-        assert!(p.contains("Enqueue softmax"));
-        assert!(p.contains("Enqueue minilm (toy LM layer)"));
-        assert!(p.contains("Enqueue real-weights matvec (shard 2x)"));
+        assert!(p.contains("MLP block"));
+        assert!(p.contains("LayerNorm"));
+        assert!(p.contains("Softmax"));
+        assert!(p.contains("MiniLM L0"));
+        assert!(p.contains("Real-weights ×2"));
     }
 
     #[test]
@@ -3142,8 +3197,8 @@ mod tests {
         assert!(p.contains("mflops"));
         assert!(p.contains("ops_per_sec"));
         assert!(p.contains("device_reused"));
-        assert!(p.contains("Enqueue bench matvec (64x)"));
-        assert!(p.contains("Local bench matvec (64x)"));
+        assert!(p.contains("Bench matvec ×64"));
+        assert!(p.contains("Local matvec ×64"));
         assert!(p.contains("const CACHE={}"));
     }
 
