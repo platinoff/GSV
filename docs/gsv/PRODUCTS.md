@@ -2,6 +2,8 @@
 
 Registered **plugins** the host skill [`abracadabra`](../../.agents/skills/abracadabra/SKILL.md) can **drain** (HANDOFF, tests, ratio). Node rows are enrichment only — no PH-S* invent, no GSV loc-audit.
 
+> **Екосистема як пара «тато і мама»:** [`GSV_ECOSYSTEM_SYMBIOSIS.md`](./GSV_ECOSYSTEM_SYMBIOSIS.md) — GSV (операційний план) / poolAI (FM/management план), живий стан 2026-11-17, дублі, протокол пошуку зламаних функцій, адаптований план розвантаження poolAI.
+
 **Host vs plugin:** the rust folder that contains GSV is the host (`S:/rust/GSV`). Every other row is a **portable plugin** (own git tree, own `target/`). Canon: [`GSV_AGI_PATH.md`](./GSV_AGI_PATH.md).
 
 **Discovery is not this table.** When the owner writes `абракадабра` or `abrakadabra`, the agent runs
