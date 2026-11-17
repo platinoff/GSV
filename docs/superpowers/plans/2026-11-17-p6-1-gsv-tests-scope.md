@@ -29,18 +29,18 @@
 
 ## Фази P6.1
 
-1. **Freeze baseline** — зберегти exit 0 (доведено сьогодні, ELAPSED=654s) як артефакт `test_gate.rs`: fail-fast має залишатись; без цього жодні зміни.
-2. **Contract family audit**: виключити *тільки* тимчасово протухлі ассерти (vision rev, FM/CI-драйвові gates) — переписати на нові істини; жоден інший тест поки не чіпати.
-3. **Live-hub tests guard**: `stand_smoke_contracts` зробити skippable при відсутності `:9999` (xfail/skip-if-down) або винести в окремий ручник типу `cargo stand-smoke` (бінарник вже є).
+1. **Freeze baseline** — збережено exit 0 сьогодні (ELAPSED=654s); `test_gate.rs` фактично існує як завжди A' environment.
+2. **Contract family audit**: inventory-документ (`2026-11-17-tests-symbiosis-inventory.md`) затиснув; проводимо відсічку протухлих ассертів наступно.
+3. **Live-hub tests guard**: **виконано 2026-11-17 (A1, owner 2026-11-17)** — `gsv_stand_smoke_contracts.rs` фіче-гейтнутий через `#![cfg(feature = "stand_smoke")]`, default `cargo test` повністю пропускає файл; `cargo test --features stand_smoke --test gsv_stand_smoke_contracts` → **9 passed, 0 failed**; `Cargo.toml [features] stand_smoke = []`; header doc цього пояснює. Це і є відповідь на відкрите питання зі списку (див. §Відкриті питання 1 нижче).
 4. **Dedup mocks**: склеїти omni/edge/grid mocks в один спільний helper only after green baseline, with one commit and ratio check before/after.
 5. **Vision gate**: GSV PR для vision rev використовує `--check`; тести, що прописують конкретний rev у файлах очікування — переписати на "rev ≥ фіксованої межі" або "rev рівний manifest".
 
 ## Ворота
 
-- `cargo test` exit 0 на кожній фазі
+- `cargo test` exit 0 на кожній фазі (зокрема, default `cargo test` без `--features stand_smoke`)
 - ratio stretch ≥ 96; formal ≥ 95
-- stand-smoke 87/87 проти живого хаба після будь-яких змін
+- stand-smoke 87/87 через `cargo test --features stand_smoke --test gsv_stand_smoke_contracts` та `cargo run --bin gsv-http-stand-smoke -- --base-url http://192.168.2.238:9999`
 
-## Відкриті питання (owner)
-1. Чи треба зберігати `stand_smoke_contracts` як тести чи перевести у вручну натиснутий smoke?
-2. Яке правило для vision rev mirror? (GSV canon rev 516 проти poolAI rev 499; чи тепер "rev == manifest" без фіксованого числа)
+## Закриті розв'язки (2026-11-17)
+1. **stand_smoke_contracts feature-gate** — **зроблено owner-decreet e1b37ee**: default `cargo test` пропускає; `--features stand_smoke` → 9 passed.
+2. **Vision rev mirror** — відкрито; потрібен owner-decree: GSV canon rev 516 проти poolAI rev 499 — правило "rev == manifest" чи "rev ≥ фіксованої межі".
