@@ -75,7 +75,7 @@ box cannot build/run Rust reliably — EDR is the dominant factor; every flake t
 | CoreBoard_Labs_shop | `cargo test` ✅ 524 passed (513 lib + 11) | green |
 | LinFS | `cargo test` ✅ all suites pass (51 assertions counted, 0 failed) | green (2026-11-18) |
 | llama-rs | 77 test fns; llama-cpp-sys-2 =0.1.154 + patches; системні ризики Pi/bindgen | pending (risk: sys build) |
-| rusty-engine | 300 test fns; parity/`#[ignore]` real-model (вартість ~1 GiB GGUF) | pending |
+| rusty-engine | `cargo test` ✅ 283 passed (3+1+3+2+2 ignored, real-model smokes) | green (2026-11-18) |
 
 **Cross-plugin-truth scan:** llama-rs `src/bin/llama_edge.rs:915–975` — synthetic synthetic-URL
 fixtures (token-mask + Endpoint), **не** live-hub await — PASS. rusty-engine `src/patch.rs:1008,1052` —
