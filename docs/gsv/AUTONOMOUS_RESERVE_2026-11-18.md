@@ -34,12 +34,15 @@
 - **Effort:** 4–6 h · **Risk:** medium (page + hub telemetry + ranking tier).
 - **Depends:** FW-2 (lost counters inform tier), FW-1.
 
-### FW-5 (L, highest payoff) — WeInfer-class page-kernel optimization
+### FW-5 (L) — WeInfer-class page-kernel optimization — **ANALYSED & PARKED** (2026-11-18)
 
-- **What:** page WGSL kernel integration: (a) **buffer reuse pool** keyed by (op, bytes) instead of per-task `createBuffer`, (b) **command-buffer batching** for claim→compute→report cycle (single encoder, one `submit`, one mapAsync), (c) **fused SiLU into mlpblock matvec epilogue** — math unchanged, max_err golden-x catches regression; FF-PC/phone throughput target: ≥2× tok/s class on matvec class.
-- **Why:** WWW'25 WeInfer (3.76× vs WebLLM via buffer reuse + async pipelines); 2604.02344 (dispatch overhead dominates small ops — our 13–22 ms phone tasks!).
-- **Effort:** 1–2 days · **Risk:** high → requires golden-x + stand-smoke + live re-dispatch A/B before/after; fall back = revert commit.
-- **Depends:** FW-1, FW-2.
+- **What the page already does** (verified against `wgpu.rs::page()`): per-op runner caching (`getRunner`/`CACHE`), **single compute dispatch per op** (`mlpblock` is one fused WGSL kernel with SiLU inline — `WGL_BLOCK`), per-session GPU buffers (no per-task allocation), weights tensor cached in WASM/WebGPU per session, **R3 persistent chunk cache** (IndexedDB), WASM SIMD128 fallback (`runWeightsMatvecWasm`), full wasm/JS cross-check (`wasmRef*`).
+- **Remaining theoretical wins and why they don't fit this granularity:**
+  1. *Command-buffer batching across a block* — tasks arrive as singletons from the hub; cross-task batching **is** R4 (owner gate).
+  2. *SiLU fusion everywhere* — already done inside the block kernel (`WGL_BLOCK`).
+  3. *Buffer reuse / async pipelines* — buffers ARE reused via `CACHE`; sub-millisecond wins on this problem scale.
+- **Decision: build nothing.** The WWW'25 WeInfer gap (3.76×) applied to a full-model browser runtime, not to an op-per-task dispatched proof-gated mesh. Revisit only after R4 lands.
+- **Effort:** analysis only · **Risk:** n/a
 
 ### FW-6 (S) — Autonomous-reserve bookkeeping
 
@@ -53,6 +56,11 @@
 | ID | What | Commit |
 |---|---|---|
 | (research baseline) | R1 routing · R2 stale-proof gate · R3 IndexedDB chunk cache · R7 percentiles · R5 parked | `3ba2353`…`4148823` |
+| FW-1 | stand-smoke `wgpu_page_r3` (88 checks, live `wgpu_page_r3=ok`) | `a3d0810` |
+| FW-2 | `device.lost` watch + `device_lost_count/reason` in poll body → hub peer row + /sys pill + history JSONL | `a3d0810` |
+| FW-3 | bench op `weights_matvec_reference` (4 MiB synthetic tensor in `gsv_dev`); verify path measures **6.13 ms/iter** (parse-dominant) — candidate for memoization cache later | bench committed `a3d0810` cycle |
+| FW-4 | page `features` probe (shader-f16/subgroups/maxBufferMB) → `device_status` → /sys + `ranked_peers` in-tier f16 nudge | `c7fff7c` |
+| FW-5 | **PARKED** — analysis only: page already does per-session runner + buffer caching, single-fused-dispatch kernels, SiLU inline, R3 persistence, WASM fallback | `AUTONOMOUS_RESERVE` §FW-5 |
 
 ---
 
