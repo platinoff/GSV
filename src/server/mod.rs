@@ -171,6 +171,7 @@ pub fn router(state: AppState) -> Router {
             get(api_tickets_bench).post(api_tickets_bench_post),
         )
         .route("/api/tickets/next", post(api_tickets_next))
+        .route("/api/tickets/link", post(api_tickets_link))
         .route("/api/mds", get(api_mds))
         .route("/api/sys/metrics", get(api_sys_metrics))
         .route("/api/sys/history", get(api_sys_history))
@@ -693,12 +694,25 @@ async fn api_telegram_decode(Json(body): Json<Value>) -> Json<Value> {
     Json(crate::boxes::telegram::decode_wire(text))
 }
 
-async fn api_tickets(State(state): State<AppState>) -> Json<Value> {
-    Json(crate::boxes::tickets::wire_list(
-        &state.repo_root,
-        &state.data_dir,
-        &state.ticket_presence,
-    ))
+async fn api_tickets(
+    State(state): State<AppState>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Json<Value> {
+    let fm = params.get("fm").map(String::as_str).unwrap_or("");
+    if fm.trim().is_empty() {
+        Json(crate::boxes::tickets::wire_list(
+            &state.repo_root,
+            &state.data_dir,
+            &state.ticket_presence,
+        ))
+    } else {
+        Json(crate::boxes::tickets::wire_list_filtered(
+            &state.repo_root,
+            &state.data_dir,
+            &state.ticket_presence,
+            fm,
+        ))
+    }
 }
 
 async fn api_tickets_post(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
@@ -813,6 +827,13 @@ async fn api_tickets_bench_post(
     Json(body): Json<Value>,
 ) -> Response {
     match crate::boxes::tickets::wire_bench_post(&state.repo_root, &body) {
+        Ok(v) => Json(v).into_response(),
+        Err(e) => err_json(ticket_http_status(&e), e.to_string()),
+    }
+}
+
+async fn api_tickets_link(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
+    match crate::boxes::tickets::wire_link(&state.repo_root, &body) {
         Ok(v) => Json(v).into_response(),
         Err(e) => err_json(ticket_http_status(&e), e.to_string()),
     }

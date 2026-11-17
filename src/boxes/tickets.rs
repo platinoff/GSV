@@ -200,6 +200,11 @@ pub struct Ticket {
     /// local Cursor/OpenCode claims.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub claimed_jail: String,
+    /// Optional link to a poolAI FM id (`FM-005`, `PH-S156`, `PH-SVC47`, ...).
+    /// Empty = unlinked. Settable via claim (`fm`) or `POST /api/tickets/link`.
+    /// GSV never stores FM prose — ids only.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub fm_ref: String,
 }
 
 fn default_product() -> String {
@@ -844,6 +849,97 @@ pub fn assign_seed() -> u64 {
         .unwrap_or(1)
 }
 
+/// Accept printable FM ids only (`FM-…`, `PH-S…`, `PH-SVC…`): ≤ 64 chars,
+/// ASCII alnum + `-` + `_`. GSV stores ids, never FM prose.
+fn validate_fm_ref(fm: &str) -> Result<(), TicketError> {
+    let f = fm.trim();
+    if f.is_empty() {
+        return Err(TicketError::BadRequest("fm required".into()));
+    }
+    if f.len() > 64 {
+        return Err(TicketError::BadRequest("fm too long (max 64)".into()));
+    }
+    if !f
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        return Err(TicketError::BadRequest(
+            "fm may only contain ASCII alphanumerics, '-' and '_'".into(),
+        ));
+    }
+    Ok(())
+}
+
+/// Set (or replace) the FM link on an existing ticket. NotFound when id is unknown.
+pub fn link_fm(repo_root: &Path, id: &str, fm: &str) -> Result<Ticket, TicketError> {
+    validate_fm_ref(fm)?;
+    let id = id.trim();
+    if id.is_empty() {
+        return Err(TicketError::BadRequest("id required".into()));
+    }
+    let _board = board_lock();
+    let path = tickets_path(repo_root);
+    let mut tickets = read_tickets(&path)?;
+    let pos = tickets
+        .iter()
+        .position(|t| t.id == id)
+        .ok_or(TicketError::NotFound)?;
+    tickets[pos].fm_ref = fm.trim().to_string();
+    let updated = tickets[pos].clone();
+    write_tickets(&path, &tickets)?;
+    Ok(updated)
+}
+
+/// HTTP link wire for `POST /api/tickets/link`.
+pub fn wire_link(repo_root: &Path, body: &Value) -> Result<Value, TicketError> {
+    let id = body
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    let fm = body
+        .get("fm")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if id.is_empty() {
+        return Err(TicketError::BadRequest("id required".into()));
+    }
+    let ticket = link_fm(repo_root, &id, &fm)?;
+    Ok(json!({ "ok": true, "ticket": ticket }))
+}
+
+/// [`wire_list`] with optional FM filter (`fm=""` = unchanged behavior).
+pub fn wire_list_filtered(
+    repo_root: &Path,
+    data_dir: &Path,
+    presence: &PresenceStore,
+    fm: &str,
+) -> Value {
+    let mut v = wire_list(repo_root, data_dir, presence);
+    let fm = fm.trim();
+    if fm.is_empty() {
+        return v;
+    }
+    let filtered: Vec<Value> = v
+        .get("tickets")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|t| {
+            t.get("fm_ref")
+                .and_then(Value::as_str)
+                .is_some_and(|f| f == fm)
+        })
+        .collect();
+    v["tickets"] = json!(filtered);
+    v["fm"] = json!(fm);
+    v
+}
+
 /// `GET /api/tickets` tickets array only.
 pub fn list(repo_root: &Path) -> Value {
     match read_tickets(&tickets_path(repo_root)) {
@@ -1182,6 +1278,7 @@ fn create_with_workflow(
         scenario: scenario.trim().to_string(),
         lease_until: None,
         claimed_jail: String::new(),
+        fm_ref: String::new(),
     };
     tickets.push(ticket.clone());
     write_tickets(&path, &tickets)?;
@@ -2048,8 +2145,23 @@ pub fn wire_claim(
     presence: Option<&PresenceStore>,
 ) -> Result<Value, TicketError> {
     let id = body.get("id").and_then(Value::as_str).unwrap_or("");
+    let fm_raw = body
+        .get("fm")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if !fm_raw.is_empty() {
+        validate_fm_ref(&fm_raw)?;
+    }
     let who = resolve_claimed_by();
     let ticket = claim_with(repo_root, data_dir, id, who.clone(), presence)?;
+    // Optional FM link carried by the claim itself (id-to-id, no prose).
+    let ticket = if fm_raw.is_empty() {
+        ticket
+    } else {
+        link_fm(repo_root, &ticket.id, &fm_raw)?
+    };
     let file = settings::load_result(data_dir).unwrap_or_default();
     telegram::maybe_federate_claim(&file, &who, &ticket.id);
     Ok(json!({ "ok": true, "ticket": ticket }))
@@ -2599,6 +2711,7 @@ mod unit {
             scenario: String::new(),
             lease_until: None,
             claimed_jail: String::new(),
+            fm_ref: String::new(),
         };
         assert!(lease_is_expired(&t, 100));
         t.lease_until = Some(50);

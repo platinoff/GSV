@@ -430,16 +430,22 @@ pub fn tools_list() -> Vec<Value> {
         ),
         tool(
             "gsv_tickets",
-            "GSV ticket board (docs/gsv/tickets.jsonl). List open/in_progress/done/blocked plus mode, online MCP, scenarios, jail/squad_cap, and join env. No secrets.",
-            object_schema(),
-        ),
-        tool(
-            "gsv_tickets_claim",
-            "Claim a ticket (open → in_progress) and append docs/gsv/ticket_claims.jsonl. Requires co-workflow ticket-claim. Unknown id is a tool error.",
+            "GSV ticket board (docs/gsv/tickets.jsonl). List open/in_progress/done/blocked plus mode, online MCP, scenarios, jail/squad_cap, and join env. Optional `fm` filter returns only tickets linked to that poolAI FM id. No secrets.",
             json!({
                 "type": "object",
                 "properties": {
-                    "id": { "type": "string", "description": "Ticket id to claim." }
+                    "fm": { "type": "string", "description": "Optional poolAI FM id filter (FM-005, PH-S156, ...)." }
+                }
+            }),
+        ),
+        tool(
+            "gsv_tickets_claim",
+            "Claim a ticket (open → in_progress) and append docs/gsv/ticket_claims.jsonl. Requires co-workflow ticket-claim. Unknown id is a tool error. Optional `fm` stamps the FM link on the ticket.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "Ticket id to claim." },
+                    "fm": { "type": "string", "description": "Optional poolAI FM id to link (FM-005, PH-S156, ...)." }
                 },
                 "required": ["id"]
             }),
@@ -1632,15 +1638,39 @@ async fn call_tool(state: &AppState, params: &Value, session: Option<&str>) -> V
                 )
             }
         }
-        "gsv_tickets" => tool_ok(crate::boxes::tickets::wire_list(
-            &state.repo_root,
-            &state.data_dir,
-            &state.ticket_presence,
-        )),
+        "gsv_tickets" => {
+            let fm = arg_str(&args, "fm");
+            if fm.trim().is_empty() {
+                tool_ok(crate::boxes::tickets::wire_list(
+                    &state.repo_root,
+                    &state.data_dir,
+                    &state.ticket_presence,
+                ))
+            } else {
+                tool_ok(crate::boxes::tickets::wire_list_filtered(
+                    &state.repo_root,
+                    &state.data_dir,
+                    &state.ticket_presence,
+                    &fm,
+                ))
+            }
+        }
         "gsv_tickets_claim" => {
             let id = arg_str(&args, "id");
+            let fm = arg_str(&args, "fm");
             if id.trim().is_empty() {
                 tool_err("id required")
+            } else if !fm.trim().is_empty() {
+                let body = json!({ "id": id, "fm": fm });
+                match crate::boxes::tickets::wire_claim(
+                    &state.repo_root,
+                    &state.data_dir,
+                    &body,
+                    Some(&state.ticket_presence),
+                ) {
+                    Ok(v) => tool_ok(v),
+                    Err(e) => tool_err(e.to_string()),
+                }
             } else {
                 match crate::boxes::tickets::claim_with(
                     &state.repo_root,
