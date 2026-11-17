@@ -18,7 +18,7 @@ use crate::boxes::{products, tickets, vision, watchdog};
 
 /// Read-only MCP / HTTP tasks. Mutating work stays on `cargo xtask`.
 /// `sync` here is `--check` only (drift gate); remirror is `gsv_vision_sync`.
-pub const MCP_TASKS: &[&str] = &["catalog", "products", "disk", "sync", "rules"];
+pub const MCP_TASKS: &[&str] = &["catalog", "products", "disk", "sync", "rules", "fm-xlink"];
 
 /// CLI tasks (`cargo xtask <name>`).
 pub const TASKS: &[(&str, &str)] = &[
@@ -34,6 +34,10 @@ pub const TASKS: &[(&str, &str)] = &[
     (
         "rules-check",
         "Rules-vs-live drift report (git/fingerprint/vision/registry/ratio; hard gates fail exit)",
+    ),
+    (
+        "fm-xlink",
+        "FM↔tickets cross-link report: read-only scan of docs/gsv/tickets.jsonl fm_ref against poolAI FUNCTION_MANAGEMENT.md (advisory; `--strict` fails exit on orphans, `--fm <path>` overrides the FM path)",
     ),
     (
         "disk",
@@ -363,6 +367,19 @@ pub fn mcp_run(repo_root: &Path, task: &str) -> Result<Value, String> {
             Err(e) => Err(e),
         },
         "rules" => Ok(json!(rules_wire(repo_root))),
+        "fm-xlink" => {
+            let fm_path = crate::boxes::fm_xlink::default_fm_path(repo_root);
+            let report = crate::boxes::fm_xlink::collect(repo_root, &fm_path);
+            Ok(json!({
+                "ok": report.ok,
+                "at": report.at,
+                "fm_path": report.fm_path,
+                "fm_found": report.fm_found,
+                "tickets_total": report.tickets_total,
+                "linked": report.linked,
+                "orphans": report.orphans,
+            }))
+        }
         other => Err(format!(
             "unknown or mutating xtask '{other}' — use `cargo xtask {other}` (MCP is catalog/products/disk/sync/rules --check only)"
         )),

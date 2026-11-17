@@ -17,6 +17,7 @@ JSON remains **data or host protocol** (vision snapshots, MCP client configs, `C
 | Outer watchdog | `cargo xtask watchdog` / `cargo xtask watchdog-install` (spawn/persist `target/live/gsv-watchdog.exe` via hidden `gsv_watchdog_start.vbs` + GUI subsystem — no logon cmd flash; `hop_successor` each tick if that exe is stale; POST apply only when **gsv-server** debug is newer) |
 | Speeds / Clippy panels | `cargo xtask record-speed` / `cargo xtask record-rust` |
 | Rules drift report | `cargo xtask rules-check` (`--no-live`; `GSV_LIVE_URL`; hard gates flip exit 0/1; doc: `GSV_RULES_CHECK.md`) |
+| FM ↔ tickets cross-links | `cargo xtask fm-xlink` (advisory: reads `docs/gsv/tickets.jsonl` `fm_ref` against poolAI `FUNCTION_MANAGEMENT.md`; `--fm <path>` override; `--strict` for CI; doc: `GSV_ECOSYSTEM_SYMBIOSIS.md`) |
 | Scenario bench | `cargo xtask record-scenario-bench` (abrakadabra-session walk → `docs/gsv/scenario_bench.json`) |
 | Vision close | `cargo xtask sync` then `cargo xtask sync --check` |
 | Band close | `cargo xtask bump --band N` (semver minor = band **and** vision queue **close of N**: last of N / first of N+1) then rebuild `gsv-server`/`gsv-mcp`/`gsv-watchdog` then `cargo xtask fingerprint` (optional `--model`). Recopy live in the same session (`cargo xtask live` or watchdog lockstep). Watchdog lockstep recopies the **server** when server debug is newer **or** health `version_lag`; a stale watchdog hops (`hop_successor`) instead of apply; `lockstep-wait` is not `probe-ok`. |
@@ -65,7 +66,7 @@ The agent **shell** is still MSYS2 bash (`C:\msys64\usr\bin\bash.exe -lc '…'`)
 
 ## MCP
 
-- `gsv_xtask` `{task}` — `catalog` (default) · `products` · `disk` · `sync` (`--check` drift only). Mutating names (`push`, `bump`, `live`, remirror, …) return a tool error: run `cargo xtask` or `gsv_vision_sync`.
+- `gsv_xtask` `{task}` — `catalog` (default) · `products` · `disk` · `sync` (`--check` drift only) · `rules` (drift report) · `fm-xlink` (FM↔tickets advisory cross-link report; mutating names (`push`, `bump`, `live`, remirror, …) return a tool error: run `cargo xtask` or `gsv_vision_sync`.
 - `gsv_disk` `{enforce?}` — S0 guard (`free_mb` / `free_gb`; `--clean` is CLI only, never MCP).
 - Resource `gsv://docs/rust-dev` — this file.
 - Drain prompt names `gsv_xtask`, `gsv_disk`, and this URI.

@@ -68,6 +68,23 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         }
+        "fm-xlink" => {
+            let strict = args.iter().any(|a| a == "--strict");
+            let fm_override = args
+                .iter()
+                .position(|a| a == "--fm")
+                .and_then(|i| args.get(i + 1))
+                .map(PathBuf::from);
+            let fm_path =
+                fm_override.unwrap_or_else(|| gsv::boxes::fm_xlink::default_fm_path(&root));
+            let report = gsv::boxes::fm_xlink::collect(&root, &fm_path);
+            print!("{}", gsv::boxes::fm_xlink::render(&report));
+            if strict && !report.orphans.is_empty() {
+                ExitCode::FAILURE
+            } else {
+                ExitCode::SUCCESS
+            }
+        }
         "products" => {
             if args.iter().any(|a| a == "--state") {
                 if args.iter().any(|a| a == "--json") {

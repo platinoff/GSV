@@ -87,7 +87,7 @@ fn cargo_alias_xtask() {
 fn mcp_readonly_tasks_include_sync_check() {
     assert_eq!(
         xtask::MCP_TASKS,
-        &["catalog", "products", "disk", "sync", "rules"]
+        &["catalog", "products", "disk", "sync", "rules", "fm-xlink"]
     );
     let ok = xtask::mcp_run(&kit_root(), "sync");
     match ok {
@@ -110,6 +110,11 @@ fn mcp_readonly_tasks_include_sync_check() {
         xtask::mcp_run(&kit_root(), "clean").is_err(),
         "clean must stay CLI-only"
     );
+    let xlink = xtask::mcp_run(&kit_root(), "fm-xlink").expect("fm-xlink readonly");
+    assert_eq!(xlink["ok"], true, "{xlink}");
+    assert!(xlink["tickets_total"].as_u64().is_some(), "{xlink}");
+    assert!(xlink["linked"].is_array(), "{xlink}");
+    assert!(xlink["orphans"].is_array(), "{xlink}");
 }
 
 #[test]

@@ -40,6 +40,7 @@ pub mod apk;
 pub mod deny;
 pub mod edge;
 pub mod fingerprint;
+pub mod fm_xlink;
 pub mod github;
 pub mod gitkit;
 pub mod grid;

@@ -58,6 +58,7 @@
 | 39 | Bins-родини ops: `gsv-server`, `gsv-mcp`, `gsv-watchdog`, `gsv-loc-audit`, `gsv-http-stand-smoke`, `gsv-ui-probe`, + test bins (62+) | `src/bin/` | І | cargo + focused bins |
 | 40 | README/docs canon (hero SVGs, install, cards list) | `docs/`, `ui/` | І | `tests/gsv_readme_contracts.rs` |
 | 41 | mesh-wasm (hub-side mesh ops + grants) | `crates/mesh-wasm/` | І | `tests/gsv_wgpu_contracts.rs` (hub lane) |
+| 42 | fm-xlink (FM↔tickets advisory cross-link report: `cargo xtask fm-xlink`; `--strict` for CI) | `boxes/fm_xlink.rs`, `bin/gsv_xtask.rs` | І (read-only, advisory — poolAI FM is taто-plan, this only reports id-resolution of `fm_ref` in GSV tickets) | inline unit + `tests/gsv_xtask_contracts.rs` |
 
 ## 2. Гейти (2026-11-17)
 
