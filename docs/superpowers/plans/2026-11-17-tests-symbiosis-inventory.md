@@ -73,7 +73,7 @@ box cannot build/run Rust reliably — EDR is the dominant factor; every flake t
 | telenetis | baseline fail 2 → **fix-band** (`is_cargo_test_harness` `cfg!(test)`; `%TEMP%` → `target/test-tmp`; `VENDOR_DIR` guard + nanos unique tmp) → ✅ **314/314 ×8 runs**; окремо зафіксовано: bin `telenetis-live.exe` в live (не чіпаємо) | green після фікс-банду (`9a8ae5b`) |
 | ORR_DESKTOP | `cargo test` ✅ 33 passed (2 ignored, pre-existing) | green |
 | CoreBoard_Labs_shop | `cargo test` ✅ 524 passed (513 lib + 11) | green |
-| LinFS | у роботі (фон) | pending |
+| LinFS | `cargo test` ✅ all suites pass (51 assertions counted, 0 failed) | green (2026-11-18) |
 | llama-rs | 77 test fns; llama-cpp-sys-2 =0.1.154 + patches; системні ризики Pi/bindgen | pending (risk: sys build) |
 | rusty-engine | 300 test fns; parity/`#[ignore]` real-model (вартість ~1 GiB GGUF) | pending |
 
