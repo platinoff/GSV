@@ -267,7 +267,7 @@ pub(crate) const PROOF_FRESH_SECS: u64 = 3600;
 /// `weights_matvec` samples (the heavyweight class being dispatched) and
 /// falls back to all done tasks when it has none. Returns
 /// `(ewma_ms, newest_sample_ts)`; `None` with zero samples.
-fn ewma_elapsed_ms(tasks: &[Value], peer_id: u64) -> Option<(f64, u64)> {
+pub(crate) fn ewma_elapsed_ms(tasks: &[Value], peer_id: u64) -> Option<(f64, u64)> {
     let mut rows: Vec<(u64, f64)> = tasks
         .iter()
         .filter(|t| t.get("status").and_then(Value::as_str) == Some("done"))

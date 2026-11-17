@@ -21,7 +21,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 
 use crate::boxes::update::crate_version;
-use crate::boxes::wgpu::{fresh_proofs, PROOF_FRESH_SECS};
+use crate::boxes::wgpu::{ewma_elapsed_ms, fresh_proofs, PROOF_FRESH_SECS};
 
 const PEERS_FILE: &str = "wgpu_peers.jsonl";
 const TASKS_FILE: &str = "wgpu_tasks.jsonl";
@@ -855,6 +855,10 @@ fn mesh_peers_summary(data_dir: &Path) -> Value {
                 // window that the enqueue router now requires (gate falls
                 // back to all-time proofs when nothing is fresh fleet-wide).
                 "proofs_fresh": fresh_proofs(&tasks, id, now, PROOF_FRESH_SECS),
+                // R1 telemetry: predicted makespan for the next heavyweight
+                // shard (EWMA over recent weights_matvec samples; falls back
+                // to all done tasks). null with zero samples.
+                "ewma_elapsed_ms": ewma_elapsed_ms(&tasks, id).map(|(e, _)| (e * 100.0).round() / 100.0),
                 "mflops": peer_mflops(p),
                 "last_task": peer_last_task(p),
                 "cores": peer_cores(p),
@@ -1204,6 +1208,8 @@ pub fn history_row(wire: &Value) -> Value {
                 "alive": p["alive"],
                 "ready": p["ready"],
                 "proofs": p["ready_proofs"],
+                "proofs_fresh": p["proofs_fresh"],
+                "ewma_ms": p["ewma_elapsed_ms"],
                 "class": p["device_class"],
                 "adapter": p["adapter"],
                 "mf": p["best_task_mflops"],
@@ -1551,12 +1557,13 @@ function renderPeers(peers) {
     return '<div class="peer' + (isNew ? ' peer-new' : '') + '"><span class="id">#' + p.id + (isNew ? ' <span class="pill">NEW</span>' : '') + '</span>' +
     '<span>' + escapeHtml(p.adapter || '?') + ' · ' + escapeHtml(p.device_class || '?') + '</span>' +
     '<span class="pill' + (p.alive ? '' : ' dead') + '">' + (p.alive ? 'alive' : 'stale') + '</span>' +
-    '<span class="pill' + (p.ready ? ' rdy' : ' nrdy') + '" title="ready proofs: ' + (p.ready_proofs ?? 0) + '">' + (p.ready ? '✓rdy' : '✗') + '</span>' +
+    '<span class="pill' + (p.ready ? ' rdy' : ' nrdy') + '" title="ready proofs: ' + (p.ready_proofs ?? 0) + ' (fresh: ' + (p.proofs_fresh ?? 0) + ')">' + (p.ready ? '✓rdy' : '✗') + '</span>' +
     '<span>' + (p.best_task_mflops ? Math.round(p.best_task_mflops) + ' MF best' : (p.mflops ? Math.round(p.mflops) + ' MF' : 'n/a')) + '</span>' +
     '<span class="k" title="last task ' + escapeHtml(p.last_task || '') + '">' + fmtAge(p.last_seen_age_secs) + '</span>' +
     '<span class="muted">' + (p.cores != null ? p.cores : '·') + ' c · ' + (p.device_memory_gb != null ? p.device_memory_gb + ' GB' : '·') + '</span></div>' +
     '<div class="psub"><span>shard est <b>' + (p.est_shard_gb != null ? '~' + p.est_shard_gb.toFixed(1) + ' GB' : 'n/a') + '</b></span>' +
     '<span>tasks <b>' + (p.tasks_done ?? 0) + ' done / ' + (p.tasks_failed ?? 0) + ' fail</b></span>' +
+    '<span title="EWMA of recent weights_matvec makespan (R1 routing predictor)">ewma <b>' + (p.ewma_elapsed_ms != null ? (p.ewma_elapsed_ms >= 1000 ? (p.ewma_elapsed_ms / 1000).toFixed(2) + ' s' : Math.round(p.ewma_elapsed_ms) + ' ms') : 'n/a') + '</b></span>' +
     '<span>weight err <b>' + fmtErr(p.weight_max_err) + '</b></span>' +
     (p.elapsed_sum_ms != null ? '<span>busy <b>' + fmtElapsed(p.elapsed_sum_ms) + '</b></span>' : '') +
     '<span>last <b>' + escapeHtml(p.last_task || '—') + '</b></span></div>' +
