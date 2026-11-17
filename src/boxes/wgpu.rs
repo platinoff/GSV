@@ -241,15 +241,89 @@ fn is_heavyweight(op: &str) -> bool {
     matches!(op, "weights_matvec")
 }
 
-/// Rank peers for routing: alive first, then measured throughput (desc), then id.
+/// Rank peers for routing: alive first, then tier (fresh-predicted latency →
+/// fresh-proofed → stale-proofed → unproven), then evidence within tier.
 /// Bootstrap (probation) floor: a peer with zero measurements AND zero task
 /// proofs still enters the routing order at 2.0 MF — otherwise starving green
 /// peers could never earn their first proof. Proven peers with real MFLOPS
 /// always outrank it; measured-zero peers stay behind.
+///
+/// R1 (docs/gsv/MESH_DISPATCH_RESEARCH_2026-11-18.md): predicted-latency
+/// routing. A peer's recent `weights_matvec` elapsed time is a better
+/// predictor of the next shard's makespan than an all-time max MFLOPS — a
+/// one-off fast phone stays "fast" in an all-time max forever, and FF-PC's
+/// pre-suspend numbers would keep it ahead. EWMA (α=0.3) over the peer's most
+/// recent samples; only samples within `PREDICTION_FRESH_SECS` are considered
+/// predictive — after that horizon the peer falls back to all-time evidence.
+/// R2: stale proofs (all older than `PROOF_FRESH_SECS`) no longer satisfy the
+/// heavyweight gate while a fresh-proved peer is alive — a ghost that sleeps
+/// for hours does not outrank a proven-hot phone.
 const PROBATION_FLOOR_MFLOPS: f64 = 2.0;
+const EWMA_ALPHA: f64 = 0.3;
+pub(crate) const PREDICTION_FRESH_SECS: u64 = 3600;
+pub(crate) const PROOF_FRESH_SECS: u64 = 3600;
+
+/// Recency-weighted mean of `elapsed_ms` over a peer's done tasks. Prefers
+/// `weights_matvec` samples (the heavyweight class being dispatched) and
+/// falls back to all done tasks when it has none. Returns
+/// `(ewma_ms, newest_sample_ts)`; `None` with zero samples.
+fn ewma_elapsed_ms(tasks: &[Value], peer_id: u64) -> Option<(f64, u64)> {
+    let mut rows: Vec<(u64, f64)> = tasks
+        .iter()
+        .filter(|t| t.get("status").and_then(Value::as_str) == Some("done"))
+        .filter(|t| t.get("peer_id").and_then(Value::as_u64) == Some(peer_id))
+        .filter_map(|t| {
+            let ts = t.get("done_ts").and_then(Value::as_u64)?;
+            let ms = t.get("elapsed_ms").and_then(Value::as_f64)?;
+            if !ms.is_finite() || ms < 0.0 {
+                return None;
+            }
+            Some((
+                ts,
+                ms,
+                t.get("op").and_then(Value::as_str) == Some("weights_matvec"),
+            ))
+        })
+        .filter(|(_, _, is_w)| *is_w)
+        .map(|(ts, ms, _)| (ts, ms))
+        .collect();
+    if rows.is_empty() {
+        rows = tasks
+            .iter()
+            .filter(|t| t.get("status").and_then(Value::as_str) == Some("done"))
+            .filter(|t| t.get("peer_id").and_then(Value::as_u64) == Some(peer_id))
+            .filter_map(|t| {
+                let ts = t.get("done_ts").and_then(Value::as_u64)?;
+                let ms = t.get("elapsed_ms").and_then(Value::as_f64)?;
+                if !ms.is_finite() || ms < 0.0 {
+                    return None;
+                }
+                Some((ts, ms))
+            })
+            .collect();
+    }
+    rows.sort_by_key(|(ts, _)| *ts);
+    let mut ewma: Option<f64> = None;
+    let mut newest: u64 = 0;
+    for (ts, ms) in rows {
+        ewma = Some(match ewma {
+            None => ms,
+            Some(e) => EWMA_ALPHA * ms + (1.0 - EWMA_ALPHA) * e,
+        });
+        newest = newest.max(ts);
+    }
+    ewma.map(|e| (e, newest))
+}
 
 fn ranked_peers(peers: &[Value], tasks: &[Value], now: u64) -> Vec<(u64, f64, bool)> {
-    let mut rows: Vec<(u64, f64, bool)> = Vec::new();
+    struct Ranked {
+        id: u64,
+        mflops: f64,
+        alive: bool,
+        tier: u8,
+        key: f64,
+    }
+    let mut rows: Vec<Ranked> = Vec::new();
     for p in peers.iter() {
         let id = match p.get("peer_id").and_then(Value::as_u64) {
             Some(id) => id,
@@ -260,21 +334,51 @@ fn ranked_peers(peers: &[Value], tasks: &[Value], now: u64) -> Vec<(u64, f64, bo
             .first()
             .and_then(|r| r.get("mflops_max").and_then(Value::as_f64))
             .unwrap_or(0.0);
-        let mflops = if measured > 0.0 {
-            measured
-        } else if task_proofs(tasks, id) == 0 {
-            PROBATION_FLOOR_MFLOPS
+        let fresh_pf = fresh_proofs(tasks, id, now, PROOF_FRESH_SECS);
+        let total_pf = task_proofs(tasks, id);
+        let ewma = ewma_elapsed_ms(tasks, id)
+            .filter(|(_, ts)| now.saturating_sub(*ts) <= PREDICTION_FRESH_SECS);
+        // R1 tiering: 0 = fresh latency prediction (EWMA within the horizon),
+        // 1 = fresh proofs but no fresh prediction, 2 = stale proofs only,
+        // 3 = unproven probation.
+        let (tier, key) = if let Some((e, _)) = ewma {
+            (0u8, e)
+        } else if fresh_pf > 0 {
+            (1u8, measured)
+        } else if total_pf > 0 {
+            (2u8, measured)
+        } else if measured > 0.0 {
+            (3, measured)
         } else {
-            measured
+            (3, PROBATION_FLOOR_MFLOPS)
         };
-        rows.push((id, mflops, alive));
+        rows.push(Ranked {
+            id,
+            mflops: measured,
+            alive,
+            tier,
+            key,
+        });
     }
     rows.sort_by(|a, b| {
-        b.2.cmp(&a.2)
-            .then(b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal))
-            .then(a.0.cmp(&b.0))
+        b.alive
+            .cmp(&a.alive)
+            .then(a.tier.cmp(&b.tier))
+            .then(if a.tier == 0 {
+                // EWMA: smaller predicted makespan first.
+                a.key
+                    .partial_cmp(&b.key)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            } else {
+                b.key
+                    .partial_cmp(&a.key)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .then(a.id.cmp(&b.id))
     });
-    rows
+    rows.into_iter()
+        .map(|r| (r.id, r.mflops, r.alive))
+        .collect()
 }
 
 /// Best peer to run a task: the fastest alive peer that is within its
@@ -658,6 +762,52 @@ fn task_proofs(tasks: &[Value], peer_id: u64) -> u32 {
         .count() as u32
 }
 
+/// Count of done tasks with good numerical error whose `done_ts` is within
+/// the last `fresh_secs`. Same goodness rule as `task_proofs`, but bounded in
+/// time — the R2 staleness predicate.
+pub(crate) fn fresh_proofs(tasks: &[Value], peer_id: u64, now: u64, fresh_secs: u64) -> u32 {
+    tasks
+        .iter()
+        .filter(|t| t.get("peer_id").and_then(Value::as_u64) == Some(peer_id))
+        .filter(|t| t.get("status").and_then(Value::as_str) == Some("done"))
+        .filter(|t| {
+            t.get("done_ts")
+                .and_then(Value::as_u64)
+                .map(|ts| now.saturating_sub(ts) <= fresh_secs)
+                .unwrap_or(false)
+        })
+        .filter(|t| {
+            t.get("max_err_model")
+                .and_then(Value::as_f64)
+                .map(|m| m < 1e-4)
+                .or_else(|| t.get("max_err").and_then(Value::as_f64).map(|e| e < 1e-6))
+                .unwrap_or(false)
+        })
+        .count() as u32
+}
+
+/// R2 gate for heavyweight (MiniCPM) dispatch. `true` when the peer may take
+/// MiniCPM work right now:
+/// - a fresh proof (< `PROOF_FRESH_SECS`) exists → true;
+/// - the peer has proofs, all of them stale, AND at least one alive peer has
+///   a fresh proof → false (a ghost that slept for hours is demoted);
+/// - otherwise (no fresh proofs anywhere — e.g. a fully idle fleet) → true
+///   iff the peer has any proof at all. Never a total lockout.
+fn proof_gate(peers: &[Value], tasks: &[Value], peer_id: u64, now: u64) -> bool {
+    if fresh_proofs(tasks, peer_id, now, PROOF_FRESH_SECS) > 0 {
+        return true;
+    }
+    if task_proofs(tasks, peer_id) == 0 {
+        return false;
+    }
+    let any_fresh_alive = peers
+        .iter()
+        .filter(|p| row_alive(p, now))
+        .filter_map(|p| p.get("peer_id").and_then(Value::as_u64))
+        .any(|pid| fresh_proofs(tasks, pid, now, PROOF_FRESH_SECS) > 0);
+    !any_fresh_alive
+}
+
 fn row_last_seen(row: &Value) -> u64 {
     row.get("last_seen_ts").and_then(Value::as_u64).unwrap_or(0)
 }
@@ -856,7 +1006,9 @@ pub fn peer_poll(data_dir: &Path, body: &Value) -> Result<Value, String> {
     // alive peer stays queued for the sticky window, after which any alive peer
     // may take it (routing without starvation).
     let sticky = route_sticky_secs();
-    let my_proofs = task_proofs(&tasks, peer_id);
+    // PH-A1 gate (R2-hardened): fresh proofs required while a fresh peer is
+    // alive; all-time proofs suffice when nothing fresh exists (no lockout).
+    let my_ready = proof_gate(&peers, &tasks, peer_id, now);
     let mut blocked_heavy = false;
     for t in tasks.iter_mut() {
         if t.get("status").and_then(Value::as_str) != Some("queued") {
@@ -869,7 +1021,7 @@ pub fn peer_poll(data_dir: &Path, body: &Value) -> Result<Value, String> {
             .and_then(Value::as_str)
             .map(is_heavyweight)
             .unwrap_or(false);
-        if heavy && my_proofs == 0 {
+        if heavy && !my_ready {
             blocked_heavy = true;
             continue;
         }
@@ -1307,7 +1459,7 @@ pub fn task_enqueue(data_dir: &Path, body: &Value) -> Result<Value, String> {
     let now = now_secs();
     let restrict_ready = is_heavyweight(op);
     let peers_now = read_jsonl(&data_dir.join(PEERS_FILE));
-    let ready_of = |pid: u64| task_proofs(&tasks, pid) > 0;
+    let ready_of = |pid: u64| proof_gate(&peers_now, &tasks, pid, now);
     let ranked: Vec<u64> = ranked_peers(&peers_now, &tasks, now)
         .into_iter()
         .filter(|(_, _, alive)| *alive)
@@ -3434,5 +3586,169 @@ mod tests {
         assert_eq!(row2["claimed_now"], 1);
         assert_eq!(row2["within_quota"], false);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // --- R1/R2 (MESH_DISPATCH_RESEARCH_2026-11-18): predicted-latency
+    // routing + stale-proof TTL -------------------------------------------
+
+    fn test_peer(id: u64, now: u64) -> Value {
+        json!({
+            "peer_id": id,
+            "adapter": format!("test/{id}"),
+            "ua": "synthetic",
+            "device_class": "test",
+            "cores": 4,
+            "device_key": format!("key-{id}"),
+            "joined_ts": now,
+            "last_seen_ts": now,
+            "lease_until": now + 120,
+        })
+    }
+
+    fn done_task(peer_id: u64, op: &str, done_ts: u64, elapsed_ms: f64, mflops: f64) -> Value {
+        json!({
+            "task_id": format!("t-{peer_id}-{done_ts}-{op}"),
+            "status": "done",
+            "peer_id": peer_id,
+            "op": op,
+            "done_ts": done_ts,
+            "elapsed_ms": elapsed_ms,
+            "max_err_model": 5e-7,
+            "mflops": mflops,
+            "iters": 1,
+        })
+    }
+
+    #[test]
+    fn fresh_proofs_counts_only_recent_good_tasks() {
+        let now = 1_000_000u64;
+        let tasks = vec![
+            done_task(7, "weights_matvec", now - 100, 100.0, 10.0),
+            done_task(7, "weights_matvec", now - PROOF_FRESH_SECS - 1, 100.0, 10.0),
+            json!({
+                "task_id": "bad-1", "status": "done", "peer_id": 7, "op": "weights_matvec",
+                "done_ts": now - 50, "elapsed_ms": 10.0, "max_err_model": 1e-1, "mflops": 10.0,
+            }),
+        ];
+        assert_eq!(task_proofs(&tasks, 7), 2);
+        assert_eq!(fresh_proofs(&tasks, 7, now, PROOF_FRESH_SECS), 1);
+    }
+
+    #[test]
+    fn ewma_elapsed_prefers_recent_weights_samples() {
+        let now = 1_000_000u64;
+        // Peer 1: two old slow weights samples (stale, > horizon) + one very
+        // fresh fast sample — EWMA must reflect the fresh one, not the olds.
+        let tasks = vec![
+            done_task(
+                1,
+                "weights_matvec",
+                now - PREDICTION_FRESH_SECS - 1000,
+                4000.0,
+                1.0,
+            ),
+            done_task(
+                1,
+                "weights_matvec",
+                now - PREDICTION_FRESH_SECS - 900,
+                4000.0,
+                1.0,
+            ),
+            done_task(1, "weights_matvec", now - 10, 40.0, 90.0),
+            // minilm noise must NOT pollute the weights-class EWMA.
+            done_task(1, "minilm", now - 5, 9000.0, 0.1),
+        ];
+        let (e, ts) = ewma_elapsed_ms(&tasks, 1).expect("ewma");
+        // Chronological EWMA over [4000, 4000, 40]:
+        // e1 = 4000; e2 = 0.3*4000 + 0.7*4000 = 4000; e3 = 0.3*40 + 0.7*4000 = 2812
+        assert!((e - 2812.0).abs() < 0.5, "ewma was {e}");
+        assert_eq!(ts, now - 10);
+        // Peer with only non-weights samples falls back to those.
+        let other = vec![done_task(2, "matvec", now - 1, 100.0, 5.0)];
+        let (e2, _) = ewma_elapsed_ms(&other, 2).expect("fallback ewma");
+        assert!((e2 - 100.0).abs() < 0.5);
+        // No done tasks → None.
+        assert!(ewma_elapsed_ms(&[], 3).is_none());
+    }
+
+    #[test]
+    fn ranked_peers_prefers_fresh_prediction_over_stale_mflops() {
+        let now = 1_000_000u64;
+        let peers = vec![test_peer(11, now), test_peer(12, now)];
+        // Peer 11: huge all-time mflops but stale weights sample.
+        // Peer 12: moderate mflops but a fresh, fast weights sample.
+        let tasks = vec![
+            done_task(
+                11,
+                "weights_matvec",
+                now - PREDICTION_FRESH_SECS - 100,
+                300.0,
+                500.0,
+            ),
+            done_task(12, "weights_matvec", now - 30, 120.0, 50.0),
+        ];
+        let ranked = ranked_peers(&peers, &tasks, now);
+        let ids: Vec<u64> = ranked.into_iter().map(|(id, _, _)| id).collect();
+        assert_eq!(ids, vec![12, 11]);
+    }
+
+    #[test]
+    fn ranked_peers_keeps_alive_ahead_of_dead() {
+        let now = 1_000_000u64;
+        let mut dead = test_peer(21, now);
+        dead["lease_until"] = json!(now - 1);
+        let alive = test_peer(22, now);
+        let peers = vec![dead, alive];
+        let tasks = vec![done_task(21, "weights_matvec", now - 10, 10.0, 999.0)];
+        let ranked = ranked_peers(&peers, &tasks, now);
+        assert_eq!(ranked[0].0, 22);
+        assert!(ranked[0].2);
+        assert!(!ranked[1].2);
+    }
+
+    #[test]
+    fn proof_gate_blocks_stale_ghost_when_fresh_peer_alive() {
+        let now = 1_000_000u64;
+        let ghost = test_peer(31, now); // dead-but-registered page; proofs all stale
+        let fresh = test_peer(32, now);
+        let peers = vec![ghost.clone(), fresh.clone()];
+        let tasks = vec![
+            done_task(
+                31,
+                "weights_matvec",
+                now - PROOF_FRESH_SECS - 100,
+                200.0,
+                10.0,
+            ),
+            done_task(32, "weights_matvec", now - 30, 200.0, 10.0),
+        ];
+        assert!(!proof_gate(&peers, &tasks, 31, now));
+        assert!(proof_gate(&peers, &tasks, 32, now));
+    }
+
+    #[test]
+    fn proof_gate_falls_back_when_nothing_is_fresh() {
+        let now = 1_000_000u64;
+        let peers = vec![test_peer(41, now), test_peer(42, now)];
+        let tasks = vec![
+            done_task(
+                41,
+                "weights_matvec",
+                now - PROOF_FRESH_SECS - 100,
+                200.0,
+                10.0,
+            ),
+            done_task(
+                42,
+                "weights_matvec",
+                now - PROOF_FRESH_SECS - 50,
+                200.0,
+                10.0,
+            ),
+        ];
+        assert!(proof_gate(&peers, &tasks, 41, now));
+        assert!(proof_gate(&peers, &tasks, 42, now));
+        // And an unproven peer still fails hard.
+        assert!(!proof_gate(&peers, &tasks, 99, now));
     }
 }

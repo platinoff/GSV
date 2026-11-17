@@ -21,6 +21,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 
 use crate::boxes::update::crate_version;
+use crate::boxes::wgpu::{fresh_proofs, PROOF_FRESH_SECS};
 
 const PEERS_FILE: &str = "wgpu_peers.jsonl";
 const TASKS_FILE: &str = "wgpu_tasks.jsonl";
@@ -850,6 +851,10 @@ fn mesh_peers_summary(data_dir: &Path) -> Value {
                 // only after >=1 task proof with good numerical error.
                 "ready": proofs >= 1,
                 "ready_proofs": proofs,
+                // R2 telemetry: how many of those proofs are within the fresh
+                // window that the enqueue router now requires (gate falls
+                // back to all-time proofs when nothing is fresh fleet-wide).
+                "proofs_fresh": fresh_proofs(&tasks, id, now, PROOF_FRESH_SECS),
                 "mflops": peer_mflops(p),
                 "last_task": peer_last_task(p),
                 "cores": peer_cores(p),
