@@ -1,7 +1,11 @@
-//! GSV HTTP stand-smoke contracts — Rust integration tests.
+//! Gated behind `Cargo.toml feature `stand_smoke` — see cargo test --features stand_smoke.
+//! Default `cargo test` excludes this file entirely (owner 2026-11-17).
+#![cfg(feature = "stand_smoke")]
+//! GSV HTTP stand-smoke contracts — Rust integration tests (gated; see cargo test --features stand_smoke).
 //!
-//! The `gsv-http-stand-smoke` bin hits the live server over HTTP; these tests
-//! assert the *contract* it relies on, without binding a port:
+//! Contract tests for the `gsv-http-stand-smoke` bin. They use `tower::ServiceExt::oneshot`
+//! against the axum router — no live server, no port, no live hub — and pin
+//! the *contract* the bin relies on:
 //!
 //! 1. `/api/ui/card/:name` renders every `CARD_NAMES` entry with `ok` + non-empty `html`.
 //! 2. Vision endpoints return `ok: true` JSON (the smoke `check_ok` gate).

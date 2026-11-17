@@ -15,6 +15,11 @@ categories = ["command-line-utilities", "web-programming"]
 default-run = "gsv-server"
 publish = false
 
+[features]
+# A1 (owner 2026-11-17): "manual" gate — contract tests under `gsv_stand_smoke_contracts.rs`
+# only run with `cargo test --features stand_smoke`. Default `cargo test` excludes them.
+stand_smoke = []
+
 [[bin]]
 name = "gsv-server"
 path = "src/bin/gsv_server.rs"
