@@ -1,7 +1,8 @@
 # Екосистема — зведення стану та план дій (2026-11-18)
 
 **Контекст:** `абракадабра`/`agi` + free-drain. Rust **1.100.0** (обидва канали), 35B-A3B mesh,
-мобільний `/wgpu` PWA, 2026-11-18: poolAI CI повний root-cause fix — Windows і Linux обидва зелені
+мобільний `/wgpu` PWA, 2026-11-18: poolAI CI root-cause fix — CI-інфра зелена (run 1704), два реальні червоні deferred owner'ом
+(ubuntu `Run tests (default)` + Playwright E2E); OpenAPI audit ✅.
 по fmt/clippy, OpenAPI gap missing → відкрита dev-дія, 8 jobs зелених, локалізація 404s.
 **Усі репозиторії запушені/чисті** (крім GSV-WGPU та mesh-node — нема remotes, owner gate). Тут: стан + ресерч Rust 1.100 +
 peers bench + план дій.
@@ -142,7 +143,12 @@ project scan (концепт → FM §5.1 → roadmaps). Наразі §5.12 <10
 1. **RAM боксу** — тихі смерті хаба (MemFree <0.75 GB перед смертю). Варіанти: закрити Firefox/Telegram,
    системний reboot, або апгрейд RAM. DoD: 7 днів без тихої смерті АБО повний перехід дуби компіляції на CI.
 2. **poolAI cloud/k8s на CI** — після `7d65c505c` перевірити, що CI green на `main` (ubuntu+win, 1.100.0);
-   якщо червоний — фікси ОКРЕМИМ бандом.
+   якщо червоний — фікси ОКРЕМИМ бандом. **Статус 2026-11-18 (run 1704, `a6d7e8fbc` → `6f0c92d85`): інфра зелена**
+   (OpenAPI gap ✅, 12 feature/gate jobs ✅, fmt/clippy ✅, Pa11y skipped = no-UI-change); windows Test Suite
+   ⊘ (matrix fail-fast default — виправлено `6f0c92d85`, `fail-fast: false`); **два реальні червоні — deferred owner'ом**:
+   (a) ubuntu `Run tests (default) - Required` — перший в історії повний прогін тестового профайлу, failing test(ів) невідомі
+   без raw log; (b) Playwright admin E2E — "Build poolai and run smoke tests" червоний після 344s, причина не встановлена
+   (build/stand/visual-snapshot). Обидва потребують raw log; owner відкладав. Див. `ECOSYSTEM_CI_REGISTRY_2026-11-18.md` §5.1.
 3. **rebook stale-тест `interior_plan_is_130_english`** — owner рішення (осучаснити/видалити); не чіпав.
 4. **FF-PC #37** — ghost (proofs_fresh=0, ~5 днів); route-виключати продовжувати; видалити peer row — тільки owner.
 

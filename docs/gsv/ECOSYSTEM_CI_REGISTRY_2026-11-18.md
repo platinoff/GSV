@@ -127,8 +127,23 @@ Windows jobs використовують `stable-x86_64-pc-windows-gnu` (еле
 7. Повний `cargo check --features cloud,cloud-sdk` на poolAI **зелений (10 хв 42 s)** — 1.100.0
    сумісний; k8s-відкриття не блокер.
 
-**llama-rs та ORR_DESKTOP — не чіпали** (owner: «Лише poolAI»).
+**llama-rs та ORR_DESKTOP — не чіпали** (owner: «Лише poolAI»). Перевірено локально, що їхні
+CI вже self-consistent: llama-rs (`windows-latest`, dtolnay `stable-x86_64-pc-windows-gnu` explicitly — no host/pin mismatch), ORR_DESKTOP (`windows-latest`, `rustup default stable-x86_64-pc-windows-gnu` — no mismatch). Linux-target роботу не ведуть — збігу нема взагалі.
 **GSV CI — відсутній** (локальний dev-box; хаб — жива інфра, не PR-полігон).
+
+### 5.1 Run 1704 (`a6d7e8fbc`) — виміряний outcome
+
+| Job | Result |
+|---|---|
+| Test Suite (ubuntu-latest) | ❌ **failure** — "Run tests (default) - Required" (`cargo test -j 1 --lib --tests --features ml,enterprise,cloud,test-utils,job-store-sqlite,prometheus`), 24m35s; fmt/clippy/build усі green — **перший реальний прогін тестів в історії цього репо**; failing test(невідомі без raw log; owner: "Skip for now") |
+| Test Suite (windows-latest) | ⊘ cancelled — matrix `fail-fast: true` default; **виправлено** `6f0c92d85` (`fail-fast: false`) |
+| OpenAPI gap audit | ✅ **green** — fix `5653fd4d6` (`/virtual-nodes/{peer_id}/tasks/result` + schemas) підтверджено |
+| Vision manifest FM drift / LOC ratio / Rust diagnostics / Detect UI / Pa11y script contract / всі feature-checks | ✅ green |
+| Pa11y WCAG 2.2 | ⊘ skipped — `Detect UI` paths filter: UI не змінилась ⇒ job не стартує (expected) |
+| Playwright admin E2E | ❌ **failure** — "Build poolai and run smoke tests" після 344s; причина невідома (build/stand/visual-snapshot — без raw log не відрізнити); owner: "Skip for now" |
+| Documentation | ⊘ run 1414 failed (pre-fix docs.yml, той самий toolchain-хост); fix `c5746bee1` (`RUSTUP_TOOLCHAIN: stable` у docs.yml) **не перевірено** — docs.yml тригериться лише на src/docs/Cargo.toml changes |
+
+**Підсумок run 1704:** вся **CI-інфра** (toolchain pin, normalization, triggers, permissions, cache keys, `fail-fast: false`) зелена; залишаються два **реальні продуктові/тестові** червоні — обидва deferred owner'ом 2026-11-18.
 
 ---
 
