@@ -147,6 +147,22 @@ CI вже self-consistent: llama-rs (`windows-latest`, dtolnay `stable-x86_64-pc
 
 ---
 
+**Test Suite (1705, заміряно нативно — обидва OS):**
+- ubuntu: ❌ `Run tests (default) - Required` — **детермінований failing test** `horizon_s960_band_docs_legacy_close_ph_s969`
+  (`tests/galaxy_horizon_s960_integration.rs:39`, `missing flat legacy doc docs/EXECUTE_NOW.md`)
+- windows: ❌ **той самий тест** (1h04m, у логу видно той самий файл/рядок)
+- Причина: `cargo test-ci` (ml,enterprise,cloud,test-utils,job-store-sqlite,prometheus) **найперший раз у історії репо виконав весь прогін**
+  (імфра-піни виправлені) — і вперше виявив, що `FLAT_LEGACY_DOC_SAMPLES` вказує на файли, перенесені архів-смугою 2026-11 у `docs/archive/2026-11/`.
+- **Fix `dafaff76e`** (sample list → існуючі `archive/2026-11/*.md` + `QUICK_START.md`; банери перевірено ×12).
+
+**Pa11y + Playwright (1705):** build зелені (~2–6 хв), але `/api/v1/health` ніколи не повертає 200 за 90 спроб × 2s —
+poolai **стартує, але або падає в init (мовчання RUST_LOG=warn), або висне**; причина невідома.
+**Fix `4e682b111`** — діагностичний: обидва скрипти (bin/pa11y-ci.sh wait_health; poolai_e2e_stand.rs start/restart)
+тепер друкують `tail -n 200 $STAND_ROOT/poolai.log` у лог кроку. Happy path не змінено.
+
+**Run 1706 (`dafaff76e`, тестовий фікс)** — відомий кандидатом на green, але його скасує **1707 (`4e682b111`)** (cancel-in-progress за задумом).
+**Run 1707 (`4e682b111`)** — в дорозі одночасно з **Documentation run 1415** (вперше тригериться під шляхом src/** → верифікує docs.yml fix `c5746bee1`).
+
 ## 6. Джерела анотation (чому «багато анотацій»)
 
 Порядок за імовірністю:

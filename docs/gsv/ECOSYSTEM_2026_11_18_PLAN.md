@@ -143,12 +143,11 @@ project scan (концепт → FM §5.1 → roadmaps). Наразі §5.12 <10
 1. **RAM боксу** — тихі смерті хаба (MemFree <0.75 GB перед смертю). Варіанти: закрити Firefox/Telegram,
    системний reboot, або апгрейд RAM. DoD: 7 днів без тихої смерті АБО повний перехід дуби компіляції на CI.
 2. **poolAI cloud/k8s на CI** — після `7d65c505c` перевірити, що CI green на `main` (ubuntu+win, 1.100.0);
-   якщо червоний — фікси ОКРЕМИМ бандом. **Статус 2026-11-18 (run 1704, `a6d7e8fbc` → `6f0c92d85`): інфра зелена**
-   (OpenAPI gap ✅, 12 feature/gate jobs ✅, fmt/clippy ✅, Pa11y skipped = no-UI-change); windows Test Suite
-   ⊘ (matrix fail-fast default — виправлено `6f0c92d85`, `fail-fast: false`); **два реальні червоні — deferred owner'ом**:
-   (a) ubuntu `Run tests (default) - Required` — перший в історії повний прогін тестового профайлу, failing test(ів) невідомі
-   без raw log; (b) Playwright admin E2E — "Build poolai and run smoke tests" червоний після 344s, причина не встановлена
-   (build/stand/visual-snapshot). Обидва потребують raw log; owner відкладав. Див. `ECOSYSTEM_CI_REGISTRY_2026-11-18.md` §5.1.
+   якщо червоний — фікси ОКРЕМИМ бандом. **Статус 2026-11-18: root causes знайдено та виправлено** —
+   Logs (owner-grant via stored credential, read-only GET): **Test Suite ubuntu+windows fail deterministically на
+   `horizon_s960_band_docs_legacy_close_ph_s969`** (archived docs samples) → **fix `dafaff76e`** (FLAT_LEGACY_DOC_SAMPLES → `archive/2026-11/*.md`; банери перевірено ×12).
+   **Pa11y + Playwright**: poolai стартує, `/api/v1/health` не повертає 200 за 90 спроб — причина невідома (мовчання під RUST_LOG=warn) →
+   **`4e682b111`**: діагностика `poolai.log tail` у лог кроку обох воркерів. Run 1706 (тестовий фікс) і 1707 (діагностика+тести) у дорозі; Documentation 1415 (тригериться src/**) верифікує docs.yml fix. OpenAPI gap audit — зелений. Не забувати: pa11y/e2e тригеряться на кожен пуш у `.github/workflows/ci.yml` (paths-filter).
 3. **rebook stale-тест `interior_plan_is_130_english`** — owner рішення (осучаснити/видалити); не чіпав.
 4. **FF-PC #37** — ghost (proofs_fresh=0, ~5 днів); route-виключати продовжувати; видалити peer row — тільки owner.
 
