@@ -61,7 +61,7 @@ math-1 і math-2 дають **однаковий префікс** `198, 15666, 2
 власника-рівня еквіваленту. Наступний дешевий крок — **не патч**, а шари-контролі:
 position-resolved L23 + matched-difficulty control (див. §4.2).
 
-## 5. Peers / NanoJev (перевірено 2026-11-18 після прогону)
+## 5. Peers / NanoJev (перевірено 2026-11-18 після прогону; фінал — пізній вечір)
 
 - `rusty node/hub` (B7/B8) і `GSV-WGPU`/`mesh-wasm` SIMD128 — працюють локально (mlpblock ~3.2 ms);
   browser-peer dispatch — **усі 4 піри `alive:false`** (valhall #35, pi4 #36, bifrost #38, FF-PC #37 ghost)
@@ -80,13 +80,28 @@ position-resolved L23 + matched-difficulty control (див. §4.2).
   JS fallback, CSP wasm-unsafe-eval). Rust-1.100 цінність = Allocator/new_in для alloc-гарячих точок — не зроблено.
 - `cargo` жорсткий `--deny warnings` у гейтах; 1.100 стабільний у всіх репо (11/11 green).
 
-## 7. Наступні кроки (owner gates)
+## 7. Вечірній контроль — matched-difficulty (supersedes §2/§4 interpretation)
 
-1. **Inkling-budget ok**: self-diagnostic session цього файлу (без нових Zen-дзвінків) → позиція щодо
-   matched-difficulty control (uk-fact-2'). Якщо owner схвалить — скласти 5 UA-golden фікстур.
-2. **Host-контрольні виміри** (serve local, read-only): position-resolved L23 на uk-fact-1/2/loop-1 —
-   через `rusty serve` + probe, без патчів. Мінімальний банд, read-only.
-3. **Peers**: тільки після повернення bifrost/valhall/Pi4 у mesh — поставити matched-difficulty
-   контроль на browser peers (WASM SIMD128) як реплікацію аудиту.
+Див. `wsp-battery/WSP_AUDIT_CONTROLS_2026-11-18.md`. Коротко:
+
+1. Усі 4 UA-факти «Хто написав…» (Євгенія/Мертві душі/Кобзар/Ревізор) дають **однакове**
+   layer-23 delta_rms_max = **0.4538** — це спільний-префіксний artefact, не «фактичність».
+2. Поведінково (serve, temp 0): усі 4 відповіді неправильні ("Іван Іванович Ох", "Джозеф Фраго",
+   "Иосиф Хабарович", "Джозеф Фран"), «Київ» → «Киен.», math-1 → сміття (`<think>\nDle am I asked:`),
+   loop-1 володіє правильною розкладкою (23 = 20+3), але не видає відповідь у 160 токенів.
+3. Висновок: **MiniCPM-1B має широкий ability-gap, не obstacle-gap** (Gemma-закон) — Astra-стиль
+   patch тут не має робочої гіпотези. Попереднє «layer-23 candidate» (§2/§4 вище) відкликано.
+4. Flint-вердикт (§4) підтверджена методами контролів емпірично — саме тому «chat-API merge» треба
+   починати з controls, а не з patch.
+
+## 8. Наступні кроки (owner gates)
+
+1. **Uk-golden battery**: owner додає/веріфікує `ua-golden-1..5` (5 фікстур) → battery sha256 перерахувати;
+   controls теж додати в battery (uk-fact-3/4/5) після веріфікації.
+2. **Модель-перший-кандидат для WSP-проходу**: **Granite-A800M** (llama.cpp, CPU, чистий лист,
+   реальний MoE 800M-active) — або зупинитись на audit+ExpertCache (без патчів ваг взагалі).
+3. **Peers**: тільки після повернення bifrost/valhall/Pi4 у mesh — реплікація audit-контролів на
+   browser peers (WASM SIMD128). Поки всі `alive:false`.
 4. **NanoJev port**: окремий owner-gate (Rust-нативний), не зараз.
 5. Run 1705 (`6f0c92d85`) — windows/ubuntu Test Suites в дорозі; poolAI не пушити до завершення.
+6. **Inkling-only**: жодних Zen free-дзвінків без окремого owner-апруву; усі діагностики локальні.

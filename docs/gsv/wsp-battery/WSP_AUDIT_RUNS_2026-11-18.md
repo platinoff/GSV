@@ -1,5 +1,12 @@
 # WSP battery v1 — baseline audit runs (2026-11-18)
 
+> **⚠️ RETRACTED 2026-11-18 (пізній вечір):** твердження нижче, що «uk-fact-2 L23 delta_rms_max = 0.4538 —
+> найсильніший кандидат на Astra-стиль hypothesis», **відкликається**. Matched-difficulty controls
+> (`WSP_AUDIT_CONTROLS_2026-11-18.md`) показали: усі 4 UA-факти зі спільним префіксом «Хто написав «»
+> дають однакове 0.4538 — це **artefact спільного префікса**, не сигнал фактичності. Модель демонструє
+> широкий ability-gap (усі UA-факти неправильні, math-baseline сміття), а не obstacle-gap.
+> Далі читати controls-документ як джерело істини.
+
 **Model:** MiniCPM-V-4_7-1B-Q4_K_M.gguf (runner35, qwen35-hybrid: 18 recurrent/GDN + 6 full-attn layers 3, 7, 11, 15, 19, 23)
 **Tool:** `rusty audit -m … -p "…"` (rusty-engine `47f66ad`; ECO-9.2 phase 9.3a) — **prefill residual stats only; no weight edits; no behavioral metrics**
 **Battery:** `docs/gsv/wsp-battery/battery_v1.json` (sha256 `334f9b0e700a8323380bee70adee86dd452613dca9b9150fd76ab2e018560977`)
