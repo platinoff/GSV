@@ -2192,6 +2192,36 @@ fn reduce_groups(tasks: &[Value], data_dir: &Path) -> Vec<Value> {
             .iter()
             .filter(|t| t.get("status").and_then(Value::as_str) == Some("done"))
             .collect();
+        // R4 block: no task-level `partial` exists — the result handler verifies
+        // every item against the golden-x chunk store and stamps per-task
+        // `max_err_model`. Reduce from that (do not force a toy-reference sum).
+        if op == "weights_matvec_block" {
+            let mut complete = done.len() as u64 == shards && !done.is_empty();
+            let block_max = done.iter().fold(0.0f64, |m, t| {
+                m.max(
+                    t.get("max_err_model")
+                        .and_then(Value::as_f64)
+                        .unwrap_or(f64::NAN),
+                )
+            });
+            if !block_max.is_finite() {
+                complete = false;
+            }
+            rows.push(json!({
+                "group_id": g,
+                "shards": shards,
+                "done_shards": done.len(),
+                "complete": complete,
+                "max_err": if complete { block_max } else { 0.0 },
+                "scale": 1.0,
+                "ok": complete && block_max <= REDUCE_TOL,
+                "peers": shard_rows
+                    .iter()
+                    .filter_map(|t| t.get("peer_id").and_then(Value::as_u64))
+                    .collect::<Vec<u64>>(),
+            }));
+            continue;
+        }
         let scale = reference
             .iter()
             .fold(0.0f64, |m, v| m.max(v.abs()))
@@ -3625,6 +3655,106 @@ mod tests {
         // Unsupported shard counts are refused.
         assert!(task_enqueue(&dir, &json!({"op":"matvec_shard","shards":3})).is_err());
         assert!(task_enqueue(&dir, &json!({"op":"matvec_shard","shards":0})).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn weights_matvec_block_group_reduces_from_max_err_model() {
+        // R4: block tasks carry no task-level `partial`; the reducer must
+        // finish from per-task `max_err_model` instead of summing partials.
+        let dir = temp_dir("mesh_block_reduce");
+        // 2×2 f32 tensor (rows=2, cols=2): W = [[1, 0], [0, 1]], x = [3, 4].
+        // Expected y = [3, 4]; shard 0 (row 0) partial [3], shard 1 (row 1) [4].
+        let payload: Vec<u8> = [1.0f32, 0.0, 0.0, 1.0]
+            .iter()
+            .flat_map(|v| v.to_le_bytes())
+            .collect();
+        let s1 = crate::boxes::weight_store::store_chunk(&dir, &payload).expect("store");
+        let key = s1["key"].as_str().expect("key").to_string();
+        crate::boxes::weight_store::register_tensor(
+            &dir,
+            &json!({"tensor":"blk_t.weight","dims":[2,2],"chunks":[key]}),
+        )
+        .expect("register");
+        // Seed one fresh, good weights_matvec proof so the heavyweight
+        // ready-gate lets the block through (peer joined before enqueue).
+        let proof_peer = peer_join(&dir, &json!({"adapter":"proof","ua":"u"})).expect("proof peer");
+        {
+            let path = dir.join(TASKS_FILE);
+            let mut tasks = read_jsonl(&path);
+            tasks.push(json!({
+                "task_id": "mt-proof-1",
+                "status": "done",
+                "peer_id": proof_peer["peer_id"].as_u64().unwrap(),
+                "op": "weights_matvec",
+                "done_ts": now_secs(),
+                "max_err_model": 5e-7,
+                "elapsed_ms": 10.0,
+                "mflops": 10.0,
+            }));
+            write_jsonl(&path, &tasks).unwrap();
+        }
+        let e = task_enqueue(
+            &dir,
+            &json!({"op":"weights_matvec_block","shards":2,"items":[
+                {"tensor":"blk_t.weight","x":[3.0,4.0]}
+            ]}),
+        )
+        .expect("enqueue block");
+        let group = e["group_id"].as_str().unwrap().to_string();
+        let ids: Vec<String> = e["task_ids"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap().to_string())
+            .collect();
+        assert_eq!(ids.len(), 2);
+        // The proof peer is the only ready peer at enqueue time; the route
+        // sticks to it — reuse it for both sequential claims.
+        let mut posted = 0;
+        for want in [0usize, 1usize] {
+            let peer = proof_peer["peer_id"].as_u64().unwrap();
+            let p = peer_poll(&dir, &json!({"peer_id": peer})).expect("poll");
+            let task_id = p["task"]["task_id"].as_str().unwrap().to_string();
+            // Find this task's row range.
+            let raw = std::fs::read_to_string(dir.join(TASKS_FILE)).unwrap();
+            let trow: Value = raw
+                .lines()
+                .filter_map(|l| serde_json::from_str::<Value>(l).ok())
+                .find(|t| t["task_id"] == task_id)
+                .expect("task row");
+            let item = &trow["items"][0];
+            let row_start = item["row_start"].as_u64().unwrap() as usize;
+            let row_end = item["row_end"].as_u64().unwrap() as usize;
+            // Compute the partial for the claimed shard from the tiny W.
+            let expected = [3.0f64, 4.0f64];
+            let partial: Vec<f64> = (row_start..row_end).map(|r| expected[r]).collect();
+            let r = task_result(
+                &dir,
+                &json!({"peer_id":peer,"task_id":task_id,"ok":true,"elapsed_ms":1.0,"max_err":0.0,"iters":1,
+                    "items":[{
+                        "tensor":"blk_t.weight","ok":true,
+                        "row_start":row_start,"row_end":row_end,
+                        "rows":2,"cols":2,
+                        "partial":partial,"max_err":0.0,"elapsed_ms":1.0
+                    }]}),
+            )
+            .expect("result");
+            assert_eq!(r["status"], "done", "shard {want}: {r}");
+            posted += 1;
+        }
+        assert_eq!(posted, 2);
+        let m = mesh_wire(&dir);
+        let g = m["groups"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|g| g["group_id"] == group.as_str())
+            .expect("group row");
+        assert_eq!(g["complete"], true, "{g}");
+        assert_eq!(g["done_shards"], 2);
+        assert_eq!(g["ok"], true, "{g}");
+        assert!(g["max_err"].as_f64().unwrap() <= REDUCE_TOL);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
