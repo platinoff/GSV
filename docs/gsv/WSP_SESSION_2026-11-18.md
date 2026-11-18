@@ -98,10 +98,15 @@ position-resolved L23 + matched-difficulty control (див. §4.2).
 
 1. **Uk-golden battery**: owner додає/веріфікує `ua-golden-1..5` (5 фікстур) → battery sha256 перерахувати;
    controls теж додати в battery (uk-fact-3/4/5) після веріфікації.
-2. **Модель-перший-кандидат для WSP-проходу**: **Granite-A800M** (llama.cpp, CPU, чистий лист,
-   реальний MoE 800M-active) — або зупинитись на audit+ExpertCache (без патчів ваг взагалі).
+2. **Модель-перший-кандидат для WSP-проходу**: **Granite-A800M** — АЛЕ `llama_serve.exe` (Windows PE32+,
+   x86-64) **не стартує на цьому боксі**: `error while loading shared libraries: api-ms-win-core-synch-l1-2-0.dll`
+   (cmd і MSYS однаково; System32 **не містить** `api-ms-win-core-synch-l1-2-0.dll` і жодного `api-ms-win-core-synch*`).
+   Binary зібраний з імпортом з більш нового Windows API set. Фікс = перезбірка llama-rs під цей Windows
+   (RAM/CPU-heavy, owner-gate) — або зупинитись на audit+ExpertCache (без патчів ваг взагалі).
+   **2026-11-18: Granite baseline BLOCKED, нічого не запускалось.**
 3. **Peers**: тільки після повернення bifrost/valhall/Pi4 у mesh — реплікація audit-контролів на
    browser peers (WASM SIMD128). Поки всі `alive:false`.
 4. **NanoJev port**: окремий owner-gate (Rust-нативний), не зараз.
-5. Run 1705 (`6f0c92d85`) — windows/ubuntu Test Suites в дорозі; poolAI не пушити до завершення.
+5. Run 1705 (`6f0c92d85`) — ubuntu red детерміновано ("Run tests (default)", той самий exit у 1704/1705);
+   windows leg у дорозі; poolAI не пушити до завершення windows-лега.
 6. **Inkling-only**: жодних Zen free-дзвінків без окремого owner-апруву; усі діагностики локальні.
