@@ -102,6 +102,7 @@ tokio = { version = "1.53", features = ["rt-multi-thread", "io-util", "io-std", 
 
 # Web framework
 axum = { version = "0.8" }
+sha1 = "0.10"
 
 # Band 235 PH-S2990: response compression for the tunnel economy path
 # (gzip). Predicate below keeps SSE/WebSocket/MCP streams uncompressed.

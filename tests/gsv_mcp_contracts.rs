@@ -190,8 +190,14 @@ async fn get_mcp_http1_has_content_length() {
         .expect("bind");
     let addr = listener.local_addr().expect("addr");
     let app = app();
+    let data_dir = std::sync::Arc::new(
+        std::env::temp_dir().join(format!("gsv-mcp-contract-{}", std::process::id())),
+    );
+    let _ = std::fs::create_dir_all(&*data_dir);
     tokio::spawn(async move {
-        gsv::server::serve(listener, app).await.expect("serve");
+        gsv::server::serve(listener, app, data_dir)
+            .await
+            .expect("serve");
     });
     tokio::time::sleep(Duration::from_millis(200)).await;
     let index = http1_headers(
@@ -1633,7 +1639,7 @@ async fn watchdog_and_sw_tools_ok() {
     for (id, name, needle) in [
         (82u64, "gsv_watchdog", "alive"),
         (83, "gsv_keep_live", "omniroute"),
-        (84, "gsv_sw", "gsv-shell-v2"),
+        (84, "gsv_sw", gsv::boxes::sw::CACHE_NAME),
     ] {
         let (status, body) = mcp_post(
             &app,

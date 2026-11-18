@@ -2154,11 +2154,14 @@ pub fn mesh_wire(data_dir: &Path) -> Value {
         .rev()
         .take(20)
         .map(|p| {
+            let pid = p.get("peer_id").and_then(Value::as_u64).unwrap_or(0);
+            let ready = pid > 0 && proof_gate(&peers, &tasks, pid, now);
             json!({
                 "peer_id": p.get("peer_id").cloned().unwrap_or(Value::Null),
                 "adapter": p.get("adapter").cloned().unwrap_or(Value::Null),
                 "device_class": p.get("device_class").cloned().unwrap_or(json!("unknown")),
                 "alive": row_alive(p, now),
+                "ready": ready,
                 "age_secs": now - p.get("last_seen_ts").and_then(Value::as_u64).unwrap_or(now),
                 "lease_until": p.get("lease_until").cloned().unwrap_or(Value::Null),
             })
@@ -3010,6 +3013,9 @@ async function browserDeviceStatus(){
   return s;
 }
 let WORKER=null;let minilmSteps=0;
+function applyMeshMetrics(m){const k=document.getElementById('kpStats');if(k){k.textContent='ready '+(m.ready||0)+' · alive '+(m.alive||0)+'/'+(m.peers||0)+' · done '+(m.done||0)+' · fail '+(m.failed||0);k.style.color=m.alive?'#86efac':'#fca5a5';}mesh.textContent='push: peers='+(m.peers||0)+' ready='+(m.ready||0)+' queued='+(m.queued||0)+' claimed='+(m.claimed||0)+' done='+(m.done||0)+' failed='+(m.failed||0);}
+let pushConn=null;
+function connectPush(){try{const proto=location.protocol==='https:'?'wss':'ws';const ws=new WebSocket(proto+'://'+location.host+'/api/wgpu/ws');ws.onopen=function(){log('push channel open');};ws.onmessage=function(ev){try{const m=JSON.parse(ev.data);if(m&&m.type==='mesh-metrics')applyMeshMetrics(m);}catch(e){}};ws.onclose=function(){pushConn=null;setTimeout(connectPush,5000);};pushConn=ws;}catch(e){log('push channel unavailable: '+e);}}
 async function startWorker(){
   if(WORKER){log('worker already running');return;}
   minilmSteps=0;
@@ -3075,7 +3081,7 @@ async function enqueueMinilm(token,layer){const body={op:'minilm',token:parseInt
 function xDet(n){const out=new Array(n);for(let i=0;i<n;i++){out[i]=(((i*7)%11)-5)*0.25;}return out;}
 async function enqueueWeightsMatvec(){const body={op:'weights_matvec',tensor:'blk.0.ffn_down.weight',shards:2,x:xDet(1024)};try{const d=await(await fetch('api/wgpu/task/enqueue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();log(d.ok?'queued real-weights matvec '+(d.task_ids?d.task_ids.join(','):(d.task_id||'?'))+' '+d.shards+' shards dims=[3584,1024] route='+(d.route_peers||d.route_peer):'enqueue error: '+d.error);}catch(e){log('enqueueWeightsMatvec: '+e);}await refreshMesh();}
 async function benchLocal(op,iters){const n=parseInt(iters,10)||64;try{const r=await runOp(op,n);setCap(r.ok?'BENCH PASS':'BENCH FAIL',r.ok);log('local bench '+op+': '+r.mflops+' MFLOPS · '+r.ops_per_sec+' ops/s · '+r.elapsed_ms+'ms/op · max_err='+r.max_err.toExponential(2));}catch(e){setCap('bench error: '+e,false);log('bench error: '+e);}await refreshMesh();}
-refreshFeed();refreshMesh();
+refreshFeed();refreshMesh();connectPush();
 </script>
 </body>
 </html>
@@ -3409,6 +3415,15 @@ mod tests {
         let m2 = mesh_wire(&dir);
         assert!(m2["peers"][0]["lease_until"].as_u64().unwrap() >= before);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn page_carries_push_markers() {
+        // WS push channel: server `/api/wgpu/ws` + page consumer (`applyMeshMetrics`).
+        let p = page();
+        assert!(p.contains("/api/wgpu/ws"));
+        assert!(p.contains("mesh-metrics"));
+        assert!(p.contains("connectPush()"));
     }
 
     #[test]

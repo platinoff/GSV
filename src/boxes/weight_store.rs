@@ -52,13 +52,21 @@ pub fn max_store_bytes() -> u64 {
 /// the chunk store to an isolated mirror tree (e.g. L:) while every other
 /// hub data path (tracker, tickets, vision, usage, settings) keeps living
 /// under the main `data/` directory. Default = `{data_dir}/wgpu_weights`.
-fn store_root(data_dir: &Path) -> PathBuf {
-    std::env::var("GSV_WEIGHTS_STORE_DIR")
-        .ok()
+/// Store root from an explicit env override (`None` = default).
+/// Pure — no process-global state, safe for parallel tests.
+fn store_root_from(env_override: Option<&str>, data_dir: &Path) -> PathBuf {
+    env_override
         .map(|v| v.trim().to_string())
         .filter(|v| !v.is_empty())
         .map(PathBuf::from)
         .unwrap_or_else(|| data_dir.join(STORE_DIR))
+}
+
+fn store_root(data_dir: &Path) -> PathBuf {
+    store_root_from(
+        std::env::var("GSV_WEIGHTS_STORE_DIR").ok().as_deref(),
+        data_dir,
+    )
 }
 
 fn chunks_root(data_dir: &Path) -> PathBuf {
@@ -518,16 +526,9 @@ mod tests {
 
     #[test]
     fn store_root_defaults_under_data_dir() {
-        // env unset: default `{data_dir}/wgpu_weights`.
-        let _guard = crate::boxes::ENV_LOCK
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
-        // SAFETY: we own the env var for this test under ENV_LOCK.
-        // In MSYS2-safe mode, std::env::set_var is process-local.
-        unsafe { std::env::remove_var("GSV_WEIGHTS_STORE_DIR") };
         let data = PathBuf::from("/tmp/gsv-store-default");
         assert_eq!(
-            store_root(&data),
+            store_root_from(None, &data),
             data.join("wgpu_weights"),
             "default root under data dir"
         );
@@ -535,17 +536,17 @@ mod tests {
 
     #[test]
     fn store_root_honors_env_override() {
-        let _guard = crate::boxes::ENV_LOCK
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
-        unsafe { std::env::set_var("GSV_WEIGHTS_STORE_DIR", "/tmp/gsv-isolated") };
         let data = PathBuf::from("/tmp/gsv-store-default");
         assert_eq!(
-            store_root(&data),
+            store_root_from(Some("/tmp/gsv-isolated"), &data),
             PathBuf::from("/tmp/gsv-isolated"),
             "env override redirects"
         );
-        unsafe { std::env::remove_var("GSV_WEIGHTS_STORE_DIR") };
+        assert_eq!(
+            store_root_from(Some("   "), &data),
+            data.join("wgpu_weights"),
+            "blank override falls back to default"
+        );
     }
 
     #[test]

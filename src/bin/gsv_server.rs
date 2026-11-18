@@ -118,6 +118,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         state.version.as_ref()
     ));
 
-    gsv::server::serve(listener, app).await?;
+    gsv::server::serve(listener, app, state.data_dir.clone()).await?;
     Ok(())
 }

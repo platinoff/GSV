@@ -74,6 +74,7 @@ pub mod watchdog;
 pub mod weight_store;
 pub mod wgpu;
 pub mod workflow;
+pub mod wspush;
 pub mod xtask;
 
 /// Serialise env-var-mutating lib tests (probe/override vars are
