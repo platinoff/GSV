@@ -10,7 +10,7 @@ Verified on this machine (2026-10-27):
 
 - **Cursor** live **3.27.14** (per-user `C:\Users\plati\AppData\Local\Programs\cursor\resources\app\package.json`, running `Cursor.exe`). Machine-wide `C:\Program Files\cursor` is still **3.22.12** and is not the process in use. Do not run `target/live/cursor-setup-3.23.exe` — that build is older than 3.27.14. Leftover `Program Files\cursor\_bak` may still hold `chrome_200_percent.pak` (owner deferred wipe).
 - **OpenCode** plugin **1.19.4** (`.opencode/` + `~/.config/opencode`); desktop app under `%LOCALAPPDATA%\Programs\@opencode-aidesktop`. Stay on 1.x unless the owner explicitly runs `opencode upgrade --major` for 2.x.
-- **rustc / cargo** 1.92.0 (`1.92.0-x86_64-pc-windows-gnu`; `rust-toolchain.toml` names the gnu host). Do **not** export `RUSTUP_TOOLCHAIN`. Host default stable may be newer (1.98+/1.99); only the pin builds this crate.
+- **rustc / cargo** 1.100.0 (`1.100.0-x86_64-pc-windows-gnu`; `rust-toolchain.toml` names the gnu host). Do **not** export `RUSTUP_TOOLCHAIN`. Host default stable may be newer (1.98+/1.99); only the pin builds this crate.
 - **git** 2.50.0 (MSYS2 UCRT64)
 
 ## MCP / tools / sync (3.27)

@@ -54,7 +54,7 @@ The hero / install / flow tiles below are **SMIL SVG** (no JS). GitHub plays `<a
 ### 1. Prereqs (once)
 
 - [MSYS2](https://www.msys2.org/) UCRT64
-- [rustup](https://rustup.rs/) — this repo pins **rustc 1.92.0** `x86_64-pc-windows-gnu` in [`rust-toolchain.toml`](rust-toolchain.toml) (channel-only `1.92.0` follows rustup’s **msvc** host and the MSYS2 linker breaks)
+- [rustup](https://rustup.rs/) — this repo pins **rustc 1.100.0** `x86_64-pc-windows-gnu` in [`rust-toolchain.toml`](rust-toolchain.toml) (channel-only `1.100.0` follows rustup’s **msvc** host and the MSYS2 linker breaks)
 
 ```bash
 # UCRT64 terminal

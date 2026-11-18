@@ -35,7 +35,7 @@ Rust модуль: `sli/` → `gsv_sli.json`.
 
 | Тул | Версія | Джерело |
 |-----|--------|---------|
-| rustc / cargo | 1.92.0 | `rust-toolchain.toml` |
+| rustc / cargo | 1.100.0 | `rust-toolchain.toml` |
 | clippy / rustfmt | — | toolchain |
 | MSYS2 bash | — | AGENTS.md |
 | Node / Playwright | — | `e2e/` |
