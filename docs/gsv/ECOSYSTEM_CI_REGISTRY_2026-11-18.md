@@ -140,10 +140,17 @@ Windows jobs використовують `stable-x86_64-pc-windows-gnu` (еле
    Owner-рішення pending (skill-флоу питання без відповіді); варіанти: (a) `cargo audit --json` + exit 0 у лог;
    (b) прибрати з ci.yml взагалі; (c) лишити як є.
    **Не змінював без рішення.**
-2. ~14 job-ів × ~1-2 анотації: `upload-artifact if-no-files-found: warn` (warning), довгі логи cargo
-   `::warning` для deprecation — не системна проблема, а обсяг матриці.
-3. `dorny/paths-filter` — у нормі не анотation.
-4. `CARGO_TERM_COLOR: always` + `--verbose` давав ↑ volume (сьогодні прибрано).
+2. **⚠ Windows fmt коштував тижні червоного — root cause знайдено 2026-11-18**: `rust-toolchain.toml`
+   пінує `stable-x86_64-pc-windows-gnu`, але `dtolnay/rust-toolchain@stable` default installs host default
+   (ubuntu: stable=linux-gnu — працює, як і треба; windows: stable-msvc — **НЕ stable-k8s-brew, тобто
+   не той хост, ще й без x86_64-pc-windows-gnu**). `RUSTUP_TOOLCHAIN` тоді вказує на інший toolchain,
+   який не встановлено → `cargo fmt/build/clippy` Exit 1 за мілісекунди.
+   **Fix**: dtolnay ставить той самий toolchain (`${{ matrix.os == 'windows-latest' && 'stable-x86_64-pc-windows-gnu' || 'stable' }}`) — за пушено (`be76670a8`).
+3. ~14 job-ів × ~1-2 анотації: `upload-artifact if-no-files-found: warn` (warning) — артефакт-ім'я враховує k8s,
+   але у `cargo test` тепер `--verbose` прибрано, тож анотation-типів стало значно менше.
+4. `dorny/paths-filter` — у нормі не анотation.
+5. `CARGO_TERM_COLOR: always` + `--verbose` давав ↑ volume (сьогодні прибрано).
+6. Ubuntu fmt was fine all along; Windows fmt always was the red (MinGW/MSVC mismatch).
 
 ---
 
