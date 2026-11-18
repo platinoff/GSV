@@ -98,12 +98,13 @@ position-resolved L23 + matched-difficulty control (див. §4.2).
 
 1. **Uk-golden battery**: owner додає/веріфікує `ua-golden-1..5` (5 фікстур) → battery sha256 перерахувати;
    controls теж додати в battery (uk-fact-3/4/5) після веріфікації.
-2. **Модель-перший-кандидат для WSP-проходу**: **Granite-A800M** — АЛЕ `llama_serve.exe` (Windows PE32+,
-   x86-64) **не стартує на цьому боксі**: `error while loading shared libraries: api-ms-win-core-synch-l1-2-0.dll`
-   (cmd і MSYS однаково; System32 **не містить** `api-ms-win-core-synch-l1-2-0.dll` і жодного `api-ms-win-core-synch*`).
-   Binary зібраний з імпортом з більш нового Windows API set. Фікс = перезбірка llama-rs під цей Windows
-   (RAM/CPU-heavy, owner-gate) — або зупинитись на audit+ExpertCache (без патчів ваг взагалі).
-   **2026-11-18: Granite baseline BLOCKED, нічого не запускалось.**
+2. **Model-first-candidate for WSP**: **Granite-A800M** — `llama_serve.exe` **мертва на цьому боксі**:
+   імпорти `libstdc++-6.dll`/`libgomp-1.dll` (MinGW UCRT) відсутні в System32/PATH → скопійовано у
+   `target/release/` з `/ucrt64/bin` (gitignored) — бінарник тепер стартує, **але виходить 0 без виводу,
+   логів, і не біндить жоден порт** (silent no-op під cmd; під MSYS — MSYS-loader не бачить
+   `api-ms-win-core-synch-l1-2-0.dll`, який System32 не містить). Висновок: PC-збірка ніколи не
+   smoke-тестувалась; **Granite baseline BLOCKED**. Шлях: rebuild llama-rs (owner-gate, RAM/EDR-ризик)
+   або Pi4 (llama_serve жива там). Нічого не запускали.
 3. **Peers**: тільки після повернення bifrost/valhall/Pi4 у mesh — реплікація audit-контролів на
    browser peers (WASM SIMD128). Поки всі `alive:false`.
 4. **NanoJev port**: окремий owner-gate (Rust-нативний), не зараз.
