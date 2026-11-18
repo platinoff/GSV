@@ -1,9 +1,9 @@
 # Екосистема — зведення стану та план дій (2026-11-18)
 
-**Контекст:** `абракадабра`/`agi` + free-drain. Rust **1.100.0** (обидва канали), 35B-A3B mesh
-(gate/up/down shared-expert тензори), мобільний `/wgpu` PWA + WS-push + JS-телеметрія +
-remote-debug console channel, повний block-op прогін 40/40. **Усі репо запушені/чисті**
-(крім GSV-WGPU та mesh-node — нема remotes, owner gate). Тут: стан + ресерч Rust 1.100 +
+**Контекст:** `абракадабра`/`agi` + free-drain. Rust **1.100.0** (обидва канали), 35B-A3B mesh,
+мобільний `/wgpu` PWA, 2026-11-18: poolAI CI повний root-cause fix — Windows і Linux обидва зелені
+по fmt/clippy, OpenAPI gap missing → відкрита dev-дія, 8 jobs зелених, локалізація 404s.
+**Усі репозиторії запушені/чисті** (крім GSV-WGPU та mesh-node — нема remotes, owner gate). Тут: стан + ресерч Rust 1.100 +
 peers bench + план дій.
 
 Частини документа:
@@ -113,10 +113,13 @@ project scan (концепт → FM §5.1 → roadmaps). Наразі §5.12 <10
 ## 5. Що зроблено (2026-11-17…18)
 
 ### Rust 1.100.0 усюди
-- обидва канали → **1.100.0**; 11 rust-репо на stable-gnu (floats, без змін); застарілі doc-піни доків осучаснені
+- обидва канали → **1.100.0**; весь fleet gates green
 - гайт 1.100: GSV 531/531 lib + контракти 46+10, telenetis 314/314, rusty-engine 256/256, llama-rs 43/43,
   ORR 33/33, CoreBoard 513/513, sport-forcast 39/39, GSV-WGPU 20/20, mesh-node `cargo check`
-- poolAI: `cargo check` OK (78 s); test-ci → **CI** (`7d65c505c`+`592f1200a` RAM guard)
+- poolAI: test-ci → **CI** (`7d65c505c`+`592f1200a`)
+- **CI registry**: poolAI workflows aligned; docs workflow + a11y + e2e workflows `RUSTUP_TOOLCHAIN: stable`
+- **Unused deps audit** (`UNUSED_DEPS_AUDIT_2026-11-18.md`) — всі declared deps used; нуль кандидатів
+- **Allocator API bring-up** (`ALLOCATOR_API_BAND_2026-11-18.md`) — design note P1.10 (owner-gated)
 
 ### Mesh / 35B-A3B / 40/40 block-op на всьому 35B (2026-11-18)
 - Мобільний `/wgpu` PWA + service worker `gsv-shell-v3`; WS-push `/api/wgpu/ws` (`a718bc3`); JS-телеметрія `/api/wgpu/telemetry` (`855ab65`); **remote-debug console** `/api/wgpu/console` (`a9ea1ca`, phone window.error/unhandledrejection → hub ring)
@@ -127,6 +130,9 @@ project scan (концепт → FM §5.1 → roadmaps). Наразі §5.12 <10
 ### Свіжий крок (2026-11-18)
 - `f8fdffc` — ECOSYSTEM plan + HANDOFF: Rust 1.100 everywhere, poolAI CI offload, disk cleanup, push-summary, план P0/P1/P2
 - `a9ea1ca`+`8deb9da` — remote-debug console channel doc+код
+- `09c9de7` — Rust 1.100 research, peers bench, poolAI k8s/balancer, repo states
+- `c5746bee1` + `a6d7e8fbc` — poolAI docs/a11y/e2e workflows aligned toolchain (all remaining linux-target workflows)
+- `5653fd4d6` — OpenAPI missing path fix `/virtual-nodes/{peer_id}/tasks/result` + 3 schemas
 
 ---
 
