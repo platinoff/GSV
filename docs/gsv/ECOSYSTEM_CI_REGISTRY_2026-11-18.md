@@ -161,7 +161,15 @@ poolai **стартує, але або падає в init (мовчання RUST
 тепер друкують `tail -n 200 $STAND_ROOT/poolai.log` у лог кроку. Happy path не змінено.
 
 **Run 1706 (`dafaff76e`, тестовий фікс)** — відомий кандидатом на green, але його скасує **1707 (`4e682b111`)** (cancel-in-progress за задумом).
-**Run 1707 (`4e682b111`)** — в дорозі одночасно з **Documentation run 1415** (вперше тригериться під шляхом src/** → верифікує docs.yml fix `c5746bee1`).
+**Run 1707 (`4e682b111`)** — **failure** (завершений 20:28Z):
+- ✅ windows-latest Test Suite — **усі кроки зелені** (default tests: PASS; тестовий фікс підтверджено на Windows)
+- ❌ ubuntu-latest Test Suite — fmt/clippy/builds/tests-default/tests-no-features ✅; job conclusion failure, але **steps «cloud-sdk feature»/«Security audit» у API-відповіді показані як in_progress/pending — логи 404 (job завершився без логу → імовірно runner-side kill/OOM)**; logs для цього job недоступні навіть з токеном
+- ✅ OpenAPI · Check Features ×5 · FM drift · LOC ratio · Rust diagnostics · Detect UI · Pa11y contract — green
+- ❌ Pa11y + Playwright — **root cause знайдено диким логом** (завдяки `4e682b111`): poolai падає в init з
+  `ConfigError("Failed to create library directory. … Path: '/var/lib/poolai/libs', Error: Permission denied (os error 13)")`
+  —_hardcoded Linux default; `POOLAI_DATA_PATH` (який скрипти ставлять у writable stand_root) не враховувався.
+- **Fix `9f330d3aa`** — `LibraryManager::get_default_library_path()` тепер з `POOLAI_DATA_PATH` → `$POOLAI_DATA_PATH/libs`
+  (production `/var/lib/poolai` семантика не змінилася; docs RUN_PARAMETERS.md оновлено). Очікуємо green Pa11y/Playwright у 1708.
 
 ## 6. Джерела анотation (чому «багато анотацій»)
 
