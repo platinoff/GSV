@@ -182,6 +182,8 @@ pub fn router(state: AppState) -> Router {
         .route("/api/wgpu/reports", get(api_wgpu_reports))
         .route("/api/wgpu/report", post(api_wgpu_report_post))
         .route("/api/wgpu/mesh", get(api_wgpu_mesh))
+        .route("/api/wgpu/telemetry", get(api_wgpu_telemetry))
+        .route("/api/wgpu/telemetry", post(api_wgpu_telemetry_post))
         .route("/api/wgpu/capability", get(api_wgpu_capability))
         .route("/api/wgpu/weights/manifest", get(api_wgpu_weights_manifest))
         .route("/api/wgpu/weights/chunk", get(api_wgpu_weights_chunk_get))
@@ -930,6 +932,22 @@ async fn api_wgpu_report_post(State(state): State<AppState>, Json(body): Json<Va
 
 async fn api_wgpu_mesh(State(state): State<AppState>) -> Json<Value> {
     Json(crate::boxes::wgpu::mesh_wire(&state.data_dir))
+}
+
+/// `GET /api/wgpu/telemetry` — latest local JS probe rows from the phones.
+async fn api_wgpu_telemetry(State(state): State<AppState>) -> Json<Value> {
+    Json(crate::boxes::wgpu::telemetry_wire(&state.data_dir))
+}
+
+/// `POST /api/wgpu/telemetry` — phone posts its probe (no arbitrary JSON kept).
+async fn api_wgpu_telemetry_post(
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> Response {
+    match crate::boxes::wgpu::record_telemetry(&state.data_dir, &body) {
+        Ok(()) => Json(json!({ "ok": true })).into_response(),
+        Err(e) => err_json(StatusCode::BAD_REQUEST, e),
+    }
 }
 
 /// Band MC-3: manifest of every weight chunk the hub holds (peer fetches this

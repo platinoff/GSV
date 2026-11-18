@@ -87,6 +87,123 @@ fn sanitize_report(v: &Value) -> Value {
     out
 }
 
+/// Canonical telemetry keys (local JS probe; everything else is dropped).
+const TELEMETRY_KEYS: [&str; 19] = [
+    "ua",
+    "lang",
+    "screen",
+    "effectiveType",
+    "peer",
+    "cores",
+    "mem",
+    "dpr",
+    "online",
+    "downlink",
+    "rtt",
+    "saveData",
+    "charging",
+    "battery",
+    "storageQuota",
+    "storageUsage",
+    "type",
+    "heap",
+    "ts",
+];
+
+fn finite_number(v: Option<&Value>, cap: f64) -> Option<Value> {
+    v.and_then(Value::as_f64)
+        .filter(|f| f.is_finite() && *f >= 0.0)
+        .map(|f| json!(f.min(cap)))
+}
+
+/// Keep only canonical keys (bounded strings/numbers) so phone POSTs cannot
+/// smuggle arbitrary JSON onto disk. Never fails — drops what it can't trust.
+pub fn sanitize_telemetry(v: &Value) -> Value {
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let mut out = json!({ "ts": ts, "type": "telemetry" });
+    if let Some(obj) = v.as_object() {
+        for key in TELEMETRY_KEYS {
+            match key {
+                "ua" | "lang" | "screen" | "effectiveType" | "peer" => {
+                    if let Some(s) = obj.get(key).and_then(Value::as_str) {
+                        out[key] = json!(s.chars().take(240).collect::<String>());
+                    }
+                }
+                "cores" => out[key] = finite_number(obj.get(key), 512.0).unwrap_or(Value::Null),
+                "mem" => out[key] = finite_number(obj.get(key), 64.0).unwrap_or(Value::Null),
+                "dpr" => out[key] = finite_number(obj.get(key), 16.0).unwrap_or(Value::Null),
+                "downlink" => {
+                    out[key] = finite_number(obj.get(key), 100_000.0).unwrap_or(Value::Null)
+                }
+                "rtt" => out[key] = finite_number(obj.get(key), 600_000.0).unwrap_or(Value::Null),
+                "heap" => out[key] = finite_number(obj.get(key), 8_192.0).unwrap_or(Value::Null),
+                "battery" => out[key] = finite_number(obj.get(key), 1.0).unwrap_or(Value::Null),
+                "storageQuota" | "storageUsage" => {
+                    out[key] = finite_number(obj.get(key), 1e18).unwrap_or(Value::Null)
+                }
+                "online" | "saveData" | "charging" => {
+                    if let Some(b) = obj.get(key).and_then(Value::as_bool) {
+                        out[key] = json!(b);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    if let Some(o) = out.as_object_mut() {
+        o.retain(|_, v| !v.is_null());
+    }
+    out
+}
+
+/// Append one probe row to `data/wgpu_telemetry.jsonl` (capped ring, last 100).
+pub fn record_telemetry(data_dir: &Path, v: &Value) -> Result<(), String> {
+    if !v.is_object() {
+        return Err("telemetry must be a JSON object".into());
+    }
+    let sanitized = sanitize_telemetry(v);
+    let path = data_dir.join("wgpu_telemetry.jsonl");
+    let existing = std::fs::read_to_string(&path).unwrap_or_default();
+    let mut lines: Vec<&str> = existing.lines().filter(|l| !l.trim().is_empty()).collect();
+    if lines.len() >= 100 {
+        let keep = lines.len() - 99;
+        lines.drain(..keep);
+    }
+    let mut body = lines.join("\n");
+    if !body.is_empty() {
+        body.push('\n');
+    }
+    body.push_str(
+        &serde_json::to_string(&sanitized).map_err(|_| "telemetry encode failed".to_string())?,
+    );
+    std::fs::create_dir_all(data_dir).map_err(|e| format!("data dir: {e}"))?;
+    std::fs::write(&path, body).map_err(|e| format!("write telemetry: {e}"))
+}
+
+/// Parse every JSONL line (tolerates a torn tail).
+fn parse_telemetry(data_dir: &Path) -> Vec<Value> {
+    std::fs::read_to_string(data_dir.join("wgpu_telemetry.jsonl"))
+        .unwrap_or_default()
+        .lines()
+        .filter_map(|l| serde_json::from_str::<Value>(l).ok())
+        .collect()
+}
+
+/// Latest 20 probe rows (`GET /api/wgpu/telemetry`).
+pub fn telemetry_wire(data_dir: &Path) -> Value {
+    let rows = parse_telemetry(data_dir);
+    let recent: Vec<Value> = rows.iter().rev().take(20).rev().cloned().collect();
+    json!({
+        "ok": true,
+        "count": rows.len(),
+        "latest": rows.last().cloned().unwrap_or(Value::Null),
+        "recent": recent,
+    })
+}
+
 /// Append one report to `data/wgpu_reports.jsonl` (capped ring, last 200 rows).
 pub fn record_report(data_dir: &Path, v: &Value) -> Result<(), String> {
     validate_report(v)?;
@@ -3016,6 +3133,9 @@ let WORKER=null;let minilmSteps=0;
 function applyMeshMetrics(m){const k=document.getElementById('kpStats');if(k){k.textContent='ready '+(m.ready||0)+' · alive '+(m.alive||0)+'/'+(m.peers||0)+' · done '+(m.done||0)+' · fail '+(m.failed||0);k.style.color=m.alive?'#86efac':'#fca5a5';}mesh.textContent='push: peers='+(m.peers||0)+' ready='+(m.ready||0)+' queued='+(m.queued||0)+' claimed='+(m.claimed||0)+' done='+(m.done||0)+' failed='+(m.failed||0);}
 let pushConn=null;
 function connectPush(){try{const proto=location.protocol==='https:'?'wss':'ws';const ws=new WebSocket(proto+'://'+location.host+'/api/wgpu/ws');ws.onopen=function(){log('push channel open');};ws.onmessage=function(ev){try{const m=JSON.parse(ev.data);if(m&&m.type==='mesh-metrics')applyMeshMetrics(m);}catch(e){}};ws.onclose=function(){pushConn=null;setTimeout(connectPush,5000);};pushConn=ws;}catch(e){log('push channel unavailable: '+e);}}
+async function probeTelemetry(){const t={ua:navigator.userAgent||'',lang:navigator.language||'',cores:navigator.hardwareConcurrency||0,screen:(screen.width||0)+'x'+(screen.height||0),dpr:window.devicePixelRatio||1,online:(typeof navigator.onLine==='boolean')?navigator.onLine:true};if(typeof navigator.deviceMemory==='number')t.mem=navigator.deviceMemory;const c=navigator.connection||navigator.mozConnection||navigator.webkitConnection;if(c){t.effectiveType=c.effectiveType||'';if(typeof c.downlink==='number')t.downlink=c.downlink;if(typeof c.rtt==='number')t.rtt=c.rtt;t.saveData=!!c.saveData;}if(navigator.getBattery){try{const b=await navigator.getBattery();t.battery=b.level;t.charging=!!b.charging;}catch(e){}}try{const est=await navigator.storage.estimate();if(est&&typeof est.quota==='number')t.storageQuota=est.quota;if(est&&typeof est.usage==='number')t.storageUsage=est.usage;}catch(e){}return t;}
+async function postTelemetry(){try{const t=await probeTelemetry();t.peer=(WORKER&&WORKER.peer)?String(WORKER.peer):'page';const d=await(await fetch('api/wgpu/telemetry',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(t)})).json();if(!d||d.ok!==true)log('telemetry post rejected');}catch(e){log('telemetry error: '+e);}}
+setInterval(postTelemetry,60000);
 async function startWorker(){
   if(WORKER){log('worker already running');return;}
   minilmSteps=0;
@@ -3025,6 +3145,7 @@ async function startWorker(){
     const j=await(await fetch('api/wgpu/peer/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({adapter:name,ua:navigator.userAgent.slice(0,120),device_class:(/Android|iPhone|iPad/i.test(navigator.userAgent||'')?'phone':'pc-wgpu'),cores:navigator.hardwareConcurrency||null,device_memory:(typeof navigator.deviceMemory==='number'?navigator.deviceMemory:null),device_status:await browserDeviceStatus()})})).json();
     if(!j.ok){log('join failed: '+(j.error||'?'));return;}
     WORKER={peer:j.peer_id,poll:j.poll_secs||2,lease:j.lease_secs||60,running:true,adapter:name};
+    postTelemetry();
     setCap('mesh worker · peer #'+j.peer_id+' · '+name,true);
     log('mesh worker online: peer #'+j.peer_id+' poll='+WORKER.poll+'s lease='+WORKER.lease+'s');
     wjoin.disabled=true;wstop.disabled=false;
@@ -3081,7 +3202,7 @@ async function enqueueMinilm(token,layer){const body={op:'minilm',token:parseInt
 function xDet(n){const out=new Array(n);for(let i=0;i<n;i++){out[i]=(((i*7)%11)-5)*0.25;}return out;}
 async function enqueueWeightsMatvec(){const body={op:'weights_matvec',tensor:'blk.0.ffn_down.weight',shards:2,x:xDet(1024)};try{const d=await(await fetch('api/wgpu/task/enqueue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();log(d.ok?'queued real-weights matvec '+(d.task_ids?d.task_ids.join(','):(d.task_id||'?'))+' '+d.shards+' shards dims=[3584,1024] route='+(d.route_peers||d.route_peer):'enqueue error: '+d.error);}catch(e){log('enqueueWeightsMatvec: '+e);}await refreshMesh();}
 async function benchLocal(op,iters){const n=parseInt(iters,10)||64;try{const r=await runOp(op,n);setCap(r.ok?'BENCH PASS':'BENCH FAIL',r.ok);log('local bench '+op+': '+r.mflops+' MFLOPS · '+r.ops_per_sec+' ops/s · '+r.elapsed_ms+'ms/op · max_err='+r.max_err.toExponential(2));}catch(e){setCap('bench error: '+e,false);log('bench error: '+e);}await refreshMesh();}
-refreshFeed();refreshMesh();connectPush();
+refreshFeed();refreshMesh();connectPush();postTelemetry();
 </script>
 </body>
 </html>
@@ -3414,6 +3535,34 @@ mod tests {
         let _ = peer_poll(&dir, &json!({"peer_id": j["peer_id"]})).expect("poll");
         let m2 = mesh_wire(&dir);
         assert!(m2["peers"][0]["lease_until"].as_u64().unwrap() >= before);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn telemetry_sanitize_drops_unknown_and_clamps() {
+        let dir = temp_dir("telemetry");
+        let row = sanitize_telemetry(&json!({
+            "ua": "x".repeat(999),
+            "cores": 9999,
+            "battery": 1.5,
+            "memory_GB": 0,
+            "evil": "<script>alert(1)</script>",
+            "online": true,
+        }));
+        assert_eq!(row["type"], "telemetry");
+        assert_eq!(row["ua"].as_str().unwrap().chars().count(), 240);
+        assert_eq!(row["cores"], 512.0f64);
+        assert_eq!(row["battery"], 1.0f64);
+        assert_eq!(row["online"], true);
+        assert!(row.get("evil").is_none());
+        assert!(row.get("memory_GB").is_none());
+        let err = record_telemetry(&dir, &json!("not-an-object")).unwrap_err();
+        assert!(err.contains("object"));
+        record_telemetry(&dir, &json!({"cores": 8, "ua": "test-ua"})).expect("record");
+        let w = telemetry_wire(&dir);
+        assert_eq!(w["count"], 1);
+        assert_eq!(w["latest"]["cores"], 8.0f64);
+        assert_eq!(w["recent"].as_array().unwrap().len(), 1);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
