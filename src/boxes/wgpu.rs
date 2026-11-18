@@ -1234,6 +1234,12 @@ pub fn peer_poll(data_dir: &Path, body: &Value) -> Result<Value, String> {
     // alive peer stays queued for the sticky window, after which any alive peer
     // may take it (routing without starvation).
     let sticky = route_sticky_secs();
+    let my_device_class = peers
+        .iter()
+        .find(|p| p.get("peer_id").and_then(Value::as_u64) == Some(peer_id))
+        .and_then(|p| p.get("device_class").and_then(Value::as_str))
+        .unwrap_or("")
+        .to_string();
     // PH-A1 gate (R2-hardened): fresh proofs required while a fresh peer is
     // alive; all-time proofs suffice when nothing fresh exists (no lockout).
     let my_ready = proof_gate(&peers, &tasks, peer_id, now);
@@ -1251,6 +1257,14 @@ pub fn peer_poll(data_dir: &Path, body: &Value) -> Result<Value, String> {
             .unwrap_or(false);
         if heavy && !my_ready {
             blocked_heavy = true;
+            continue;
+        }
+        // R4 block: only browser page-JS peers may claim it — a native
+        // mesh-node agent (pi4-cpu/pc-cpu) claiming it would post an empty
+        // result and burn the shard (observed: g-288 / mt-291-{1,2}).
+        if t.get("op").and_then(Value::as_str) == Some("weights_matvec_block")
+            && !is_browser_peer_class(&my_device_class)
+        {
             continue;
         }
         if let Some(route) = t.get("route_peer").and_then(Value::as_u64) {
@@ -3771,6 +3785,83 @@ mod tests {
         assert_eq!(g["done_shards"], 2);
         assert_eq!(g["ok"], true, "{g}");
         assert!(g["max_err"].as_f64().unwrap() <= REDUCE_TOL);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn block_op_claim_rejected_for_native_agents() {
+        // Even the sticky-route fallback must not hand a block shard to a
+        // pi4-cpu/pc-cpu agent; the browser peer claims it instead.
+        let dir = temp_dir("block_claim_browser");
+        let pi = peer_join(
+            &dir,
+            &json!({"adapter":"arm/cortex-a72","ua":"u","device_class":"pi4-cpu"}),
+        )
+        .expect("join pi");
+        let pid_pi = pi["peer_id"].as_u64().unwrap();
+        {
+            let path = dir.join(TASKS_FILE);
+            let mut tasks = read_jsonl(&path);
+            for pid in [pid_pi] {
+                tasks.push(json!({
+                    "task_id": format!("mt-fake-{pid}"),
+                    "status": "done",
+                    "peer_id": pid,
+                    "op": "weights_matvec",
+                    "done_ts": now_secs(),
+                    "max_err_model": 5e-7,
+                    "elapsed_ms": 10.0,
+                    "mflops": 10.0,
+                }));
+            }
+            write_jsonl(&path, &tasks).unwrap();
+        }
+        let ph = peer_join(
+            &dir,
+            &json!({"adapter":"arm/valhall","ua":"u","device_class":"phone"}),
+        )
+        .expect("join phone");
+        let pid_ph = ph["peer_id"].as_u64().unwrap();
+        {
+            let path = dir.join(TASKS_FILE);
+            let mut tasks = read_jsonl(&path);
+            tasks.push(json!({
+                "task_id": format!("mt-fake-{pid_ph}"),
+                "status": "done",
+                "peer_id": pid_ph,
+                "op": "weights_matvec",
+                "done_ts": now_secs(),
+                "max_err_model": 5e-7,
+                "elapsed_ms": 10.0,
+                "mflops": 10.0,
+            }));
+            write_jsonl(&path, &tasks).unwrap();
+        }
+        let payload: Vec<u8> = [1.0f32, 0.0, 0.0, 1.0]
+            .iter()
+            .flat_map(|v| v.to_le_bytes())
+            .collect();
+        let s1 = crate::boxes::weight_store::store_chunk(&dir, &payload).expect("store");
+        let key = s1["key"].as_str().expect("key").to_string();
+        crate::boxes::weight_store::register_tensor(
+            &dir,
+            &json!({"tensor":"blk_c.weight","dims":[2,2],"chunks":[key]}),
+        )
+        .expect("register");
+        let e = task_enqueue(
+            &dir,
+            &json!({"op":"weights_matvec_block","shards":2,"items":[
+                {"tensor":"blk_c.weight","x":[1.0,2.0]}
+            ]}),
+        )
+        .expect("enqueue");
+        assert_eq!(e["ok"], true);
+        // pi4 polls: must not receive any block shard.
+        let pi_poll = peer_poll(&dir, &json!({"peer_id": pid_pi})).expect("pi poll");
+        assert!(pi_poll["task"].is_null(), "{pi_poll}");
+        // phone claims shard(s).
+        let ph_poll = peer_poll(&dir, &json!({"peer_id": pid_ph})).expect("phone poll");
+        assert_eq!(ph_poll["task"]["op"], "weights_matvec_block");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
