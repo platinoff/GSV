@@ -159,6 +159,77 @@ pub fn sanitize_telemetry(v: &Value) -> Value {
     out
 }
 
+/// Remote-debug console channel: the phone page posts its log lines and
+/// window errors here; ring of 200 rows in `data/wgpu_console.jsonl`.
+pub fn record_console(data_dir: &Path, v: &Value) -> Result<(), String> {
+    if !v.is_object() {
+        return Err("console row must be a JSON object".into());
+    }
+    let level = v
+        .get("level")
+        .and_then(Value::as_str)
+        .map(|s| s.trim().to_ascii_lowercase())
+        .filter(|s| matches!(s.as_str(), "log" | "info" | "warn" | "error"))
+        .unwrap_or_else(|| "log".into());
+    let msg = v
+        .get("msg")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .chars()
+        .take(300)
+        .collect::<String>();
+    if msg.trim().is_empty() {
+        return Err("field `msg` must be a non-empty string".into());
+    }
+    let peer = v
+        .get("peer")
+        .map(|p| match p {
+            Value::String(s) => s.chars().take(32).collect::<String>(),
+            Value::Number(n) => n.to_string(),
+            _ => String::new(),
+        })
+        .unwrap_or_default();
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let row = json!({ "ts": ts, "level": level, "peer": peer, "msg": msg });
+    let path = data_dir.join("wgpu_console.jsonl");
+    let existing = std::fs::read_to_string(&path).unwrap_or_default();
+    let mut lines: Vec<&str> = existing.lines().filter(|l| !l.trim().is_empty()).collect();
+    if lines.len() >= 200 {
+        let keep = lines.len() - 199;
+        lines.drain(..keep);
+    }
+    let mut body = lines.join("\n");
+    if !body.is_empty() {
+        body.push('\n');
+    }
+    body.push_str(&serde_json::to_string(&row).map_err(|_| "console encode failed".to_string())?);
+    std::fs::create_dir_all(data_dir).map_err(|e| format!("data dir: {e}"))?;
+    std::fs::write(&path, body).map_err(|e| format!("write console: {e}"))
+}
+
+fn parse_console(data_dir: &Path) -> Vec<Value> {
+    std::fs::read_to_string(data_dir.join("wgpu_console.jsonl"))
+        .unwrap_or_default()
+        .lines()
+        .filter_map(|l| serde_json::from_str::<Value>(l).ok())
+        .collect()
+}
+
+/// Latest 20 console lines (`GET /api/wgpu/console`).
+pub fn console_wire(data_dir: &Path) -> Value {
+    let rows = parse_console(data_dir);
+    let recent: Vec<Value> = rows.iter().rev().take(20).rev().cloned().collect();
+    json!({
+        "ok": true,
+        "count": rows.len(),
+        "latest": rows.last().cloned().unwrap_or(Value::Null),
+        "recent": recent,
+    })
+}
+
 /// Append one probe row to `data/wgpu_telemetry.jsonl` (capped ring, last 100).
 pub fn record_telemetry(data_dir: &Path, v: &Value) -> Result<(), String> {
     if !v.is_object() {
@@ -2489,7 +2560,10 @@ details[open] summary::after{content:'▾'}
 <button id="go" hidden onclick="run()"></button>
 <script>
 const out=document.getElementById('out'),feed=document.getElementById('feed'),mesh=document.getElementById('mesh'),cap=document.getElementById('cap'),go=document.getElementById('go'),wjoin=document.getElementById('wjoin'),wstop=document.getElementById('wstop');
-function log(m){const lines=out.textContent.split('\n');lines.push(String(m));while(lines.length>121)lines.shift();out.textContent=lines.join('\n');out.scrollTop=out.scrollHeight;}
+function log(m){const lines=out.textContent.split('\n');lines.push(String(m));while(lines.length>121)lines.shift();out.textContent=lines.join('\n');out.scrollTop=out.scrollHeight;postConsole('log',String(m));}
+function postConsole(level,msg){try{const body={level:level||'log',msg:String(msg).slice(0,300),peer:(typeof WORKER!=='undefined'&&WORKER&&WORKER.peer)?String(WORKER.peer):'page'};fetch('api/wgpu/console',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).catch(function(){});}catch(e){}}
+window.addEventListener('error',function(e){postConsole('error','window.error: '+String((e&&e.message)||'?').slice(0,180)+' @ '+String((e&&e.filename)||'').split('/').pop()+':'+((e&&e.lineno)||0));});
+window.addEventListener('unhandledrejection',function(e){postConsole('error','unhandledrejection: '+String((e&&e.reason)||'?').slice(0,200));});
 function setNet(ok){var b=document.getElementById('netbar');if(b)b.style.display=ok?'none':'block';}
 function setCap(t,ok){const c=document.getElementById('cap');if(!c)return;c.textContent=t;c.className='badge '+(ok===true?'on':ok===false?'bad':'off');}
 // WASM SIMD128 math kernels served by the hub: fewer interpreter cycles, more
@@ -3596,6 +3670,36 @@ mod tests {
         let m2 = mesh_wire(&dir);
         assert!(m2["peers"][0]["lease_until"].as_u64().unwrap() >= before);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn console_ring_records_and_reads_back() {
+        let dir = temp_dir("console_ring");
+        let r = json!({"peer":"38","level":"error","msg":"unhandledrejection: boom".repeat(20)});
+        record_console(&dir, &r).expect("record console");
+        record_console(&dir, &json!("not-an-object")).unwrap_err();
+        record_console(&dir, &json!({"msg":""})).unwrap_err();
+        let w = console_wire(&dir);
+        assert_eq!(w["count"], 1);
+        let latest = &w["latest"];
+        assert_eq!(latest["level"], "error");
+        assert_eq!(latest["peer"], "38");
+        assert_eq!(latest["msg"].as_str().unwrap().chars().count(), 300);
+        assert_eq!(w["recent"].as_array().unwrap().len(), 1);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn page_carries_console_markers() {
+        let p = page();
+        for marker in [
+            "api/wgpu/console",
+            "postConsole",
+            "unhandledrejection",
+            "window.error",
+        ] {
+            assert!(p.contains(marker), "missing console marker: {marker}");
+        }
     }
 
     #[test]
