@@ -149,6 +149,10 @@ OmniRoute (:20128) і poolAI :8091 — policy-down, **не використов�
 - **Наш найкращий кандидат-на-«loop»**: MiniCPM-V-4_7-1B (runner35 = **qwen35-hybrid**: 18 GDN-шарів
   + 6 full-attention, vocab 248 094 — архітектуру підтверджено B13 `PH-1301..1304` у rusty-engine)
   на math/thinking-поведінці; аналог Astra Experiment 8, але з GLM/Inkling як writer.
+  **Базовий вимір зроблено** (`docs/gsv/wsp-battery/WSP_AUDIT_RUNS_2026-11-18.md`): uk-fact-2
+  (відома провальна UA-фактичність) дає layer-23 full-attn `delta_rms_max=0.4538` — вище за всі
+  решту промптів (uk-fact-1 0.3486, codegen-1 0.4381). Причинність **не доведено**; потрібні
+  uk-golden battery (власник) + budget'ed editorial passes.
   Попередні 2 спроби (Inkling 2 Small Free-guided) **відкочено** — це нормально: Astra-рівень
   треба репетирувати на frozen eval, перш ніж вірити.
 - **35B-A3B MoE** — WSP-lane не для роутерів: **freeze router/gate** (ECO-9.2 guard #1).

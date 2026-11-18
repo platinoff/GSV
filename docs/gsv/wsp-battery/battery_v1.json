@@ -1,0 +1,28 @@
+{
+  "battery": "uk-math-loop-v1",
+  "version": 1,
+  "date": "2026-11-18",
+  "model": "MiniCPM-V-4_7-1B-Q4_K_M.gguf",
+  "purpose": "Frozen probe set for WSP diagnosis loops. Before any weight edit; every candidate patch must be re-measured against this battery.",
+  "sampling": { "temperature": 0.0, "note": "audit runs greedy prefill; behavioral token-limit checks belong to serve, not `rusty audit`" },
+  "probes": [
+    { "id": "uk-fact-1", "category": "uk_fact", "prompt": "Яка столиця України? Одним словом.", "expect": "Київ", "source": "baseline 2026-11-15 (passes)" },
+    { "id": "uk-fact-2", "category": "uk_fact", "prompt": "Хто написав «Євгенія Онєгіна»? Одним словом.", "expect": "Пушкін", "source": "baseline 2026-11-15 (fails; delta_rms_max final layer higher)" },
+    { "id": "math-1", "category": "math", "prompt": "Скільки буде 17*23? Тільки число.", "expect": "391" },
+    { "id": "math-2", "category": "math", "prompt": "Скільки буде 123+456? Тільки число.", "expect": "579" },
+    { "id": "codegen-1", "category": "code", "prompt": "One line of Rust that prints 391.", "expect": "println!(\"391\");", "note": "baseline expectation: model is inert — save output, do not score as gate" },
+    { "id": "ifeval-1", "category": "instruction", "prompt": "Answer in exactly one sentence: Що таке async у Rust?", "expect": "one sentence mentioning futures/async runtime", "note": "qualitative; human score" },
+    { "id": "loop-1", "category": "loop_probe", "prompt": "Обчисли покроково: 17 * 23, розпиши всі кроки.", "expect": "completes without endless repetition", "note": "audit residuals only; token-limit behavior verified via serve separately" },
+    { "id": "ua-golden-1", "category": "uk_golden", "prompt": "NEEDS_OWNER_GOLDEN", "expect": "NEEDS_OWNER_GOLDEN", "pending": true },
+    { "id": "ua-golden-2", "category": "uk_golden", "prompt": "NEEDS_OWNER_GOLDEN", "expect": "NEEDS_OWNER_GOLDEN", "pending": true },
+    { "id": "ua-golden-3", "category": "uk_golden", "prompt": "NEEDS_OWNER_GOLDEN", "expect": "NEEDS_OWNER_GOLDEN", "pending": true },
+    { "id": "ua-golden-4", "category": "uk_golden", "prompt": "NEEDS_OWNER_GOLDEN", "expect": "NEEDS_OWNER_GOLDEN", "pending": true },
+    { "id": "ua-golden-5", "category": "uk_golden", "prompt": "NEEDS_OWNER_GOLDEN", "expect": "NEEDS_OWNER_GOLDEN", "pending": true }
+  ],
+  "gates": [
+    "Uk-golden regression = auto-rollback, regardless of metric gain",
+    "Token-limit share on loop-1 must not increase after a patch",
+    "IFEval-1 and math-* must not regress",
+    "patched_*.gguf copies only; originals never modified"
+  ]
+}
