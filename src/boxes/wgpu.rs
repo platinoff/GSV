@@ -444,6 +444,12 @@ pub(crate) fn ewma_elapsed_ms(tasks: &[Value], peer_id: u64) -> Option<(f64, u64
     ewma.map(|e| (e, newest))
 }
 
+/// Browser device classes (page JS + WebGPU) vs native mesh-node agents.
+/// Block ops run in the browser; native agents can't pick those task types.
+fn is_browser_peer_class(device_class: &str) -> bool {
+    !matches!(device_class, "pi4-cpu" | "pc-cpu")
+}
+
 fn ranked_peers(peers: &[Value], tasks: &[Value], now: u64) -> Vec<(u64, f64, bool)> {
     struct Ranked {
         id: u64,
@@ -1704,6 +1710,16 @@ fn enqueue_weights_matvec_block(data_dir: &Path, body: &Value) -> Result<Value, 
         .filter(|(_, _, alive)| *alive)
         .map(|(id, _, _)| id)
         .filter(|id| !restrict_ready || proof_gate(&peers_now, &tasks, *id, now))
+        // Block op is browser-page JS (chunk store fetch + WebGPU matmul);
+        // native mesh-node agents (pi4-cpu / pc-cpu) cannot run it — exclude.
+        .filter(|id| {
+            !peers_now.iter().any(|p| {
+                p.get("peer_id").and_then(Value::as_u64) == Some(*id)
+                    && !is_browser_peer_class(
+                        p.get("device_class").and_then(Value::as_str).unwrap_or(""),
+                    )
+            })
+        })
         .collect();
     if ranked.is_empty() {
         return Err(
@@ -3755,6 +3771,73 @@ mod tests {
         assert_eq!(g["done_shards"], 2);
         assert_eq!(g["ok"], true, "{g}");
         assert!(g["max_err"].as_f64().unwrap() <= REDUCE_TOL);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn block_enqueue_routes_only_browser_peers() {
+        // pi4-cpu (native mesh-node agent) cannot run the browser block op;
+        // the router must exclude it even with a fresh good proof.
+        let dir = temp_dir("block_route_browser");
+        let pi = peer_join(
+            &dir,
+            &json!({"adapter":"arm/cortex-a72","ua":"u","device_class":"pi4-cpu"}),
+        )
+        .expect("join pi");
+        let pid_pi = pi["peer_id"].as_u64().unwrap();
+        let ph = peer_join(
+            &dir,
+            &json!({"adapter":"arm/valhall","ua":"u","device_class":"phone"}),
+        )
+        .expect("join phone");
+        let pid_ph = ph["peer_id"].as_u64().unwrap();
+        {
+            let path = dir.join(TASKS_FILE);
+            let mut tasks = read_jsonl(&path);
+            for pid in [pid_pi, pid_ph] {
+                tasks.push(json!({
+                    "task_id": format!("mt-fake-{pid}"),
+                    "status": "done",
+                    "peer_id": pid,
+                    "op": "weights_matvec",
+                    "done_ts": now_secs(),
+                    "max_err_model": 5e-7,
+                    "elapsed_ms": 10.0,
+                    "mflops": 10.0,
+                }));
+            }
+            write_jsonl(&path, &tasks).unwrap();
+        }
+        let payload: Vec<u8> = [1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
+            .iter()
+            .flat_map(|v| v.to_le_bytes())
+            .collect();
+        let s1 = crate::boxes::weight_store::store_chunk(&dir, &payload).expect("store");
+        let key = s1["key"].as_str().expect("key").to_string();
+        crate::boxes::weight_store::register_tensor(
+            &dir,
+            &json!({"tensor":"blk_r.weight","dims":[2,4],"chunks":[key]}),
+        )
+        .expect("register");
+        let e = task_enqueue(
+            &dir,
+            &json!({"op":"weights_matvec_block","shards":2,"items":[
+                {"tensor":"blk_r.weight","x":[1.0,1.0,1.0,1.0]}
+            ]}),
+        )
+        .expect("enqueue");
+        let rr: Vec<u64> = e["route_peers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|v| v.as_u64())
+            .collect();
+        assert!(!rr.is_empty(), "expected non-empty route peers");
+        assert!(
+            !rr.contains(&pid_pi),
+            "pi4-cpu must not receive block shards: {rr:?}"
+        );
+        assert!(rr.iter().all(|id| *id == pid_ph));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
