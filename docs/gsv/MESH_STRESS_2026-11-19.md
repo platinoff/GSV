@@ -27,15 +27,23 @@
 - 2/2 done, max_err_model ≈ **2.4e-7 / 3.0e-7** — узгоджено з попереднім golden blk.5 (~2e-7), bench підтвердив регрес-стабільність після усіх сьогоднішніх редеплоїв
 - wall: enqueue → drain ≈ 22 s (1 GFLOP total)
 
+## Phase S — soak: 180 tasks enqueued at once (90 mlpblock×16 + 45 layernorm×64 + 45 softmax×64)
+
+- **180/180 done, failed=0** — drain ~40 s після enqueue-фази (263 s enqueue ×180 curl ≈ 0.15 s each)
+- Маршрутизація: **Pi#36 взяв 98 задач**, FF-PC#37 — 43, bifrost#38 — 35, valhall#35 — 4 (пішла в офлайн на старті soak: остання телеметрія `ts=1795052914`; Android прикрив вкладку — не стрес-ефект)
+- Hub після soak: RAM 93 %, CPU 56.7 % — стабільний; watchdog цілий; `/api/health` 200
+- FF-PC #37 упевнено працює (43 задачі) — ghost-фаза завершена
+
 ## Підсумок по стресу
 
 | Метрика | Значення |
 |---|---|
-| Задач виконано | **68/68** (30 matmul64 + 12 layernorm + 12 softmax + 12 mlpblock + 2 weights_matvec) |
+| Задач виконано | **248/248** (30+36+2 burst · 180 soak) |
 | Failed | **0** |
-| Маршрутизація | 0 блокувань, EWMA-route працював під навантаженням, Pi отримував більшість (route перевага Pi для CPU-ops) |
-| Hub після стресу | ram 90 %, cpu 68.8 % — **стабільний**, watchdog цілий, health 200 |
-| Піри після стресу | усі alive/ready (age 1–5 s) |
+| Маршрутизація | EWMA-route природно навантажив Pi (найшвидший CPU-ops); phones частково уникає телефонів під тиском (proofs_fresh зменшується) — за design |
+| Hub після стресу | ram 89→93 %, CPU до 97→57 % — стабільний, зростання RAM ~4 % на 180 задач (file/cache normal) |
+| Піри після стресу | #36 Pi, #37 FF-PC, #38 bifrost alive/ready; **#35 valhall off** (не стрес) |
+| Знахідка | Pi — основний робочий кінь; FF-PC активний; телефони можуть випадати (screen-off/battery-saver) — маршрут автоматично перебалансовує |
 
 ## Що це доводить / не доводить
 
