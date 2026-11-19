@@ -98,6 +98,10 @@ pub const TASKS: &[(&str, &str)] = &[
         "Probe /api/health `count` times (`--every N` secs between probes, default 1 probe); rc 0 = all alive, 1 = any FAIL (scheduler-friendly, stdout only)",
     ),
     (
+        "cycle-watch",
+        "Phone-mesh reconnect-storm watchdog (console ring + rolling 24 h state); rc 1=alarm, 2=probe error; dry by default, `--alert` sends Telegram to Godfather channel (rate-limited 30 min)",
+    ),
+    (
         "report",
         "Markdown mesh report from data/sys_metrics_history.jsonl (`--days N`, default 7; stdout or `--out <path>`)",
     ),
@@ -1246,6 +1250,252 @@ fn now_secs_u64() -> u64 {
         .unwrap_or(0)
 }
 
+/// Thresholds for `cycle-watch` (C3).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CycleWatchThresholds {
+    /// Unreachable events per rolling hour that trip the alarm.
+    pub hourly: u32,
+    /// Unreachable events per rolling 10 minutes that trip the alarm.
+    pub ten_min: u32,
+    /// A single unreachable→restored gap longer than this trips the alarm.
+    pub blackout_secs: u64,
+    /// Quiet period after an alert that marks the fleet "restored".
+    pub quiet_secs: u64,
+    /// Minimum seconds between two outbound Telegram alerts (anti-flood).
+    pub alert_rate_limit_secs: u64,
+}
+
+impl Default for CycleWatchThresholds {
+    fn default() -> Self {
+        Self {
+            hourly: 10,
+            ten_min: 3,
+            blackout_secs: 180,
+            quiet_secs: 900,
+            alert_rate_limit_secs: 1800,
+        }
+    }
+}
+
+/// Pure: parse `(ts, msg, peer)` triples from a `/api/wgpu/console` body.
+pub fn console_events(body: &Value) -> Vec<(u64, String, String)> {
+    body["recent"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|e| {
+                    let ts = e["ts"].as_u64()?;
+                    let msg = e["msg"].as_str()?.to_string();
+                    let peer = e["peer"].as_str().unwrap_or("").to_string();
+                    Some((ts, msg, peer))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Pure: worst unreachable→restored gap in the ring (open gap measures to `now`).
+pub fn blackout_secs(events: &[(u64, String, String)], now: u64) -> u64 {
+    let mut sorted = events.to_vec();
+    sorted.sort_by_key(|e| e.0);
+    let mut max_gap = 0u64;
+    for (ts, _msg, _peer) in sorted.iter().filter(|e| e.1.contains("unreachable")) {
+        let restored = sorted
+            .iter()
+            .filter(|e| e.1.contains("restored") && e.0 >= *ts)
+            .map(|e| e.0)
+            .min();
+        let gap = restored
+            .map(|r| r.saturating_sub(*ts))
+            .unwrap_or_else(|| now.saturating_sub(*ts));
+        if gap > max_gap {
+            max_gap = gap;
+        }
+    }
+    max_gap
+}
+
+/// Pure: merge new ring timestamps into the rolling 24 h state (dedup, cap 500).
+pub fn merge_events(existing: Vec<u64>, ring: &[(u64, String, String)], now: u64) -> Vec<u64> {
+    let mut v = existing;
+    for (ts, msg, _) in ring {
+        if msg.contains("unreachable") && !v.contains(ts) {
+            v.push(*ts);
+        }
+    }
+    v.retain(|ts| now.saturating_sub(*ts) <= 86_400);
+    v.sort_unstable();
+    v.dedup();
+    if v.len() > 500 {
+        let keep = v.len() - 500;
+        v.drain(..keep);
+    }
+    v
+}
+
+/// Pure: rolling-window trip decision (hourly / ten-minute rates).
+pub fn trip_reason(events: &[u64], now: u64, t: &CycleWatchThresholds) -> Option<String> {
+    let last_hour = events
+        .iter()
+        .filter(|ts| now.saturating_sub(**ts) <= 3600)
+        .count() as u32;
+    if last_hour >= t.hourly {
+        return Some(format!(
+            "{last_hour}× hub unreachable за останню годину (поріг {})",
+            t.hourly
+        ));
+    }
+    let last_10 = events
+        .iter()
+        .filter(|ts| now.saturating_sub(**ts) <= 600)
+        .count() as u32;
+    if last_10 >= t.ten_min {
+        return Some(format!(
+            "{last_10}× hub unreachable за 10 хв (поріг {})",
+            t.ten_min
+        ));
+    }
+    None
+}
+
+fn cycle_watch_state_path(data_dir: &Path) -> PathBuf {
+    data_dir.join("cycle_watch_state.json")
+}
+
+fn cycle_watch_load_state(path: &Path) -> Value {
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|raw| serde_json::from_str(&raw).ok())
+        .unwrap_or_else(|| json!({ "events": [], "last_seen_ts": 0, "last_alert_ts": 0, "alerted_active": false, "last_alert_reason": "" }))
+}
+
+/// One-shot infra watchdog for phone-mesh reconnect storms (C3).
+/// Returns text output and rc: 0 = quiet, 1 = alarm tripped, 2 = probe error.
+/// With `alert == false` this is a pure dry run (no Telegram send).
+pub fn cycle_watch(
+    repo_root: &Path,
+    base: &str,
+    t: &CycleWatchThresholds,
+    alert: bool,
+) -> (String, i32) {
+    let data = repo_root.join("data");
+    let _ = std::fs::create_dir_all(&data);
+    let url = format!("{}/api/wgpu/console", base.trim_end_matches('/'));
+    let (status, body, _lat) =
+        crate::boxes::keep_live::http_get_blocking_timeout(&url, Duration::from_millis(5000));
+    if status != 200 {
+        return (format!("cycle-watch: probe failed (status {status})\n"), 2);
+    }
+    let console: Value = match serde_json::from_str(&body) {
+        Ok(v) => v,
+        Err(e) => return (format!("cycle-watch: console body not JSON ({e})\n"), 2),
+    };
+    let ring = console_events(&console);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let state_path = cycle_watch_state_path(&data);
+    let mut state = cycle_watch_load_state(&state_path);
+    let existing: Vec<u64> = state["events"]
+        .as_array()
+        .map(|a| a.iter().filter_map(Value::as_u64).collect())
+        .unwrap_or_default();
+    let merged = merge_events(existing, &ring, now);
+    let last_hour = merged
+        .iter()
+        .filter(|ts| now.saturating_sub(**ts) <= 3600)
+        .count() as u32;
+    let last_10 = merged
+        .iter()
+        .filter(|ts| now.saturating_sub(**ts) <= 600)
+        .count() as u32;
+    let blackout = blackout_secs(&ring, now);
+    let reason = if blackout >= t.blackout_secs {
+        Some(format!("blackout {blackout}s (поріг {}s)", t.blackout_secs))
+    } else {
+        trip_reason(&merged, now, t)
+    };
+    let last_alert_ts = state["last_alert_ts"].as_u64().unwrap_or(0);
+    let rate_ok =
+        last_alert_ts == 0 || now.saturating_sub(last_alert_ts) >= t.alert_rate_limit_secs;
+
+    let mut out = format!(
+        "cycle-watch: unreachable(60m)={last_hour} (10m)={last_10} blackout={blackout}s trip={} alert=",
+        reason.as_deref().unwrap_or("none"),
+    );
+    let mut alert_outcome = "not-needed";
+    if let Some(reason) = &reason {
+        if rate_ok {
+            let msg = format!(
+                "🔴 mesh watchdog: {reason} · hub {base} unreachable для peer-ів (див. /api/wgpu/console)"
+            );
+            alert_outcome = if alert {
+                send_godfather_blocking(&data, &msg)
+            } else {
+                "dry (--alert не задано)"
+            };
+            state["last_alert_ts"] = json!(now);
+            state["alerted_active"] = json!(true);
+            state["last_alert_reason"] = json!(reason.clone());
+        } else {
+            alert_outcome = "suppressed (rate-limit)";
+        }
+    } else if state["alerted_active"].as_bool() == Some(true) {
+        let quiet = merged
+            .iter()
+            .filter(|ts| now.saturating_sub(**ts) <= t.quiet_secs)
+            .count();
+        if quiet == 0 {
+            let msg = format!(
+                "✅ mesh restored: тиша > {}s після: {}",
+                t.quiet_secs,
+                state["last_alert_reason"].as_str().unwrap_or("?")
+            );
+            alert_outcome = if alert {
+                send_godfather_blocking(&data, &msg)
+            } else {
+                "dry (restored)"
+            };
+            state["alerted_active"] = json!(false);
+        } else {
+            alert_outcome = "awaiting-quiet";
+        }
+    }
+    state["events"] = json!(merged);
+    state["last_seen_ts"] = json!(now);
+    let _ = std::fs::write(
+        &state_path,
+        serde_json::to_string_pretty(&state).unwrap_or_default(),
+    );
+    out.push_str(alert_outcome);
+    out.push('\n');
+    (out, if reason.is_some() { 1 } else { 0 })
+}
+
+fn send_godfather_blocking(data: &Path, msg: &str) -> &'static str {
+    let data = data.to_path_buf();
+    let msg = msg.to_string();
+    let result = std::thread::spawn(move || {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map(|rt| rt.block_on(crate::boxes::telegram::send_godfather_alert(&data, &msg)))
+    })
+    .join();
+    match result {
+        Ok(Ok(v)) => {
+            if v["ok"].as_bool() == Some(true) {
+                "sent"
+            } else {
+                "send-failed"
+            }
+        }
+        Ok(Err(_)) => "runtime-failed",
+        Err(_) => "thread-panicked",
+    }
+}
+
 /// `alive-watch`: probe `/api/health` `count` times, sleeping `interval` between
 /// probes. Returns the collected output and an exit code (0 = every probe alive).
 pub fn alive_watch(base: &str, interval_secs: u64, count: u32) -> (String, i32) {
@@ -1696,6 +1946,93 @@ mod tests {
         assert_eq!(p["done_delta"], 4); // 40→5 reset (skip), 5→9 (+4)
         assert_eq!(p["proofs_fresh"], 4);
         assert!((p["ewma_ms_avg"].as_f64().unwrap() - 1000.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn blackout_secs_measures_worst_gap_and_open_tail() {
+        let ring = vec![
+            (
+                1000u64,
+                "worker: hub unreachable (retrying…)".to_string(),
+                "38".to_string(),
+            ),
+            (
+                1004,
+                "hub: connection restored".to_string(),
+                "38".to_string(),
+            ),
+            (
+                2000,
+                "worker: hub unreachable (retrying…)".to_string(),
+                "38".to_string(),
+            ),
+            // No restored after 2000 → open blackout measured against `now`.
+        ];
+        assert_eq!(blackout_secs(&ring, 5000), 3000);
+        // Empty ring → zero.
+        assert_eq!(blackout_secs(&[], 5000), 0);
+        // All restored → worst closed gap wins.
+        let closed = vec![
+            (
+                1000u64,
+                "worker: hub unreachable".to_string(),
+                "38".to_string(),
+            ),
+            (
+                1900,
+                "hub: connection restored".to_string(),
+                "38".to_string(),
+            ),
+        ];
+        assert_eq!(blackout_secs(&closed, 5000), 900);
+    }
+
+    #[test]
+    fn merge_events_dedupes_prunes_and_caps() {
+        let ring = vec![
+            (
+                100u64,
+                "worker: hub unreachable (retrying…)".to_string(),
+                "38".to_string(),
+            ),
+            (
+                200,
+                "hub: connection restored".to_string(),
+                "38".to_string(),
+            ),
+            (
+                300,
+                "worker: hub unreachable (retrying…)".to_string(),
+                "38".to_string(),
+            ),
+        ];
+        let merged = merge_events(vec![100, 150], &ring, 86_500);
+        assert_eq!(merged, vec![100, 150, 300]);
+        // 150 older than 24 h is dropped when now is far ahead.
+        let pruned = merge_events(vec![1, 2], &[], 200_000);
+        assert_eq!(pruned, Vec::<u64>::new());
+    }
+
+    #[test]
+    fn trip_reason_hourly_and_ten_min_and_quiet() {
+        let t = CycleWatchThresholds {
+            hourly: 10,
+            ten_min: 3,
+            blackout_secs: 180,
+            quiet_secs: 900,
+            alert_rate_limit_secs: 1800,
+        };
+        let now = 10_000u64;
+        let events: Vec<u64> = (900..1000).map(|i| 9000 + i).collect(); // 100 fresh events
+        assert!(trip_reason(&events, now, &t)
+            .unwrap()
+            .contains("останню годину"));
+        let three: Vec<u64> = vec![now - 100, now - 50, now - 10];
+        assert!(trip_reason(&three, now, &t).unwrap().contains("10 хв"));
+        let two: Vec<u64> = vec![now - 100, now - 50];
+        assert!(trip_reason(&two, now, &t).is_none());
+        let stale: Vec<u64> = vec![now - 7200, now - 7100];
+        assert!(trip_reason(&stale, now, &t).is_none());
     }
 
     #[test]

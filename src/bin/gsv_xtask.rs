@@ -443,6 +443,51 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         }
+        "cycle-watch" => {
+            let base = base_url_arg(&args);
+            let every = flag_value(&args, "--every")
+                .and_then(|v| v.parse::<u64>().ok())
+                .unwrap_or(0);
+            let count = flag_value(&args, "--count")
+                .and_then(|v| v.parse::<u32>().ok())
+                .unwrap_or(1)
+                .max(1);
+            let alert = args.iter().any(|a| a == "--alert");
+            let t = gsv::boxes::xtask::CycleWatchThresholds {
+                hourly: flag_value(&args, "--hourly")
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(10),
+                ten_min: flag_value(&args, "--ten-min")
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(3),
+                blackout_secs: flag_value(&args, "--blackout-secs")
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(180),
+                quiet_secs: flag_value(&args, "--quiet-secs")
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(900),
+                alert_rate_limit_secs: flag_value(&args, "--alert-rate-limit-secs")
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(1800),
+            };
+            let cap = count.min(64);
+            let mut out = String::new();
+            let mut last_rc = 0;
+            for i in 0..cap {
+                let (text, rc) = xtask::cycle_watch(&root, &base, &t, alert);
+                out.push_str(&text);
+                last_rc = rc;
+                if i + 1 < cap && every > 0 {
+                    std::thread::sleep(std::time::Duration::from_secs(every));
+                }
+            }
+            print!("{out}");
+            if last_rc == 0 {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::FAILURE
+            }
+        }
         "report" => {
             let days = flag_value(&args, "--days")
                 .and_then(|v| v.parse::<u64>().ok())

@@ -1769,6 +1769,23 @@ async fn send_plain_live(token: &str, channel: &str, text: &str) -> Value {
     json!({ "ok": true, "dry_run": false })
 }
 
+/// One-shot Godfather alert for infra watchdogs (cycle-watch C3).
+/// Sends `text` to the configured Godfather channel. Never panics; callers
+/// own rate limiting and alert/recovery decisions. No side effects on the
+/// bus session (`g.last_send` untouched) — this is an independent infra path.
+pub async fn send_godfather_alert(data_dir: &Path, text: &str) -> Value {
+    let file = match settings::load_result(data_dir) {
+        Ok(f) => f,
+        Err(e) => return bus_fail(&e, ""),
+    };
+    let token = resolved_token(&file).unwrap_or_default();
+    let channel = file.godfather.channel_id.trim().to_string();
+    if token.is_empty() || channel.is_empty() {
+        return bus_fail("godfather bot token or channel_id is not set", &token);
+    }
+    send_plain_live(&token, &channel, text).await
+}
+
 fn title_body(s: &str) -> (String, String) {
     let first = s.lines().next().unwrap_or(s).trim();
     let title: String = first.chars().take(80).collect();

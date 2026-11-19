@@ -23,6 +23,7 @@ cd /s/rust/GSV
 
 cargo xtask status            # one-glance: hub/mesh/console/RAM/disk
 cargo xtask alive-watch --count 3 --every 10   # health probe, rc 0/1
+cargo xtask cycle-watch       # phone reconnect-storm watchdog (dry; --alert → Telegram Godfather)
 cargo xtask disk              # S0 disk guard
 cargo xtask rules-check       # drift gates (live lockstep)
 ```
