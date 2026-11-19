@@ -12,7 +12,7 @@
 | Hub disk read probe | ≈ **387 MB/s** (1 MiB random read) | 61.6 % зайнято (169 GiB) |
 | Хаб Wi-Fi uplink (netsh) | BELL409 5 GHz ch44 802.11n, RSSI −65 dBm, signal 99 % | ↓/↑ **270 Mbps** PHY |
 | Телефон #35 / #38 (NetworkInformation) | 4g, rtt 100 / 50 ms, downlink 1.45–1.75 Mbps | браузерний canary — реальна TCP-віддача вища |
-| Pi 4 (mesh-node) | wlan0, carrier=1, cpu 1800 MHz, load 1.38, mem avail 3.5 GB | link_speed_mbps агент не шле (null) |
+| Pi 4 (mesh-node) | wlan0 → **GSV-Peers-6442** (перенесено 2026-11-19), IP 192.168.137.222, `MESH_HUB=http://192.168.137.1:9999`, host ED25519 збігається з 2.168, NM profile GSV-Peers-6442 (priority 20) з фолбеком на BELL409 (priority 0) | autoconnect-priority 20 · hub age=1s |
 
 **Висновок:** усі локальні шляхи не звужують меш — вузьке місце №1 = **хаб** (RAM ~90 %, TTFB 2–3 s), не радіоканал. 2.4 GHz AP — найнадійніший шлях для телефонів (0% loss, власник підтвердив стабільність). BELL409 далі хороша як fallback.
 
