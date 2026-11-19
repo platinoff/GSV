@@ -2163,7 +2163,8 @@ fn capability_rows(peers: &[Value], tasks: &[Value], now: u64) -> Vec<Value> {
     for pid in ids {
         let row = peers
             .iter()
-            .find(|p| p.get("peer_id").and_then(Value::as_u64) == Some(pid));
+            .filter(|p| p.get("peer_id").and_then(Value::as_u64) == Some(pid))
+            .max_by_key(|p| row_last_seen(p));
         let mut mflops: f64 = 0.0;
         let mut ops: f64 = 0.0;
         let mut iters: u64 = 0;
@@ -2392,15 +2393,41 @@ fn reduce_groups(tasks: &[Value], data_dir: &Path) -> Vec<Value> {
 }
 
 /// Mesh topology wire (`GET /api/wgpu/mesh`): peers + queue + task tail.
+/// Freshest `last_seen_ts` row per peer — the mesh deliberately keeps every
+/// re-join as historical evidence, so first-match lookups pick a corpse.
+fn freshest_peer_rows(peers: &[Value]) -> Vec<Value> {
+    let mut best: std::collections::HashMap<u64, &Value> = std::collections::HashMap::new();
+    for p in peers {
+        let Some(id) = p.get("peer_id").and_then(Value::as_u64) else {
+            continue;
+        };
+        let ts = p.get("last_seen_ts").and_then(Value::as_u64).unwrap_or(0);
+        match best.get(&id) {
+            Some(cur) => {
+                let cur_ts = cur.get("last_seen_ts").and_then(Value::as_u64).unwrap_or(0);
+                if ts >= cur_ts {
+                    best.insert(id, p);
+                }
+            }
+            None => {
+                best.insert(id, p);
+            }
+        }
+    }
+    let mut rows: Vec<&Value> = best.into_values().collect();
+    rows.sort_by_key(|p| {
+        std::cmp::Reverse(p.get("last_seen_ts").and_then(Value::as_u64).unwrap_or(0))
+    });
+    rows.into_iter().take(20).cloned().collect()
+}
+
 pub fn mesh_wire(data_dir: &Path) -> Value {
     let _g = mesh_lock();
     let now = now_secs();
     let peers = read_jsonl(&data_dir.join(PEERS_FILE));
     let tasks = read_jsonl(&data_dir.join(TASKS_FILE));
-    let peer_rows: Vec<Value> = peers
+    let peer_rows: Vec<Value> = freshest_peer_rows(&peers)
         .iter()
-        .rev()
-        .take(20)
         .map(|p| {
             let pid = p.get("peer_id").and_then(Value::as_u64).unwrap_or(0);
             let ready = pid > 0 && proof_gate(&peers, &tasks, pid, now);
@@ -3365,6 +3392,37 @@ mod tests {
             }
         }
         write_jsonl(&path, &tasks).unwrap();
+    }
+
+    #[test]
+    fn capability_rows_pick_freshest_row_not_oldest() {
+        let dir = temp_dir("freshest");
+        let peers_path = dir.join(PEERS_FILE);
+        let now = now_secs();
+        // Two rows for the same device: an ancient leased-out corpse first,
+        // the fresh registration second (append order == join history).
+        let stale = json!({
+            "peer_id": 35,
+            "adapter": "arm/valhall",
+            "device_class": "phone",
+            "joined_ts": 1,
+            "last_seen_ts": 10,
+            "lease_until": 1,
+        });
+        let fresh = json!({
+            "peer_id": 35,
+            "adapter": "arm/valhall",
+            "device_class": "phone",
+            "joined_ts": 2,
+            "last_seen_ts": now,
+            "lease_until": now + 600,
+        });
+        write_jsonl(&peers_path, &[stale, fresh]).unwrap();
+        let peers = read_jsonl(&peers_path);
+        let rows = capability_rows(&peers, &[], now);
+        let row = rows.iter().find(|r| r["peer_id"] == 35).expect("row 35");
+        assert_eq!(row["alive"], true, "freshest row must win over the corpse");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
