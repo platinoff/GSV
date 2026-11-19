@@ -57,8 +57,8 @@ push-канал (RFC 6455) розрахований на LAN, телефон —
 
 | # | Завдання | Зусилля | Gate | Залежності |
 |---|---|---|---|---|
-| C1 | **`cargo xtask status`** — один рядок: hub health · version · `/api/wgpu/mesh` alive/ready/tasks_done · last console line · disk free · RAM % | S | no | `src/xtask.rs` |
-| C2 | **`cargo xtask alive-watch`** — foreground watchdog: probe `/api/health` кожні 30 s; FAIL → rc≠0 + лог у `target/live/logs/`; годиться для cron/CI | S | no | C1 |
+| C1 | **`cargo xtask status`** — один рядок: hub health · version · mesh alive/ready(alive) ids · tasks done · console last line · RAM/disk (`--json`, `--url`) — **✅ done 2026-11-19** | S | no | `src/xtask.rs` |
+| C2 | **`cargo xtask alive-watch`** — probe `/api/health` N разів (`--every N`, `--count N`, default 1 probe); rc 0/1; stdout only (scheduler-friendly) — **✅ done 2026-11-19** | S | no | C1 |
 | C3 | **`cargo xtask cycle-watch`** — раз на N хв: лічильник розривів у console ring; якщо > 10 за годину → dump у `data/cycle_watch.jsonl`; (alert — лише з owner-Telegram-ключем, інакше лише warn у лог) | M | owner для Telegram-алерту | console ring |
 | C4 | **`cargo xtask report`** — тижневий markdown-звіт із `sys_metrics_history.jsonl`: cpu/ram avg, peer uptime, dispatches ok/fail, battery trend | M | no | `sys-history` |
 | C5 | **Dispatch gate аудит** — пройти `wgpu.rs` і переконатись: heavyweight `weights_matvec` на не-ready peers блокується (PH-A1), probes — ні; додати тест якщо знайдено діру | S | no | wgpu.rs |

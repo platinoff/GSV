@@ -17,6 +17,27 @@ fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
+/// `--url <base>` or `--url=<base>`; env `GSV_LIVE_BASE` overrides the default.
+fn base_url_arg(args: &[String]) -> String {
+    flag_value(args, "--url")
+        .or_else(|| env::var("GSV_LIVE_BASE").ok())
+        .unwrap_or_else(|| format!("http://{DEFAULT_HOST}:{DEFAULT_PORT}"))
+}
+
+/// Value for `--flag <value>` or `--flag=<value>` in the arg list.
+fn flag_value(args: &[String], flag: &str) -> Option<String> {
+    if let Some(v) = args
+        .iter()
+        .find_map(|a| a.strip_prefix(&format!("{flag}=")))
+    {
+        return Some(v.to_string());
+    }
+    args.iter()
+        .position(|a| a == flag)
+        .and_then(|i| args.get(i + 1))
+        .cloned()
+}
+
 /// Record each `cargo xtask <cmd>` into the durable tracker (`data/gsv_tracker.json`,
 /// `kind=="command"`) so the SLI box's `used` flag reflects real invocation.
 /// opencode/Cursor runs are non-interactive `bash -lc` and never touch
@@ -395,6 +416,33 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         },
+        "status" => {
+            let base = base_url_arg(&args);
+            let json_out = args.iter().any(|a| a == "--json");
+            let (text, ok) = xtask::status_render(&root, &base, json_out);
+            print!("{text}");
+            if ok {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::FAILURE
+            }
+        }
+        "alive-watch" => {
+            let base = base_url_arg(&args);
+            let every = flag_value(&args, "--every")
+                .and_then(|v| v.parse::<u64>().ok())
+                .unwrap_or(0);
+            let count = flag_value(&args, "--count")
+                .and_then(|v| v.parse::<u32>().ok())
+                .unwrap_or(1);
+            let (text, rc) = xtask::alive_watch(&base, every, count);
+            print!("{text}");
+            if rc == 0 {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::FAILURE
+            }
+        }
         "record-scenario-bench" => match xtask::record_scenario_bench(&root) {
             Ok(0) => ExitCode::SUCCESS,
             Ok(_) => ExitCode::FAILURE,

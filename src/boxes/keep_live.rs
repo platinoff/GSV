@@ -201,20 +201,24 @@ pub struct Probe {
     pub uptime_secs: Option<u64>,
 }
 
-/// Probe an HTTP URL with 1s timeout.
-/// Version is extracted from JSON `version` or `crate_version` if present;
-/// uptime from `uptime_secs` when the peer body carries it.
-pub fn probe_http_blocking(url: &str) -> Probe {
+/// Raw blocking GET returning `(status, de-chunked body, latency_ms)`.
+/// Best-effort with ~1.2 s timeout; 0/empty on failure. Used by
+/// [`probe_http_blocking`] (alive check). For body-carrying probes that wait
+/// on peer fan-out (`/api/wgpu/mesh` merges live probes and can take seconds),
+/// use [`http_get_blocking_timeout`].
+pub fn http_get_blocking(url: &str) -> (u16, String, u64) {
+    http_get_blocking_timeout(url, std::time::Duration::from_millis(1200))
+}
+
+/// [`http_get_blocking`] with an explicit timeout.
+pub fn http_get_blocking_timeout(url: &str, timeout: std::time::Duration) -> (u16, String, u64) {
     let t0 = std::time::Instant::now();
-    // Use raw TcpStream + minimal HTTP to avoid pulling tokio into the box unit tests.
-    // For the wire (axum) we have an async version `probe_http` below.
-    // Here we do a best-effort blocking probe with 1s timeout.
     let parsed = match url
         .strip_prefix("http://")
         .or_else(|| url.strip_prefix("https://"))
     {
         Some(rest) => rest,
-        None => return Probe::default(),
+        None => return (0, String::new(), 0),
     };
     let host_port = parsed.split('/').next().unwrap_or(parsed);
     let path = format!("/{}", parsed.split_once('/').map(|x| x.1).unwrap_or(""));
@@ -223,7 +227,6 @@ pub fn probe_http_blocking(url: &str) -> Probe {
     } else {
         format!("{host_port}:80")
     };
-    let timeout = std::time::Duration::from_millis(1200);
     let mut stream = match std::net::TcpStream::connect_timeout(
         &addr
             .parse()
@@ -231,23 +234,23 @@ pub fn probe_http_blocking(url: &str) -> Probe {
         timeout,
     ) {
         Ok(s) => s,
-        Err(_) => return Probe::default(),
+        Err(_) => return (0, String::new(), t0.elapsed().as_millis() as u64),
     };
     let _ = stream.set_read_timeout(Some(timeout));
     let _ = stream.set_write_timeout(Some(timeout));
     let req = format!("GET {path} HTTP/1.0\r\nHost: {host_port}\r\nConnection: close\r\n\r\n");
     use std::io::{Read, Write};
     if stream.write_all(req.as_bytes()).is_err() {
-        return Probe::default();
+        return (0, String::new(), t0.elapsed().as_millis() as u64);
     }
     // The GSV server always answers HTTP/1.1 with `transfer-encoding: chunked`
     // (`x-gsv-framing: chunked-v1`) and flushes the header block before the
     // body. A single fixed-buffer read therefore often sees only the headers
     // (`alive=false`) or a chunk-framed body (`198\r\n{json}\r\n0\r\n`) that
-    // fails `from_str` (`version=n/a`). Read block-by-block until the de-chunked
-    // body parses as a JSON object, the peer closes (EOF), or a few reads time
-    // out (a slow `/api/health` keeps the connection open ~1s while it merges
-    // peer probes).
+    // fails `from_str` (`version=n/a`). Read block-by-block until the
+    // de-chunked body parses as a JSON object, the peer closes (EOF), or a few
+    // reads time out (a slow `/api/health` keeps the connection open ~1s while
+    // it merges peer probes).
     let mut buf: Vec<u8> = Vec::with_capacity(8192);
     let mut slice = [0u8; 2048];
     let mut empty_reads = 0u32;
@@ -257,7 +260,9 @@ pub fn probe_http_blocking(url: &str) -> Probe {
             Ok(n) => {
                 buf.extend_from_slice(&slice[..n]);
                 let resp = extract_response(&buf);
-                if body_is_json_object(&resp.1) || buf.len() > 1 << 16 {
+                // 4 MiB ceiling: `/api/wgpu/mesh` carries every peer row +
+                // capability table (~140 KB live) — 64 KiB truncated it.
+                if body_is_json_object(&resp.1) || buf.len() > (1 << 22) {
                     break resp;
                 }
             }
@@ -269,6 +274,14 @@ pub fn probe_http_blocking(url: &str) -> Probe {
             }
         }
     };
+    (status, body, t0.elapsed().as_millis() as u64)
+}
+
+/// Probe an HTTP URL with 1s timeout.
+/// Version is extracted from JSON `version` or `crate_version` if present;
+/// uptime from `uptime_secs` when the peer body carries it.
+pub fn probe_http_blocking(url: &str) -> Probe {
+    let (status, body, latency_ms) = http_get_blocking(url);
     let alive = status == 200
         && (body.contains("\"ok\":true")
             || body.contains("\"ok\": true")
@@ -280,7 +293,7 @@ pub fn probe_http_blocking(url: &str) -> Probe {
     Probe {
         alive,
         version,
-        latency_ms: t0.elapsed().as_millis() as u64,
+        latency_ms,
         uptime_secs,
     }
 }

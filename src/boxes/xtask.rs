@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use serde_json::{json, Value};
 
-use crate::boxes::{products, tickets, vision, watchdog};
+use crate::boxes::{keep_live, products, tickets, vision, watchdog};
 
 /// Read-only MCP / HTTP tasks. Mutating work stays on `cargo xtask`.
 /// `sync` here is `--check` only (drift gate); remirror is `gsv_vision_sync`.
@@ -89,6 +89,14 @@ pub const TASKS: &[(&str, &str)] = &[
     ),
     ("record-speed", "Time `cargo test` → gsv-speed-index"),
     ("record-rust", "Scan clippy via gsv-rust-diagnostics"),
+    (
+        "status",
+        "One-glance ops snapshot: hub health · mesh alive/ready ids · tasks done · last console line · RAM/disk (`--json`, `--url <base>`)",
+    ),
+    (
+        "alive-watch",
+        "Probe /api/health `count` times (`--every N` secs between probes, default 1 probe); rc 0 = all alive, 1 = any FAIL (scheduler-friendly, stdout only)",
+    ),
     (
         "record-scenario-bench",
         "Time abrakadabra-session walk → docs/gsv/scenario_bench.json",
@@ -853,6 +861,204 @@ pub fn record_sys(repo_root: &Path) -> Result<i32, String> {
     Ok(0)
 }
 
+/// Pure: summarize a `/api/wgpu/mesh` wire body. No I/O.
+pub fn peer_summary(mesh: &Value) -> Value {
+    let peers: &[Value] = mesh["peers"]
+        .as_array()
+        .map(|a| a.as_slice())
+        .unwrap_or(&[]);
+    let is_true = |p: &Value, key: &str| p[key].as_bool() == Some(true);
+    let alive_ids: Vec<Value> = peers
+        .iter()
+        .filter(|p| is_true(p, "alive"))
+        .filter_map(|p| p["peer_id"].as_u64().map(|id| json!(id)))
+        .collect();
+    let alive = alive_ids.len();
+    // `ready` counts stale rows too (hub-side TTL may stay true after a peer
+    // goes quiet) — report `ready_alive` (ready AND alive) as the actionable
+    // number; keep `ready` for completeness.
+    let ready = peers.iter().filter(|p| is_true(p, "ready")).count();
+    let ready_alive = peers
+        .iter()
+        .filter(|p| is_true(p, "ready") && is_true(p, "alive"))
+        .count();
+    json!({
+        "total": peers.len(),
+        "alive": alive,
+        "ready": ready,
+        "ready_alive": ready_alive,
+        "alive_ids": alive_ids,
+        "claimed": mesh["claimed"].clone(),
+        "done": mesh["done"].clone(),
+        "failed": mesh["failed"].clone(),
+    })
+}
+
+/// Borrowed bundle of inputs for [`status_line`] (keeps the signature clippy-clean).
+pub struct StatusLineInput<'a> {
+    pub base: &'a str,
+    pub health_ok: bool,
+    pub version: &'a str,
+    pub health_latency_ms: u64,
+    pub peers: &'a Value,
+    pub console_latest: &'a Value,
+    pub ram_load_pct: Option<f64>,
+    pub disk_free_gb: Option<f64>,
+}
+
+/// Pure: compose the one-line status. `console_latest` is the newest
+/// `/api/wgpu/console` ring entry (may be Null when the ring is empty).
+pub fn status_line(i: &StatusLineInput<'_>) -> String {
+    let StatusLineInput {
+        base,
+        health_ok,
+        version,
+        health_latency_ms,
+        peers,
+        console_latest,
+        ram_load_pct,
+        disk_free_gb,
+    } = i;
+    let health_ok = *health_ok;
+    let health_latency_ms = *health_latency_ms;
+    let ram_load_pct = *ram_load_pct;
+    let disk_free_gb = *disk_free_gb;
+    let version = *version;
+    let alive_ids = peers["alive_ids"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_u64())
+                .map(|id| id.to_string())
+                .collect::<Vec<_>>()
+                .join(",")
+        })
+        .unwrap_or_default();
+    let console = match (
+        console_latest["msg"].as_str(),
+        console_latest["peer"].as_str(),
+        console_latest["ts"].as_u64(),
+    ) {
+        (Some(msg), Some(peer), Some(_ts)) => format!("console \"{msg}\" p{peer}"),
+        _ => "console (empty)".to_string(),
+    };
+    let ram = ram_load_pct
+        .map(|v| format!("ram {v:.0}%"))
+        .unwrap_or_else(|| "ram n/a".into());
+    let disk = disk_free_gb
+        .map(|v| format!("disk {v:.0}G free"))
+        .unwrap_or_else(|| "disk n/a".into());
+    format!(
+        "status: hub {} v{} ({}ms) · mesh alive {}/{} ready {} [{}] · done {} failed {} · {console} · {ram} · {disk} · {base}",
+        if health_ok { "alive" } else { "DOWN" },
+        version,
+        health_latency_ms,
+        peers["alive"].as_u64().unwrap_or(0),
+        peers["total"].as_u64().unwrap_or(0),
+        peers["ready_alive"].as_u64().unwrap_or(0),
+        if alive_ids.is_empty() { "-".to_string() } else { alive_ids },
+        peers["done"].as_u64().unwrap_or(0),
+        peers["failed"].as_u64().unwrap_or(0),
+    )
+}
+
+/// Fetch the three live endpoints + local RAM/disk and return the full wire
+/// (used by `xtask status` and `--json`).
+pub fn status_value(repo_root: &Path, base: &str) -> Value {
+    let data = repo_root.join("data");
+    let url = |p: &str| format!("{}{}", base.trim_end_matches('/'), p);
+    // The mesh endpoint merges live probes for every peer (2.4 GHz phone) and
+    // can take several seconds — give body probes a 5 s budget; the alive-watch
+    // health probe keeps the 1.2 s default via `probe_http_blocking`.
+    let slow = Duration::from_millis(5000);
+    let (h_status, h_body, h_lat) = keep_live::http_get_blocking_timeout(&url("/api/health"), slow);
+    let (_m_status, m_body, m_lat) =
+        keep_live::http_get_blocking_timeout(&url("/api/wgpu/mesh"), slow);
+    let (_c_status, c_body, _c_lat) =
+        keep_live::http_get_blocking_timeout(&url("/api/wgpu/console"), slow);
+    let health: Value = serde_json::from_str(&h_body).unwrap_or(Value::Null);
+    let mesh: Value = serde_json::from_str(&m_body).unwrap_or(Value::Null);
+    let console: Value = serde_json::from_str(&c_body).unwrap_or(Value::Null);
+    let sys = crate::boxes::sysmon::report(repo_root, &data, 250);
+    let peers = peer_summary(&mesh);
+    json!({
+        "ok": h_status == 200 && health["ok"].as_bool().unwrap_or(false),
+        "base": base,
+        "latency_ms": { "health": h_lat, "mesh": m_lat },
+        "health": {
+            "status": h_status,
+            "ok": health["ok"].clone(),
+            "version": health["version"].clone(),
+            "crate_version": health["crate_version"].clone(),
+            "uptime_secs": health["uptime_secs"].clone(),
+            "disk_free_gb": health["disk_free_gb"].clone(),
+            "watchdog_alive": health["watchdog_alive"].clone(),
+            "version_lag": health["version_lag"].clone(),
+        },
+        "mesh": peers,
+        "console_latest": console["latest"].clone(),
+        "ram_load_pct": sys.hub["ram_load_pct"].clone(),
+        "disk_free_gb": sys.hub["disk_free_gb"].clone(),
+    })
+}
+
+/// Render `status` (text or JSON) into a string + ok flag.
+pub fn status_render(repo_root: &Path, base: &str, json_out: bool) -> (String, bool) {
+    let v = status_value(repo_root, base);
+    let ok = v["ok"].as_bool().unwrap_or(false);
+    if json_out {
+        return (
+            serde_json::to_string_pretty(&v).unwrap_or_else(|_| "{}".into()) + "\n",
+            ok,
+        );
+    }
+    let health = &v["health"];
+    let console = v["console_latest"].clone();
+    let ram = v["ram_load_pct"].as_f64();
+    let disk = v["disk_free_gb"].as_f64();
+    let health_ok =
+        health["status"].as_u64() == Some(200) && health["ok"].as_bool().unwrap_or(false);
+    let version = health["version"].as_str().unwrap_or("unknown");
+    let health_lat = v["latency_ms"]["health"].as_u64().unwrap_or(0);
+    let line = status_line(&StatusLineInput {
+        base,
+        health_ok,
+        version,
+        health_latency_ms: health_lat,
+        peers: &v["mesh"],
+        console_latest: &console,
+        ram_load_pct: ram,
+        disk_free_gb: disk,
+    });
+    (format!("{line}\n"), ok)
+}
+
+/// `alive-watch`: probe `/api/health` `count` times, sleeping `interval` between
+/// probes. Returns the collected output and an exit code (0 = every probe alive).
+pub fn alive_watch(base: &str, interval_secs: u64, count: u32) -> (String, i32) {
+    let url = format!("{}/api/health", base.trim_end_matches('/'));
+    let count = count.max(1);
+    let mut out = String::new();
+    let mut all_ok = true;
+    for i in 0..count {
+        let p = keep_live::probe_http_blocking(&url);
+        let ok = p.alive;
+        all_ok &= ok;
+        out.push_str(&format!(
+            "alive-watch[{}/{}]: {} version={} latency_ms={}\n",
+            i + 1,
+            count,
+            if ok { "ok" } else { "FAIL" },
+            p.version.as_deref().unwrap_or("n/a"),
+            p.latency_ms
+        ));
+        if i + 1 < count && interval_secs > 0 {
+            std::thread::sleep(Duration::from_secs(interval_secs));
+        }
+    }
+    (out, if all_ok { 0 } else { 1 })
+}
+
 /// Vision sync / drift (library, no extra cargo).
 pub fn vision_sync(repo_root: &Path, check_only: bool) -> Result<String, String> {
     let data = repo_root.join("data");
@@ -1151,6 +1357,89 @@ fn volume_free_bytes(path: &Path) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn peer_summary_counts_alive_ready_and_lists_ids() {
+        let mesh = json!({
+            "claimed": 1,
+            "done": 200,
+            "failed": 0,
+            "peers": [
+                { "peer_id": 37, "alive": true, "ready": true },
+                { "peer_id": 38, "alive": true, "ready": true },
+                { "peer_id": 35, "alive": false, "ready": false },
+                { "peer_id": 36, "alive": false, "ready": false }
+            ]
+        });
+        let s = peer_summary(&mesh);
+        assert_eq!(s["total"], 4);
+        assert_eq!(s["alive"], 2);
+        assert_eq!(s["ready"], 2);
+        assert_eq!(s["ready_alive"], 2);
+        assert_eq!(s["done"], 200);
+        assert_eq!(s["alive_ids"], json!([37, 38]));
+        // Stale `ready` rows (ready:true but alive:false) must not inflate ready_alive.
+        let stale = json!({
+            "peers": [
+                { "peer_id": 35, "alive": false, "ready": true },
+                { "peer_id": 36, "alive": false, "ready": true }
+            ]
+        });
+        let s = peer_summary(&stale);
+        assert_eq!(s["ready"], 2);
+        assert_eq!(s["ready_alive"], 0);
+        // Empty / malformed mesh must not panic and stays zeroed.
+        let empty = peer_summary(&Value::Null);
+        assert_eq!(empty["total"], 0);
+        assert_eq!(empty["alive"], 0);
+    }
+
+    #[test]
+    fn status_line_renders_core_bits() {
+        let peers = json!({
+            "total": 4,
+            "alive": 2,
+            "ready": 4,
+            "ready_alive": 2,
+            "alive_ids": [37, 38],
+            "claimed": 0,
+            "done": 200,
+            "failed": 0
+        });
+        let console =
+            json!({ "msg": "hub: connection restored", "peer": "38", "ts": 1795093885u64 });
+        let line = status_line(&StatusLineInput {
+            base: "http://192.168.2.238:9999",
+            health_ok: true,
+            version: "0.248.0",
+            health_latency_ms: 12,
+            peers: &peers,
+            console_latest: &console,
+            ram_load_pct: Some(88.0),
+            disk_free_gb: Some(63.0),
+        });
+        assert!(line.contains("hub alive v0.248.0 (12ms)"));
+        assert!(line.contains("mesh alive 2/4 ready 2 [37,38]"));
+        assert!(line.contains("done 200 failed 0"));
+        assert!(line.contains("console \"hub: connection restored\" p38"));
+        assert!(line.contains("ram 88%"));
+        assert!(line.contains("disk 63G free"));
+        // Console empty → tolerated.
+        let line2 = status_line(&StatusLineInput {
+            base: "http://127.0.0.1:9999",
+            health_ok: false,
+            version: "unknown",
+            health_latency_ms: 0,
+            peers: &peers,
+            console_latest: &Value::Null,
+            ram_load_pct: None,
+            disk_free_gb: None,
+        });
+        assert!(line2.contains("hub DOWN vunknown"));
+        assert!(line2.contains("console (empty)"));
+        assert!(line2.contains("ram n/a"));
+        assert!(line2.contains("disk n/a"));
+    }
 
     #[test]
     fn watchdog_task_tr_quotes_paths_with_spaces() {

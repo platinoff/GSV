@@ -3964,18 +3964,17 @@ mod tests {
         {
             let path = dir.join(TASKS_FILE);
             let mut tasks = read_jsonl(&path);
-            for pid in [pid_pi] {
-                tasks.push(json!({
-                    "task_id": format!("mt-fake-{pid}"),
-                    "status": "done",
-                    "peer_id": pid,
-                    "op": "weights_matvec",
-                    "done_ts": now_secs(),
-                    "max_err_model": 5e-7,
-                    "elapsed_ms": 10.0,
-                    "mflops": 10.0,
-                }));
-            }
+            let pid = pid_pi;
+            tasks.push(json!({
+                "task_id": format!("mt-fake-{pid}"),
+                "status": "done",
+                "peer_id": pid,
+                "op": "weights_matvec",
+                "done_ts": now_secs(),
+                "max_err_model": 5e-7,
+                "elapsed_ms": 10.0,
+                "mflops": 10.0,
+            }));
             write_jsonl(&path, &tasks).unwrap();
         }
         let ph = peer_join(
