@@ -170,6 +170,12 @@ poolai **стартує, але або падає в init (мовчання RUST
   —_hardcoded Linux default; `POOLAI_DATA_PATH` (який скрипти ставлять у writable stand_root) не враховувався.
 - **Fix `9f330d3aa`** — `LibraryManager::get_default_library_path()` тепер з `POOLAI_DATA_PATH` → `$POOLAI_DATA_PATH/libs`
   (production `/var/lib/poolai` семантика не змінилася; docs RUN_PARAMETERS.md оновлено). Очікуємо green Pa11y/Playwright у 1708.
+- **Run 1708 (`9f330d3aa`) — фактичні результати** (перевірено jobs API):
+  - ✅ Documentation run **1416** — green (той самий sha, docs.yml спрацював)
+  - ✅ OpenAPI · Check Features ×5 · FM drift · LOC ratio · Rust diagnostics · Detect UI · Pa11y contract — green
+  - ❌ **Test Suite (ubuntu) — знову обрив на кроці `Run tests (cloud-sdk feature)`** (default tests ✅ — `dafaff76e` підтверджено на ubuntu; logs 404 — runner-side kill, імовірно OOM на найважчій feature-збірці; той самий симптом, що й 1707)
+  - ⏳ **Test Suite (windows) — усе ще in_progress на момент перевірки** (очікуваний ~50 хв прогін; на 1707 був повністю зелений)
+  - ⊘ **Pa11y + Playwright — SKIPPED за paths-filter** (`ui`: src/ui/**, bin/pa11y-ci.sh, .github/workflows/{a11y,ci}.yml, tests/pa11y_ci_script.rs; `e2e`: e2e/**, bin/e2e-playwright.sh, ...). `9f330d3aa` (src/libs/manager.rs + docs/RUN_PARAMETERS.md) **не підпадає під жоден фільтр** → runtime-перевірка libs-фиксу в CI не відбулась. Фікс імплементаційно правильний (скрипти вже ставили POOLAI_DATA_PATH на writable stand_root), підтвердження — наступний push, що чіпає `bin/pa11y-ci.sh` / `.github/workflows/ci.yml` / UI, або ручний dispatch `a11y.yml` (owner decision).
 
 ## 6. Джерела анотation (чому «багато анотацій»)
 
