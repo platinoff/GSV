@@ -177,6 +177,9 @@ poolai **стартує, але або падає в init (мовчання RUST
   - ⏳ **Test Suite (windows) — усе ще in_progress на момент перевірки** (очікуваний ~50 хв прогін; на 1707 був повністю зелений)
   - ⊘ **Pa11y + Playwright — SKIPPED за paths-filter** (`ui`: src/ui/**, bin/pa11y-ci.sh, .github/workflows/{a11y,ci}.yml, tests/pa11y_ci_script.rs; `e2e`: e2e/**, bin/e2e-playwright.sh, ...). `9f330d3aa` (src/libs/manager.rs + docs/RUN_PARAMETERS.md) **не підпадає під жоден фільтр** → runtime-перевірка libs-фиксу в CI не відбулась. Фікс імплементаційно правильний (скрипти вже ставили POOLAI_DATA_PATH на writable stand_root), підтвердження — наступний push, що чіпає `bin/pa11y-ci.sh` / `.github/workflows/ci.yml` / UI, або ручний dispatch `a11y.yml` (owner decision).
 
+- **Run 1710 (`a4f975825`) — результат:** pa11y — `/ui` **зелений** (фікс #home-power-reboot підтверджено), але `/ui/admin/monitoring` **вдруге червоний із тим самим 3.14:1**: у репо **друга копія** `showNotification()` у `src/ui/admin_common.js` з тими ж `#ff5555` + white. **Фікс `b870bae38`** → run **1711** (в дорозі на час запису).
+- **Run 1709** — скасовано через `cancel-in-progress: true` при пуші 1710 (за задумом).
+
 ## 6. Джерела анотation (чому «багато анотацій»)
 
 Порядок за імовірністю:
