@@ -399,6 +399,230 @@ fn commit_stats() -> Option<(u64, u64)> {
     None
 }
 
+// ───────────────── WAN/LAN probes (cached) ─────────────────
+
+/// One Wi-Fi uplink row from `netsh wlan show interfaces` (this box).
+#[derive(Debug, Clone, Serialize, PartialEq, Default)]
+struct WifiLink {
+    ssid: String,
+    state: String,
+    band: String,
+    channel: Option<u8>,
+    radio_type: String,
+    signal_pct: Option<u8>,
+    rssi_dbm: Option<i32>,
+    receive_mbps: Option<u32>,
+    transmit_mbps: Option<u32>,
+}
+
+/// Parse `netsh wlan show interfaces` output into one link row (first interface).
+fn parse_wifi_link(output: &str) -> Option<WifiLink> {
+    let mut link = WifiLink::default();
+    let mut found = false;
+    for line in output.lines() {
+        let Some((k, v)) = line.split_once(':') else {
+            continue;
+        };
+        let k = k.trim();
+        let v = v.trim();
+        match k {
+            "SSID" => {
+                // netsh uses both "SSID" (connected profile) and "AP BSSID";
+                // skip BSSID lines by key check above.
+                link.ssid = v.to_string();
+                found = true;
+            }
+            "State" => link.state = v.to_string(),
+            "Band" => link.band = v.to_string(),
+            "Channel" => link.channel = v.parse().ok(),
+            "Radio type" => link.radio_type = v.to_string(),
+            "Signal" => link.signal_pct = v.trim_end_matches('%').parse().ok(),
+            "Rssi" => link.rssi_dbm = v.trim_end_matches(" dBm").parse().ok(),
+            "Receive rate (Mbps)" => link.receive_mbps = v.parse().ok(),
+            "Transmit rate (Mbps)" => link.transmit_mbps = v.parse().ok(),
+            _ => {}
+        }
+    }
+    if found {
+        Some(link)
+    } else {
+        None
+    }
+}
+
+/// `ipconfig` rows: (interface name, IPv4, subnet mask).
+fn parse_ipconfig(output: &str) -> Vec<(String, String, String)> {
+    fn flush(
+        iface: &mut String,
+        ipv4: &mut Option<String>,
+        mask: &mut Option<String>,
+        out: &mut Vec<(String, String, String)>,
+    ) {
+        if let (Some(ip), Some(m)) = (ipv4.take(), mask.take()) {
+            out.push((std::mem::take(iface), ip, m));
+        }
+    }
+    let mut out = Vec::new();
+    let mut iface = String::new();
+    let mut ipv4: Option<String> = None;
+    let mut mask: Option<String> = None;
+    for raw in output.lines() {
+        let line = raw.trim_end();
+        // Section header: "Wireless LAN adapter Wi-Fi:" (not indented).
+        if line.ends_with(':') && !line.starts_with(' ') {
+            flush(&mut iface, &mut ipv4, &mut mask, &mut out);
+            iface = line.trim_end_matches(':').trim().to_string();
+            continue;
+        }
+        let Some((k, v)) = line.split_once(':') else {
+            continue;
+        };
+        // ipconfig pads keys with dot leaders: "IPv4 Address. . . . . : 192.168.2.238"
+        let k = k.trim_end_matches(['.', ' ']).trim();
+        let v = v.trim();
+        match k {
+            "IPv4 Address" => ipv4 = Some(v.to_string()),
+            "Subnet Mask" => mask = Some(v.to_string()),
+            _ => {}
+        }
+    }
+    flush(&mut iface, &mut ipv4, &mut mask, &mut out);
+    out
+}
+
+type LanList = Vec<(String, String, String)>;
+
+struct TimedCache<T> {
+    at: Instant,
+    value: T,
+}
+static WIFI_CACHE: OnceLock<Mutex<TimedCache<Option<WifiLink>>>> = OnceLock::new();
+static LAN_CACHE: OnceLock<Mutex<TimedCache<LanList>>> = OnceLock::new();
+static DISK_SPEED_CACHE: OnceLock<Mutex<TimedCache<Option<f64>>>> = OnceLock::new();
+const CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(5);
+
+fn wifi_link_cached() -> Option<WifiLink> {
+    let now = Instant::now();
+    let mut cache = WIFI_CACHE
+        .get_or_init(|| {
+            Mutex::new(TimedCache {
+                at: now - std::time::Duration::from_secs(3600),
+                value: None,
+            })
+        })
+        .lock()
+        .unwrap_or_else(|p| p.into_inner());
+    if now.duration_since(cache.at) < CACHE_TTL {
+        return cache.value.clone();
+    }
+    let probed = probe_wifi_link();
+    cache.at = now;
+    cache.value = probed;
+    cache.value.clone()
+}
+
+#[cfg(windows)]
+fn probe_wifi_link() -> Option<WifiLink> {
+    let out = std::process::Command::new("netsh")
+        .args(["wlan", "show", "interfaces"])
+        .output()
+        .ok()?;
+    parse_wifi_link(&decode_win_output(&out.stdout))
+}
+
+#[cfg(not(windows))]
+fn probe_wifi_link() -> Option<WifiLink> {
+    None
+}
+
+/// Windows console tools (netsh/ipconfig) emit UTF-16LE or OEM bytes; strip
+/// NULs so ASCII field names survive UTF-8 lossy decoding.
+#[cfg(windows)]
+fn decode_win_output(bytes: &[u8]) -> String {
+    let cleaned: Vec<u8> = bytes.iter().copied().filter(|b| *b != 0).collect();
+    String::from_utf8_lossy(&cleaned).to_string()
+}
+
+fn lan_interfaces_cached() -> LanList {
+    let now = Instant::now();
+    let mut cache = LAN_CACHE
+        .get_or_init(|| {
+            Mutex::new(TimedCache {
+                at: now - std::time::Duration::from_secs(3600),
+                value: Vec::new(),
+            })
+        })
+        .lock()
+        .unwrap_or_else(|p| p.into_inner());
+    if now.duration_since(cache.at) < CACHE_TTL {
+        return cache.value.clone();
+    }
+    let probed = probe_lan_interfaces();
+    cache.at = now;
+    cache.value = probed;
+    cache.value.clone()
+}
+
+#[cfg(windows)]
+fn probe_lan_interfaces() -> LanList {
+    let out = std::process::Command::new("ipconfig").output().ok();
+    out.map(|o| parse_ipconfig(&decode_win_output(&o.stdout)))
+        .unwrap_or_default()
+}
+
+#[cfg(not(windows))]
+fn probe_lan_interfaces() -> LanList {
+    Vec::new()
+}
+
+/// Honest random-access disk read probe: 1 MiB from a fixed in-repo file,
+/// cached 5 s. Approximate (page cache may answer some reads).
+fn disk_read_speed_cached() -> Option<f64> {
+    let now = Instant::now();
+    let mut cache = DISK_SPEED_CACHE
+        .get_or_init(|| {
+            Mutex::new(TimedCache {
+                at: now - std::time::Duration::from_secs(3600),
+                value: None,
+            })
+        })
+        .lock()
+        .unwrap_or_else(|p| p.into_inner());
+    if now.duration_since(cache.at) < CACHE_TTL {
+        return cache.value;
+    }
+    let probed = probe_disk_read_speed();
+    cache.at = now;
+    cache.value = probed;
+    cache.value
+}
+
+fn probe_disk_read_speed() -> Option<f64> {
+    use std::io::{Read, Seek, SeekFrom};
+    // Fixed in-repo artifact — present in every checkout of this crate.
+    const PROBE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/target/debug/gsv-server.exe");
+    if !std::path::Path::new(PROBE).exists() {
+        return None;
+    }
+    let mut f = std::fs::File::open(PROBE).ok()?;
+    let len = f.metadata().ok()?.len();
+    if len < 2 * 1024 * 1024 {
+        return None;
+    }
+    // Deterministic pseudo-offset derived from wall clock — still inside the file.
+    let offset = (epoch_now().wrapping_mul(0x9E3779B97F4A7C15) >> 11) % (len - 1024 * 1024);
+    f.seek(SeekFrom::Start(offset)).ok()?;
+    let start = Instant::now();
+    let mut buf = vec![0u8; 1024 * 1024];
+    f.read_exact(&mut buf).ok()?;
+    let secs = start.elapsed().as_secs_f64();
+    if secs <= 0.0 {
+        None
+    } else {
+        Some((buf.len() as f64) / (1024.0 * 1024.0) / secs)
+    }
+}
+
 #[cfg(not(windows))]
 fn top_rss_processes(_limit: usize) -> Vec<Value> {
     Vec::new()
@@ -1021,6 +1245,97 @@ mod s_tests {
     }
 
     #[test]
+    fn parse_wifi_link_reads_this_box_captured_netsh_output() {
+        let out = r"
+
+There is 1 interface on the system:
+
+    Name                   : Wi-Fi
+    Description            : Intel(R) Dual Band Wireless-AC 8265
+    GUID                   : 1bf194dd-4e7a-404d-9389-f8b32e1a2cfb
+    Physical address       : f0:9e:4a:10:06:58
+    Interface type         : Primary
+    State                  : connected
+    SSID                   : BELL409
+    AP BSSID               : 0e:ac:8a:5d:be:a1
+    Band                   : 5 GHz
+    Channel                : 44
+    Network type           : Infrastructure
+    Radio type             : 802.11n
+    Authentication         : WPA2-Personal
+    Cipher                 : CCMP
+    Receive rate (Mbps)    : 240
+    Transmit rate (Mbps)   : 240
+    Signal                 : 72%
+    Rssi                   : -67
+";
+        let link = parse_wifi_link(out).expect("should parse the capture");
+        assert_eq!(link.ssid, "BELL409");
+        assert_eq!(link.band, "5 GHz");
+        assert_eq!(link.channel, Some(44));
+        assert_eq!(link.radio_type, "802.11n");
+        assert_eq!(link.signal_pct, Some(72));
+        assert_eq!(link.rssi_dbm, Some(-67));
+        assert_eq!(link.receive_mbps, Some(240));
+        assert_eq!(link.transmit_mbps, Some(240));
+    }
+
+    #[test]
+    fn parse_ipconfig_collects_interfaces_with_ipv4() {
+        let out = r"
+Windows IP Configuration
+
+Wireless LAN adapter Local Area Connection* 2:
+
+   Connection-specific DNS Suffix  . :
+   Link-local IPv6 Address . . . . . : fe80::91ae:e762:6551:375b%10
+   IPv4 Address. . . . . . . . . . . : 192.168.137.1
+   Subnet Mask . . . . . . . . . . . : 255.255.255.0
+   Default Gateway . . . . . . . . . :
+
+Wireless LAN adapter Wi-Fi:
+
+   Connection-specific DNS Suffix  . : home
+   IPv4 Address. . . . . . . . . . . : 192.168.2.238
+   Subnet Mask . . . . . . . . . . . : 255.255.255.0
+   Default Gateway . . . . . . . . . : 192.168.2.1
+
+Ethernet adapter Ethernet 3:
+
+   Connection-specific DNS Suffix  . :
+   Link-local IPv6 Address . . . . . : fe80::5a6b:92c6:5033:5f2d%13
+   IPv4 Address. . . . . . . . . . . : 192.168.56.1
+   Subnet Mask . . . . . . . . . . . : 255.255.255.0
+";
+        let rows = parse_ipconfig(out);
+        assert_eq!(rows.len(), 3);
+        assert_eq!(
+            rows[0],
+            (
+                "Wireless LAN adapter Local Area Connection* 2".to_string(),
+                "192.168.137.1".to_string(),
+                "255.255.255.0".to_string()
+            )
+        );
+        assert_eq!(
+            rows[1],
+            (
+                "Wireless LAN adapter Wi-Fi".to_string(),
+                "192.168.2.238".to_string(),
+                "255.255.255.0".to_string()
+            )
+        );
+        assert_eq!(
+            rows[2],
+            (
+                "Ethernet adapter Ethernet 3".to_string(),
+                "192.168.56.1".to_string(),
+                "255.255.255.0".to_string()
+            )
+        );
+    }
+
+    #[test]
     fn device_status_fields_flow_into_mesh_metrics() {
         let dir = fixture_dir("devstat");
         let now = epoch_now();
@@ -1154,6 +1469,12 @@ pub struct SysWire {
     pub sample_ms: u64,
     pub hub: Value,
     pub mesh: Value,
+    /// This box's Wi-Fi uplink row (cached 5 s) — WAN-side link quality.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wan: Option<Value>,
+    /// IPv4 interfaces on this box (cached 5 s) — LAN-side inventory.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lan: Option<Value>,
 }
 
 pub fn report(repo_root: &Path, data_dir: &Path, sample_ms: u64) -> SysWire {
@@ -1165,6 +1486,12 @@ pub fn report(repo_root: &Path, data_dir: &Path, sample_ms: u64) -> SysWire {
     let (ncpus, phys) = host_sys_info();
     let commit = commit_stats();
     let top = top_rss_processes(8);
+    let wifi = wifi_link_cached();
+    let lan = lan_interfaces_cached();
+    let disk_used_pct = disk
+        .filter(|(_, t)| *t > 0)
+        .map(|(f, t)| (((t - f) as f64 / t as f64) * 1000.0).round() / 10.0);
+    let disk_read_mbps = disk_read_speed_cached().map(|v| (v * 10.0).round() / 10.0);
     SysWire {
         ok: true,
         ts: epoch_now(),
@@ -1178,6 +1505,8 @@ pub fn report(repo_root: &Path, data_dir: &Path, sample_ms: u64) -> SysWire {
             "ram_load_pct": load,
             "disk_free_gb": disk.map(|(f, _)| (f as f64) / (1024.0 * 1024.0 * 1024.0)).map(|v| (v * 10.0).round() / 10.0),
             "disk_total_gb": disk.map(|(_, t)| (t as f64) / (1024.0 * 1024.0 * 1024.0)).map(|v| (v * 10.0).round() / 10.0),
+            "disk_used_pct": disk_used_pct,
+            "disk_read_mbps": disk_read_mbps,
             "ncpus": ncpus,
             "physical_cores": phys,
             "commit_total_mb": commit.map(|(t, _)| t),
@@ -1185,6 +1514,17 @@ pub fn report(repo_root: &Path, data_dir: &Path, sample_ms: u64) -> SysWire {
             "top_rss": top,
         }),
         mesh: mesh_peers_summary(data_dir),
+        wan: Some(json!({
+            "wifi": wifi,
+        })),
+        lan: Some(json!(lan
+            .into_iter()
+            .map(|(iface, ipv4, mask)| json!({
+                "iface": iface,
+                "ipv4": ipv4,
+                "mask": mask,
+            }))
+            .collect::<Vec<_>>())),
     }
 }
 
@@ -1313,6 +1653,11 @@ main{display:grid;grid-template-columns:1fr 1.3fr;gap:12px;padding:12px 16px}
 .bar{position:relative;height:14px;border-radius:4px;background:#1c2740;overflow:hidden}
 .bar>i{position:absolute;left:0;top:0;bottom:0;background:var(--acc);transition:width .3s linear}
 .bar.warn>i{background:var(--warn)}.bar.crit>i{background:var(--crit)}
+.bar.mini{width:84px;height:8px;display:inline-block;vertical-align:middle}
+.wan{padding:2px 0}
+.wan .line{display:flex;justify-content:space-between;gap:10px;padding:2px 0;border-bottom:1px dashed #1c2740}
+.wan .line:last-child{border-bottom:0}
+.wan .cap{color:var(--info);font-family:ui-monospace,monospace}
 .peer{display:grid;grid-template-columns:auto 1fr auto auto auto auto auto;gap:10px;align-items:center;padding:7px 6px 2px;border-bottom:1px solid #1c2740}
 .pill.rdy{border-color:#6ee7b7;color:#6ee7b7}
 .pill.nrdy{border-color:#33415e;color:#5b6b8f}
@@ -1392,6 +1737,10 @@ canvas{width:100%;height:48px;background:#0d1423;border-radius:6px;display:block
     <div class="row" style="margin-top:8px"><span class="k">RAM</span><span class="v" id="ram">-</span></div>
     <div class="bar" id="ramBar"><i style="width:0%"></i></div>
     <div class="row" style="margin-top:8px"><span class="k">Disk</span><span class="v" id="disk">-</span></div>
+    <div class="bar" id="diskBar"><i style="width:0%"></i></div>
+    <div class="row"><span class="k">Disk read (≈1 MiB random probe)</span><span class="v" id="diskSpeed">-</span></div>
+    <div class="h2row"><h2>WAN · LAN</h2></div>
+    <div id="wanLan"><div class="row"><span class="k">…</span></div></div>
     <div class="row" style="margin-top:8px"><span class="k">Commit</span><span class="v" id="commit">-</span></div>
     <div class="row"><span class="k">Cores (logical/phys)</span><span class="v" id="cores">-</span></div>
     <div class="row"><span class="k">Uptime</span><span class="v" id="uptime">-</span></div>
@@ -1431,7 +1780,10 @@ async function tick() {
     setBar($('cpuBar'), d.hub.cpu_pct);
     $('ram').textContent = ' ' + fmtGiB(d.hub.ram_used_mb) + ' / ' + fmtGiB(d.hub.ram_total_mb) + ' used (' + d.hub.ram_load_pct + ' %)';
     setBar($('ramBar'), d.hub.ram_total_mb ? (d.hub.ram_used_mb / d.hub.ram_total_mb) * 100 : d.hub.ram_load_pct);
-    $('disk').textContent = ' ' + (d.hub.disk_free_gb ?? 'n/a') + ' GiB free / ' + (d.hub.disk_total_gb ?? '?') + ' GiB';
+    $('disk').textContent = ' ' + (d.hub.disk_free_gb ?? 'n/a') + ' GiB free / ' + (d.hub.disk_total_gb ?? '?') + ' GiB · used ' + (d.hub.disk_used_pct != null ? d.hub.disk_used_pct.toFixed(0) + '%' : 'n/a');
+    setBar($('diskBar'), d.hub.disk_used_pct != null ? d.hub.disk_used_pct : 0);
+    $('diskSpeed').textContent = d.hub.disk_read_mbps != null ? ' ' + d.hub.disk_read_mbps.toFixed(1) + ' MB/s read' : ' n/a';
+    renderWanLan(d);
     $('commit').textContent = ' ' + fmtGiB(d.hub.commit_total_mb) + ' / ' + fmtGiB(d.hub.commit_limit_mb) + ' committed';
     $('cores').textContent = ' ' + (d.hub.ncpus ?? '?') + ' / ' + (d.hub.physical_cores ?? '?');
     $('uptime').textContent = fmtUptime(d.hub.uptime_secs);
@@ -1510,6 +1862,32 @@ function drawSpark() {
 }
 
 function shortAdapter(a) { const s = String(a || ''); const m = s.match(/^[a-z]+\/[a-z0-9-]+/i); return m ? m[0] : s.slice(0, 12); }
+function wanBar(pct, tone) { const v = Math.max(0, Math.min(100, pct)); return '<span class="bar mini"><i style="width:' + v + '%;background:' + (tone || 'var(--acc)') + '"></i></span>'; }
+function renderWanLan(d) {
+  const el = $('wanLan'); if (!el) return;
+  const w = (d.wan && d.wan.wifi) || null;
+  let html = '<div class="wan">';
+  if (w) {
+    const sig = w.signal_pct != null ? w.signal_pct : (w.rssi_dbm != null ? Math.max(0, Math.min(100, Math.round((w.rssi_dbm + 90) / 60 * 100))) : null);
+    const rate = w.receive_mbps != null ? w.receive_mbps : null;
+    html += '<div class="line"><span class="k">WAN · Wi-Fi uplink</span>' +
+      '<span class="cap">' + escapeHtml(w.ssid || 'wifi') + ' · ' + escapeHtml(w.band || '') + (w.channel ? ' ch' + w.channel : '') + ' · ' + escapeHtml(w.radio_type || '') + '</span></div>' +
+      '<div class="line"><span class="k">RSSI · signal</span><span class="cap">' + (w.rssi_dbm != null ? w.rssi_dbm + ' dBm' : 'n/a') + (sig != null ? ' · ' + sig + '% ' + wanBar(sig) : '') + '</span></div>' +
+      '<div class="line"><span class="k">Link capacity ↓/↑</span><span class="cap">↓ ' + (rate != null ? rate + ' Mbps' : 'n/a') + ' · ↑ ' + (w.transmit_mbps != null ? w.transmit_mbps + ' Mbps' : 'n/a') + ' ' + (rate != null ? wanBar(Math.min(100, rate / 3)) : '') + '</span></div>';
+  } else {
+    html += '<div class="line"><span class="k">WAN · Wi-Fi uplink</span><span class="cap">n/a (probe failed)</span></div>';
+  }
+  const lan = d.lan || [];
+  if (lan.length) {
+    for (const i of lan) {
+      html += '<div class="line"><span class="k">LAN · ' + escapeHtml(i.iface || '?') + '</span><span class="cap">' + escapeHtml(i.ipv4 || '') + (i.mask ? ' / ' + escapeHtml(i.mask) : '') + '</span></div>';
+    }
+  } else {
+    html += '<div class="line"><span class="k">LAN</span><span class="cap">n/a</span></div>';
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
 function fmtAge(s) { if (s == null) return '?'; if (s < 90) return s + 's ago'; if (s < 5400) return Math.floor(s / 60) + 'm ago'; return Math.floor(s / 3600) + 'h ago'; }
 function fmtErr(e) { return (e == null) ? '—' : (e < 1e-4 ? e.toExponential(1) : e.toFixed(4)); }
 
@@ -1519,11 +1897,11 @@ function renderPeerSub(p) {
   if (isBrowser) {
     return '<div class="psub"><span>net <b>' + escapeHtml(p.effective_type || '?') + '</b>' +
       (p.iface ? ' · ' + escapeHtml(p.iface) : '') +
-      (p.downlink_mbps != null ? ' · ↓' + p.downlink_mbps + ' Mbps' : '') +
+      (p.downlink_mbps != null ? ' · ↓' + p.downlink_mbps + ' Mbps ' + wanBar(Math.min(100, p.downlink_mbps / 2)) : '') +
       (p.rtt_ms != null ? ' · rtt ' + p.rtt_ms + 'ms' : '') +
       (p.save_data ? ' · saveData' : '') +
       '</span>' +
-      '<span>bat <b>' + (p.battery_level != null ? Math.round(p.battery_level*100) + '%' + (p.battery_charging ? ' ⚡' : '') : 'n/a') + '</b></span>' +
+      '<span>bat <b>' + (p.battery_level != null ? Math.round(p.battery_level*100) + '%' + (p.battery_charging ? ' ⚡' : '') + ' ' + wanBar(p.battery_level * 100, p.battery_charging ? 'var(--acc)' : 'var(--info)') : 'n/a') + '</b></span>' +
       '<span>gpu <b>' + (p.gpu_max_storage_mb != null ? p.gpu_max_storage_mb + ' MB' : 'n/a') +
       (p.gpu_max_buffer_mb != null ? '/' + p.gpu_max_buffer_mb + ' MB buf' : '') +
       (p.gpu_max_invocations_per_workgroup != null ? '/' + p.gpu_max_invocations_per_workgroup + ' inv' : '') + '</b></span>' +
@@ -1536,6 +1914,7 @@ function renderPeerSub(p) {
     return '<div class="psub"><span>iface <b>' + escapeHtml(p.iface || '?') + '</b>' +
       (p.carrier != null ? ' · up ' + p.carrier : '') +
       (p.wifi_signal_dbm != null ? ' · WiFi <b>' + p.wifi_signal_dbm + ' dBm</b> (link ' + (p.wifi_link_quality ?? '?') + '/70' + (p.wifi_noise_dbm != null ? ', noise ' + p.wifi_noise_dbm + ' dBm' : '') + ')' : '') +
+      (p.link_speed_mbps != null ? ' · ↓↑ <b>' + p.link_speed_mbps + ' Mbps</b> ' + wanBar(Math.min(100, p.link_speed_mbps)) : '') +
       (p.net_rx_bytes != null ? ' · ↓' + fmtMiB(p.net_rx_bytes) : '') +
       (p.net_tx_bytes != null ? ' · ↑' + fmtMiB(p.net_tx_bytes) : '') +
       (p.link_speed_mbps != null ? ' · ' + p.link_speed_mbps + ' Mbps' : '') + '</span>' +
