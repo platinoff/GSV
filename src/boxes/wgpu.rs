@@ -5086,6 +5086,41 @@ mod tests {
     }
 
     #[test]
+    fn single_peer_router_degenerates_cleanly() {
+        let now = 1_000_000u64;
+        // Tier 0 (fresh weights EWMA), single peer → chosen, no panic.
+        let one = vec![test_peer(77, now)];
+        let tasks = vec![done_task(77, "weights_matvec", now - 10, 50.0, 100.0)];
+        let ranked = ranked_peers(&one, &tasks, now);
+        assert_eq!(ranked.len(), 1);
+        assert_eq!(ranked[0].0, 77);
+        assert!(ranked[0].2);
+        assert_eq!(best_peer_for_task(&one, &tasks, now), Some(77));
+
+        // Tier 3 probation (no proofs at all), single peer → still routable.
+        let bare = vec![test_peer(78, now)];
+        let ranked3 = ranked_peers(&bare, &[], now);
+        assert_eq!(ranked3.len(), 1);
+        assert_eq!(ranked3[0].0, 78);
+        assert_eq!(best_peer_for_task(&bare, &[], now), Some(78));
+
+        // Single saturated peer (DEFAULT_MAX_CONCURRENT_PER_PEER claim held) →
+        // no route, no panic (callers see None).
+        let held = json!({
+            "task_id": "t-hold-77", "status": "claimed", "peer_id": 77, "op": "matvec",
+        });
+        let mut held_tasks = tasks.clone();
+        held_tasks.push(held);
+        assert_eq!(best_peer_for_task(&one, &held_tasks, now), None);
+
+        // Single dead peer → None, no panic.
+        let mut dead = test_peer(79, now);
+        dead["lease_until"] = json!(now - 1);
+        let dead_v = vec![dead];
+        assert_eq!(best_peer_for_task(&dead_v, &[], now), None);
+    }
+
+    #[test]
     fn proof_gate_blocks_stale_ghost_when_fresh_peer_alive() {
         let now = 1_000_000u64;
         let ghost = test_peer(31, now); // dead-but-registered page; proofs all stale

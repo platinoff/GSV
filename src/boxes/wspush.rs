@@ -7,7 +7,7 @@
 //!
 //! Scope: LAN-only (same bind as every `/api/wgpu/*` route), read-only
 //! (the hub only sends; client frames are consumed and ignored except
-//! ping→pong and close), tiny payloads on a 2 s cadence.
+//! ping→pong and close), tiny payloads on a 5 s cadence (env `GSV_WGPU_WS_PUSH_SECS`).
 
 use sha1::{Digest, Sha1};
 

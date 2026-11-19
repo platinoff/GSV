@@ -31,9 +31,9 @@
 
 | # | Завдання | Зусилля | Gate | Залежності |
 |---|---|---|---|---|
-| A1 | **SESSION_PRESET.md** — стислий операторський пресет (100–200 рядків): як підняти хаб, як з’єднатись з bifrost, команди health/mesh/console/telemetry, чекліст відновлення після падіння | S | no | `docs/gsv/INDEX.md` |
-| A2 | **INDEX.md refresh** — додати `MESH_POLISH_AUTOMATION`, `MESH_ROADMAP_TASKS`, `MESH_PI_BOOT_INCIDENT`, актуальну таблицю «що де лежить» | S | no | A1 |
-| A3 | **k8s-план → OBSOLETE banner** — `2026-11-19-mesh-k8s-maxload-plan.md` позначити застарілим (Pi dead) або перенести в `docs/archive/2026-11/` | S | no | — |
+| A1 | **SESSION_PRESET.md** — стислий операторський пресет (100–200 рядків): як підняти хаб, як з’єднатись з bifrost, команди health/mesh/console/telemetry, чекліст відновлення після падіння — **✅ done 2026-11-19** | S | no | `docs/gsv/INDEX.md` |
+| A2 | **INDEX.md refresh** — `SESSION_PRESET.md` у живі документи — **✅ done 2026-11-19** | S | no | A1 |
+| A3 | **k8s-план → OBSOLETE banner** — `2026-11-19-mesh-k8s-maxload-plan.md` позначено застарілим (Pi dead) — **✅ done 2026-11-19** | S | no | — |
 | A4 | **HANDOFF декомпресія** — винести історичні банди (< band 220) у `docs/archive/2026-11/`, лишити «сталий стан + черга» ≤ 300 рядків | M | no | A2 |
 | A5 | **NEXT_SESSION_PROMPT** — синхронізувати з реальністю (Pi dead, тільки bifrost, hot path = AP 2.4 GHz) | S | no | A1 |
 
@@ -48,7 +48,7 @@ push-канал (RFC 6455) розрахований на LAN, телефон —
 | B1 | **30-хв пасивний запис** `/api/wgpu/console` + `/api/sys/metrics` (age/proofs/battery) → таблиця «тріггер / розрив / відновлення» | S | no | live хаб |
 | B2 | **Push vs poll A/B** — клієнт `/wgpu` PWA: перевірити що WS-реконект з backoff працює, і чи допомагає fallback на SSE/poll кожні 5 s при розриві push | M | no | B1 |
 | B3 | **PWA keep-alive гайд** у docs — Chrome → shortcut «Add to Home screen», Battery optimization → «Not optimized» для Chrome, Screen-on під час soak | S | no (інструкція), owner для реальних змін на телефоні | B1 |
-| B4 | **Heartbeat тюнінг** — `wspush` ping interval (зараз 2 s metrics push): підняти до 5 s для 2.4 GHz, зменшити розрив під Doze | S | no | B1 |
+| B4 | **Heartbeat тюнінг** — push mesh-metrics cadence 2 s → **5 s** за замовчуванням (env `GSV_WGPU_WS_PUSH_SECS` 1..=30) — **✅ done 2026-11-19** (менше контеншн на 2.4 GHz + менше навантаження на хаб; reversible флагом) | S | no | B1 |
 | B5 | **Auto re-register після рестарту** — перевірити: `device_key` відновлюється, `peer_id` #38 не мігрує після reload сторінки | S | no | B1 |
 | B6 | **Дзеркало 35B-чанків у phone cache** — IndexedDB LRU 128 MiB вже є (R3); перевірити hit-rate після 24 h soak; за потреби підняти ліміт | M | no | B1 |
 | B7 | **RSSI/екранний стан** — телефон не дає доступ до системи; найближче: `navigator.getBattery()` + NetworkInformation (`effectiveType`, `downlink`, `rtt`) вже в телеметрії → винести в /sys peer-рядок | S | no | telemetry вже логує |
@@ -61,7 +61,7 @@ push-канал (RFC 6455) розрахований на LAN, телефон —
 | C2 | **`cargo xtask alive-watch`** — probe `/api/health` N разів (`--every N`, `--count N`, default 1 probe); rc 0/1; stdout only (scheduler-friendly) — **✅ done 2026-11-19** | S | no | C1 |
 | C3 | **`cargo xtask cycle-watch`** — раз на N хв: лічильник розривів у console ring; якщо > 10 за годину → dump у `data/cycle_watch.jsonl`; (alert — лише з owner-Telegram-ключем, інакше лише warn у лог) | M | owner для Telegram-алерту | console ring |
 | C4 | **`cargo xtask report`** — тижневий markdown-звіт із `sys_metrics_history.jsonl`: cpu/ram avg, peer uptime, dispatches ok/fail, battery trend | M | no | `sys-history` |
-| C5 | **Dispatch gate аудит** — пройти `wgpu.rs` і переконатись: heavyweight `weights_matvec` на не-ready peers блокується (PH-A1), probes — ні; додати тест якщо знайдено діру | S | no | wgpu.rs |
+| C5 | **Dispatch gate аудит** — пройдено `wgpu.rs`: enqueue (`restrict_ready = is_heavyweight`, ranked alive∧proof_gate; single-shard `best_peer_for_task().filter(ready_of)`) ↔ `peer_poll` (heavyweight відкидається для не-ready пірів + `readiness_hint`; `weights_matvec_block` — лише browser-класи; sticky route) ↔ `proof_gate` (fresh→true; stale+fresh-alive→ghost demoted; нічого fresh ніде → any-proof pass, no lockout). **Дір не знайдено; fail направлений у `readiness_hint`, не у мовчазний "застряг" — ✅ verified 2026-11-19** | S | no | wgpu.rs |
 | C6 | **EWMA-парітет** — для телефону #38 EWMA-tier: переконатись що `ewma_elapsed_ms` потрапляє в `/api/sys/metrics` і UI (вже частково зроблено, d83c35e) | S | no | d83c35e |
 | C7 | **Stand-smoke у CI** — GitHub workflow `gsv`: запуск `gsv-http-stand-smoke` проти тимчасового хаба (skip якщо репозиторій не може підняти `:9999`) | M | no | stand-smoke bin |
 
@@ -71,7 +71,7 @@ push-канал (RFC 6455) розрахований на LAN, телефон —
 |---|---|---|---|---|
 | D1 | **Golden-shard canary** — periodic (owner-triggered) `weights_matvec` blk.5 shexp на #38, звірка `max_err_model ≤ 1e-6`; дельта → лог, не більше | S | owner для змін dispatch | L: mirror |
 | D2 | **40/40 re-verify одним peer** — прогін усіх blk-shardів тільки через #38 (доказ single-phone 35B транспорту); ~35–40 хв, батарея | M | owner (power) | D1 |
-| D3 | **EWMA single-peer sanity** — при одному peer router вироджується; перевірити що немає ділення на нуль/паніки в tier-сортуванні; unit-тест | S | no | wgpu.rs |
+| D3 | **EWMA single-peer sanity** — додано тест `single_peer_router_degenerates_cleanly` (tier-0 single peer chosen; tier-3 probation routable; saturated → None; dead → None; no panics) — **✅ done 2026-11-19** (ділення на нуль/NaN-key не існує в коді — sort використовує `unwrap_or(Equal)`; зафіксовано тест-контрактом) | S | no | wgpu.rs |
 | D4 | **IndexedDB eviction audit** — 128 MiB LRU переповнення → чанки витісняються; логувати eviction count; якщо > N/добу → docs-нотатка | S | no | B6 |
 | D5 | **L: mirror integrity sweep** — sha256 127 chunks проти `wgpu_weights` manifest (offline, read-only); розбіжність → fail loud у лог | M | no | L: drive |
 | D6 | **Proof TTL review** — з одним peer «proof_gate» стає single-point-of-failure для heavyweight; задокументувати деградацію (fail-open для probes, fail-loud для heavyweight) | S | no | watchdog/wgpu |
@@ -115,10 +115,10 @@ push-канал (RFC 6455) розрахований на LAN, телефон —
 
 ## Рекомендований порядок
 
-1. **A1–A3** (сьогодні, docs) → commit `docs: ...` → push.
-2. **B1** (запис трашшінгу) → висновок B2/B4 → дрібний код-фікс якщо підтверджено → commit.
-3. **C1 + C2** (xtask status/alive-watch) → commit.
-4. **D3** (single-peer EWMA unit-тест) → commit.
+1. **A1–A3** (сьогодні, docs) → commit `docs: ...` → push — **✅ зроблено**
+2. **B1** (запис трашшінгу) → висновок B2/B4 → дрібний код-фікс якщо підтверджено — **✅ зроблено (B4)**
+3. **C1 + C2** (xtask status/alive-watch) → commit — **✅ зроблено**
+4. **D3** (single-peer EWMA unit-тест) → commit — **✅ зроблено**
 5. **D1** (golden canary, owner) або **A4** (декомпресія HANDOFF) — за настроєм власника.
 6. **E1** перевірити при кожному push.
 

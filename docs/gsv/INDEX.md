@@ -8,6 +8,7 @@
 |---|---|
 | [`../HANDOFF_NEW_SESSION.md`](../HANDOFF_NEW_SESSION.md) | Сесійний HANDOFF — актуальний стан усієї екосистеми |
 | [`../NEXT_SESSION_PROMPT.md`](../NEXT_SESSION_PROMPT.md) | Промпт для нової сесії |
+| [`SESSION_PRESET.md`](SESSION_PRESET.md) | Стислий операторський пресет: стан, команди, endpoints, відновлення хаба |
 | [`MESH_ROADMAP_TASKS_2026-11-19.md`](MESH_ROADMAP_TASKS_2026-11-19.md) | Список можливих завдань у планах (scope: хаб + bifrost #38; A–H, owner-гейти) |
 | [`MESH_CAPACITY_2026-11-19.md`](MESH_CAPACITY_2026-11-19.md) | Виміри каналів + бенчмарк меша + тюнінг-рекомендації |
 | [`../superpowers/plans/2026-11-19-mesh-polish-automation.md`](../superpowers/plans/2026-11-19-mesh-polish-automation.md) | План полірування + автоматизації (Pi dead; хаб + bifrost; phases 1–4) |

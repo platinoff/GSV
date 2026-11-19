@@ -377,15 +377,22 @@ async fn ws_upgrade(
     ws_metrics_loop(stream, data_dir).await
 }
 
-/// 2 s cadence mesh-metrics push; the page's KPI strip consumes `mesh-metrics`
-/// events instead of polling `/api/wgpu/mesh`. Client frames are consumed and
-/// ignored except ping→pong and close.
+/// Cadence of the mesh-metrics push. Default **5 s** (was 2 s, band FW: B4
+/// 2026-11-19) — the phone peer rides a 2.4 GHz Wi-Fi behind the Adoreble AP,
+/// where every extra write is contention; the page's KPI strip does not need
+/// sub-second freshness. Override with env `GSV_WGPU_WS_PUSH_SECS` (clamped to
+/// 1..=30). Client frames are consumed and ignored except ping→pong and close.
 async fn ws_metrics_loop(
     stream: &mut TcpStream,
     data_dir: &std::path::Path,
 ) -> std::io::Result<()> {
     use crate::boxes::wspush;
-    let mut ticker = tokio::time::interval(std::time::Duration::from_secs(2));
+    let push_secs: u64 = std::env::var("GSV_WGPU_WS_PUSH_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .map(|v: u64| v.clamp(1, 30))
+        .unwrap_or(5);
+    let mut ticker = tokio::time::interval(std::time::Duration::from_secs(push_secs));
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut rbuf: Vec<u8> = Vec::with_capacity(1024);
     let mut tmp = [0u8; 4096];
