@@ -443,6 +443,35 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         }
+        "report" => {
+            let days = flag_value(&args, "--days")
+                .and_then(|v| v.parse::<u64>().ok())
+                .unwrap_or(7)
+                .max(1);
+            match xtask::report_build(&root, days) {
+                Ok(md) => {
+                    if let Some(out) = flag_value(&args, "--out") {
+                        match std::fs::write(&out, &md) {
+                            Ok(()) => {
+                                println!("report: wrote {out}");
+                                ExitCode::SUCCESS
+                            }
+                            Err(e) => {
+                                eprintln!("report: write {out}: {e}");
+                                ExitCode::FAILURE
+                            }
+                        }
+                    } else {
+                        print!("{md}");
+                        ExitCode::SUCCESS
+                    }
+                }
+                Err(e) => {
+                    eprintln!("report: {e}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
         "record-scenario-bench" => match xtask::record_scenario_bench(&root) {
             Ok(0) => ExitCode::SUCCESS,
             Ok(_) => ExitCode::FAILURE,

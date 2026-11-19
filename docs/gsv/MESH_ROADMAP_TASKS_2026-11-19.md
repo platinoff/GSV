@@ -60,9 +60,9 @@ push-канал (RFC 6455) розрахований на LAN, телефон —
 | C1 | **`cargo xtask status`** — один рядок: hub health · version · mesh alive/ready(alive) ids · tasks done · console last line · RAM/disk (`--json`, `--url`) — **✅ done 2026-11-19** | S | no | `src/xtask.rs` |
 | C2 | **`cargo xtask alive-watch`** — probe `/api/health` N разів (`--every N`, `--count N`, default 1 probe); rc 0/1; stdout only (scheduler-friendly) — **✅ done 2026-11-19** | S | no | C1 |
 | C3 | **`cargo xtask cycle-watch`** — раз на N хв: лічильник розривів у console ring; якщо > 10 за годину → dump у `data/cycle_watch.jsonl`; (alert — лише з owner-Telegram-ключем, інакше лише warn у лог) | M | owner для Telegram-алерту | console ring |
-| C4 | **`cargo xtask report`** — тижневий markdown-звіт із `sys_metrics_history.jsonl`: cpu/ram avg, peer uptime, dispatches ok/fail, battery trend | M | no | `sys-history` |
+| C4 | **`cargo xtask report`** — markdown-звіт із `sys_metrics_history.jsonl`: CPU/RAM avg/min/max, disk trend, tasks_done/failed Δ (counter-reset-safe), per-peer alive/ready share, done Δ, proofs fresh, EWMA avg; `--days N`, stdout або `--out` — **✅ done 2026-11-19**; перший зразок у `docs/gsv/reports/MESH_REPORT_2026-11-19.md` | M | no | `sys-history` |
+| C6 | **EWMA-парітет** — `ewma_elapsed_ms` + `proofs_fresh` вже в `/api/sys/metrics` + /sys UI ewma-колонка (d83c35e); статус-чесність перевірено живцем (report відображає `ready_alive`-share) | S | no | d83c35e |
 | C5 | **Dispatch gate аудит** — пройдено `wgpu.rs`: enqueue (`restrict_ready = is_heavyweight`, ranked alive∧proof_gate; single-shard `best_peer_for_task().filter(ready_of)`) ↔ `peer_poll` (heavyweight відкидається для не-ready пірів + `readiness_hint`; `weights_matvec_block` — лише browser-класи; sticky route) ↔ `proof_gate` (fresh→true; stale+fresh-alive→ghost demoted; нічого fresh ніде → any-proof pass, no lockout). **Дір не знайдено; fail направлений у `readiness_hint`, не у мовчазний "застряг" — ✅ verified 2026-11-19** | S | no | wgpu.rs |
-| C6 | **EWMA-парітет** — для телефону #38 EWMA-tier: переконатись що `ewma_elapsed_ms` потрапляє в `/api/sys/metrics` і UI (вже частково зроблено, d83c35e) | S | no | d83c35e |
 | C7 | **Stand-smoke у CI** — GitHub workflow `gsv`: запуск `gsv-http-stand-smoke` проти тимчасового хаба (skip якщо репозиторій не може підняти `:9999`) | M | no | stand-smoke bin |
 
 ## D. Mesh-hardening з одним телефоном (біфрост як єдиний worker)
@@ -73,7 +73,7 @@ push-канал (RFC 6455) розрахований на LAN, телефон —
 | D2 | **40/40 re-verify одним peer** — прогін усіх blk-shardів тільки через #38 (доказ single-phone 35B транспорту); ~35–40 хв, батарея | M | owner (power) | D1 |
 | D3 | **EWMA single-peer sanity** — додано тест `single_peer_router_degenerates_cleanly` (tier-0 single peer chosen; tier-3 probation routable; saturated → None; dead → None; no panics) — **✅ done 2026-11-19** (ділення на нуль/NaN-key не існує в коді — sort використовує `unwrap_or(Equal)`; зафіксовано тест-контрактом) | S | no | wgpu.rs |
 | D4 | **IndexedDB eviction audit** — 128 MiB LRU переповнення → чанки витісняються; логувати eviction count; якщо > N/добу → docs-нотатка | S | no | B6 |
-| D5 | **L: mirror integrity sweep** — sha256 127 chunks проти `wgpu_weights` manifest (offline, read-only); розбіжність → fail loud у лог | M | no | L: drive |
+| D5 | **L: mirror integrity sweep** — sha256 усіх файлів у `L:/gsv_mirror/wgpu_weights/chunks/` проти `index.json`: **31/31 chunks OK** (size + sha256 == filename, 116 433 397 B), `MIRROR-OK`; loose `blk*_f32` (поза wgpu_weights) — без manifest, не перевірялись; **✅ done 2026-11-19** (нюанс: зараз 31 chunk, не 127 — дзеркалo тримуровано/LRU після 35B-розселення) | M | no | L: drive |
 | D6 | **Proof TTL review** — з одним peer «proof_gate» стає single-point-of-failure для heavyweight; задокументувати деградацію (fail-open для probes, fail-loud для heavyweight) | S | no | watchdog/wgpu |
 | D7 | **Failover документовано** — відсутність peers → hub віддає 503 на `/api/wgpu/task/poll` з чесним тілом; UI показує «no workers», без зависання | S | no | server code |
 

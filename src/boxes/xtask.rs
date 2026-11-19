@@ -98,6 +98,10 @@ pub const TASKS: &[(&str, &str)] = &[
         "Probe /api/health `count` times (`--every N` secs between probes, default 1 probe); rc 0 = all alive, 1 = any FAIL (scheduler-friendly, stdout only)",
     ),
     (
+        "report",
+        "Markdown mesh report from data/sys_metrics_history.jsonl (`--days N`, default 7; stdout or `--out <path>`)",
+    ),
+    (
         "record-scenario-bench",
         "Time abrakadabra-session walk → docs/gsv/scenario_bench.json",
     ),
@@ -1033,6 +1037,215 @@ pub fn status_render(repo_root: &Path, base: &str, json_out: bool) -> (String, b
     (format!("{line}\n"), ok)
 }
 
+/// Pure: summarize rows of `sys_metrics_history.jsonl` into aggregates.
+/// Counters (`tasks_done`, per-peer `done`) reset on hub restart — sum only
+/// non-negative consecutive deltas so resets do not poison totals.
+pub fn summarize_history(rows: &[Value]) -> Value {
+    fn f64v(v: &Value, key: &str) -> Option<f64> {
+        v[key]
+            .as_f64()
+            .or_else(|| v[key].as_u64().map(|u| u as f64))
+    }
+    let mut cpu = Vec::new();
+    let mut ram = Vec::new();
+    let mut disk_first: Option<f64> = None;
+    let mut disk_last: Option<f64> = None;
+    let mut tasks_delta = 0u64;
+    let mut failed_delta = 0u64;
+    let mut prev_done: Option<u64> = None;
+    let mut prev_failed: Option<u64> = None;
+    // per-peer aggregates
+    struct PeerAgg {
+        samples: u64,
+        alive: u64,
+        ready: u64,
+        done_delta: u64,
+        prev_done: Option<u64>,
+        proofs_fresh_last: Option<u64>,
+        ewma_sum: f64,
+        ewma_n: u64,
+        class: String,
+        adapter: String,
+    }
+    let mut peers: std::collections::BTreeMap<u64, PeerAgg> = std::collections::BTreeMap::new();
+    for row in rows {
+        if let Some(c) = f64v(row, "cpu_pct") {
+            cpu.push(c);
+        }
+        if let Some(r) = f64v(row, "ram_load_pct") {
+            ram.push(r);
+        }
+        if let Some(d) = f64v(row, "disk_free_gb") {
+            if disk_first.is_none() {
+                disk_first = Some(d);
+            }
+            disk_last = Some(d);
+        }
+        let done = row["tasks_done"].as_u64();
+        let failed = row["tasks_failed"].as_u64();
+        if let (Some(d), Some(p)) = (done, prev_done) {
+            tasks_delta = tasks_delta.saturating_add(d.saturating_sub(p));
+        }
+        if let (Some(f), Some(p)) = (failed, prev_failed) {
+            failed_delta = failed_delta.saturating_add(f.saturating_sub(p));
+        }
+        prev_done = done.or(prev_done);
+        prev_failed = failed.or(prev_failed);
+        if let Some(list) = row["peers"].as_array() {
+            for p in list {
+                let Some(id) = p["id"].as_u64() else { continue };
+                let a = peers.entry(id).or_insert_with(|| PeerAgg {
+                    samples: 0,
+                    alive: 0,
+                    ready: 0,
+                    done_delta: 0,
+                    prev_done: None,
+                    proofs_fresh_last: None,
+                    ewma_sum: 0.0,
+                    ewma_n: 0,
+                    class: p["class"].as_str().unwrap_or("unknown").to_string(),
+                    adapter: p["adapter"].as_str().unwrap_or("unknown").to_string(),
+                });
+                a.samples += 1;
+                if p["alive"].as_bool() == Some(true) {
+                    a.alive += 1;
+                }
+                if p["ready"].as_bool() == Some(true) {
+                    a.ready += 1;
+                }
+                let d = p["done"].as_u64();
+                if let (Some(d), Some(prev)) = (d, a.prev_done) {
+                    a.done_delta = a.done_delta.saturating_add(d.saturating_sub(prev));
+                }
+                a.prev_done = d.or(a.prev_done);
+                a.proofs_fresh_last = p["proofs_fresh"].as_u64().or(a.proofs_fresh_last);
+                if let Some(e) = f64v(p, "ewma_ms") {
+                    a.ewma_sum += e;
+                    a.ewma_n += 1;
+                }
+            }
+        }
+    }
+    fn avg(v: &[f64]) -> Option<f64> {
+        (!v.is_empty()).then(|| v.iter().sum::<f64>() / v.len() as f64)
+    }
+    let (cpu_avg, cpu_min, cpu_max) = (
+        avg(&cpu),
+        cpu.iter().cloned().reduce(f64::min),
+        cpu.iter().cloned().reduce(f64::max),
+    );
+    let (ram_avg, ram_min, ram_max) = (
+        avg(&ram),
+        ram.iter().cloned().reduce(f64::min),
+        ram.iter().cloned().reduce(f64::max),
+    );
+    let first_ts = rows.first().and_then(|r| r["ts"].as_u64());
+    let last_ts = rows.last().and_then(|r| r["ts"].as_u64());
+    let peer_json: Vec<Value> = peers
+        .into_iter()
+        .map(|(id, a)| {
+            json!({
+                "id": id,
+                "adapter": a.adapter,
+                "class": a.class,
+                "samples": a.samples,
+                "alive": a.alive,
+                "alive_share": if a.samples > 0 { a.alive as f64 / a.samples as f64 } else { 0.0 },
+                "ready": a.ready,
+                "ready_share": if a.samples > 0 { a.ready as f64 / a.samples as f64 } else { 0.0 },
+                "done_delta": a.done_delta,
+                "proofs_fresh": a.proofs_fresh_last,
+                "ewma_ms_avg": if a.ewma_n > 0 { Some(a.ewma_sum / a.ewma_n as f64) } else { None },
+            })
+        })
+        .collect();
+    json!({
+        "samples": rows.len(),
+        "first_ts": first_ts,
+        "last_ts": last_ts,
+        "span_secs": first_ts.zip(last_ts).map(|(a, b)| b.saturating_sub(a)),
+        "cpu_pct": { "avg": cpu_avg, "min": cpu_min, "max": cpu_max },
+        "ram_load_pct": { "avg": ram_avg, "min": ram_min, "max": ram_max },
+        "disk_free_gb": { "first": disk_first, "last": disk_last },
+        "tasks_done_delta": tasks_delta,
+        "tasks_failed_delta": failed_delta,
+        "peers": peer_json,
+    })
+}
+
+/// Build the weekly markdown report from `data/sys_metrics_history.jsonl`.
+pub fn report_build(repo_root: &Path, days: u64) -> Result<String, String> {
+    let path = repo_root
+        .join("data")
+        .join(crate::boxes::sysmon::HISTORY_FILE);
+    let text = fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
+    let now = now_secs_u64();
+    let cutoff = now.saturating_sub(days.saturating_mul(86_400));
+    let rows: Vec<Value> = text
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .filter_map(|l| serde_json::from_str::<Value>(l).ok())
+        .filter(|r| r["ts"].as_u64().map(|ts| ts >= cutoff).unwrap_or(true))
+        .collect();
+    if rows.is_empty() {
+        return Err(format!("no samples in the last {days} day(s)"));
+    }
+    let s = summarize_history(&rows);
+    let span_h = s["span_secs"].as_u64().unwrap_or(0) as f64 / 3600.0;
+    let pct = |v: &Value, k: &str| {
+        v[k].as_f64()
+            .map(|x| format!("{x:.1}"))
+            .unwrap_or_else(|| "n/a".into())
+    };
+    let mut md = String::new();
+    md.push_str(&format!(
+        "# Mesh report — last {days} day(s) ({} samples, {span_h:.1} h)\n\n",
+        s["samples"]
+    ));
+    md.push_str(&format!(
+        "| Metric | Value |\n|---|---|\n| CPU avg/min/max | {} / {} / {} % |\n| RAM load avg/min/max | {} / {} / {} % |\n| Disk free first → last | {} → {} GB |\n| Tasks done (Δ) | {} |\n| Tasks failed (Δ) | {} |\n\n",
+        pct(&s["cpu_pct"], "avg"), pct(&s["cpu_pct"], "min"), pct(&s["cpu_pct"], "max"),
+        pct(&s["ram_load_pct"], "avg"), pct(&s["ram_load_pct"], "min"), pct(&s["ram_load_pct"], "max"),
+        pct(&s["disk_free_gb"], "first"), pct(&s["disk_free_gb"], "last"),
+        s["tasks_done_delta"], s["tasks_failed_delta"],
+    ));
+    md.push_str("| Peer | class | adapter | alive (share) | ready (share) | done (Δ) | proofs fresh | EWMA ms avg |\n");
+    md.push_str("|---|---|---|---|---|---|---|---|\n");
+    if let Some(peers) = s["peers"].as_array() {
+        for p in peers {
+            md.push_str(&format!(
+                "| {} | {} | {} | {}/{} ({:.0}%) | {}/{} ({:.0}%) | {} | {} | {} |\n",
+                p["id"].as_u64().unwrap_or(0),
+                p["class"].as_str().unwrap_or("unknown"),
+                p["adapter"].as_str().unwrap_or("unknown"),
+                p["alive"].as_u64().unwrap_or(0),
+                p["samples"].as_u64().unwrap_or(0),
+                p["alive_share"].as_f64().unwrap_or(0.0) * 100.0,
+                p["ready"].as_u64().unwrap_or(0),
+                p["samples"].as_u64().unwrap_or(0),
+                p["ready_share"].as_f64().unwrap_or(0.0) * 100.0,
+                p["done_delta"].as_u64().unwrap_or(0),
+                p["proofs_fresh"]
+                    .as_u64()
+                    .map(|v| v.to_string())
+                    .unwrap_or_else(|| "n/a".into()),
+                p["ewma_ms_avg"]
+                    .as_f64()
+                    .map(|v| format!("{v:.0}"))
+                    .unwrap_or_else(|| "n/a".into()),
+            ));
+        }
+    }
+    Ok(md)
+}
+
+fn now_secs_u64() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
 /// `alive-watch`: probe `/api/health` `count` times, sleeping `interval` between
 /// probes. Returns the collected output and an exit code (0 = every probe alive).
 pub fn alive_watch(base: &str, interval_secs: u64, count: u32) -> (String, i32) {
@@ -1439,6 +1652,50 @@ mod tests {
         assert!(line2.contains("console (empty)"));
         assert!(line2.contains("ram n/a"));
         assert!(line2.contains("disk n/a"));
+    }
+
+    #[test]
+    fn summarize_history_sums_deltas_and_survives_counter_reset() {
+        let rows = vec![
+            json!({
+                "ts": 100, "cpu_pct": 20.0, "ram_load_pct": 80, "disk_free_gb": 60,
+                "tasks_done": 10, "tasks_failed": 1,
+                "peers": [
+                    { "id": 38, "class": "phone", "adapter": "arm/bifrost", "alive": true, "ready": true, "done": 40, "proofs_fresh": 8, "ewma_ms": 1000.0 }
+                ]
+            }),
+            json!({
+                "ts": 200, "cpu_pct": 40.0, "ram_load_pct": 90, "disk_free_gb": 58,
+                // tasks_done reset (hub restarted) — must not poison the delta.
+                "tasks_done": 2, "tasks_failed": 0,
+                "peers": [
+                    { "id": 38, "class": "phone", "adapter": "arm/bifrost", "alive": true, "ready": false, "done": 5, "proofs_fresh": 6, "ewma_ms": 900.0 }
+                ]
+            }),
+            json!({
+                "ts": 300, "cpu_pct": 30.0, "ram_load_pct": 85, "disk_free_gb": 59,
+                "tasks_done": 7, "tasks_failed": 2,
+                "peers": [
+                    { "id": 38, "class": "phone", "adapter": "arm/bifrost", "alive": false, "ready": false, "done": 9, "proofs_fresh": 4, "ewma_ms": 1100.0 }
+                ]
+            }),
+        ];
+        let s = summarize_history(&rows);
+        assert_eq!(s["samples"], 3);
+        assert_eq!(s["first_ts"], 100);
+        assert_eq!(s["last_ts"], 300);
+        assert!((s["cpu_pct"]["avg"].as_f64().unwrap() - 30.0).abs() < 0.01);
+        // tasks_done: 10→2 reset (skip) then 2→7 (+5); failed: 1→0 reset (skip), 0→2 (+2)
+        assert_eq!(s["tasks_done_delta"], 5);
+        assert_eq!(s["tasks_failed_delta"], 2);
+        let p = &s["peers"][0];
+        assert_eq!(p["id"], 38);
+        assert_eq!(p["samples"], 3);
+        assert_eq!(p["alive"], 2);
+        assert_eq!(p["ready"], 1);
+        assert_eq!(p["done_delta"], 4); // 40→5 reset (skip), 5→9 (+4)
+        assert_eq!(p["proofs_fresh"], 4);
+        assert!((p["ewma_ms_avg"].as_f64().unwrap() - 1000.0).abs() < 0.01);
     }
 
     #[test]
