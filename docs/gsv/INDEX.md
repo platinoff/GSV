@@ -8,8 +8,11 @@
 |---|---|
 | [`../HANDOFF_NEW_SESSION.md`](../HANDOFF_NEW_SESSION.md) | Сесійний HANDOFF — актуальний стан усієї екосистеми |
 | [`../NEXT_SESSION_PROMPT.md`](../NEXT_SESSION_PROMPT.md) | Промпт для нової сесії |
+| [`MESH_ROADMAP_TASKS_2026-11-19.md`](MESH_ROADMAP_TASKS_2026-11-19.md) | Список можливих завдань у планах (scope: хаб + bifrost #38; A–H, owner-гейти) |
 | [`MESH_CAPACITY_2026-11-19.md`](MESH_CAPACITY_2026-11-19.md) | Виміри каналів + бенчмарк меша + тюнінг-рекомендації |
-| [`MESH_STRESS_2026-11-19.md`](MESH_STRESS_2026-11-19.md) | Стрес-тест: 68/68 OK, failed=0, hub стабільний під burst |
+| [`../superpowers/plans/2026-11-19-mesh-polish-automation.md`](../superpowers/plans/2026-11-19-mesh-polish-automation.md) | План полірування + автоматизації (Pi dead; хаб + bifrost; phases 1–4) |
+| [`MESH_PI_BOOT_INCIDENT_2026-11-19.md`](MESH_PI_BOOT_INCIDENT_2026-11-19.md) | Пі boot failure — root-cause (4L7S після cmdline edit) + recovery-правила |
+| [`MESH_STRESS_2026-11-19.md`](MESH_STRESS_2026-11-19.md) | Стрес-тест: 248/248 OK, failed=0, hub стабільний під burst |
 | [`ECOSYSTEM_CI_REGISTRY_2026-11-18.md`](ECOSYSTEM_CI_REGISTRY_2026-11-18.md) | CI-реєстр по всіх репо (poolAI детально, решта — станом) |
 | [`ECOSYSTEM_2026_11_18_PLAN.md`](ECOSYSTEM_2026_11_18_PLAN.md) | P0/P1 план екосистеми |
 | [`PRODUCTS.md`](PRODUCTS.md) | Реєстр продуктів/плагінів (drain-кандидатів) |
