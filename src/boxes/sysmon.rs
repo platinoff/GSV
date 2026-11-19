@@ -523,7 +523,7 @@ fn wifi_link_cached() -> Option<WifiLink> {
 
 #[cfg(windows)]
 fn probe_wifi_link() -> Option<WifiLink> {
-    let out = std::process::Command::new("netsh")
+    let out = crate::vision::command("netsh")
         .args(["wlan", "show", "interfaces"])
         .output()
         .ok()?;
@@ -565,7 +565,7 @@ fn lan_interfaces_cached() -> LanList {
 
 #[cfg(windows)]
 fn probe_lan_interfaces() -> LanList {
-    let out = std::process::Command::new("ipconfig").output().ok();
+    let out = crate::vision::command("ipconfig").output().ok();
     out.map(|o| parse_ipconfig(&decode_win_output(&o.stdout)))
         .unwrap_or_default()
 }
