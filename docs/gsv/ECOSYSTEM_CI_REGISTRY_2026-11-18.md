@@ -202,6 +202,27 @@ poolai **стартує, але або падає в init (мовчання RUST
 
 ---
 
+## 6.1 Стан 2026-11-19 (run 1711 — a11y-фікс `#de3434` верифікація)
+
+Run **1711** (`id 44436252477`, push `b870bae385ca5b61224a5cf60e820b257cf1a63a`, `2026-11-19T01:21→03:10Z`) —
+висновок overall **failure**, але підсумки по кроках:
+
+| Крок | Висновок |
+|---|---|
+| **Pa11y WCAG 2.2** (login + 21 auth URLs, `/ui/admin/monitoring`) | **✅ success** — фікс `#de3434` (4.59:1) верифіковано живцем |
+| Documentation 1418 | ✅ success |
+| OpenAPI gap audit · ratio hold · FM drift · vision manifest | ✅ success |
+| Test Suite (ubuntu) | ✅ success (cloud-sdk tests skipped — owner: non-blocking) |
+| Test Suite (windows) | ✅ success — cloud-sdk tests **running and passing** |
+| Security audit | ✅ success |
+| **Playwright admin E2E / Playwright admin suite** | ❌ **failure** — крок «Build poolai and run smoke tests» (~18 хв, падіння на 01:40Z) |
+
+**Playwright-логи 403 для anonymous** (потрібен токен) — причина падіння не визначена.
+Кандидат №1: знайомий клас «poolai не відповідає 200 за 180 s» (init/health), той самий корінь,
+що фіксив `4e682b111` (лог-tail у `bin/pa11y-ci.sh` + `e2e_stand`). **Дія власника:** перевірити
+крок у браузері (`https://github.com/platinoff/poolAI/actions/runs/44436252477/job/135265930583`)
+або authorized re-run із лог-tail діагностикою. Local cargo test не запускався (RAM/EDR) — CI авторитет.
+
 ## 7. Що лишилось власницьки (не робити без інструкцій)
 
 | # | Дія | Власник | Коментар |

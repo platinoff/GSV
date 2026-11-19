@@ -29,7 +29,7 @@
 | `docs/gsv/` | GSV-kit документи, реєстри, плани, висновки (живі) |
 | `docs/gsv/wsp-battery/` | WSP battery v1 + аудит/контролі/канаря (закрито) |
 | `docs/superpowers/plans/` | Плани-всякі (adoreble-wifi, poolAI WSP, …) |
-| `docs/archive/2026-11/` | Архів плоских доків (архів-смуга 2026-11) |
+| `docs/archive/2026-11/` | Архів плоских доків (архів-смуга 2026-11) · [HANDOFF_ARCHIVE_2026-11-19.md](../archive/2026-11/HANDOFF_ARCHIVE_2026-11-19.md) — історія bands/боків |
 | `docs/vision/` | Vision JSON-снепшоти (lockstep з `cargo xtask sync`) |
 
 ## Свіжі акценти (тиждень)

@@ -34,7 +34,7 @@
 | A1 | **SESSION_PRESET.md** — стислий операторський пресет (100–200 рядків): як підняти хаб, як з’єднатись з bifrost, команди health/mesh/console/telemetry, чекліст відновлення після падіння — **✅ done 2026-11-19** | S | no | `docs/gsv/INDEX.md` |
 | A2 | **INDEX.md refresh** — `SESSION_PRESET.md` у живі документи — **✅ done 2026-11-19** | S | no | A1 |
 | A3 | **k8s-план → OBSOLETE banner** — `2026-11-19-mesh-k8s-maxload-plan.md` позначено застарілим (Pi dead) — **✅ done 2026-11-19** | S | no | — |
-| A4 | **HANDOFF декомпресія** — винести історичні банди (< band 220) у `docs/archive/2026-11/`, лишити «сталий стан + черга» ≤ 300 рядків | M | no | A2 |
+| A4 | **HANDOFF декомпресія** — історичні блоки (2026-10-24 стан · band 239–244 · історія боксів 109–126) винесено в `docs/archive/2026-11/HANDOFF_ARCHIVE_2026-11-19.md`; HANDOFF 450 → **117 рядків**, лишається «Сталий стан + черга» — **✅ done 2026-11-19** | M | no | A2 |
 | A5 | **NEXT_SESSION_PROMPT** — синхронізувати з реальністю (Pi dead, тільки bifrost, hot path = AP 2.4 GHz) | S | no | A1 |
 
 ## B. Телефон #38 bifrost — стабільність конекту (ключова боліль)
@@ -81,8 +81,8 @@ push-канал (RFC 6455) розрахований на LAN, телефон —
 
 | # | Завдання | Зусилля | Gate | Залежності |
 |---|---|---|---|---|
-| E1 | **Run 1711 моніторинг** — Pa11y/Playwright WCAG 2.2 AA `#de3434` fix верифікація (run черкнутий > 6 год на GitHub runners) | S | no | GitHub |
-| E2 | **a11y.yml вручну** — якщо 1711 не стартує 24 год → `workflow_dispatch` на a11y.yml (owner-клац) | S | owner | E1 |
+| E1 | **Run 1711 моніторинг** — виконано 2026-11-19: Pa11y WCAG ✅ green (a11y-фікс верифіковано), Playwright admin E2E ❌ failure («Build poolai and run smoke tests», логи 403 anonymous); ubuntu ✅, windows ✅ (cloud-sdk green), Док. 1418 ✅. Деталі: `ECOSYSTEM_CI_REGISTRY` §6.1 — **✅ done 2026-11-19** | S | no | GitHub |
+| E2 | **a11y.yml вручну / poolAI CI re-run** — якщо Playwright E2E знову червоний: authorized re-run або `workflow_dispatch` a11y.yml (owner-клац) | S | owner | E1 |
 | E3 | **Ubuntu leg** — non-blocking уже (`4ebb1e410`); лишити як є | — | done | — |
 | E4 | **ECO-8.3 dep-sweep продовження** — решта плагінів по одному (LinFS, ORR, rusty-engine, sport-forcast, CoreBoard) | L | no, але по одному за сесію | ECO board |
 
@@ -119,8 +119,8 @@ push-канал (RFC 6455) розрахований на LAN, телефон —
 2. **B1** (запис трашшінгу) → висновок B2/B4 → дрібний код-фікс якщо підтверджено — **✅ зроблено (B4)**
 3. **C1 + C2** (xtask status/alive-watch) → commit — **✅ зроблено**
 4. **D3** (single-peer EWMA unit-тест) → commit — **✅ зроблено**
-5. **D1** (golden canary, owner) або **A4** (декомпресія HANDOFF) — за настроєм власника.
-6. **E1** перевірити при кожному push.
+5. **D1** (golden canary, owner) або ~~A4~~ — **A4 ✅ зроблено 2026-11-19**.
+6. **E1** — перевірено 2026-11-19 (Pa11y ✅; Playwright ❌ — owner, див. §6.1 реєстру).
 
 ## Критерії готовності кожного пункту
 
