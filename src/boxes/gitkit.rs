@@ -58,6 +58,10 @@ pub fn resolve_commit_file(repo: &Path, file: &Path) -> Result<PathBuf, String> 
     if raw.contains("..") {
         return Err("commit --file must not contain ..".into());
     }
+    // GEN-1 (format-hygiene): read-only input guard — gitkit never WRITES
+    // .txt (messages are comitmsg/*.md); this only rejects an operator's
+    // `--file *.txt` early with a clearer message than the .md check below.
+    // Documented exempt: external input validation, no format generation.
     if raw.ends_with(".txt") {
         return Err("comitmsg messages are .md (not .txt)".into());
     }
