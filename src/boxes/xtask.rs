@@ -677,7 +677,12 @@ pub fn install_watchdog(repo_root: &Path) -> Result<String, String> {
 pub fn install_cycle_watch(repo_root: &Path) -> Result<String, String> {
     let exe = debug_bin(repo_root, "gsv-xtask");
     let win_exe = native_path(&exe);
-    let tr = format!("\"{win_exe}\" cycle-watch --every 300 --count 0");
+    let win_root = native_path(repo_root);
+    // Same pattern as the watchdog (band 150): wscript + hidden VBS, style 0.
+    let vbs = write_cycle_watch_start_vbs(repo_root, &win_exe, &win_root)?;
+    let win_vbs = native_path(&vbs);
+    let wscript = r"C:\Windows\System32\wscript.exe";
+    let tr = watchdog_task_tr(wscript, &win_vbs);
     if try_schtasks(&tr) {
         return Ok(format!(
             "gsv-cycle-watch-install: schtasks GSV-cycle-watch (ONLOGON)\nTR={tr}"
@@ -689,6 +694,34 @@ pub fn install_cycle_watch(repo_root: &Path) -> Result<String, String> {
         ));
     }
     Err("could not persist (need schtasks or reg.exe)".into())
+}
+
+fn cycle_watch_start_vbs_path(repo_root: &Path) -> PathBuf {
+    repo_root
+        .join("target/live")
+        .join("gsv_cycle_watch_start.vbs")
+}
+
+/// Hidden logon launcher body — window style 0 (same shape as the watchdog).
+fn cycle_watch_start_vbs_body(win_exe: &str, win_root: &str) -> String {
+    format!(
+        "' Hidden logon launcher for GSV-cycle-watch (cargo xtask cycle-watch-install).\r\n\
+         Set sh = CreateObject(\"Wscript.Shell\")\r\n\
+         sh.CurrentDirectory = \"{win_root}\"\r\n\
+         sh.Run \"\"\"{win_exe}\"\" cycle-watch --every 300 --count 0\", 0, False\r\n"
+    )
+}
+
+fn write_cycle_watch_start_vbs(
+    repo_root: &Path,
+    win_exe: &str,
+    win_root: &str,
+) -> Result<PathBuf, String> {
+    let live = repo_root.join("target/live");
+    fs::create_dir_all(&live).map_err(|e| e.to_string())?;
+    let path = cycle_watch_start_vbs_path(repo_root);
+    fs::write(&path, cycle_watch_start_vbs_body(win_exe, win_root)).map_err(|e| e.to_string())?;
+    Ok(path)
 }
 
 /// Copy `.agents/skills/` → client skill dirs (Windows: copy, not symlink).
@@ -1420,6 +1453,10 @@ pub fn cycle_watch(
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0);
+    // Dedup marker: every cycle_watch call refreshes this file (per tick when
+    // looping); a dead loop's lock ages out after 1200 s, so a later start
+    // proceeds. See `cycle-watch-install` / CLI arm.
+    let _ = std::fs::write(data.join("cycle_watch.lock"), now.to_string());
     let state_path = cycle_watch_state_path(&data);
     let mut state = cycle_watch_load_state(&state_path);
     let existing: Vec<u64> = state["events"]

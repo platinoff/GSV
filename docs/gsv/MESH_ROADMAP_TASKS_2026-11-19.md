@@ -1,129 +1,129 @@
-# Список завдань можливих у планах — mesh-ecosystem (2026-11-19, scope: хаб + bifrost #38)
+# Ð¡Ð¿Ð¸ÑÐ¾Ðº Ð·Ð°Ð²Ð´Ð°Ð½Ñ Ð¼Ð¾Ð¶Ð»Ð¸Ð²Ð¸Ñ Ñ Ð¿Ð»Ð°Ð½Ð°Ñ â mesh-ecosystem (2026-11-19, scope: ÑÐ°Ð± + bifrost #38)
 
-**Owner ask 2026-11-19:** «зробити список завдань можливих у планах … біофрост буде тільки підключен» +
-«потім гіт пуші з самарі відповідно».
+**Owner ask 2026-11-19:** Â«Ð·ÑÐ¾Ð±Ð¸ÑÐ¸ ÑÐ¿Ð¸ÑÐ¾Ðº Ð·Ð°Ð²Ð´Ð°Ð½Ñ Ð¼Ð¾Ð¶Ð»Ð¸Ð²Ð¸Ñ Ñ Ð¿Ð»Ð°Ð½Ð°Ñ â¦ Ð±ÑÐ¾ÑÑÐ¾ÑÑ Ð±ÑÐ´Ðµ ÑÑÐ»ÑÐºÐ¸ Ð¿ÑÐ´ÐºÐ»ÑÑÐµÐ½Â» +
+Â«Ð¿Ð¾ÑÑÐ¼ Ð³ÑÑ Ð¿ÑÑÑ Ð· ÑÐ°Ð¼Ð°ÑÑ Ð²ÑÐ´Ð¿Ð¾Ð²ÑÐ´Ð½Ð¾Â».
 
-**Контекст виміряно 2026-11-19:**
+**ÐÐ¾Ð½ÑÐµÐºÑÑ Ð²Ð¸Ð¼ÑÑÑÐ½Ð¾ 2026-11-19:**
 
-| Складова | Стан |
+| Ð¡ÐºÐ»Ð°Ð´Ð¾Ð²Ð° | Ð¡ÑÐ°Ð½ |
 |---|---|
-| Hub `gsv-server` | живий, `:9999`, crate 0.248.0, RAM ~88–90 %, TTFB 2–3 s |
-| `#38 bifrost` (M2004J19C) | online, charging, proofs_fresh ≥ 8, battery ~76 %, **єдиний підключений peer** |
-| `#35 valhall` (Galaxy A54) | ~9 год offline; повернеться — re-peer через `device_key` SHA-256 |
-| `#37 FF-PC` | не присутня |
-| `#36 Pi 4` | **мертва** (SD), поза грою |
-| 35B ваги | blk.0…39 розселені на флот раніше (40/40 block-verified, max_err ≤ 3.5e-6); mirror на `L:/gsv_mirror/wgpu_weights` (~520 MB, 127 chunks) |
+| Hub `gsv-server` | Ð¶Ð¸Ð²Ð¸Ð¹, `:9999`, crate 0.248.0, RAM ~88â90 %, TTFB 2â3 s |
+| `#38 bifrost` (M2004J19C) | online, charging, proofs_fresh â¥ 8, battery ~76 %, **ÑÐ´Ð¸Ð½Ð¸Ð¹ Ð¿ÑÐ´ÐºÐ»ÑÑÐµÐ½Ð¸Ð¹ peer** |
+| `#35 valhall` (Galaxy A54) | ~9 Ð³Ð¾Ð´ offline; Ð¿Ð¾Ð²ÐµÑÐ½ÐµÑÑÑÑ â re-peer ÑÐµÑÐµÐ· `device_key` SHA-256 |
+| `#37 FF-PC` | Ð½Ðµ Ð¿ÑÐ¸ÑÑÑÐ½Ñ |
+| `#36 Pi 4` | **Ð¼ÐµÑÑÐ²Ð°** (SD), Ð¿Ð¾Ð·Ð° Ð³ÑÐ¾Ñ |
+| 35B Ð²Ð°Ð³Ð¸ | blk.0â¦39 ÑÐ¾Ð·ÑÐµÐ»ÐµÐ½Ñ Ð½Ð° ÑÐ»Ð¾Ñ ÑÐ°Ð½ÑÑÐµ (40/40 block-verified, max_err â¤ 3.5e-6); mirror Ð½Ð° `L:/gsv_mirror/wgpu_weights` (~520 MB, 127 chunks) |
 
 ---
 
-## Обмеження (жорсткі, з owner-рішень)
+## ÐÐ±Ð¼ÐµÐ¶ÐµÐ½Ð½Ñ (Ð¶Ð¾ÑÑÑÐºÑ, Ð· owner-ÑÑÑÐµÐ½Ñ)
 
-1. **Лише розв'язувані задачі** — нічого, що вимагає Pi, другого телефона, нового заліза.
-2. **Жодних записів на диски пірів** (нічого в телефон, нічого в SD) — policy.
-3. **RAM-хаб ~90 %** — жодна задача не сміє додавати фонового навантаження без виграшу.
-4. **Wi-Fi 2.4 GHz — стелею** — dispatch-кандидати тільки такі, що переживають клієнтський таймаут.
-5. Будь-яке торкання коду → `cargo fmt` → `clippy` → `cargo test` → **один commit** → push.
-6. Owner-gated пункти не виконуються без явного «го» у сесії.
+1. **ÐÐ¸ÑÐµ ÑÐ¾Ð·Ð²'ÑÐ·ÑÐ²Ð°Ð½Ñ Ð·Ð°Ð´Ð°ÑÑ** â Ð½ÑÑÐ¾Ð³Ð¾, ÑÐ¾ Ð²Ð¸Ð¼Ð°Ð³Ð°Ñ Pi, Ð´ÑÑÐ³Ð¾Ð³Ð¾ ÑÐµÐ»ÐµÑÐ¾Ð½Ð°, Ð½Ð¾Ð²Ð¾Ð³Ð¾ Ð·Ð°Ð»ÑÐ·Ð°.
+2. **ÐÐ¾Ð´Ð½Ð¸Ñ Ð·Ð°Ð¿Ð¸ÑÑÐ² Ð½Ð° Ð´Ð¸ÑÐºÐ¸ Ð¿ÑÑÑÐ²** (Ð½ÑÑÐ¾Ð³Ð¾ Ð² ÑÐµÐ»ÐµÑÐ¾Ð½, Ð½ÑÑÐ¾Ð³Ð¾ Ð² SD) â policy.
+3. **RAM-ÑÐ°Ð± ~90 %** â Ð¶Ð¾Ð´Ð½Ð° Ð·Ð°Ð´Ð°ÑÐ° Ð½Ðµ ÑÐ¼ÑÑ Ð´Ð¾Ð´Ð°Ð²Ð°ÑÐ¸ ÑÐ¾Ð½Ð¾Ð²Ð¾Ð³Ð¾ Ð½Ð°Ð²Ð°Ð½ÑÐ°Ð¶ÐµÐ½Ð½Ñ Ð±ÐµÐ· Ð²Ð¸Ð³ÑÐ°ÑÑ.
+4. **Wi-Fi 2.4 GHz â ÑÑÐµÐ»ÐµÑ** â dispatch-ÐºÐ°Ð½Ð´Ð¸Ð´Ð°ÑÐ¸ ÑÑÐ»ÑÐºÐ¸ ÑÐ°ÐºÑ, ÑÐ¾ Ð¿ÐµÑÐµÐ¶Ð¸Ð²Ð°ÑÑÑ ÐºÐ»ÑÑÐ½ÑÑÑÐºÐ¸Ð¹ ÑÐ°Ð¹Ð¼Ð°ÑÑ.
+5. ÐÑÐ´Ñ-ÑÐºÐµ ÑÐ¾ÑÐºÐ°Ð½Ð½Ñ ÐºÐ¾Ð´Ñ â `cargo fmt` â `clippy` â `cargo test` â **Ð¾Ð´Ð¸Ð½ commit** â push.
+6. Owner-gated Ð¿ÑÐ½ÐºÑÐ¸ Ð½Ðµ Ð²Ð¸ÐºÐ¾Ð½ÑÑÑÑÑÑ Ð±ÐµÐ· ÑÐ²Ð½Ð¾Ð³Ð¾ Â«Ð³Ð¾Â» Ñ ÑÐµÑÑÑ.
 
 ---
 
-## A. Документи й консолідація (без коду, без owner)
+## A. ÐÐ¾ÐºÑÐ¼ÐµÐ½ÑÐ¸ Ð¹ ÐºÐ¾Ð½ÑÐ¾Ð»ÑÐ´Ð°ÑÑÑ (Ð±ÐµÐ· ÐºÐ¾Ð´Ñ, Ð±ÐµÐ· owner)
 
-| # | Завдання | Зусилля | Gate | Залежності |
+| # | ÐÐ°Ð²Ð´Ð°Ð½Ð½Ñ | ÐÑÑÐ¸Ð»Ð»Ñ | Gate | ÐÐ°Ð»ÐµÐ¶Ð½Ð¾ÑÑÑ |
 |---|---|---|---|---|
-| A1 | **SESSION_PRESET.md** — стислий операторський пресет (100–200 рядків): як підняти хаб, як з’єднатись з bifrost, команди health/mesh/console/telemetry, чекліст відновлення після падіння — **✅ done 2026-11-19** | S | no | `docs/gsv/INDEX.md` |
-| A2 | **INDEX.md refresh** — `SESSION_PRESET.md` у живі документи — **✅ done 2026-11-19** | S | no | A1 |
-| A3 | **k8s-план → OBSOLETE banner** — `2026-11-19-mesh-k8s-maxload-plan.md` позначено застарілим (Pi dead) — **✅ done 2026-11-19** | S | no | — |
-| A4 | **HANDOFF декомпресія** — історичні блоки (2026-10-24 стан · band 239–244 · історія боксів 109–126) винесено в `docs/archive/2026-11/HANDOFF_ARCHIVE_2026-11-19.md`; HANDOFF 450 → **117 рядків**, лишається «Сталий стан + черга» — **✅ done 2026-11-19** | M | no | A2 |
-| A5 | **NEXT_SESSION_PROMPT** — синхронізувати з реальністю (Pi dead, тільки bifrost, hot path = AP 2.4 GHz) | S | no | A1 |
+| A1 | **SESSION_PRESET.md** â ÑÑÐ¸ÑÐ»Ð¸Ð¹ Ð¾Ð¿ÐµÑÐ°ÑÐ¾ÑÑÑÐºÐ¸Ð¹ Ð¿ÑÐµÑÐµÑ (100â200 ÑÑÐ´ÐºÑÐ²): ÑÐº Ð¿ÑÐ´Ð½ÑÑÐ¸ ÑÐ°Ð±, ÑÐº Ð·âÑÐ´Ð½Ð°ÑÐ¸ÑÑ Ð· bifrost, ÐºÐ¾Ð¼Ð°Ð½Ð´Ð¸ health/mesh/console/telemetry, ÑÐµÐºÐ»ÑÑÑ Ð²ÑÐ´Ð½Ð¾Ð²Ð»ÐµÐ½Ð½Ñ Ð¿ÑÑÐ»Ñ Ð¿Ð°Ð´ÑÐ½Ð½Ñ â **â done 2026-11-19** | S | no | `docs/gsv/INDEX.md` |
+| A2 | **INDEX.md refresh** â `SESSION_PRESET.md` Ñ Ð¶Ð¸Ð²Ñ Ð´Ð¾ÐºÑÐ¼ÐµÐ½ÑÐ¸ â **â done 2026-11-19** | S | no | A1 |
+| A3 | **k8s-Ð¿Ð»Ð°Ð½ â OBSOLETE banner** â `2026-11-19-mesh-k8s-maxload-plan.md` Ð¿Ð¾Ð·Ð½Ð°ÑÐµÐ½Ð¾ Ð·Ð°ÑÑÐ°ÑÑÐ»Ð¸Ð¼ (Pi dead) â **â done 2026-11-19** | S | no | â |
+| A4 | **HANDOFF Ð´ÐµÐºÐ¾Ð¼Ð¿ÑÐµÑÑÑ** â ÑÑÑÐ¾ÑÐ¸ÑÐ½Ñ Ð±Ð»Ð¾ÐºÐ¸ (2026-10-24 ÑÑÐ°Ð½ Â· band 239â244 Â· ÑÑÑÐ¾ÑÑÑ Ð±Ð¾ÐºÑÑÐ² 109â126) Ð²Ð¸Ð½ÐµÑÐµÐ½Ð¾ Ð² `docs/archive/2026-11/HANDOFF_ARCHIVE_2026-11-19.md`; HANDOFF 450 â **117 ÑÑÐ´ÐºÑÐ²**, Ð»Ð¸ÑÐ°ÑÑÑÑÑ Â«Ð¡ÑÐ°Ð»Ð¸Ð¹ ÑÑÐ°Ð½ + ÑÐµÑÐ³Ð°Â» â **â done 2026-11-19** | M | no | A2 |
+| A5 | **NEXT_SESSION_PROMPT** â ÑÐ¸Ð½ÑÑÐ¾Ð½ÑÐ·ÑÐ²Ð°ÑÐ¸ Ð· ÑÐµÐ°Ð»ÑÐ½ÑÑÑÑ (Pi dead, ÑÑÐ»ÑÐºÐ¸ bifrost, hot path = AP 2.4 GHz) | S | no | A1 |
 
-## B. Телефон #38 bifrost — стабільність конекту (ключова боліль)
+## B. Ð¢ÐµÐ»ÐµÑÐ¾Ð½ #38 bifrost â ÑÑÐ°Ð±ÑÐ»ÑÐ½ÑÑÑÑ ÐºÐ¾Ð½ÐµÐºÑÑ (ÐºÐ»ÑÑÐ¾Ð²Ð° Ð±Ð¾Ð»ÑÐ»Ñ)
 
-Симптом: `worker: hub unreachable (retrying…)` / `hub: connection restored` кожні кілька секунд у
-`/api/wgpu/console`. Можливі причини: Android Doze/App standby вбиває вкладку Chrome; 2.4 GHz congestion;
-push-канал (RFC 6455) розрахований на LAN, телефон — на межі дальності AP.
+Ð¡Ð¸Ð¼Ð¿ÑÐ¾Ð¼: `worker: hub unreachable (retryingâ¦)` / `hub: connection restored` ÐºÐ¾Ð¶Ð½Ñ ÐºÑÐ»ÑÐºÐ° ÑÐµÐºÑÐ½Ð´ Ñ
+`/api/wgpu/console`. ÐÐ¾Ð¶Ð»Ð¸Ð²Ñ Ð¿ÑÐ¸ÑÐ¸Ð½Ð¸: Android Doze/App standby Ð²Ð±Ð¸Ð²Ð°Ñ Ð²ÐºÐ»Ð°Ð´ÐºÑ Chrome; 2.4 GHz congestion;
+push-ÐºÐ°Ð½Ð°Ð» (RFC 6455) ÑÐ¾Ð·ÑÐ°ÑÐ¾Ð²Ð°Ð½Ð¸Ð¹ Ð½Ð° LAN, ÑÐµÐ»ÐµÑÐ¾Ð½ â Ð½Ð° Ð¼ÐµÐ¶Ñ Ð´Ð°Ð»ÑÐ½Ð¾ÑÑÑ AP.
 
-| # | Завдання | Зусилля | Gate | Залежності |
+| # | ÐÐ°Ð²Ð´Ð°Ð½Ð½Ñ | ÐÑÑÐ¸Ð»Ð»Ñ | Gate | ÐÐ°Ð»ÐµÐ¶Ð½Ð¾ÑÑÑ |
 |---|---|---|---|---|
-| B1 | **30-хв пасивний запис** `/api/wgpu/console` + `/api/sys/metrics` (age/proofs/battery) → таблиця «тріггер / розрив / відновлення» | S | no | live хаб |
-| B2 | **Push vs poll A/B** — клієнт `/wgpu` PWA: перевірити що WS-реконект з backoff працює, і чи допомагає fallback на SSE/poll кожні 5 s при розриві push | M | no | B1 |
-| B3 | **PWA keep-alive гайд** у docs — Chrome → shortcut «Add to Home screen», Battery optimization → «Not optimized» для Chrome, Screen-on під час soak | S | no (інструкція), owner для реальних змін на телефоні | B1 |
-| B4 | **Heartbeat тюнінг** — push mesh-metrics cadence 2 s → **5 s** за замовчуванням (env `GSV_WGPU_WS_PUSH_SECS` 1..=30) — **✅ done 2026-11-19** (менше контеншн на 2.4 GHz + менше навантаження на хаб; reversible флагом) | S | no | B1 |
-| B5 | **Auto re-register після рестарту** — перевірити: `device_key` відновлюється, `peer_id` #38 не мігрує після reload сторінки | S | no | B1 |
-| B6 | **Дзеркало 35B-чанків у phone cache** — IndexedDB LRU 128 MiB вже є (R3); перевірити hit-rate після 24 h soak; за потреби підняти ліміт | M | no | B1 |
-| B7 | **RSSI/екранний стан** — телефон не дає доступ до системи; найближче: `navigator.getBattery()` + NetworkInformation (`effectiveType`, `downlink`, `rtt`) вже в телеметрії → винести в /sys peer-рядок | S | no | telemetry вже логує |
+| B1 | **30-ÑÐ² Ð¿Ð°ÑÐ¸Ð²Ð½Ð¸Ð¹ Ð·Ð°Ð¿Ð¸Ñ** `/api/wgpu/console` + `/api/sys/metrics` (age/proofs/battery) â ÑÐ°Ð±Ð»Ð¸ÑÑ Â«ÑÑÑÐ³Ð³ÐµÑ / ÑÐ¾Ð·ÑÐ¸Ð² / Ð²ÑÐ´Ð½Ð¾Ð²Ð»ÐµÐ½Ð½ÑÂ» | S | no | live ÑÐ°Ð± |
+| B2 | **Push vs poll A/B** â ÐºÐ»ÑÑÐ½Ñ `/wgpu` PWA: Ð¿ÐµÑÐµÐ²ÑÑÐ¸ÑÐ¸ ÑÐ¾ WS-ÑÐµÐºÐ¾Ð½ÐµÐºÑ Ð· backoff Ð¿ÑÐ°ÑÑÑ, Ñ ÑÐ¸ Ð´Ð¾Ð¿Ð¾Ð¼Ð°Ð³Ð°Ñ fallback Ð½Ð° SSE/poll ÐºÐ¾Ð¶Ð½Ñ 5 s Ð¿ÑÐ¸ ÑÐ¾Ð·ÑÐ¸Ð²Ñ push | M | no | B1 |
+| B3 | **PWA keep-alive Ð³Ð°Ð¹Ð´** Ñ docs â Chrome â shortcut Â«Add to Home screenÂ», Battery optimization â Â«Not optimizedÂ» Ð´Ð»Ñ Chrome, Screen-on Ð¿ÑÐ´ ÑÐ°Ñ soak | S | no (ÑÐ½ÑÑÑÑÐºÑÑÑ), owner Ð´Ð»Ñ ÑÐµÐ°Ð»ÑÐ½Ð¸Ñ Ð·Ð¼ÑÐ½ Ð½Ð° ÑÐµÐ»ÐµÑÐ¾Ð½Ñ | B1 |
+| B4 | **Heartbeat ÑÑÐ½ÑÐ½Ð³** â push mesh-metrics cadence 2 s â **5 s** Ð·Ð° Ð·Ð°Ð¼Ð¾Ð²ÑÑÐ²Ð°Ð½Ð½ÑÐ¼ (env `GSV_WGPU_WS_PUSH_SECS` 1..=30) â **â done 2026-11-19** (Ð¼ÐµÐ½ÑÐµ ÐºÐ¾Ð½ÑÐµÐ½ÑÐ½ Ð½Ð° 2.4 GHz + Ð¼ÐµÐ½ÑÐµ Ð½Ð°Ð²Ð°Ð½ÑÐ°Ð¶ÐµÐ½Ð½Ñ Ð½Ð° ÑÐ°Ð±; reversible ÑÐ»Ð°Ð³Ð¾Ð¼) | S | no | B1 |
+| B5 | **Auto re-register Ð¿ÑÑÐ»Ñ ÑÐµÑÑÐ°ÑÑÑ** â Ð¿ÐµÑÐµÐ²ÑÑÐ¸ÑÐ¸: `device_key` Ð²ÑÐ´Ð½Ð¾Ð²Ð»ÑÑÑÑÑÑ, `peer_id` #38 Ð½Ðµ Ð¼ÑÐ³ÑÑÑ Ð¿ÑÑÐ»Ñ reload ÑÑÐ¾ÑÑÐ½ÐºÐ¸ | S | no | B1 |
+| B6 | **ÐÐ·ÐµÑÐºÐ°Ð»Ð¾ 35B-ÑÐ°Ð½ÐºÑÐ² Ñ phone cache** â IndexedDB LRU 128 MiB Ð²Ð¶Ðµ Ñ (R3); Ð¿ÐµÑÐµÐ²ÑÑÐ¸ÑÐ¸ hit-rate Ð¿ÑÑÐ»Ñ 24 h soak; Ð·Ð° Ð¿Ð¾ÑÑÐµÐ±Ð¸ Ð¿ÑÐ´Ð½ÑÑÐ¸ Ð»ÑÐ¼ÑÑ | M | no | B1 |
+| B7 | **RSSI/ÐµÐºÑÐ°Ð½Ð½Ð¸Ð¹ ÑÑÐ°Ð½** â ÑÐµÐ»ÐµÑÐ¾Ð½ Ð½Ðµ Ð´Ð°Ñ Ð´Ð¾ÑÑÑÐ¿ Ð´Ð¾ ÑÐ¸ÑÑÐµÐ¼Ð¸; Ð½Ð°Ð¹Ð±Ð»Ð¸Ð¶ÑÐµ: `navigator.getBattery()` + NetworkInformation (`effectiveType`, `downlink`, `rtt`) Ð²Ð¶Ðµ Ð² ÑÐµÐ»ÐµÐ¼ÐµÑÑÑÑ â Ð²Ð¸Ð½ÐµÑÑÐ¸ Ð² /sys peer-ÑÑÐ´Ð¾Ðº | S | no | telemetry Ð²Ð¶Ðµ Ð»Ð¾Ð³ÑÑ |
 
-## C. Автоматизація операційної діяльності (Rust-first, без нових сервісів)
+## C. ÐÐ²ÑÐ¾Ð¼Ð°ÑÐ¸Ð·Ð°ÑÑÑ Ð¾Ð¿ÐµÑÐ°ÑÑÐ¹Ð½Ð¾Ñ Ð´ÑÑÐ»ÑÐ½Ð¾ÑÑÑ (Rust-first, Ð±ÐµÐ· Ð½Ð¾Ð²Ð¸Ñ ÑÐµÑÐ²ÑÑÑÐ²)
 
-| # | Завдання | Зусилля | Gate | Залежності |
+| # | ÐÐ°Ð²Ð´Ð°Ð½Ð½Ñ | ÐÑÑÐ¸Ð»Ð»Ñ | Gate | ÐÐ°Ð»ÐµÐ¶Ð½Ð¾ÑÑÑ |
 |---|---|---|---|---|
-| C1 | **`cargo xtask status`** — один рядок: hub health · version · mesh alive/ready(alive) ids · tasks done · console last line · RAM/disk (`--json`, `--url`) — **✅ done 2026-11-19** | S | no | `src/xtask.rs` |
-| C2 | **`cargo xtask alive-watch`** — probe `/api/health` N разів (`--every N`, `--count N`, default 1 probe); rc 0/1; stdout only (scheduler-friendly) — **✅ done 2026-11-19** | S | no | C1 |
-| C3 | **`cargo xtask cycle-watch`** — консольний watchdog reconnect-storm-ів телефона: ring `/api/wgpu/console` + rolling 24 h стан (`data/cycle_watch_state.json`), пороги `--hourly 10` / `--ten-min 3` / `--blackout-secs 180` / `--quiet-secs 900`, rate-limit алертів 30 хв; за замовчуванням **dry** (друкує, нічого не надсилає), `--alert` → Telegram у **Godfather-канал** через `sendMessage` (без Telenetis) — **✅ done 2026-11-19**. `cargo xtask cycle-watch-install` — периодичний запуск: **HKCU Run `GSV-cycle-watch`** (`"target\debug\gsv-xtask.exe" cycle-watch --every 300 --count 0`, вічний loop, на логон), доступний усі (try_schtasks → access denied, без admin) — жодної системної зміни, лише персональний registry — **✅ done 2026-11-19**. lib 541 | M | done | console ring |
-| C4 | **`cargo xtask report`** — markdown-звіт із `sys_metrics_history.jsonl`: CPU/RAM avg/min/max, disk trend, tasks_done/failed Δ (counter-reset-safe), per-peer alive/ready share, done Δ, proofs fresh, EWMA avg; `--days N`, stdout або `--out` — **✅ done 2026-11-19**; перший зразок у `docs/gsv/reports/MESH_REPORT_2026-11-19.md` | M | no | `sys-history` |
-| C6 | **EWMA-парітет** — `ewma_elapsed_ms` + `proofs_fresh` вже в `/api/sys/metrics` + /sys UI ewma-колонка (d83c35e); статус-чесність перевірено живцем (report відображає `ready_alive`-share) | S | no | d83c35e |
-| C5 | **Dispatch gate аудит** — пройдено `wgpu.rs`: enqueue (`restrict_ready = is_heavyweight`, ranked alive∧proof_gate; single-shard `best_peer_for_task().filter(ready_of)`) ↔ `peer_poll` (heavyweight відкидається для не-ready пірів + `readiness_hint`; `weights_matvec_block` — лише browser-класи; sticky route) ↔ `proof_gate` (fresh→true; stale+fresh-alive→ghost demoted; нічого fresh ніде → any-proof pass, no lockout). **Дір не знайдено; fail направлений у `readiness_hint`, не у мовчазний "застряг" — ✅ verified 2026-11-19** | S | no | wgpu.rs |
-| C7 | **Stand-smoke у CI** — GitHub workflow `gsv`: запуск `gsv-http-stand-smoke` проти тимчасового хаба (skip якщо репозиторій не може підняти `:9999`) | M | no | stand-smoke bin |
+| C1 | **`cargo xtask status`** â Ð¾Ð´Ð¸Ð½ ÑÑÐ´Ð¾Ðº: hub health Â· version Â· mesh alive/ready(alive) ids Â· tasks done Â· console last line Â· RAM/disk (`--json`, `--url`) â **â done 2026-11-19** | S | no | `src/xtask.rs` |
+| C2 | **`cargo xtask alive-watch`** â probe `/api/health` N ÑÐ°Ð·ÑÐ² (`--every N`, `--count N`, default 1 probe); rc 0/1; stdout only (scheduler-friendly) â **â done 2026-11-19** | S | no | C1 |
+| C3 | **`cargo xtask cycle-watch`** — консольний watchdog reconnect-storm-ів телефона: ring `/api/wgpu/console` + rolling 24 h стан (`data/cycle_watch_state.json`), пороги `--hourly 10` / `--ten-min 3` / `--blackout-secs 180` / `--quiet-secs 900`, rate-limit алертів 30 хв; за замовчуванням **dry**, `--alert` → Telegram у **Godfather-канал** через `sendMessage` (без Telenetis) — **✅ done 2026-11-19**. `cargo xtask cycle-watch-install` — **HKCU Run `GSV-cycle-watch` → wscript + `gsv_cycle_watch_start.vbs`** (window-0 запуск, патерн = watchdog; dedup через `data/cycle_watch.lock` 2 інстанси/1200 s) — **✅ done 2026-11-19**; schtasks → access denied, без admin. lib 541 | M | done | console ring |
+| C4 | **`cargo xtask report`** â markdown-Ð·Ð²ÑÑ ÑÐ· `sys_metrics_history.jsonl`: CPU/RAM avg/min/max, disk trend, tasks_done/failed Î (counter-reset-safe), per-peer alive/ready share, done Î, proofs fresh, EWMA avg; `--days N`, stdout Ð°Ð±Ð¾ `--out` â **â done 2026-11-19**; Ð¿ÐµÑÑÐ¸Ð¹ Ð·ÑÐ°Ð·Ð¾Ðº Ñ `docs/gsv/reports/MESH_REPORT_2026-11-19.md` | M | no | `sys-history` |
+| C6 | **EWMA-Ð¿Ð°ÑÑÑÐµÑ** â `ewma_elapsed_ms` + `proofs_fresh` Ð²Ð¶Ðµ Ð² `/api/sys/metrics` + /sys UI ewma-ÐºÐ¾Ð»Ð¾Ð½ÐºÐ° (d83c35e); ÑÑÐ°ÑÑÑ-ÑÐµÑÐ½ÑÑÑÑ Ð¿ÐµÑÐµÐ²ÑÑÐµÐ½Ð¾ Ð¶Ð¸Ð²ÑÐµÐ¼ (report Ð²ÑÐ´Ð¾Ð±ÑÐ°Ð¶Ð°Ñ `ready_alive`-share) | S | no | d83c35e |
+| C5 | **Dispatch gate Ð°ÑÐ´Ð¸Ñ** â Ð¿ÑÐ¾Ð¹Ð´ÐµÐ½Ð¾ `wgpu.rs`: enqueue (`restrict_ready = is_heavyweight`, ranked aliveâ§proof_gate; single-shard `best_peer_for_task().filter(ready_of)`) â `peer_poll` (heavyweight Ð²ÑÐ´ÐºÐ¸Ð´Ð°ÑÑÑÑÑ Ð´Ð»Ñ Ð½Ðµ-ready Ð¿ÑÑÑÐ² + `readiness_hint`; `weights_matvec_block` â Ð»Ð¸ÑÐµ browser-ÐºÐ»Ð°ÑÐ¸; sticky route) â `proof_gate` (freshâtrue; stale+fresh-aliveâghost demoted; Ð½ÑÑÐ¾Ð³Ð¾ fresh Ð½ÑÐ´Ðµ â any-proof pass, no lockout). **ÐÑÑ Ð½Ðµ Ð·Ð½Ð°Ð¹Ð´ÐµÐ½Ð¾; fail Ð½Ð°Ð¿ÑÐ°Ð²Ð»ÐµÐ½Ð¸Ð¹ Ñ `readiness_hint`, Ð½Ðµ Ñ Ð¼Ð¾Ð²ÑÐ°Ð·Ð½Ð¸Ð¹ "Ð·Ð°ÑÑÑÑÐ³" â â verified 2026-11-19** | S | no | wgpu.rs |
+| C7 | **Stand-smoke Ñ CI** â GitHub workflow `gsv`: Ð·Ð°Ð¿ÑÑÐº `gsv-http-stand-smoke` Ð¿ÑÐ¾ÑÐ¸ ÑÐ¸Ð¼ÑÐ°ÑÐ¾Ð²Ð¾Ð³Ð¾ ÑÐ°Ð±Ð° (skip ÑÐºÑÐ¾ ÑÐµÐ¿Ð¾Ð·Ð¸ÑÐ¾ÑÑÐ¹ Ð½Ðµ Ð¼Ð¾Ð¶Ðµ Ð¿ÑÐ´Ð½ÑÑÐ¸ `:9999`) | M | no | stand-smoke bin |
 
-## D. Mesh-hardening з одним телефоном (біфрост як єдиний worker)
+## D. Mesh-hardening Ð· Ð¾Ð´Ð½Ð¸Ð¼ ÑÐµÐ»ÐµÑÐ¾Ð½Ð¾Ð¼ (Ð±ÑÑÑÐ¾ÑÑ ÑÐº ÑÐ´Ð¸Ð½Ð¸Ð¹ worker)
 
-| # | Завдання | Зусилля | Gate | Залежності |
+| # | ÐÐ°Ð²Ð´Ð°Ð½Ð½Ñ | ÐÑÑÐ¸Ð»Ð»Ñ | Gate | ÐÐ°Ð»ÐµÐ¶Ð½Ð¾ÑÑÑ |
 |---|---|---|---|---|
-| D1 | **Golden-shard canary** — periodic (owner-triggered) `weights_matvec` blk.5 shexp на #38, звірка `max_err_model ≤ 1e-6`; дельта → лог, не більше | S | owner для змін dispatch | L: mirror |
-| D2 | **40/40 re-verify одним peer** — прогін усіх blk-shardів тільки через #38 (доказ single-phone 35B транспорту); ~35–40 хв, батарея | M | owner (power) | D1 |
-| D3 | **EWMA single-peer sanity** — додано тест `single_peer_router_degenerates_cleanly` (tier-0 single peer chosen; tier-3 probation routable; saturated → None; dead → None; no panics) — **✅ done 2026-11-19** (ділення на нуль/NaN-key не існує в коді — sort використовує `unwrap_or(Equal)`; зафіксовано тест-контрактом) | S | no | wgpu.rs |
-| D4 | **IndexedDB eviction audit** — 128 MiB LRU переповнення → чанки витісняються; логувати eviction count; якщо > N/добу → docs-нотатка | S | no | B6 |
-| D5 | **L: mirror integrity sweep** — sha256 усіх файлів у `L:/gsv_mirror/wgpu_weights/chunks/` проти `index.json`: **31/31 chunks OK** (size + sha256 == filename, 116 433 397 B), `MIRROR-OK`; loose `blk*_f32` (поза wgpu_weights) — без manifest, не перевірялись; **✅ done 2026-11-19** (нюанс: зараз 31 chunk, не 127 — дзеркалo тримуровано/LRU після 35B-розселення) | M | no | L: drive |
-| D6 | **Proof TTL review** — з одним peer «proof_gate» стає single-point-of-failure для heavyweight; задокументувати деградацію (fail-open для probes, fail-loud для heavyweight) | S | no | watchdog/wgpu |
-| D7 | **Failover документовано** — відсутність peers → hub віддає 503 на `/api/wgpu/task/poll` з чесним тілом; UI показує «no workers», без зависання | S | no | server code |
+| D1 | **Golden-shard canary** â periodic (owner-triggered) `weights_matvec` blk.5 shexp Ð½Ð° #38, Ð·Ð²ÑÑÐºÐ° `max_err_model â¤ 1e-6`; Ð´ÐµÐ»ÑÑÐ° â Ð»Ð¾Ð³, Ð½Ðµ Ð±ÑÐ»ÑÑÐµ | S | owner Ð´Ð»Ñ Ð·Ð¼ÑÐ½ dispatch | L: mirror |
+| D2 | **40/40 re-verify Ð¾Ð´Ð½Ð¸Ð¼ peer** â Ð¿ÑÐ¾Ð³ÑÐ½ ÑÑÑÑ blk-shardÑÐ² ÑÑÐ»ÑÐºÐ¸ ÑÐµÑÐµÐ· #38 (Ð´Ð¾ÐºÐ°Ð· single-phone 35B ÑÑÐ°Ð½ÑÐ¿Ð¾ÑÑÑ); ~35â40 ÑÐ², Ð±Ð°ÑÐ°ÑÐµÑ | M | owner (power) | D1 |
+| D3 | **EWMA single-peer sanity** â Ð´Ð¾Ð´Ð°Ð½Ð¾ ÑÐµÑÑ `single_peer_router_degenerates_cleanly` (tier-0 single peer chosen; tier-3 probation routable; saturated â None; dead â None; no panics) â **â done 2026-11-19** (Ð´ÑÐ»ÐµÐ½Ð½Ñ Ð½Ð° Ð½ÑÐ»Ñ/NaN-key Ð½Ðµ ÑÑÐ½ÑÑ Ð² ÐºÐ¾Ð´Ñ â sort Ð²Ð¸ÐºÐ¾ÑÐ¸ÑÑÐ¾Ð²ÑÑ `unwrap_or(Equal)`; Ð·Ð°ÑÑÐºÑÐ¾Ð²Ð°Ð½Ð¾ ÑÐµÑÑ-ÐºÐ¾Ð½ÑÑÐ°ÐºÑÐ¾Ð¼) | S | no | wgpu.rs |
+| D4 | **IndexedDB eviction audit** â 128 MiB LRU Ð¿ÐµÑÐµÐ¿Ð¾Ð²Ð½ÐµÐ½Ð½Ñ â ÑÐ°Ð½ÐºÐ¸ Ð²Ð¸ÑÑÑÐ½ÑÑÑÑÑÑ; Ð»Ð¾Ð³ÑÐ²Ð°ÑÐ¸ eviction count; ÑÐºÑÐ¾ > N/Ð´Ð¾Ð±Ñ â docs-Ð½Ð¾ÑÐ°ÑÐºÐ° | S | no | B6 |
+| D5 | **L: mirror integrity sweep** â sha256 ÑÑÑÑ ÑÐ°Ð¹Ð»ÑÐ² Ñ `L:/gsv_mirror/wgpu_weights/chunks/` Ð¿ÑÐ¾ÑÐ¸ `index.json`: **31/31 chunks OK** (size + sha256 == filename, 116 433 397 B), `MIRROR-OK`; loose `blk*_f32` (Ð¿Ð¾Ð·Ð° wgpu_weights) â Ð±ÐµÐ· manifest, Ð½Ðµ Ð¿ÐµÑÐµÐ²ÑÑÑÐ»Ð¸ÑÑ; **â done 2026-11-19** (Ð½ÑÐ°Ð½Ñ: Ð·Ð°ÑÐ°Ð· 31 chunk, Ð½Ðµ 127 â Ð´Ð·ÐµÑÐºÐ°Ð»o ÑÑÐ¸Ð¼ÑÑÐ¾Ð²Ð°Ð½Ð¾/LRU Ð¿ÑÑÐ»Ñ 35B-ÑÐ¾Ð·ÑÐµÐ»ÐµÐ½Ð½Ñ) | M | no | L: drive |
+| D6 | **Proof TTL review** â Ð· Ð¾Ð´Ð½Ð¸Ð¼ peer Â«proof_gateÂ» ÑÑÐ°Ñ single-point-of-failure Ð´Ð»Ñ heavyweight; Ð·Ð°Ð´Ð¾ÐºÑÐ¼ÐµÐ½ÑÑÐ²Ð°ÑÐ¸ Ð´ÐµÐ³ÑÐ°Ð´Ð°ÑÑÑ (fail-open Ð´Ð»Ñ probes, fail-loud Ð´Ð»Ñ heavyweight) | S | no | watchdog/wgpu |
+| D7 | **Failover Ð´Ð¾ÐºÑÐ¼ÐµÐ½ÑÐ¾Ð²Ð°Ð½Ð¾** â Ð²ÑÐ´ÑÑÑÐ½ÑÑÑÑ peers â hub Ð²ÑÐ´Ð´Ð°Ñ 503 Ð½Ð° `/api/wgpu/task/poll` Ð· ÑÐµÑÐ½Ð¸Ð¼ ÑÑÐ»Ð¾Ð¼; UI Ð¿Ð¾ÐºÐ°Ð·ÑÑ Â«no workersÂ», Ð±ÐµÐ· Ð·Ð°Ð²Ð¸ÑÐ°Ð½Ð½Ñ | S | no | server code |
 
-## E. poolAI CI / а11y (зовнішній трек, не GSV-код)
+## E. poolAI CI / Ð°11y (Ð·Ð¾Ð²Ð½ÑÑÐ½ÑÐ¹ ÑÑÐµÐº, Ð½Ðµ GSV-ÐºÐ¾Ð´)
 
-| # | Завдання | Зусилля | Gate | Залежності |
+| # | ÐÐ°Ð²Ð´Ð°Ð½Ð½Ñ | ÐÑÑÐ¸Ð»Ð»Ñ | Gate | ÐÐ°Ð»ÐµÐ¶Ð½Ð¾ÑÑÑ |
 |---|---|---|---|---|
-| E1 | **Run 1711 моніторинг** — виконано 2026-11-19: Pa11y WCAG ✅ green (a11y-фікс верифіковано), Playwright admin E2E ❌ failure («Build poolai and run smoke tests», логи 403 anonymous); ubuntu ✅, windows ✅ (cloud-sdk green), Док. 1418 ✅. Деталі: `ECOSYSTEM_CI_REGISTRY` §6.1 — **✅ done 2026-11-19** | S | no | GitHub |
-| E2 | **a11y.yml вручну / poolAI CI re-run** — якщо Playwright E2E знову червоний: authorized re-run або `workflow_dispatch` a11y.yml (owner-клац) | S | owner | E1 |
-| E3 | **Ubuntu leg** — non-blocking уже (`4ebb1e410`); лишити як є | — | done | — |
-| E4 | **ECO-8.3 dep-sweep продовження** — решта плагінів по одному (LinFS, ORR, rusty-engine, sport-forcast, CoreBoard) | L | no, але по одному за сесію | ECO board |
+| E1 | **Run 1711 Ð¼Ð¾Ð½ÑÑÐ¾ÑÐ¸Ð½Ð³** â Ð²Ð¸ÐºÐ¾Ð½Ð°Ð½Ð¾ 2026-11-19: Pa11y WCAG â green (a11y-ÑÑÐºÑ Ð²ÐµÑÐ¸ÑÑÐºÐ¾Ð²Ð°Ð½Ð¾), Playwright admin E2E â failure (Â«Build poolai and run smoke testsÂ», Ð»Ð¾Ð³Ð¸ 403 anonymous); ubuntu â, windows â (cloud-sdk green), ÐÐ¾Ðº. 1418 â. ÐÐµÑÐ°Ð»Ñ: `ECOSYSTEM_CI_REGISTRY` Â§6.1 â **â done 2026-11-19** | S | no | GitHub |
+| E2 | **a11y.yml Ð²ÑÑÑÐ½Ñ / poolAI CI re-run** â ÑÐºÑÐ¾ Playwright E2E Ð·Ð½Ð¾Ð²Ñ ÑÐµÑÐ²Ð¾Ð½Ð¸Ð¹: authorized re-run Ð°Ð±Ð¾ `workflow_dispatch` a11y.yml (owner-ÐºÐ»Ð°Ñ) | S | owner | E1 |
+| E3 | **Ubuntu leg** â non-blocking ÑÐ¶Ðµ (`4ebb1e410`); Ð»Ð¸ÑÐ¸ÑÐ¸ ÑÐº Ñ | â | done | â |
+| E4 | **ECO-8.3 dep-sweep Ð¿ÑÐ¾Ð´Ð¾Ð²Ð¶ÐµÐ½Ð½Ñ** â ÑÐµÑÑÐ° Ð¿Ð»Ð°Ð³ÑÐ½ÑÐ² Ð¿Ð¾ Ð¾Ð´Ð½Ð¾Ð¼Ñ (LinFS, ORR, rusty-engine, sport-forcast, CoreBoard) | L | no, Ð°Ð»Ðµ Ð¿Ð¾ Ð¾Ð´Ð½Ð¾Ð¼Ñ Ð·Ð° ÑÐµÑÑÑ | ECO board |
 
-## F. adoreble_wifi / інфра власника (плагін, не GSV)
+## F. adoreble_wifi / ÑÐ½ÑÑÐ° Ð²Ð»Ð°ÑÐ½Ð¸ÐºÐ° (Ð¿Ð»Ð°Ð³ÑÐ½, Ð½Ðµ GSV)
 
-| # | Завдання | Зусилля | Gate | Залежності |
+| # | ÐÐ°Ð²Ð´Ð°Ð½Ð½Ñ | ÐÑÑÐ¸Ð»Ð»Ñ | Gate | ÐÐ°Ð»ÐµÐ¶Ð½Ð¾ÑÑÑ |
 |---|---|---|---|---|
-| F1 | **ADO-7 кандидати (docs-only поки)** — battery-friendly hotspot auto-off timer; QR-сторінка status page; SLA probe → Telegram (owner-key) | — | owner | ADO-6 |
-| F2 | **PRODUCTS.md row** — `adoreble_wifi` зареєстровано; підтримувати актуальним (HEAD, тесты count) | S | no | PRODUCTS.md |
-| F3 | **`ado` CLI parity with UI** — `hotspot status` вже є; перевірити `--json` output для скриптів | S | no | adoreble_wifi |
-| F4 | **HKCU Run entry audit** — `AdorebleWiFi` автозапуск: задокументувати як видалити (owner інструкція) | S | owner | AdorebleWiFi |
+| F1 | **ADO-7 ÐºÐ°Ð½Ð´Ð¸Ð´Ð°ÑÐ¸ (docs-only Ð¿Ð¾ÐºÐ¸)** â battery-friendly hotspot auto-off timer; QR-ÑÑÐ¾ÑÑÐ½ÐºÐ° status page; SLA probe â Telegram (owner-key) | â | owner | ADO-6 |
+| F2 | **PRODUCTS.md row** â `adoreble_wifi` Ð·Ð°ÑÐµÑÑÑÑÐ¾Ð²Ð°Ð½Ð¾; Ð¿ÑÐ´ÑÑÐ¸Ð¼ÑÐ²Ð°ÑÐ¸ Ð°ÐºÑÑÐ°Ð»ÑÐ½Ð¸Ð¼ (HEAD, ÑÐµÑÑÑ count) | S | no | PRODUCTS.md |
+| F3 | **`ado` CLI parity with UI** â `hotspot status` Ð²Ð¶Ðµ Ñ; Ð¿ÐµÑÐµÐ²ÑÑÐ¸ÑÐ¸ `--json` output Ð´Ð»Ñ ÑÐºÑÐ¸Ð¿ÑÑÐ² | S | no | adoreble_wifi |
+| F4 | **HKCU Run entry audit** â `AdorebleWiFi` Ð°Ð²ÑÐ¾Ð·Ð°Ð¿ÑÑÐº: Ð·Ð°Ð´Ð¾ÐºÑÐ¼ÐµÐ½ÑÑÐ²Ð°ÑÐ¸ ÑÐº Ð²Ð¸Ð´Ð°Ð»Ð¸ÑÐ¸ (owner ÑÐ½ÑÑÑÑÐºÑÑÑ) | S | owner | AdorebleWiFi |
 
-## G. WSP / research (owner-gated, не зараз)
+## G. WSP / research (owner-gated, Ð½Ðµ Ð·Ð°ÑÐ°Ð·)
 
-| # | Завдання | Зусилля | Gate |
+| # | ÐÐ°Ð²Ð´Ð°Ð½Ð½Ñ | ÐÑÑÐ¸Ð»Ð»Ñ | Gate |
 |---|---|---|---|
-| G1 | WSP Phase 2 — **не відкривати** без явного owner go (Astra-стиль patch не має робочої гіпотези на MiniCPM-1B; Granite-A800M serve-розслідування не завершене) | — | owner |
-| G2 | Granite-A800M serve retry на `:8085` (UCRT-dll вже скопійовані в `target/release/`) — тільки після owner go | M | owner |
-| G3 | NanoJev port feasibility — лишається doc-only; Pi dead → нікуди деплоїти; skip | — | owner |
+| G1 | WSP Phase 2 â **Ð½Ðµ Ð²ÑÐ´ÐºÑÐ¸Ð²Ð°ÑÐ¸** Ð±ÐµÐ· ÑÐ²Ð½Ð¾Ð³Ð¾ owner go (Astra-ÑÑÐ¸Ð»Ñ patch Ð½Ðµ Ð¼Ð°Ñ ÑÐ¾Ð±Ð¾ÑÐ¾Ñ Ð³ÑÐ¿Ð¾ÑÐµÐ·Ð¸ Ð½Ð° MiniCPM-1B; Granite-A800M serve-ÑÐ¾Ð·ÑÐ»ÑÐ´ÑÐ²Ð°Ð½Ð½Ñ Ð½Ðµ Ð·Ð°Ð²ÐµÑÑÐµÐ½Ðµ) | â | owner |
+| G2 | Granite-A800M serve retry Ð½Ð° `:8085` (UCRT-dll Ð²Ð¶Ðµ ÑÐºÐ¾Ð¿ÑÐ¹Ð¾Ð²Ð°Ð½Ñ Ð² `target/release/`) â ÑÑÐ»ÑÐºÐ¸ Ð¿ÑÑÐ»Ñ owner go | M | owner |
+| G3 | NanoJev port feasibility â Ð»Ð¸ÑÐ°ÑÑÑÑÑ doc-only; Pi dead â Ð½ÑÐºÑÐ´Ð¸ Ð´ÐµÐ¿Ð»Ð¾ÑÑÐ¸; skip | â | owner |
 
-## H. Явно виключено (не пропонувати)
+## H. Ð¯Ð²Ð½Ð¾ Ð²Ð¸ÐºÐ»ÑÑÐµÐ½Ð¾ (Ð½Ðµ Ð¿ÑÐ¾Ð¿Ð¾Ð½ÑÐ²Ð°ÑÐ¸)
 
-- k3s/k8s/Docker на Pi — **мертва SD**; policy «диски пірів не чіпаємо».
-- Будь-які зміни на телефоні (ADB, flags, system settings) без owner go per action.
-- 35B повний forward на хабі — RAM не тягне (7.7 GB total).
-- Підняття `:8091` (OmniRoute), tunnels, User-scope MCP — owner-gated завжди.
-- Реанімація Pi (reflash, edit `cmdline.txt`, нові образи) — owner-only, після фізичного доступу.
+- k3s/k8s/Docker Ð½Ð° Pi â **Ð¼ÐµÑÑÐ²Ð° SD**; policy Â«Ð´Ð¸ÑÐºÐ¸ Ð¿ÑÑÑÐ² Ð½Ðµ ÑÑÐ¿Ð°ÑÐ¼Ð¾Â».
+- ÐÑÐ´Ñ-ÑÐºÑ Ð·Ð¼ÑÐ½Ð¸ Ð½Ð° ÑÐµÐ»ÐµÑÐ¾Ð½Ñ (ADB, flags, system settings) Ð±ÐµÐ· owner go per action.
+- 35B Ð¿Ð¾Ð²Ð½Ð¸Ð¹ forward Ð½Ð° ÑÐ°Ð±Ñ â RAM Ð½Ðµ ÑÑÐ³Ð½Ðµ (7.7 GB total).
+- ÐÑÐ´Ð½ÑÑÑÑ `:8091` (OmniRoute), tunnels, User-scope MCP â owner-gated Ð·Ð°Ð²Ð¶Ð´Ð¸.
+- Ð ÐµÐ°Ð½ÑÐ¼Ð°ÑÑÑ Pi (reflash, edit `cmdline.txt`, Ð½Ð¾Ð²Ñ Ð¾Ð±ÑÐ°Ð·Ð¸) â owner-only, Ð¿ÑÑÐ»Ñ ÑÑÐ·Ð¸ÑÐ½Ð¾Ð³Ð¾ Ð´Ð¾ÑÑÑÐ¿Ñ.
 
 ---
 
-## Рекомендований порядок
+## Ð ÐµÐºÐ¾Ð¼ÐµÐ½Ð´Ð¾Ð²Ð°Ð½Ð¸Ð¹ Ð¿Ð¾ÑÑÐ´Ð¾Ðº
 
-1. **A1–A3** (сьогодні, docs) → commit `docs: ...` → push — **✅ зроблено**
-2. **B1** (запис трашшінгу) → висновок B2/B4 → дрібний код-фікс якщо підтверджено — **✅ зроблено (B4)**
-3. **C1 + C2** (xtask status/alive-watch) → commit — **✅ зроблено**
-4. **D3** (single-peer EWMA unit-тест) → commit — **✅ зроблено**
-5. **D1** (golden canary, owner) або ~~A4~~ — **A4 ✅ зроблено 2026-11-19**.
-6. **E1** — перевірено 2026-11-19 (Pa11y ✅; Playwright ❌ — owner, див. §6.1 реєстру).
+1. **A1âA3** (ÑÑÐ¾Ð³Ð¾Ð´Ð½Ñ, docs) â commit `docs: ...` â push â **â Ð·ÑÐ¾Ð±Ð»ÐµÐ½Ð¾**
+2. **B1** (Ð·Ð°Ð¿Ð¸Ñ ÑÑÐ°ÑÑÑÐ½Ð³Ñ) â Ð²Ð¸ÑÐ½Ð¾Ð²Ð¾Ðº B2/B4 â Ð´ÑÑÐ±Ð½Ð¸Ð¹ ÐºÐ¾Ð´-ÑÑÐºÑ ÑÐºÑÐ¾ Ð¿ÑÐ´ÑÐ²ÐµÑÐ´Ð¶ÐµÐ½Ð¾ â **â Ð·ÑÐ¾Ð±Ð»ÐµÐ½Ð¾ (B4)**
+3. **C1 + C2** (xtask status/alive-watch) â commit â **â Ð·ÑÐ¾Ð±Ð»ÐµÐ½Ð¾**
+4. **D3** (single-peer EWMA unit-ÑÐµÑÑ) â commit â **â Ð·ÑÐ¾Ð±Ð»ÐµÐ½Ð¾**
+5. **D1** (golden canary, owner) Ð°Ð±Ð¾ ~~A4~~ â **A4 â Ð·ÑÐ¾Ð±Ð»ÐµÐ½Ð¾ 2026-11-19**.
+6. **E1** â Ð¿ÐµÑÐµÐ²ÑÑÐµÐ½Ð¾ 2026-11-19 (Pa11y â; Playwright â â owner, Ð´Ð¸Ð². Â§6.1 ÑÐµÑÑÑÑÑ).
 
-## Критерії готовності кожного пункту
+## ÐÑÐ¸ÑÐµÑÑÑ Ð³Ð¾ÑÐ¾Ð²Ð½Ð¾ÑÑÑ ÐºÐ¾Ð¶Ð½Ð¾Ð³Ð¾ Ð¿ÑÐ½ÐºÑÑ
 
-- Код → `cargo fmt` + `cargo clippy --all-targets` + `cargo test` (exit 0) + `--stretch-96` для GSV-репо.
-- Docs → посилання живі, `cargo xtask sync` (vision lockstep) не ламається.
-- Один commit на пункт; push тільки після зеленого gate.
+- ÐÐ¾Ð´ â `cargo fmt` + `cargo clippy --all-targets` + `cargo test` (exit 0) + `--stretch-96` Ð´Ð»Ñ GSV-ÑÐµÐ¿Ð¾.
+- Docs â Ð¿Ð¾ÑÐ¸Ð»Ð°Ð½Ð½Ñ Ð¶Ð¸Ð²Ñ, `cargo xtask sync` (vision lockstep) Ð½Ðµ Ð»Ð°Ð¼Ð°ÑÑÑÑÑ.
+- ÐÐ´Ð¸Ð½ commit Ð½Ð° Ð¿ÑÐ½ÐºÑ; push ÑÑÐ»ÑÐºÐ¸ Ð¿ÑÑÐ»Ñ Ð·ÐµÐ»ÐµÐ½Ð¾Ð³Ð¾ gate.

@@ -25,7 +25,7 @@ cargo xtask status            # one-glance: hub/mesh/console/RAM/disk
 cargo xtask alive-watch --count 3 --every 10   # health probe, rc 0/1
 cargo xtask cycle-watch       # phone reconnect-storm watchdog (dry; --alert → Telegram Godfather)
 cargo xtask cycle-watch --count 3 --every 60   # обмежене запуски
-cargo xtask cycle-watch-install # периодичний: HKCU Run GSV-cycle-watch (schtasks — тільки з admin)
+cargo xtask cycle-watch-install # periodic: HKCU Run GSV-cycle-watch → hidden vscript launcher (schtasks — admin-only)
 cargo xtask disk              # S0 disk guard
 cargo xtask rules-check       # drift gates (live lockstep)
 ```

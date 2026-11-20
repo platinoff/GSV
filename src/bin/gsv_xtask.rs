@@ -481,6 +481,29 @@ fn main() -> ExitCode {
             };
             // --count 0 = infinite loop (periodic use; `--every N` period).
             let cap: u64 = if count == 0 { u64::MAX } else { count as u64 };
+            if count == 0 {
+                // Dedup marker: an already-running infinite watcher keeps the
+                // lock fresh (touched on every tick); a new instance exits early.
+                let lock = root.join("data").join("cycle_watch.lock");
+                if let Ok(m) = lock.metadata() {
+                    let age = m
+                        .modified()
+                        .map(|t| t.elapsed().unwrap_or_default())
+                        .unwrap_or_default();
+                    if age.as_secs() < 1200 {
+                        println!(
+                            "cycle-watch: already running (data/cycle_watch.lock age {}s) — exiting",
+                            age.as_secs()
+                        );
+                        return ExitCode::SUCCESS;
+                    }
+                }
+                let ts = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
+                let _ = std::fs::write(&lock, ts.to_string());
+            }
             let mut last_rc = 0;
             for i in 0..cap {
                 let (text, rc) = xtask::cycle_watch(&root, &base, &t, alert);
