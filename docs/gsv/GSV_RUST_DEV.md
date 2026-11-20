@@ -61,7 +61,7 @@ The agent **shell** is still MSYS2 bash (`C:\msys64\usr\bin\bash.exe -lc '…'`)
 | `.cursor/mcp.json` | Cursor HTTP MCP (`url` → live `:9999/mcp`). Folder **GSV** only — never User (`%USERPROFILE%/.cursor/mcp.json`). Cursor **3.27.14** still uses Streamable HTTP `type: http` (never `streamable-http`); do not Origin-host this kit. IDE + Agents Window share this one folder MCP; the second agent does not write the same dirty tree. |
 | `docs/vision/*.json` | Snapshots written **by** `gsv-vision-sync` / speed-index bins. |
 | `docs/gsv/fingerprints.jsonl` | Append-only data. Writer is Rust. |
-| Marketplace `find-polluter.sh` under skills | Upstream skill copy, not a GSV product script. |
+| Skill example snippets (inlined in `.agents/skills/**/**.md`) | GEN-2 folded the upstream `find-polluter.sh` / `condition-based-waiting-example.ts` copies into their `.md` skill docs — 0 `.sh`/`.ts` under skills (2026-11-20). |
 | `comitmsg/*.md` / `*.log` | Local commit messages and logs; never staged except `comitmsg/README.md`. Use `cargo xtask git`. |
 
 ## MCP
