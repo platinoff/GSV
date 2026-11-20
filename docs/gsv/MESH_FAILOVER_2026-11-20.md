@@ -9,7 +9,7 @@ Scope: D6+D7 (doc-only, no code change). Tasks doc: [`MESH_ROADMAP_TASKS_2026-11
 
 | Аспект | Значення |
 |---|---|
-| `#37 FF-PC` (adapter/pc-wgpu) | alive 92%, ready_alive 92% — працює |
+| `#37 FF-PC` (adapter/pc-wgpu) | alive ~92% знімок 2026-11-20 03:3x — **зараз dead** (status 04:0x: age_secs≈12330, ~3.4 h, console, empty — died mid-day без owner go) |
 | `#39 arm/bifrost` | alive 80%, ready_alive 0% — новий peer після owner-reload (старий #38 dead) |
 | `#35 valhall` | 0% alive — глибоко offline |
 | `#36 Pi 4` | SD dead — 0% (not in mesh) |
@@ -67,7 +67,7 @@ Scope: D6+D7 (doc-only, no code change). Tasks doc: [`MESH_ROADMAP_TASKS_2026-11
 
 - **D6** — documented; dead-days degrade gracefully (fail-open, honest proofs, no silent breakage of probe ops).
 - **D7** — verified: rejoin → #39 → proofs → ready. Phi dead — handled by 2×PROOF_FRESH_SECS.
-- **Current blocker:** `weights_matvec` — only when ≥1 ready peer alive. On #39: `ready_proofs=0` → now **only probe ops allowed**. First probe results on #39 → ready flip. (FF-PC #37 is alive+ready, so flow works when owner reloads bifrost: #39 has capacity, then #39 ready → heavyweight routed.)
+- **Current blocker:** `weights_matvec` — only when ≥1 ready peer alive. On #39: `ready_proofs=0` → now **only probe ops allowed**. First probe results on #39 → ready flip. (FF-PC #37 — offline ~04:0x now, will come back on reload as #37 — has historically been the fastest proven browser, pair with bifrost.)
 
 ---
 

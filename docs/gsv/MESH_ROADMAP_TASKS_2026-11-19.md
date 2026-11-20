@@ -51,7 +51,9 @@ push-ÐºÐ°Ð½Ð°Ð» (RFC 6455) ÑÐ¾Ð·ÑÐ°ÑÐ¾Ð²Ð°Ð½Ð�
 | B4 | **Heartbeat ÑÑÐ½ÑÐ½Ð³** â push mesh-metrics cadence 2 s â **5 s** Ð·Ð° Ð·Ð°Ð¼Ð¾Ð²ÑÑÐ²Ð°Ð½Ð½ÑÐ¼ (env `GSV_WGPU_WS_PUSH_SECS` 1..=30) â **â done 2026-11-19** (Ð¼ÐµÐ½ÑÐµ ÐºÐ¾Ð½ÑÐµÐ½ÑÐ½ Ð½Ð° 2.4 GHz + Ð¼ÐµÐ½ÑÐµ Ð½Ð°Ð²Ð°Ð½ÑÐ°Ð¶ÐµÐ½Ð½Ñ Ð½Ð° ÑÐ°Ð±; reversible ÑÐ»Ð°Ð³Ð¾Ð¼) | S | no | B1 |
 | B5 | **Auto re-register Ð¿ÑÑÐ»Ñ ÑÐµÑÑÐ°ÑÑÑ** â Ð¿ÐµÑÐµÐ²ÑÑÐ¸ÑÐ¸: `device_key` Ð²ÑÐ´Ð½Ð¾Ð²Ð»ÑÑÑÑÑÑ, `peer_id` #38 Ð½Ðµ Ð¼ÑÐ³ÑÑÑ Ð¿ÑÑÐ»Ñ reload ÑÑÐ¾ÑÑÐ½ÐºÐ¸ | S | no | B1 |
 | B6 | **ÐÐ·ÐµÑÐºÐ°Ð»Ð¾ 35B-ÑÐ°Ð½ÐºÑÐ² Ñ phone cache** â IndexedDB LRU 128 MiB Ð²Ð¶Ðµ Ñ (R3); Ð¿ÐµÑÐµÐ²ÑÑÐ¸ÑÐ¸ hit-rate Ð¿ÑÑÐ»Ñ 24 h soak; Ð·Ð° Ð¿Ð¾ÑÑÐµÐ±Ð¸ Ð¿ÑÐ´Ð½ÑÑÐ¸ Ð»ÑÐ¼ÑÑ | M | no | B1 |
-| B7 | **RSSI/ÐµÐºÑÐ°Ð½Ð½Ð¸Ð¹ ÑÑÐ°Ð½** â ÑÐµÐ»ÐµÑÐ¾Ð½ Ð½Ðµ Ð´Ð°Ñ Ð´Ð¾ÑÑÑÐ¿ Ð´Ð¾ ÑÐ¸ÑÑÐµÐ¼Ð¸; Ð½Ð°Ð¹Ð±Ð»Ð¸Ð¶ÑÐµ: `navigator.getBattery()` + NetworkInformation (`effectiveType`, `downlink`, `rtt`) Ð²Ð¶Ðµ Ð² ÑÐµÐ»ÐµÐ¼ÐµÑÑÑÑ â Ð²Ð¸Ð½ÐµÑÑÐ¸ Ð² /sys peer-ÑÑÐ´Ð¾Ðº | S | no | telemetry Ð²Ð¶Ðµ Ð»Ð¾Ð³ÑÑ |
+
+| B7 | **RSSI/netinfo → telemetry/hub** — **✅ done 2026-11-19 (перевірено живцем 2026-11-20):** phone-JS probeTelemetry у `/wgpu` (band 855ab65): ua, lang, screen, dpr, online, `navigator.connection` → downlink/effectiveType/rtt/saveData, `deviceMemory`→mem, battery+charging, storage estimate; POST → `/api/wgpu/telemetry` → санітазія → `data/wgpu_telemetry.jsonl` ring 100. **Live (2026-11-20):** `GET /api/wgpu/telemetry` → latest rows: peer#39 `battery 0.78 charging true cores 8 dpr 2.75 effectiveType 4g rtt 100 saveData false screen 393x851 storageQuota 10.7GB` (плюс page/host rows). Тобто RSSI/netinfo у /sys — **уже живий шлях всю добу** (5 s cadence; fail-loud post ≠ log `telemetry post rejected` при non-200). | M | no | `/api/wgpu/telemetry` (live-verified) |
+
 
 ## C. ÐÐ²ÑÐ¾Ð¼Ð°ÑÐ¸Ð·Ð°ÑÑÑ Ð¾Ð¿ÐµÑÐ°ÑÑÐ¹Ð½Ð¾Ñ Ð´ÑÑÐ»ÑÐ½Ð¾ÑÑÑ (Rust-first, Ð±ÐµÐ· Ð½Ð¾Ð²Ð¸Ñ ÑÐµÑÐ²ÑÑÑÐ²)
 
@@ -131,3 +133,5 @@ push-ÐºÐ°Ð½Ð°Ð» (RFC 6455) ÑÐ¾Ð·ÑÐ°ÑÐ¾Ð²Ð°Ð½Ð�
 - ÐÐ´Ð¸Ð½ commit Ð½Ð° Ð¿ÑÐ½ÐºÑ; push ÑÑÐ»ÑÐºÐ¸ Ð¿ÑÑÐ»Ñ Ð·ÐµÐ»ÐµÐ½Ð¾Ð³Ð¾ gate.
 
 | Зауваження 2026-11-19 (C6 жива верифікація) | Парітет `/api/wgpu/mesh` vs `/api/sys/metrics` перевірений живцем (03:xx): обидві повертають **id=39 arm/bifrost alive** (FF-PC #37 повернувся, dead ~02:31); `cargo xtask status` — `alive 1/5 ready 0 [39]`. Денний звіт: `MESH_REPORT_2026-11-20.md` — `ready` виправлено на `ready_alive` (FF-PC #37: alive 92%, ready_alive 92%; біофрост #39: alive 80%, ready 0) + `ready_stale` колонка (1468 dead rows з ready:true). 
+
+| Зауваження 2026-11-20 (FF-PC #37 знову dead) | FF-PC #37 вийшов під час дня (age_secs≈12330 = ~3.4 h, dead ~04:0x). Зараз єдиний підключений peer — **#39 bifrost** (alive 80%, ready_alive 0%, proofs 0). `cargo xtask status` — `alive 1/5 ready 0 [39]` (на 2026-11-20). Чекаємо на нову `mesh worker online` або рестарт під час воно на телефоні. |
