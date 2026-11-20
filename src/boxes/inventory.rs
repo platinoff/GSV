@@ -177,7 +177,11 @@ fn exempt_reason(rel: &str) -> Option<&'static str> {
     .or_else(|| {
         if rel.starts_with("poolAI/e2e/") {
             Some("playwright-e2e-js")
-        } else if rel.contains("/tests/data/") {
+        } else if rel.contains("/.vale/") {
+            Some("vale-config")
+        } else if basename(rel) == "llm.txt" || basename(rel) == "llms.txt" {
+            Some("llm-txt-convention")
+        } else if rel.contains("/tests/data/") || rel.contains("/fixtures/") {
             Some("test-fixture")
         } else {
             None
@@ -615,6 +619,21 @@ mod tests {
         assert_eq!(
             classify("rusty-engine/tests/data/qwen25_golden.txt", true),
             Class::Exempt("test-fixture")
+        );
+        assert_eq!(
+            classify(
+                "omniroute/tests/unit/compression/fixtures/rtk/aws-sample.txt",
+                true
+            ),
+            Class::Exempt("test-fixture")
+        );
+        assert_eq!(
+            classify("omniroute/.vale/styles/Vocab/OmniRoute/accept.txt", true),
+            Class::Exempt("vale-config")
+        );
+        assert_eq!(
+            classify("omniroute/docs/i18n/ar/llm.txt", true),
+            Class::Exempt("llm-txt-convention")
         );
         assert_eq!(classify("poolAI/bin/run.ps1", true), Class::Actionable);
         assert_eq!(

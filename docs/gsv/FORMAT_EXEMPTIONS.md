@@ -33,9 +33,12 @@ below would otherwise match.
 | `db-migrations` | `*.sql` | SQL is the native dialect of migrations; no Rust replacement. |
 | `os-deploy-launcher` | `*.vbs`, `*.iss`, `*.service` | Windows hidden-window launchers (watchdog/cycle-watch pattern), Inno Setup installer, systemd units — OS-native by definition. |
 | `ide-http-client` | `*.http` | IDE REST-client collections (VS Code REST Client / IntelliJ HTTP) — tool-specific, not convertible to `.md` without losing executable semantics (CNV-4). |
+| `llm-txt-convention` | basename `llm.txt`, `llms.txt` | LLM-crawler/landing convention (llmstxt.org style); filenames and cross-links are tooling/sync contracts (CNV-2). |
+| `vale-config` | `/.vale/**` | Vale prose-linter vocab/style config (tool-specific filenames/paths). |
+| `test-fixture` | `*/tests/data/**`, `**/fixtures/**` | Golden inputs and fixture samples consumed verbatim by tests. |
 | `data-export` | `*.csv` | Tabular exports (usage/tokenomics data), not source. |
 | `patch-set` | `*.patch` | ECO-8.2 llama-cpp patch-set applied by `cargo xtask` — the patch format is the deliverable. |
-| `test-fixture` | `*/tests/data/**` | Golden inputs consumed verbatim by tests (qwen25 goldens, etc.). |
+| `test-fixture` | `*/tests/data/**`, `**/fixtures/**` | Golden inputs and fixture samples consumed verbatim by tests (qwen25/qwen35 goldens, RTK compression samples, etc.). |
 | `playwright-e2e-js` | `poolAI/e2e/**` | poolAI browser E2E — owner-gated JS suite (E2), converted only with an owner epic. |
 | `env-template` | `.env.example`, `.env.sample`, `.env.template` | Documented placeholders (`CHANGEME`), never real secrets (SEC-2 verified). |
 | `local-secret (untracked)` | untracked `.env` / `*.pem` / `*.key` / `*.token` | Local secrets, gitignored by design (SEC band). Tracked copies are SEC-actionable, not exempt. |
