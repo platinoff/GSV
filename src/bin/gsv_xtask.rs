@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use gsv::boxes::fingerprint;
+use gsv::boxes::inventory;
 use gsv::boxes::vision;
 use gsv::boxes::xtask;
 use gsv::{DEFAULT_HOST, DEFAULT_PORT};
@@ -547,6 +548,31 @@ fn main() -> ExitCode {
                     eprintln!("report: {e}");
                     ExitCode::FAILURE
                 }
+            }
+        }
+        "inventory" => {
+            // GEN-0 (format-hygiene plan): default root = parent of this repo
+            // (the environment level, e.g. S:/rust); `--root` overrides.
+            let scan_root = flag_value(&args, "--root")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| {
+                    root.parent()
+                        .map(PathBuf::from)
+                        .unwrap_or_else(|| root.clone())
+                });
+            if args.iter().any(|a| a == "--tracked") {
+                for line in inventory::tracked_listing(&scan_root) {
+                    println!("{line}");
+                }
+                ExitCode::SUCCESS
+            } else {
+                let inv = inventory::scan(&scan_root);
+                if args.iter().any(|a| a == "--json") {
+                    println!("{}", inv.to_json());
+                } else {
+                    print!("{}", inv.render());
+                }
+                ExitCode::SUCCESS
             }
         }
         "record-scenario-bench" => match xtask::record_scenario_bench(&root) {

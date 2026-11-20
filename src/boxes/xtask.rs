@@ -110,6 +110,10 @@ pub const TASKS: &[(&str, &str)] = &[
         "Markdown mesh report from data/sys_metrics_history.jsonl (`--days N`, default 7; stdout or `--out <path>`)",
     ),
     (
+        "inventory",
+        "Format inventory over the environment root (default: parent of repo): allowed/violating/tracked/exempt/deferred/actionable/untracked per repo (`--root <path>`, `--json`, `--tracked` = list tracked violating files)",
+    ),
+    (
         "record-scenario-bench",
         "Time abrakadabra-session walk → docs/gsv/scenario_bench.json",
     ),

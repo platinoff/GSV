@@ -48,6 +48,7 @@ pub mod guide;
 pub mod hooks;
 pub mod hygiene;
 pub mod ide;
+pub mod inventory;
 pub mod keep_live;
 pub mod mds;
 pub mod omni;
