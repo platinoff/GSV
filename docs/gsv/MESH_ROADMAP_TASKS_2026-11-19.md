@@ -74,8 +74,10 @@ push-ÐºÐ°Ð½Ð°Ð» (RFC 6455) ÑÐ¾Ð·ÑÐ°ÑÐ¾Ð²Ð°Ð½Ð�
 | D3 | **EWMA single-peer sanity** â Ð´Ð¾Ð´Ð°Ð½Ð¾ ÑÐµÑÑ `single_peer_router_degenerates_cleanly` (tier-0 single peer chosen; tier-3 probation routable; saturated â None; dead â None; no panics) â **â done 2026-11-19** (Ð´ÑÐ»ÐµÐ½Ð½Ñ Ð½Ð° Ð½ÑÐ»Ñ/NaN-key Ð½Ðµ ÑÑÐ½ÑÑ Ð² ÐºÐ¾Ð´Ñ â sort Ð²Ð¸ÐºÐ¾ÑÐ¸ÑÑÐ¾Ð²ÑÑ `unwrap_or(Equal)`; Ð·Ð°ÑÑÐºÑÐ¾Ð²Ð°Ð½Ð¾ ÑÐµÑÑ-ÐºÐ¾Ð½ÑÑÐ°ÐºÑÐ¾Ð¼) | S | no | wgpu.rs |
 | D4 | **IndexedDB eviction audit** â 128 MiB LRU Ð¿ÐµÑÐµÐ¿Ð¾Ð²Ð½ÐµÐ½Ð½Ñ â ÑÐ°Ð½ÐºÐ¸ Ð²Ð¸ÑÑÑÐ½ÑÑÑÑÑÑ; Ð»Ð¾Ð³ÑÐ²Ð°ÑÐ¸ eviction count; ÑÐºÑÐ¾ > N/Ð´Ð¾Ð±Ñ â docs-Ð½Ð¾ÑÐ°ÑÐºÐ° | S | no | B6 |
 | D5 | **L: mirror integrity sweep** â sha256 ÑÑÑÑ ÑÐ°Ð¹Ð»ÑÐ² Ñ `L:/gsv_mirror/wgpu_weights/chunks/` Ð¿ÑÐ¾ÑÐ¸ `index.json`: **31/31 chunks OK** (size + sha256 == filename, 116 433 397 B), `MIRROR-OK`; loose `blk*_f32` (Ð¿Ð¾Ð·Ð° wgpu_weights) â Ð±ÐµÐ· manifest, Ð½Ðµ Ð¿ÐµÑÐµÐ²ÑÑÑÐ»Ð¸ÑÑ; **â done 2026-11-19** (Ð½ÑÐ°Ð½Ñ: Ð·Ð°ÑÐ°Ð· 31 chunk, Ð½Ðµ 127 â Ð´Ð·ÐµÑÐºÐ°Ð»o ÑÑÐ¸Ð¼ÑÑÐ¾Ð²Ð°Ð½Ð¾/LRU Ð¿ÑÑÐ»Ñ 35B-ÑÐ¾Ð·ÑÐµÐ»ÐµÐ½Ð½Ñ) | M | no | L: drive |
-| D6 | **Proof TTL review** â Ð· Ð¾Ð´Ð½Ð¸Ð¼ peer Â«proof_gateÂ» ÑÑÐ°Ñ single-point-of-failure Ð´Ð»Ñ heavyweight; Ð·Ð°Ð´Ð¾ÐºÑÐ¼ÐµÐ½ÑÑÐ²Ð°ÑÐ¸ Ð´ÐµÐ³ÑÐ°Ð´Ð°ÑÑÑ (fail-open Ð´Ð»Ñ probes, fail-loud Ð´Ð»Ñ heavyweight) | S | no | watchdog/wgpu |
-| D7 | **Failover Ð´Ð¾ÐºÑÐ¼ÐµÐ½ÑÐ¾Ð²Ð°Ð½Ð¾** â Ð²ÑÐ´ÑÑÑÐ½ÑÑÑÑ peers â hub Ð²ÑÐ´Ð´Ð°Ñ 503 Ð½Ð° `/api/wgpu/task/poll` Ð· ÑÐµÑÐ½Ð¸Ð¼ ÑÑÐ»Ð¾Ð¼; UI Ð¿Ð¾ÐºÐ°Ð·ÑÑ Â«no workersÂ», Ð±ÐµÐ· Ð·Ð°Ð²Ð¸ÑÐ°Ð½Ð½Ñ | S | no | server code |
+| D6 | **Proof TTL review + failover doc** — `MESH_FAILOVER_2026-11-20.md` (proof_gate semantics, HTTP behavior, UI-states, rejoin checklist) — **✅ done 2026-11-20** (read-only audit; fail-open, honest proofs, no full lockout) | S | no | MESH_FAILOVER_2026-11-20.md, wgpu.rs |
+
+| D7 | **Failover документовано** — `MESH_FAILOVER_2026-11-20.md` (rejoin checklist, timeline bifrost #38→#39, ready_flip, UI-states) — **✅ done 2026-11-20** (docs-only; peer_poll dead → `task: null` ✅ verified, block err 400 ✅, hint ✅) | S | no | MESH_FAILOVER_2026-11-20.md |
+
 
 ## E. poolAI CI / Ð°11y (Ð·Ð¾Ð²Ð½ÑÑÐ½ÑÐ¹ ÑÑÐµÐº, Ð½Ðµ GSV-ÐºÐ¾Ð´)
 
