@@ -99,7 +99,11 @@ pub const TASKS: &[(&str, &str)] = &[
     ),
     (
         "cycle-watch",
-        "Phone-mesh reconnect-storm watchdog (console ring + rolling 24 h state); rc 1=alarm, 2=probe error; dry by default, `--alert` sends Telegram to Godfather channel (rate-limited 30 min)",
+        "Phone-mesh reconnect-storm watchdog (console ring + rolling 24 h state; rc 1=alarm, 2=probe error; dry by default, `--alert` sends Telegram to Godfather channel (rate-limited 30 min))",
+    ),
+    (
+        "cycle-watch-install",
+        "Install GSV-cycle-watch: persistent ONLOGON task (or HKCU Run) running `cycle-watch --every 300 --count 0` (infinite); thresholds = defaults",
     ),
     (
         "report",
@@ -661,6 +665,27 @@ pub fn install_watchdog(repo_root: &Path) -> Result<String, String> {
     if try_hkcu_run(&tr) {
         return Ok(format!(
             "gsv-watchdog-install: HKCU Run GSV-watchdog\nTR={tr}"
+        ));
+    }
+    Err("could not persist (need schtasks or reg.exe)".into())
+}
+
+/// Install the phone-mesh reconnect watchdog (`cycle-watch`) as a persistent
+/// ONLOGON task (or HKCU Run fallback) — same pattern as `install_watchdog`.
+/// The task command loops forever (`--every 300 --count 0`), so a single
+/// registration covers recurring watches; thresholds are defaults.
+pub fn install_cycle_watch(repo_root: &Path) -> Result<String, String> {
+    let exe = debug_bin(repo_root, "gsv-xtask");
+    let win_exe = native_path(&exe);
+    let tr = format!("\"{win_exe}\" cycle-watch --every 300 --count 0");
+    if try_schtasks(&tr) {
+        return Ok(format!(
+            "gsv-cycle-watch-install: schtasks GSV-cycle-watch (ONLOGON)\nTR={tr}"
+        ));
+    }
+    if try_hkcu_run_named("GSV-cycle-watch", &tr) {
+        return Ok(format!(
+            "gsv-cycle-watch-install: HKCU Run GSV-cycle-watch\nTR={tr}"
         ));
     }
     Err("could not persist (need schtasks or reg.exe)".into())
@@ -1728,6 +1753,10 @@ fn try_schtasks(tr: &str) -> bool {
 }
 
 fn try_hkcu_run(tr: &str) -> bool {
+    try_hkcu_run_named("GSV-watchdog", tr)
+}
+
+fn try_hkcu_run_named(value_name: &str, tr: &str) -> bool {
     let exe = Path::new(r"C:\Windows\System32\reg.exe");
     if !exe.is_file() {
         return false;
@@ -1737,7 +1766,7 @@ fn try_hkcu_run(tr: &str) -> bool {
             "add",
             r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
             "/v",
-            "GSV-watchdog",
+            value_name,
             "/t",
             "REG_SZ",
             "/d",

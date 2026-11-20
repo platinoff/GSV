@@ -219,6 +219,16 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         },
+        "cycle-watch-install" => match xtask::install_cycle_watch(&root) {
+            Ok(m) => {
+                println!("{m}");
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("gsv-cycle-watch-install: {e}");
+                ExitCode::FAILURE
+            }
+        },
         "push" => match xtask::git_push_only(&root) {
             Ok(m) => {
                 print!("{m}");
@@ -450,8 +460,7 @@ fn main() -> ExitCode {
                 .unwrap_or(0);
             let count = flag_value(&args, "--count")
                 .and_then(|v| v.parse::<u32>().ok())
-                .unwrap_or(1)
-                .max(1);
+                .unwrap_or(1);
             let alert = args.iter().any(|a| a == "--alert");
             let t = gsv::boxes::xtask::CycleWatchThresholds {
                 hourly: flag_value(&args, "--hourly")
@@ -470,18 +479,17 @@ fn main() -> ExitCode {
                     .and_then(|v| v.parse().ok())
                     .unwrap_or(1800),
             };
-            let cap = count.min(64);
-            let mut out = String::new();
+            // --count 0 = infinite loop (periodic use; `--every N` period).
+            let cap: u64 = if count == 0 { u64::MAX } else { count as u64 };
             let mut last_rc = 0;
             for i in 0..cap {
                 let (text, rc) = xtask::cycle_watch(&root, &base, &t, alert);
-                out.push_str(&text);
+                print!("{text}");
                 last_rc = rc;
                 if i + 1 < cap && every > 0 {
                     std::thread::sleep(std::time::Duration::from_secs(every));
                 }
             }
-            print!("{out}");
             if last_rc == 0 {
                 ExitCode::SUCCESS
             } else {
