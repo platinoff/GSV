@@ -43,12 +43,12 @@ below would otherwise match.
 
 | Reason | Ticket | Content |
 |--------|--------|---------|
-| `CLN-1 next-build output (untracked)` | CLN-1 | `omniroute/.build/**` — Next.js build cache (~19 k files, gitignored). |
-| `CLN-2 vendored cmake distro (owner)` | CLN-2 | `llama-rs/.cmake/**` — vendored CMake tree (~8 k files); delete only after a build-dependency check. |
-| `CLN-3 test artifacts (untracked)` | CLN-3 | `poolAI/.tmp/**` — test scratch (~198). |
-| `CNV-1 omniroute TS→Rust owner epic` | CNV-1 | omniroute `*.ts/tsx/mjs/jsx/cjs` (~8.3 k tracked) — exempt-till-epic vs open epic = owner decision. |
+| `CLN-1 next-build output (untracked)` | CLN-1 | `omniroute/.build/**` — Next.js build cache (~19 k files, gitignored). **Removed 2026-11-20** (~2.2 GB). |
+| `CLN-2 vendored cmake distro (owner)` | CLN-2 | `llama-rs/.cmake/**` — vendored CMake tree (~130 MB on disk). **Kept (2026-11-20, verified):** `.cargo/config.toml` pins `CMAKE` to `S:\rust\llama-rs\.cmake\cmake-3.31.9-windows-x86_64\bin\cmake.exe` and docs reference it — build dependency, not deleted; gitignored. |
+| `CLN-3 test artifacts (untracked)` | CLN-3 | `poolAI/.tmp/**` — test scratch (~198). **Removed 2026-11-20** (untracked, gitignored). |
+| `CNV-1 omniroute TS→Rust owner epic` | CNV-1 | omniroute `*.ts/tsx/mjs/jsx/cjs` (~8.3 k tracked) — **owner decision 2026-11-20: exempt-till-epic** (TS→Rust = separate epic, not this sweep). |
 | `owner: book-repo untouchable` | — | `rebook/**` — book products/covers (owner rule). |
-| `GEN-4 mesh-node scripts/images (owner)` | GEN-4 | mesh-node `*.sh` + flash `images/` — archive/delete owner decision. |
+| `GEN-4 mesh-node scripts/images (owner)` | GEN-4 | mesh-node `*.sh` + flash `images/` — **done 2026-11-20** (owner: doc in `.md`, `.sh` deleted, flash img/log artifacts removed; local commit `bae1008`, no remote). |
 | `ECO-8.2 llama-cpp patch-set (owner)` | ECO-8.2 | `llama-rs/patches/**` — sys bump stream, separate band. |
 | `vendored llama.cpp (owner)` | CLN-2/8.2 | `llama-rs/llama.cpp-master/**` — vendored upstream tree. |
 | `model weights/source artifacts` | — | `rusty-engine/data/models/**` — never convert. |
