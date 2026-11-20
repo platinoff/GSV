@@ -127,3 +127,5 @@ push-ÐºÐ°Ð½Ð°Ð» (RFC 6455) ÑÐ¾Ð·ÑÐ°ÑÐ¾Ð²Ð°Ð½Ð�
 - ÐÐ¾Ð´ â `cargo fmt` + `cargo clippy --all-targets` + `cargo test` (exit 0) + `--stretch-96` Ð´Ð»Ñ GSV-ÑÐµÐ¿Ð¾.
 - Docs â Ð¿Ð¾ÑÐ¸Ð»Ð°Ð½Ð½Ñ Ð¶Ð¸Ð²Ñ, `cargo xtask sync` (vision lockstep) Ð½Ðµ Ð»Ð°Ð¼Ð°ÑÑÑÑÑ.
 - ÐÐ´Ð¸Ð½ commit Ð½Ð° Ð¿ÑÐ½ÐºÑ; push ÑÑÐ»ÑÐºÐ¸ Ð¿ÑÑÐ»Ñ Ð·ÐµÐ»ÐµÐ½Ð¾Ð³Ð¾ gate.
+
+| Зауваження 2026-11-19 (C6 жива верифікація) | Парітет `/api/wgpu/mesh` vs `/api/sys/metrics` перевірений живцем (03:xx): обидві повертають **id=39 arm/bifrost alive** (FF-PC #37 повернувся, dead ~02:31); `cargo xtask status` — `alive 1/5 ready 0 [39]`. Денний звіт: `MESH_REPORT_2026-11-20.md` — `ready` виправлено на `ready_alive` (FF-PC #37: alive 92%, ready_alive 92%; біофрост #39: alive 80%, ready 0) + `ready_stale` колонка (1468 dead rows з ready:true). 

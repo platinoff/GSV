@@ -505,8 +505,9 @@ fn main() -> ExitCode {
                 let _ = std::fs::write(&lock, ts.to_string());
             }
             let mut last_rc = 0;
+            let verbose = count != 0;
             for i in 0..cap {
-                let (text, rc) = xtask::cycle_watch(&root, &base, &t, alert);
+                let (text, rc) = xtask::cycle_watch(&root, &base, &t, alert, verbose);
                 print!("{text}");
                 last_rc = rc;
                 if i + 1 < cap && every > 0 {

@@ -1120,7 +1120,9 @@ pub fn summarize_history(rows: &[Value]) -> Value {
     struct PeerAgg {
         samples: u64,
         alive: u64,
+        /// ready AND alive (honest — dead rows keep `ready:true` in history)
         ready: u64,
+        ready_total: u64,
         done_delta: u64,
         prev_done: Option<u64>,
         proofs_fresh_last: Option<u64>,
@@ -1160,6 +1162,7 @@ pub fn summarize_history(rows: &[Value]) -> Value {
                     samples: 0,
                     alive: 0,
                     ready: 0,
+                    ready_total: 0,
                     done_delta: 0,
                     prev_done: None,
                     proofs_fresh_last: None,
@@ -1173,7 +1176,10 @@ pub fn summarize_history(rows: &[Value]) -> Value {
                     a.alive += 1;
                 }
                 if p["ready"].as_bool() == Some(true) {
-                    a.ready += 1;
+                    a.ready_total += 1;
+                    if p["alive"].as_bool() == Some(true) {
+                        a.ready += 1;
+                    }
                 }
                 let d = p["done"].as_u64();
                 if let (Some(d), Some(prev)) = (d, a.prev_done) {
@@ -1215,6 +1221,8 @@ pub fn summarize_history(rows: &[Value]) -> Value {
                 "alive_share": if a.samples > 0 { a.alive as f64 / a.samples as f64 } else { 0.0 },
                 "ready": a.ready,
                 "ready_share": if a.samples > 0 { a.ready as f64 / a.samples as f64 } else { 0.0 },
+                "ready_total": a.ready_total,
+                "ready_stale": a.ready_total - a.ready,
                 "done_delta": a.done_delta,
                 "proofs_fresh": a.proofs_fresh_last,
                 "ewma_ms_avg": if a.ewma_n > 0 { Some(a.ewma_sum / a.ewma_n as f64) } else { None },
@@ -1271,12 +1279,12 @@ pub fn report_build(repo_root: &Path, days: u64) -> Result<String, String> {
         pct(&s["disk_free_gb"], "first"), pct(&s["disk_free_gb"], "last"),
         s["tasks_done_delta"], s["tasks_failed_delta"],
     ));
-    md.push_str("| Peer | class | adapter | alive (share) | ready (share) | done (Δ) | proofs fresh | EWMA ms avg |\n");
-    md.push_str("|---|---|---|---|---|---|---|---|\n");
+    md.push_str("| Peer | class | adapter | alive (share) | ready_alive (share) | ready_stale | done (Δ) | proofs fresh | EWMA ms avg |\n");
+    md.push_str("|---|---|---|---|---|---|---|---|---|\n");
     if let Some(peers) = s["peers"].as_array() {
         for p in peers {
             md.push_str(&format!(
-                "| {} | {} | {} | {}/{} ({:.0}%) | {}/{} ({:.0}%) | {} | {} | {} |\n",
+                "| {} | {} | {} | {}/{} ({:.0}%) | {}/{} ({:.0}%) | {} | {} | {} | {} |\n",
                 p["id"].as_u64().unwrap_or(0),
                 p["class"].as_str().unwrap_or("unknown"),
                 p["adapter"].as_str().unwrap_or("unknown"),
@@ -1286,6 +1294,7 @@ pub fn report_build(repo_root: &Path, days: u64) -> Result<String, String> {
                 p["ready"].as_u64().unwrap_or(0),
                 p["samples"].as_u64().unwrap_or(0),
                 p["ready_share"].as_f64().unwrap_or(0.0) * 100.0,
+                p["ready_stale"].as_u64().unwrap_or(0),
                 p["done_delta"].as_u64().unwrap_or(0),
                 p["proofs_fresh"]
                     .as_u64()
@@ -1435,6 +1444,7 @@ pub fn cycle_watch(
     base: &str,
     t: &CycleWatchThresholds,
     alert: bool,
+    verbose: bool,
 ) -> (String, i32) {
     let data = repo_root.join("data");
     let _ = std::fs::create_dir_all(&data);
@@ -1482,10 +1492,14 @@ pub fn cycle_watch(
     let rate_ok =
         last_alert_ts == 0 || now.saturating_sub(last_alert_ts) >= t.alert_rate_limit_secs;
 
-    let mut out = format!(
-        "cycle-watch: unreachable(60m)={last_hour} (10m)={last_10} blackout={blackout}s trip={} alert=",
-        reason.as_deref().unwrap_or("none"),
-    );
+    let mut out = if verbose || reason.is_some() {
+        format!(
+            "cycle-watch: unreachable(60m)={last_hour} (10m)={last_10} blackout={blackout}s trip={} alert=",
+            reason.as_deref().unwrap_or("none"),
+        )
+    } else {
+        String::new()
+    };
     let mut alert_outcome = "not-needed";
     if let Some(reason) = &reason {
         if rate_ok {
@@ -1530,8 +1544,10 @@ pub fn cycle_watch(
         &state_path,
         serde_json::to_string_pretty(&state).unwrap_or_default(),
     );
-    out.push_str(alert_outcome);
-    out.push('\n');
+    if !out.is_empty() {
+        out.push_str(alert_outcome);
+        out.push('\n');
+    }
     (out, if reason.is_some() { 1 } else { 0 })
 }
 
@@ -1992,7 +2008,9 @@ mod tests {
                 "ts": 300, "cpu_pct": 30.0, "ram_load_pct": 85, "disk_free_gb": 59,
                 "tasks_done": 7, "tasks_failed": 2,
                 "peers": [
-                    { "id": 38, "class": "phone", "adapter": "arm/bifrost", "alive": false, "ready": false, "done": 9, "proofs_fresh": 4, "ewma_ms": 1100.0 }
+                    { "id": 38, "class": "phone", "adapter": "arm/bifrost", "alive": false, "ready": false, "done": 9, "proofs_fresh": 4, "ewma_ms": 1100.0 },
+                    { "id": 80, "class": "phone", "adapter": "arm/old", "alive": false, "ready": true, "done": 0, "proofs_fresh": 0, "ewma_ms": null },
+                    { "id": 81, "class": "phone", "adapter": "arm/old", "alive": false, "ready": true, "done": 0, "proofs_fresh": 0, "ewma_ms": null }
                 ]
             }),
         ];
@@ -2012,6 +2030,23 @@ mod tests {
         assert_eq!(p["done_delta"], 4); // 40→5 reset (skip), 5→9 (+4)
         assert_eq!(p["proofs_fresh"], 4);
         assert!((p["ewma_ms_avg"].as_f64().unwrap() - 1000.0).abs() < 0.01);
+        // Stale rows: ready_total counts last-known ready; ready counts ready AND alive.
+        let p80 = s["peers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["id"] == 80)
+            .unwrap();
+        assert_eq!(p80["ready_total"], 1);
+        assert_eq!(p80["ready"], 0);
+        assert_eq!(p80["ready_stale"], 1);
+        let p81 = s["peers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["id"] == 81)
+            .unwrap();
+        assert_eq!(p81["ready_stale"], 1);
     }
 
     #[test]
