@@ -165,6 +165,7 @@ fn exempt_reason(rel: &str) -> Option<&'static str> {
         "jsonl" => Some("metadata-ring"),
         "sql" => Some("db-migrations"),
         "vbs" | "iss" | "service" => Some("os-deploy-launcher"),
+        "http" => Some("ide-http-client"),
         "csv" => Some("data-export"),
         "exe" | "dll" => Some("release-binary"),
         "bin" | "gguf" | "safetensors" | "img" | "xz" | "pth" | "onnx" | "mp4" | "mov" | "webm"
@@ -630,6 +631,10 @@ mod tests {
             Class::Exempt("data-export")
         );
         assert_eq!(classify("docs/pic.png", true), Class::Exempt("docs-assets"));
+        assert_eq!(
+            classify("omniroute/tests/manual/api.http", true),
+            Class::Exempt("ide-http-client")
+        );
         assert_eq!(
             classify("omniroute/.npmrc", true),
             Class::Exempt("repo-infra")

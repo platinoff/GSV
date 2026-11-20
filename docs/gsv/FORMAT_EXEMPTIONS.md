@@ -32,6 +32,7 @@ below would otherwise match.
 | `docs-assets` | `*.svg`, `*.png`, `*.jpg`, `*.jpeg`, `*.gif`, `*.webp`, `*.ico` | Pictures/illustrations for docs — no textual format carries pixels. (Inline `<svg>` in `.md` = CNV-5, owner decision.) |
 | `db-migrations` | `*.sql` | SQL is the native dialect of migrations; no Rust replacement. |
 | `os-deploy-launcher` | `*.vbs`, `*.iss`, `*.service` | Windows hidden-window launchers (watchdog/cycle-watch pattern), Inno Setup installer, systemd units — OS-native by definition. |
+| `ide-http-client` | `*.http` | IDE REST-client collections (VS Code REST Client / IntelliJ HTTP) — tool-specific, not convertible to `.md` without losing executable semantics (CNV-4). |
 | `data-export` | `*.csv` | Tabular exports (usage/tokenomics data), not source. |
 | `patch-set` | `*.patch` | ECO-8.2 llama-cpp patch-set applied by `cargo xtask` — the patch format is the deliverable. |
 | `test-fixture` | `*/tests/data/**` | Golden inputs consumed verbatim by tests (qwen25 goldens, etc.). |
