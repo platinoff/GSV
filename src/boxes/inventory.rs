@@ -183,6 +183,10 @@ fn exempt_reason(rel: &str) -> Option<&'static str> {
             Some("llm-txt-convention")
         } else if rel.contains("/tests/data/") || rel.contains("/fixtures/") {
             Some("test-fixture")
+        } else if rel.ends_with("docs/concept/poolAI_concept_root.txt") {
+            Some("product-canon-doc (path-contract)")
+        } else if basename(rel) == "odds.example.txt" || basename(rel) == "sponsors.example.txt" {
+            Some("operator-example-template")
         } else {
             None
         }
@@ -634,6 +638,18 @@ mod tests {
         assert_eq!(
             classify("omniroute/docs/i18n/ar/llm.txt", true),
             Class::Exempt("llm-txt-convention")
+        );
+        assert_eq!(
+            classify("poolAI/docs/concept/poolAI_concept_root.txt", true),
+            Class::Exempt("product-canon-doc (path-contract)")
+        );
+        assert_eq!(
+            classify("sport-forcast/odds.example.txt", true),
+            Class::Exempt("operator-example-template")
+        );
+        assert_eq!(
+            classify("sport-forcast/sponsors.example.txt", true),
+            Class::Exempt("operator-example-template")
         );
         assert_eq!(classify("poolAI/bin/run.ps1", true), Class::Actionable);
         assert_eq!(

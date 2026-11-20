@@ -35,10 +35,11 @@ below would otherwise match.
 | `ide-http-client` | `*.http` | IDE REST-client collections (VS Code REST Client / IntelliJ HTTP) — tool-specific, not convertible to `.md` without losing executable semantics (CNV-4). |
 | `llm-txt-convention` | basename `llm.txt`, `llms.txt` | LLM-crawler/landing convention (llmstxt.org style); filenames and cross-links are tooling/sync contracts (CNV-2). |
 | `vale-config` | `/.vale/**` | Vale prose-linter vocab/style config (tool-specific filenames/paths). |
-| `test-fixture` | `*/tests/data/**`, `**/fixtures/**` | Golden inputs and fixture samples consumed verbatim by tests. |
+| `test-fixture` | `*/tests/data/**`, `**/fixtures/**` | Golden inputs and fixture samples consumed verbatim by tests (qwen25/qwen35 goldens, RTK compression samples, etc.). |
+| `product-canon-doc (path-contract)` | `docs/concept/poolAI_concept_root.txt` | poolAI primary concept doc: `.txt` path is a stable contract referenced by rules/skills/docs/scripts (CNV-2); kept at canonical path. |
+| `operator-example-template` | `odds.example.txt`, `sponsors.example.txt` | User-copied runtime templates (read by tests via `include_str!` / documented copy paths); keep filename and format (CNV-2). |
 | `data-export` | `*.csv` | Tabular exports (usage/tokenomics data), not source. |
 | `patch-set` | `*.patch` | ECO-8.2 llama-cpp patch-set applied by `cargo xtask` — the patch format is the deliverable. |
-| `test-fixture` | `*/tests/data/**`, `**/fixtures/**` | Golden inputs and fixture samples consumed verbatim by tests (qwen25/qwen35 goldens, RTK compression samples, etc.). |
 | `playwright-e2e-js` | `poolAI/e2e/**` | poolAI browser E2E — owner-gated JS suite (E2), converted only with an owner epic. |
 | `env-template` | `.env.example`, `.env.sample`, `.env.template` | Documented placeholders (`CHANGEME`), never real secrets (SEC-2 verified). |
 | `local-secret (untracked)` | untracked `.env` / `*.pem` / `*.key` / `*.token` | Local secrets, gitignored by design (SEC band). Tracked copies are SEC-actionable, not exempt. |
@@ -51,6 +52,8 @@ below would otherwise match.
 | `CLN-2 vendored cmake distro (owner)` | CLN-2 | `llama-rs/.cmake/**` — vendored CMake tree (~130 MB on disk). **Kept (2026-11-20, verified):** `.cargo/config.toml` pins `CMAKE` to `S:\rust\llama-rs\.cmake\cmake-3.31.9-windows-x86_64\bin\cmake.exe` and docs reference it — build dependency, not deleted; gitignored. |
 | `CLN-3 test artifacts (untracked)` | CLN-3 | `poolAI/.tmp/**` — test scratch (~198). **Removed 2026-11-20** (untracked, gitignored). |
 | `CNV-1 omniroute TS→Rust owner epic` | CNV-1 | omniroute `*.ts/tsx/mjs/jsx/cjs` (~8.3 k tracked) — **owner decision 2026-11-20: exempt-till-epic** (TS→Rust = separate epic, not this sweep). |
+| `CNV-5 docs assets (owner)` | CNV-5 | `*.png/*.jpg/*.jpeg` exempt as `docs-assets`; `*.svg` not touched (owner 2026-11-20). |
+| `CNV-6 sql/yml/yaml (confirmed)` | CNV-6 | Tracked `*.sql` = `db-migrations`, tracked `*.yml/*.yaml` = `rust-ci-infra` (already exempt in inventory/registry, 2026-11-20). |
 | `owner: book-repo untouchable` | — | `rebook/**` — book products/covers (owner rule). |
 | `GEN-4 mesh-node scripts/images (owner)` | GEN-4 | mesh-node `*.sh` + flash `images/` — **done 2026-11-20** (owner: doc in `.md`, `.sh` deleted, flash img/log artifacts removed; local commit `bae1008`, no remote). |
 | `ECO-8.2 llama-cpp patch-set (owner)` | ECO-8.2 | `llama-rs/patches/**` — sys bump stream, separate band. |
