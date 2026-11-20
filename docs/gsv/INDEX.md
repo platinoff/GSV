@@ -11,6 +11,7 @@
 | [`SESSION_PRESET.md`](SESSION_PRESET.md) | Стислий операторський пресет: стан, команди, endpoints, відновлення хаба |
 | [`MESH_ROADMAP_TASKS_2026-11-19.md`](MESH_ROADMAP_TASKS_2026-11-19.md) | Список можливих завдань у планах (scope: хаб + bifrost #38; A–H, owner-гейти) |
 | [`MESH_FAILOVER_2026-11-20.md`](MESH_FAILOVER_2026-11-20.md) | Failover / dead-days & rejoin: proof_gate, HTTP, UI, rejoin checklist (#39) |
+| [`MESH_PWA_KEEPALIVE_2026-11-20.md`](MESH_PWA_KEEPALIVE_2026-11-20.md) | PWA keep-alive для #39: Android налаштування (Unrestricted/Screen-on), soak-check, client-fix (2-й фланг) |
 | [`MESH_CAPACITY_2026-11-19.md`](MESH_CAPACITY_2026-11-19.md) | Виміри каналів + бенчмарк меша + тюнінг-рекомендації |
 | [`../superpowers/plans/2026-11-19-mesh-polish-automation.md`](../superpowers/plans/2026-11-19-mesh-polish-automation.md) | План полірування + автоматизації (Pi dead; хаб + bifrost; phases 1–4) |
 | [`MESH_PI_BOOT_INCIDENT_2026-11-19.md`](MESH_PI_BOOT_INCIDENT_2026-11-19.md) | Пі boot failure — root-cause (4L7S після cmdline edit) + recovery-правила |

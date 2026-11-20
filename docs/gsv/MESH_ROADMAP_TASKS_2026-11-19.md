@@ -47,7 +47,8 @@ push-ÐºÐ°Ð½Ð°Ð» (RFC 6455) ÑÐ¾Ð·ÑÐ°ÑÐ¾Ð²Ð°Ð½Ð�
 |---|---|---|---|---|
 | B1 | **30-ÑÐ² Ð¿Ð°ÑÐ¸Ð²Ð½Ð¸Ð¹ Ð·Ð°Ð¿Ð¸Ñ** `/api/wgpu/console` + `/api/sys/metrics` (age/proofs/battery) â ÑÐ°Ð±Ð»Ð¸ÑÑ Â«ÑÑÑÐ³Ð³ÐµÑ / ÑÐ¾Ð·ÑÐ¸Ð² / Ð²ÑÐ´Ð½Ð¾Ð²Ð»ÐµÐ½Ð½ÑÂ» | S | no | live ÑÐ°Ð± |
 | B2 | **Push vs poll A/B** â ÐºÐ»ÑÑÐ½Ñ `/wgpu` PWA: Ð¿ÐµÑÐµÐ²ÑÑÐ¸ÑÐ¸ ÑÐ¾ WS-ÑÐµÐºÐ¾Ð½ÐµÐºÑ Ð· backoff Ð¿ÑÐ°ÑÑÑ, Ñ ÑÐ¸ Ð´Ð¾Ð¿Ð¾Ð¼Ð°Ð³Ð°Ñ fallback Ð½Ð° SSE/poll ÐºÐ¾Ð¶Ð½Ñ 5 s Ð¿ÑÐ¸ ÑÐ¾Ð·ÑÐ¸Ð²Ñ push | M | no | B1 |
-| B3 | **PWA keep-alive Ð³Ð°Ð¹Ð´** Ñ docs â Chrome â shortcut Â«Add to Home screenÂ», Battery optimization â Â«Not optimizedÂ» Ð´Ð»Ñ Chrome, Screen-on Ð¿ÑÐ´ ÑÐ°Ñ soak | S | no (ÑÐ½ÑÑÑÑÐºÑÑÑ), owner Ð´Ð»Ñ ÑÐµÐ°Ð»ÑÐ½Ð¸Ñ Ð·Ð¼ÑÐ½ Ð½Ð° ÑÐµÐ»ÐµÑÐ¾Ð½Ñ | B1 |
+| B3 | **PWA keep-alive — [MESH_PWA_KEEPALIVE_2026-11-20.md](MESH_PWA_KEEPALIVE_2026-11-20.md)** — Android → Battery → Apps → Chrome = "Unrestricted" (NOT per-tab adaptive); Screen-timeout "Never" д PWA. Client-fix (2-й фланг, owner-gated): ws.onclose реконект 5 s → debounce 20 s ×2..4. Live-верифікація 04:2x: p39 `push channel open` — **✅ done 2026-11-20** | M | no (2-й фланг, клієнт-фікс) | MESH_PWA_KEEPALIVE_2026-11-20.md |
+
 | B4 | **Heartbeat ÑÑÐ½ÑÐ½Ð³** â push mesh-metrics cadence 2 s â **5 s** Ð·Ð° Ð·Ð°Ð¼Ð¾Ð²ÑÑÐ²Ð°Ð½Ð½ÑÐ¼ (env `GSV_WGPU_WS_PUSH_SECS` 1..=30) â **â done 2026-11-19** (Ð¼ÐµÐ½ÑÐµ ÐºÐ¾Ð½ÑÐµÐ½ÑÐ½ Ð½Ð° 2.4 GHz + Ð¼ÐµÐ½ÑÐµ Ð½Ð°Ð²Ð°Ð½ÑÐ°Ð¶ÐµÐ½Ð½Ñ Ð½Ð° ÑÐ°Ð±; reversible ÑÐ»Ð°Ð³Ð¾Ð¼) | S | no | B1 |
 | B5 | **Auto re-register Ð¿ÑÑÐ»Ñ ÑÐµÑÑÐ°ÑÑÑ** â Ð¿ÐµÑÐµÐ²ÑÑÐ¸ÑÐ¸: `device_key` Ð²ÑÐ´Ð½Ð¾Ð²Ð»ÑÑÑÑÑÑ, `peer_id` #38 Ð½Ðµ Ð¼ÑÐ³ÑÑÑ Ð¿ÑÑÐ»Ñ reload ÑÑÐ¾ÑÑÐ½ÐºÐ¸ | S | no | B1 |
 | B6 | **ÐÐ·ÐµÑÐºÐ°Ð»Ð¾ 35B-ÑÐ°Ð½ÐºÑÐ² Ñ phone cache** â IndexedDB LRU 128 MiB Ð²Ð¶Ðµ Ñ (R3); Ð¿ÐµÑÐµÐ²ÑÑÐ¸ÑÐ¸ hit-rate Ð¿ÑÑÐ»Ñ 24 h soak; Ð·Ð° Ð¿Ð¾ÑÑÐµÐ±Ð¸ Ð¿ÑÐ´Ð½ÑÑÐ¸ Ð»ÑÐ¼ÑÑ | M | no | B1 |
