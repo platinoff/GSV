@@ -1,6 +1,6 @@
-# CNV-1 — omniroute TS→Rust (Wave 1–7 progress)
+# CNV-1 — omniroute TS→Rust (Wave 1–8 progress)
 
-**Status:** Wave 1–7 done (bounded slices) · **Date:** 2026-11-20  
+**Status:** Wave 1–8 done (bounded slices) · **Date:** 2026-11-20  
 **Ticket:** CNV-1 (owner: exempt-till-epic → epic started)  
 **Repo:** `S:\rust\omniroute` (origin `https://github.com/platinoff/OmniRoute` fork in use, branch `release/v3.8.50`)  
 **Scope reality:** 8,263 tracked TS/JS-family files deferred under CNV-1 (Next.js 16 app + `open-sse/` streaming engine + Electron + CLI + tests + scripts). Full migration is a multi-wave epic; waves deliver additive, bounded, testable ports without breaking existing npm/Node runtime.
@@ -101,13 +101,24 @@
 
 **W7 implementation:** extended `crates/omniroute-compression/src/caveman_rules.rs` + exports in `lib.rs`. **Parity evidence (Rust):** 20 tests green in `omniroute-compression` (+ gcf 16 green). No FS/Node deps, no JS-regex apply/execution, no TS runtime changes.
 
+## Wave 8 (SSE/protocol primitives, additive crate) — done
+
+| ID | Deliverable | Status |
+|----|-------------|--------|
+| W8-SSE-CRATE | `crates/omniroute-sse` (workspace member) with pure SSE helpers ported from `open-sse/utils/streamHelpers.ts` | done (`1280e69`) |
+| W8-PRIMITIVES | `strip_ansi_codes`, `parse_sse_data_payload`, `parse_sse_data_lines`, `extract_sse_data_line`, `parse_sse_line`, `format_sse` (incl. `[DONE]`, event wrapper, Claude event typing, null/empty handling, `usage.perf_metrics` null cleanup) | done |
+| W8-GATES | `cargo fmt --all --check`, `cargo clippy -p omniroute-sse -p omniroute-compression -p omniroute-gcf --all-targets` clean, `cargo test -p omniroute-sse -p omniroute-compression -p omniroute-gcf` pass | done |
+| W8-COMMIT | Conventional commit in omniroute + push | done (`1280e69`) |
+
+**W8 implementation:** `crates/omniroute-sse/src/lib.rs` + `Cargo.toml`; JSON boundary via `serde_json::Value` (preserve_order). **Parity evidence (Rust):** 6 tests green in `omniroute-sse` (+ compression 20, gcf 16). Additive, not wired into default runtime; opt-in adapter exposure can follow.
+
 ## Proposed next waves (owner-prioritized, in order)
 
 | Wave | Candidate | Rationale | Risk |
 |------|-----------|-----------|------|
-| W8 | `open-sse` hot-path components (translator/chunk/protocol primitives) behind adapters / opt-in flags | core engine leverage | L |
-| W9 | Pure compression/rules core continued (further deterministic helpers, regex-semantics-safe transforms, additional pack/data abstractions) as needed | extend portable core | M |
-| W10+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
+| W9 | Hot-path/protocol primitives continued (translator/chunk helpers, stateful SSE normalization slices, or opt-in napi/adapter exposure for `omniroute-sse`) behind opt-in boundaries | deepen core engine leverage safely | M/L |
+| W10 | Pure compression/rules core continued as needed (deterministic helpers, regex-semantics-safe transforms, pack/data abstractions) | extend portable core | M |
+| W11+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
 
 > W2 hardening option open: TS-shared golden vectors/fixture harness for GCF.
 
