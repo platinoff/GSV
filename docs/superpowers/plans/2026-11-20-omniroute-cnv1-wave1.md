@@ -1,6 +1,6 @@
-# CNV-1 — omniroute TS→Rust (Wave 1–18 progress)
+# CNV-1 — omniroute TS→Rust (Wave 1–19 progress)
 
-**Status:** Wave 1–18 done (bounded slices) · **Date:** 2026-11-21  
+**Status:** Wave 1–19 done (bounded slices) · **Date:** 2026-11-21  
 **Ticket:** CNV-1 (owner: exempt-till-epic → epic started)  
 **Repo:** `S:\rust\omniroute` (origin `https://github.com/platinoff/OmniRoute` fork in use, branch `release/v3.8.50`)  
 **Scope reality:** 8,263 tracked TS/JS-family files deferred under CNV-1 (Next.js 16 app + `open-sse/` streaming engine + Electron + CLI + tests + scripts). Full migration is a multi-wave epic; waves deliver additive, bounded, testable ports without breaking existing npm/Node runtime.
@@ -223,13 +223,24 @@
 
 **W18 implementation:** additive, opt-in napi/wasm/adapter boundaries only. No default runtime wiring.
 
+## Wave 19 (compression output-mode and lite text primitives) — done
+
+| ID | Deliverable | Status |
+|----|-------------|--------|
+| W19-OUTPUT-MODE | `omniroute-compression::output_mode`: `SHARED_BOUNDARIES`, `CAVEMAN_OUTPUT_MARKER`, intensity/language instruction builder, `build_caveman_output_instruction`, `should_bypass_caveman_output_mode`, `apply_caveman_output_mode` (deterministic JSON body injection, parity-oriented) | done (`2a4ee07`) |
+| W19-LITE-TEXT | `omniroute-compression::lite_text`: whitespace primitives (`trim_trailing_horizontal_whitespace`, `collapse_newline_runs`, `normalize_message_whitespace`) and tool-truncation helpers (`back_off_to_word_boundary`, `truncate_tool_content`, `TOOL_TRUNCATION_LOOKBACK`) | done |
+| W19-GATES | `cargo fmt --all --check`, clippy clean for `omniroute-compression/gcf/sse`, `cargo test -p omniroute-compression` **38 passed** (+7 vs W17/W18 baseline 31) | done |
+| W19-COMMIT | Conventional commit in omniroute + push | done (`2a4ee07`) |
+
+**W19 implementation:** additive, portable core crate coverage; no napi/wasm/runtime wiring changes (opt-in exposure not required this wave).
+
 ## Proposed next waves (owner-prioritized, in order)
 
 | Wave | Candidate | Rationale | Risk |
 |------|-----------|-----------|------|
-| W19 | Extend compression core/pack abstractions further (portable deterministic helpers, e.g. output-mode/lite text primitives where dependency-light) with parity tests and opt-in exposure as needed | extend portable core | M |
-| W20 | Protocol/primitives continued (additional bounded chunk/value utilities, adapter ergonomics) behind opt-in boundaries | deepen hot-path leverage | M/L |
-| W21+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
+| W20 | Protocol/primitives continued (additional bounded chunk/value utilities, adapter ergonomics) behind opt-in boundaries; optionally expose W19 helpers via napi/wasm if useful | deepen hot-path leverage / ergonomics | M/L |
+| W21 | Extend compression core further (e.g. stats/token-estimation primitives, diff/heatmap portable helpers, or more lite body-level transforms where dependency-light) with parity tests | extend portable core | M |
+| W22+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
 
 > W2 hardening option open: TS-shared golden vectors/fixture harness for GCF.
 
