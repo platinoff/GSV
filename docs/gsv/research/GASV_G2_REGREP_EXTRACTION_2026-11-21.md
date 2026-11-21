@@ -26,10 +26,13 @@
 - **sha256:** `25fadfbb37242047126ed8cbb904acbc56f94685be487ef016d71543222c9995`
 - **transplant-mirror:** replaced=502, kept_skeleton=0, bytes_written=706495136
 - **Spot parity:** OK for `blk.0.attn_norm.weight`, `blk.20.ffn_gate_inp.weight`, `blk.39.post_attention_norm.weight` vs staged F32 bins
-- **Publish:** not published to mirror (owner-gated). Still partial pack, no runnable full LLM, no quality claim.
+- **Mirror copy:** versioned `gsv-versus-ai-g2b.gguf` + manifest/report copied to `L:\gsv_mirror\models\gsv-versus-ai\` (canonical unchanged = Q8_0). 
+- **Live weights:** 381 new chunks copied to `S:/rust/GSV/data/wgpu_weights/chunks`, `data/wgpu_weights_tensors.json` merged to 502 entries (gitignored data).
+- **WGPU canary:** `g-704` `blk.0.ffn_gate_inp.weight` (newly added tensor) — `mt-704-0` peer 39 bifrost `max_err_model=3.388131789017202e-21`, `mt-704-1` peer 37 pc-wgpu `max_err_model=0.0` (<1e-4). Probe `mt-703` peer 37 `max_err=0`.
+
+Still partial pack, no runnable full LLM, no quality claim.
 
 ## Next
 
-- G2b publish decision (owner-gated) / register compatible tensors in live mirror.
 - G3: NanoJev eval-oracle fitness on candidate (no weight generation).
-- G4: WGPU cluster eval/regression on obtained artifact.
+- G4: WGPU cluster eval/regression on obtained artifact / broader tensor coverage for runnable full LLM (needs source + compatibility matrix).
