@@ -182,9 +182,9 @@
 
 | ID | Deliverable | Status |
 |----|-------------|--------|
-| W15-WASM-COMPRESSION | `crates/omniroute-wasm` extended with `omniroute-compression` APIs: `validateCompressionJson`, `validateRulePackJson`, `isCompressionExcluded` (string/JSON boundary) | done (`e4d4bce`) |
+| W15-WASM-COMPRESSION | `crates/omniroute-wasm` extended with `omniroute-compression` APIs: `validateCompressionJson`, `validateRulePackJson`, `isCompressionExcluded` (string/JSON boundary) | done (`78a55dd`) |
 | W15-BUILD-SMOKE | `cargo check -p omniroute-wasm`, `cargo build -p omniroute-wasm --target wasm32-unknown-unknown --release` + `wasm-bindgen --target nodejs` + Node smoke (GCF/SSE + compression validation/rule-pack/exclusions) — **ok** (generated `pkg/` gitignored) | done |
-| W15-COMMIT | Conventional commit in omniroute + push | done (`e4d4bce`) |
+| W15-COMMIT | Conventional commit in omniroute + push | done (`78a55dd`) |
 
 **W15 implementation:** opt-in WASM parity broadened to wasm-compatible compression helpers (including rule-pack validation path backed by `fancy-regex` on wasm32). No default runtime wiring.
 
