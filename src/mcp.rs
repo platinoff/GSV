@@ -339,13 +339,13 @@ pub fn tools_list() -> Vec<Value> {
         ),
         tool(
             "gsv_xtask",
-            "Read-only cargo xtask catalog (task=catalog|products|disk|sync). sync is --check drift only; remirror is gsv_vision_sync. Mutating tasks stay on cargo xtask.",
+            "Read-only cargo xtask catalog (task=catalog|products|disk|sync|rules|fm-xlink|mirror-inventory). sync is --check drift only; remirror is gsv_vision_sync. Mutating tasks stay on cargo xtask.",
             json!({
                 "type": "object",
                 "properties": {
                     "task": {
                         "type": "string",
-                        "description": "catalog (default), products, disk, or sync (`--check` drift only)."
+                        "description": "catalog (default), products, disk, sync (`--check` drift only), rules, fm-xlink, or mirror-inventory."
                     }
                 }
             }),
@@ -359,6 +359,19 @@ pub fn tools_list() -> Vec<Value> {
                     }
                 }
             })),
+        tool(
+            "gsv_gasv_status",
+            "Read-only GASV skeleton status: WGPU mirror/store inventory, cluster set profiles (min hub+bifrost, med +valhall, max +pi4 spec-only), and plan/artifact pointers. No mutating actions.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "verify": {
+                        "type": "boolean",
+                        "description": "If true, sha256-verify chunk files in the weight store (read-only)."
+                    }
+                }
+            }),
+        ),
         tool(
             "gsv_usage",
             "Session token usage (OmniRouter + MCP bot + OmniRoute pull).",
@@ -795,6 +808,7 @@ const TOOL_NAMES: &[&str] = &[
     "gsv_ranks",
     "gsv_xtask",
     "gsv_disk",
+    "gsv_gasv_status",
     "gsv_usage",
     "gsv_settings",
     "gsv_telegram",
@@ -1544,6 +1558,33 @@ async fn call_tool(state: &AppState, params: &Value, session: Option<&str>) -> V
                 .unwrap_or(false);
             tool_ok(crate::boxes::xtask::disk_wire(&state.repo_root, enforce))
         }
+        "gsv_gasv_status" => {
+            let verify = args.get("verify").and_then(Value::as_bool).unwrap_or(false);
+            let mirror = crate::boxes::xtask::mirror_inventory_wire(&state.repo_root, verify);
+            tool_ok(json!({
+                "ok": true,
+                "plan": "docs/superpowers/plans/2026-11-21-gasv-versus-ai-wgpu-cluster-skeleton.md",
+                "research": [
+                    "docs/gsv/research/GASV_A1_ECOSYSTEM_VERIFICATION_2026-11-21.md",
+                    "docs/gsv/research/GASV_A2_GGUF_SKELETON_WRITER_FEASIBILITY.md",
+                    "docs/gsv/research/GASV_A3_WEIGHT_TRANSPLANT_MATRIX_2026-11-21.md",
+                    "docs/gsv/research/GASV_A4_NANOJEV_WSP_K8S_BOUNDARY_2026-11-21.md",
+                    "docs/gsv/research/GASV_A5_CLUSTER_SET_SMOKE_2026-11-21.md"
+                ],
+                "cluster_sets": {
+                    "min": {"name":"hub+bifrost","target":"execution","peers":["hub","#38/#39 bifrost"]},
+                    "med": {"name":"min+valhall","target":"opportunistic","peers":["hub","#38","#35 valhall"]},
+                    "max": {"name":"med+pi4","target":"spec_only","peers":["hub","#38","#35","#36 pi4"]}
+                },
+                "artifact": {
+                    "name":"gasv-versus-ai.gguf",
+                    "status":"planned",
+                    "mirror_root":"L:/gsv_mirror/wgpu_weights",
+                    "publish_policy":"no git weights; manifest+sha256+eval gate"
+                },
+                "mirror": mirror
+            }))
+        }
         "gsv_usage" => tool_ok(crate::boxes::usage::wire_state(state).await),
         "gsv_settings" => tool_ok(crate::boxes::settings::wire(&state.data_dir)),
         "gsv_telegram" => {
@@ -2050,6 +2091,7 @@ mod tests {
             "gsv_ranks",
             "gsv_xtask",
             "gsv_disk",
+            "gsv_gasv_status",
             "gsv_usage",
             "gsv_settings",
             "gsv_telegram",
