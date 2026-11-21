@@ -1,6 +1,6 @@
 # GASV-G6: Q4 orientation, NanoJev eval-oracle, WGPU cluster adaptation (2026-11-21)
 
-**Status:** ✅ done (slice, 2026-11-21) — docs adapted, Q4 orientation recorded, NanoJev fitness boundary explicit, WGPU canaries g-708/g-709 PASS (g-709-1 was in-flight at commit time; confirm in wgpu_tasks.jsonl). No full-LLM claim.  
+**Status:** ✅ G6 done (slice) + G7 done (Q4_K/Q4_K_M export smoke, 2026-11-21). No full-LLM claim.  
 **Owner ask:** адаптація доків/планів під сталеві стани; ресерч рішень; орієнтир квантізація 4; настроїти все що можливо; прогнати виправлення ваг через NanoJev з кластером і WebGPU щоб версус максимально підходящий до екосистеми GSV.
 
 ## 0. Steady-state snapshot (2026-11-21)
@@ -94,3 +94,30 @@ Run additional canaries on large G5-registered tensors and/or representative G2b
 - At least one additional WGPU canary recorded.
 - NanoJev boundary stated factually; no false "weights fixed by NanoJev" claim.
 - Commit/push docs/reports only.
+
+## 7. G7 Q4_K / Q4_K_M export (2026-11-21, owner option 1)
+
+**Status:** ✅ done (code+smoke export)  
+**rusty-engine commits:** `692b8ce` (Q4_K quantizer + CLI q4_k/q4_k_m), `bf60c90` (small-tensor fallback).
+
+### Implementation
+
+- Added `quantize_q4_k` (GGML type 12, 256 values / 144 bytes) in `rusty-engine/src/quant.rs`: affine 6-bit scales/mins, superblock f16 d/dmin, min_off>=0 robust fallback for mixed-sign subblocks. Round-trip tests added.
+- `rusty quantize-export` now accepts `q4_k` and `q4_k_m`.
+- **Q4_K_M policy:** `q4_k_m-no-imatrix-fallback=q4_k` (no imatrix; no Q6_K encoder). All 256-aligned tensors -> Q4_K; tensors with numel%256!=0 fall back to Q8_0 (or F32 if not %32). Fallback recorded per-tensor in report (`requested_ggml_type`, `dst_ggml_type`, `fallback`).
+- Quant dispatch supports type 12.
+
+### Smoke export (G2b 502-tensor F32 canonical)
+
+- Input: `L:/gsv_mirror/models/gsv-versus-ai/gsv-versus-ai-g2b.gguf` (F32, 706,495,136B, 502 tensors)
+- Command: `rusty quantize-export ... q4_k_m --report ...`
+- Output report: `L:/gsv_mirror/models/gsv-versus-ai/gsv-versus-ai-g2b-q4_k_m.report.json`
+- Result: `n_tensors=502`, `bytes_written=99383136`, `total_src_bytes=706464256`, `total_out_bytes=99349416`, `compression_ratio=7.1109`, `sha256=883f2c0349f27fb396f6401ab3b94aeb812dc1f3ee70dcb30bf14659223c1504`, `quant_policy=q4_k_m-no-imatrix-fallback=q4_k`.
+- Sample err (blk.0.ffn_down.weight): max_abs_err=0.015535, mean_abs_err=0.0005677 (vs Q4_0 0.017212 / 0.0007044). 
+- Tmp GGUF removed after smoke; report kept on mirror. **Not published as canonical/distribution artifact** (owner-gated).
+
+### Caveats
+
+- Not true llama.cpp Q4_K_M importance-mixed quant (no imatrix, no Q6_K encoder). Report states fallback explicitly.
+- Small-tensor fallback to Q8_0/F32 is documented per-tensor.
+- No runtime infer/quality claim. Artifact still partial pack.
