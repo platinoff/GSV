@@ -1,6 +1,6 @@
-# CNV-1 — omniroute TS→Rust (Wave 1–16 progress)
+# CNV-1 — omniroute TS→Rust (Wave 1–17 progress)
 
-**Status:** Wave 1–16 done (bounded slices) · **Date:** 2026-11-20  
+**Status:** Wave 1–17 done (bounded slices) · **Date:** 2026-11-21  
 **Ticket:** CNV-1 (owner: exempt-till-epic → epic started)  
 **Repo:** `S:\rust\omniroute` (origin `https://github.com/platinoff/OmniRoute` fork in use, branch `release/v3.8.50`)  
 **Scope reality:** 8,263 tracked TS/JS-family files deferred under CNV-1 (Next.js 16 app + `open-sse/` streaming engine + Electron + CLI + tests + scripts). Full migration is a multi-wave epic; waves deliver additive, bounded, testable ports without breaking existing npm/Node runtime.
@@ -199,13 +199,25 @@
 
 **W16 implementation:** additive, opt-in boundaries only (napi/wasm/adapter). No default runtime wiring.
 
+## Wave 17 (compression core helpers: message content, language detection, ultra heuristics) — done
+
+| ID | Deliverable | Status |
+|----|-------------|--------|
+| W17-MESSAGE-CONTENT | `omniroute-compression::message_content`: `is_text_block`, `extract_text_content`, `map_text_content`, `replace_text_content` (pure JSON/data abstractions, parity with `messageContent.ts`) | done (`9ba9778`) |
+| W17-LANG-DETECT | `omniroute-compression::language_detector`: `detect_compression_language`, `list_supported_compression_languages` (deterministic heuristics incl. CJK disambiguation) | done |
+| W17-ULTRA | `omniroute-compression::ultra_heuristic`: `score_token`, `prune_by_score` (deterministic scoring/pruning, whitespace-preserving tokenization) | done |
+| W17-GATES | `cargo fmt --all --check`, clippy clean for `omniroute-compression/gcf/sse`, `cargo test -p omniroute-compression` **31 passed** (+11 vs prior 20) | done |
+| W17-COMMIT | Conventional commit in omniroute + push | done (`9ba9778`) |
+
+**W17 implementation:** additive, portable core crate coverage; no runtime/napi/wasm wiring changes.
+
 ## Proposed next waves (owner-prioritized, in order)
 
 | Wave | Candidate | Rationale | Risk |
 |------|-----------|-----------|------|
-| W17 | Extend compression/rules core coverage where portable (deterministic helpers, pack/data abstractions) with parity tests | extend portable core | M |
 | W18 | Protocol/primitives continued (additional bounded chunk/value utilities, adapter ergonomics) behind opt-in boundaries | deepen hot-path leverage | M/L |
-| W19+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
+| W19 | Extend compression core/pack abstractions further (portable deterministic helpers, e.g. output-mode/lite text primitives where dependency-light) with parity tests | extend portable core | M |
+| W20+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
 
 > W2 hardening option open: TS-shared golden vectors/fixture harness for GCF.
 
