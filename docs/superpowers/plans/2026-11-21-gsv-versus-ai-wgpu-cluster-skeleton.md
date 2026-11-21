@@ -1,7 +1,7 @@
 # GASV-VERSUS-AI — Wi-Fi WGPU cluster skeleton / weight-mirror research plan
 
 **Date:** 2026-11-21  
-**Status:** Deep-research plan (draft for owner review) → then tickets  
+**Status:** A–E executed (2026-11-21). Phase F planned: proper follow-up for real shexp transplant candidate (artifact contract, quant eval, parity+med gate, owner-gated publish decision, regression). No quality/parity claim until F3 passes. 
 **Owner ask:** перевірка екосистеми, ресерч/адаптація харнесів + MCP toolchain, доадаптація GSV MCP openbot / poolAI / Kubernetes / WGPU mirror / NanoJev; робота з WGPU у Wi-Fi кластері через NanoJev; зібрати наново ваги у mirror з поточних моделей (де можливо); спробувати зібрати skeleton з random weights під Wi-Fi cluster архітектуру; потім через NanoJev + regrep повитягувати ваги з поточних моделей у Rust у mirror і назвати 4-квантовану збірку `gsv-versus-ai.gguf`.  
 **Rule:** спочатку план з deep research, потім тікети. Жодних ваг/секретів у git. Rust-first. MSYS2 bash. No `rebook/**`.
 
@@ -198,6 +198,18 @@
 - **GASV-E2:** med set (+valhall) opportunistic — ✅ 2026-11-21 (`t-1795272283847007500`): valhall rejoined as peer **#40** (`arm/valhall`, phone) `alive/ready`. Probe `mt-644` `matmul64` done `65.5ms/op · 8.0 MFLOPS · max_err=0`. Smoke `mt-646` `weights_matvec blk.7.ffn_up_shexp.weight` shards=1 routed to peer 40, status `done`. No failover incident induced.
 - **GASV-E3:** max set spec only (Pi deferred) — ✅ spec-only 2026-11-21 (`t-1795272283960030800`): Pi4 max set is documentation-only until hardware restored; no tests/dispatch; requires owner gate, dedicated node/RAM, restored mesh-node remote, and reproducible parity evidence before any activation.
 
+### Phase F — Proper shexp-pack follow-up (real transplant candidate)
+
+Research: [`docs/gsv/research/GASV_F_PROPER_NEXT_STEPS_2026-11-21.md`](../../gsv/research/GASV_F_PROPER_NEXT_STEPS_2026-11-21.md).
+
+**Candidate fact (2026-11-21):** `rusty skeleton` + `rusty transplant-mirror` produced temp `gsv-versus-ai.gguf` from mirror shexp tensors: 518,004,896 B, 121 tensors, 121/121 direct-copy, `kept_skeleton 0`, sha256 `591b6310833e873159f48179ff873b6c8bad7c2da642181452b93214fa8a7669`. Inspect/manifest/publish-check dry-run OK. **Not a runnable full LLM** (partial shexp pack; validate/infer N/A; no quality/parity claim).
+
+- **GASV-F1 (rusty-engine+gsv):** artifact contract/provenance — define `gasv.artifact-manifest.v1` (or extend manifest) with `kind=partial-shexp-pack`, `runnable=false`, coverage, source tensors.json+chunks, transplant report sha256, NanoJev=eval-oracle-only, no-quality-parity-claim. Emit small transplant report artifact.
+- **GASV-F2 (rusty-engine):** Q8_0/Q4_0 export evaluation — export temp Q8_0/Q4_0 from F32 candidate; record size, per-tensor max/mean abs err vs F32 dequant (sample or full cheap), inspect/manifest; decision matrix. Q4_K_M remains parity-gated/deferred.
+- **GASV-F3 (gsv):** proper eval gate — structural (inspect/manifest/sha256/count/dims/dtype), parity (tensor bytes/chunk-hash parity, sample or full 121), med cluster smoke (weights_matvec canary on >=3 transplanted tensors across #37/#39/#40, `max_err_model < 1e-4`), explicit infer N/A.
+- **GASV-F4 (gsv, owner-gated):** publish decision — choose artifact(s) for `L:\gsv_mirror\models\gsv-versus-ai\` (F32/Q8_0/Q4_0/canonical naming), include manifest + small transplant/provenance report; no git weights; replace or version alongside prior minimal skeleton only with owner confirmation.
+- **GASV-F5 (gsv):** med cluster regression record + docs — post-publish canary evidence (#37 RDNA2 localhost secure-context, #39 bifrost, #40 valhall), update plan/tickets; document Firefox LAN secure-context constraint.
+
 ## 7. Gates / Definition of Done
 
 - **Research DoD:** cited facts, file paths, feasibility class, risks, explicit non-goals.
@@ -213,11 +225,13 @@
 - Committing model weights/mirror binaries — **no**.
 - Big-bang “all models merged” claim before compatibility matrix — **no**.
 
-## 9. Immediate next action (after this plan)
+## 9. Immediate next action (Phase F)
 
-1. Owner review/adjust scope and naming.
-2. Create GASV-A1..A5 tickets on GSV board.
-3. Execute A1/A2 in parallel (docs/research only), then B/C by gates.
+1. **Create GASV-F1..F5 tickets** on GSV board (this pass).
+2. **F1+F2** in parallel: artifact contract/provenance report + Q8_0/Q4_0 quant eval on temp candidate (no mirror publish).
+3. **F3** med eval gate: structural + parity + weights_matvec canary on #37/#39/#40 with `max_err_model < 1e-4`; no infer/quality claim.
+4. **F4 owner-gated:** publish selected artifact(s) to `L:\gsv_mirror\models\gsv-versus-ai\`; no git weights.
+5. **F5:** regression record + docs update.
 
 ## 10. Reference files
 
