@@ -361,7 +361,7 @@ pub fn tools_list() -> Vec<Value> {
             })),
         tool(
             "gsv_gasv_status",
-            "Read-only GASV skeleton status: WGPU mirror/store inventory, cluster set profiles (min hub+bifrost, med +valhall, max +pi4 spec-only), and plan/artifact pointers. No mutating actions.",
+            "Read-only GASV status: mirror/store inventory, cluster set profiles, GASV ticket summary, and plan/artifact pointers. No mutating actions.",
             json!({
                 "type": "object",
                 "properties": {
@@ -1561,6 +1561,29 @@ async fn call_tool(state: &AppState, params: &Value, session: Option<&str>) -> V
         "gsv_gasv_status" => {
             let verify = args.get("verify").and_then(Value::as_bool).unwrap_or(false);
             let mirror = crate::boxes::xtask::mirror_inventory_wire(&state.repo_root, verify);
+            let tickets_path = state
+                .repo_root
+                .as_path()
+                .join("docs")
+                .join("gsv")
+                .join("tickets.jsonl");
+            let mut gasv_tickets = Vec::new();
+            if let Ok(text) = std::fs::read_to_string(&tickets_path) {
+                for line in text.lines() {
+                    let Ok(v) = serde_json::from_str::<Value>(line) else {
+                        continue;
+                    };
+                    let title = v.get("title").and_then(Value::as_str).unwrap_or("");
+                    if !title.starts_with("GASV-") {
+                        continue;
+                    }
+                    gasv_tickets.push(json!({
+                        "id": v.get("id").and_then(Value::as_str),
+                        "title": title,
+                        "status": v.get("status").and_then(Value::as_str),
+                    }));
+                }
+            }
             tool_ok(json!({
                 "ok": true,
                 "plan": "docs/superpowers/plans/2026-11-21-gasv-versus-ai-wgpu-cluster-skeleton.md",
@@ -1582,6 +1605,7 @@ async fn call_tool(state: &AppState, params: &Value, session: Option<&str>) -> V
                     "mirror_root":"L:/gsv_mirror/wgpu_weights",
                     "publish_policy":"no git weights; manifest+sha256+eval gate"
                 },
+                "tickets": gasv_tickets,
                 "mirror": mirror
             }))
         }
