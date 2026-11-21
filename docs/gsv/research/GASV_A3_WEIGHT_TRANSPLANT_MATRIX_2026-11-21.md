@@ -3,7 +3,7 @@
 **Date:** 2026-11-21  
 **Ticket:** `t-1795270403148226800` (gsv, in_progress)  
 **Scope:** research/docs/spec only. **Read-only** inventory; no weight copy, no GGUF writes, no model mutation.  
-**Plan:** [`docs/superpowers/plans/2026-11-21-gasv-versus-ai-wgpu-cluster-skeleton.md`](../../superpowers/plans/2026-11-21-gasv-versus-ai-wgpu-cluster-skeleton.md)
+**Plan:** [`docs/superpowers/plans/2026-11-21-gsv-versus-ai-wgpu-cluster-skeleton.md`](../../superpowers/plans/2026-11-21-gsv-versus-ai-wgpu-cluster-skeleton.md)
 
 ## 1. Source model inventory (local, read-only snapshot)
 
@@ -37,7 +37,7 @@ Source: `S:\rust\rusty-engine\data\models\` (2026-11-21).
   "schema": "gasv.transplant-manifest.v1",
   "generated_at": "ISO-8601",
   "target": {
-    "name": "gasv-versus-ai.gguf",
+    "name": "gsv-versus-ai.gguf",
     "arch": "qwen35moe|qwen35|...",
     "quant": "Q4_K_M",
     "seed": 0,

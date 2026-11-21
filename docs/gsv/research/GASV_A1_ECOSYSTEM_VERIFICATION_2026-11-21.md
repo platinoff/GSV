@@ -3,7 +3,7 @@
 **Date:** 2026-11-21  
 **Ticket:** `t-1795270402999084900` (gsv, in_progress)  
 **Scope:** research/docs only. No code/weights/secrets.  
-**Plan:** [`docs/superpowers/plans/2026-11-21-gasv-versus-ai-wgpu-cluster-skeleton.md`](../../superpowers/plans/2026-11-21-gasv-versus-ai-wgpu-cluster-skeleton.md)
+**Plan:** [`docs/superpowers/plans/2026-11-21-gsv-versus-ai-wgpu-cluster-skeleton.md`](../../superpowers/plans/2026-11-21-gsv-versus-ai-wgpu-cluster-skeleton.md)
 
 ## 1. Registered product state (live snapshot)
 
@@ -57,7 +57,7 @@ Source: `cargo xtask products --state` (GSV, 2026-11-21).
 | `K8S_WGPU_SYNTHESIS_2026-11-18.md` | active | no k8s for current fleet |
 | `NANOJEV_PORT_FEASIBILITY_2026-11-18.md` | active | NanoJev safetensors eval/research, not GGUF transplant |
 | `WSP_*` poolAI/GSV docs | active, docs-only/sketch | ECO-9.2 sketch; owner intent NanoJev/RL replacement direction recorded in GASV plan |
-| GASV plan | added 69829ca | `docs/superpowers/plans/2026-11-21-gasv-versus-ai-wgpu-cluster-skeleton.md` |
+| GASV plan | added 69829ca | `docs/superpowers/plans/2026-11-21-gsv-versus-ai-wgpu-cluster-skeleton.md` |
 
 ## 5. Gaps / owner-gated
 

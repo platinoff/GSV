@@ -3,7 +3,7 @@
 **Date:** 2026-11-21  
 **Ticket:** `t-1795270403265695800` (gsv, in_progress)  
 **Scope:** docs/spec only. No code/network changes.  
-**Plan:** [`docs/superpowers/plans/2026-11-21-gasv-versus-ai-wgpu-cluster-skeleton.md`](../../superpowers/plans/2026-11-21-gasv-versus-ai-wgpu-cluster-skeleton.md)
+**Plan:** [`docs/superpowers/plans/2026-11-21-gsv-versus-ai-wgpu-cluster-skeleton.md`](../../superpowers/plans/2026-11-21-gsv-versus-ai-wgpu-cluster-skeleton.md)
 
 ## 1. Cluster sets (owner-confirmed)
 

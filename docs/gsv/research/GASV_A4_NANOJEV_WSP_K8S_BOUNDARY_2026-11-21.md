@@ -3,7 +3,7 @@
 **Date:** 2026-11-21  
 **Ticket:** `t-1795270403204663600` (gsv, in_progress)  
 **Scope:** docs only. No code/weights/secrets.  
-**Plan:** [`docs/superpowers/plans/2026-11-21-gasv-versus-ai-wgpu-cluster-skeleton.md`](../../superpowers/plans/2026-11-21-gasv-versus-ai-wgpu-cluster-skeleton.md)
+**Plan:** [`docs/superpowers/plans/2026-11-21-gsv-versus-ai-wgpu-cluster-skeleton.md`](../../superpowers/plans/2026-11-21-gsv-versus-ai-wgpu-cluster-skeleton.md)
 
 ## 1. Owner intent (2026-11-21, authoritative for GASV planning)
 
@@ -18,7 +18,7 @@
 | poolAI (тато/FM/WSP) | NanoJev/weight-space method as RL-replacement direction; WSP/ActivationAudit/WeightPatch sketch lane | docs/research, gated eval protocol | un-gated weight patching, production RL replacement claim |
 | rusty-engine | NanoJev safetensors DecisionModel (Qwen3-0.6B, 322 tensors) | inspect/predict/replay eval, research | GGUF writer, universal weight transplant, runtime omni GGUF lane |
 | GSV mesh/WGPU | NanoJev as **eval/oracle/fitness** signal for GASV pipeline | advisory scoring, acceptance gates, telemetry/docs | direct safetensors→arbitrary GGUF transplant, silent weight mutation |
-| GASV artifact | `gasv-versus-ai.gguf` skeleton/transplant/quant pipeline | manifest-driven compatible transplant, checksums, eval gates | “NanoJev transplanted weights” claim without tensor-compatibility proof |
+| GASV artifact | `gsv-versus-ai.gguf` skeleton/transplant/quant pipeline | manifest-driven compatible transplant, checksums, eval gates | “NanoJev transplanted weights” claim without tensor-compatibility proof |
 
 ## 3. WSP boundary
 
@@ -39,6 +39,6 @@
 
 ## 6. GASV pipeline rule (normative)
 
-> NanoJev may score, gate, or prioritize; it may not silently transform incompatible weights. Any weight movement into `gasv-versus-ai.gguf` requires: source tensor identity, shape/dtype/quant compatibility class, transform manifest, checksum, and eval gate.
+> NanoJev may score, gate, or prioritize; it may not silently transform incompatible weights. Any weight movement into `gsv-versus-ai.gguf` requires: source tensor identity, shape/dtype/quant compatibility class, transform manifest, checksum, and eval gate.
 
 **Verdict:** PASS (docs boundary clarified; owner intent recorded).

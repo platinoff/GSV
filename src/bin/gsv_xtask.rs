@@ -592,7 +592,7 @@ fn main() -> ExitCode {
             let manifest = flag_value(&args, "--manifest").map(PathBuf::from);
             let dest = flag_value(&args, "--dest")
                 .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from("L:/gsv_mirror/models/gasv-versus-ai"));
+                .unwrap_or_else(|| PathBuf::from("L:/gsv_mirror/models/gsv-versus-ai"));
             let mut errors: Vec<String> = Vec::new();
             let mut artifact_info = serde_json::Value::Null;
             let mut manifest_info = serde_json::Value::Null;

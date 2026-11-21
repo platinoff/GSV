@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-21  
 **Status:** Deep-research plan (draft for owner review) → then tickets  
-**Owner ask:** перевірка екосистеми, ресерч/адаптація харнесів + MCP toolchain, доадаптація GSV MCP openbot / poolAI / Kubernetes / WGPU mirror / NanoJev; робота з WGPU у Wi-Fi кластері через NanoJev; зібрати наново ваги у mirror з поточних моделей (де можливо); спробувати зібрати skeleton з random weights під Wi-Fi cluster архітектуру; потім через NanoJev + regrep повитягувати ваги з поточних моделей у Rust у mirror і назвати 4-квантовану збірку `gasv-versus-ai.gguf`.  
+**Owner ask:** перевірка екосистеми, ресерч/адаптація харнесів + MCP toolchain, доадаптація GSV MCP openbot / poolAI / Kubernetes / WGPU mirror / NanoJev; робота з WGPU у Wi-Fi кластері через NanoJev; зібрати наново ваги у mirror з поточних моделей (де можливо); спробувати зібрати skeleton з random weights під Wi-Fi cluster архітектуру; потім через NanoJev + regrep повитягувати ваги з поточних моделей у Rust у mirror і назвати 4-квантовану збірку `gsv-versus-ai.gguf`.  
 **Rule:** спочатку план з deep research, потім тікети. Жодних ваг/секретів у git. Rust-first. MSYS2 bash. No `rebook/**`.
 
 ## 0. Executive summary (чесно)
@@ -66,7 +66,7 @@
 
 ### G4 — Mirror weight rebuild / skeleton
 - Inventory existing GGUFs and mirror chunks; define canonical mirror manifest.
-- Design `gasv-versus-ai.gguf` skeleton: architecture family, tensor set, experts, context, dtype/quant target (Q4), random-init seed policy.
+- Design `gsv-versus-ai.gguf` skeleton: architecture family, tensor set, experts, context, dtype/quant target (Q4), random-init seed policy.
 - Build Rust pipeline: skeleton GGUF writer → random init → (optional) selective weight transplant from compatible tensors → quantize Q4 → validate.
 
 ## 3. Deep research tracks (before implementation tickets)
@@ -117,7 +117,7 @@
 
 **Deliverable:** update `K8S_WGPU_SYNTHESIS` addendum + `docs/gsv/GSV_MCP_OPENBOT.md` delta plan.
 
-## 4. Proposed target artifact: `gasv-versus-ai.gguf`
+## 4. Proposed target artifact: `gsv-versus-ai.gguf`
 
 > **Name reserved by owner request.** No claim of quality/parity until eval gates pass.
 
@@ -125,8 +125,8 @@
 
 | Field | Initial proposal (research to confirm) |
 |---|---|
-| Filename | `gasv-versus-ai.gguf` |
-| Location | `L:\gsv_mirror\models\gasv-versus-ai\` (not git) + manifest/checksums in gitignored data, metadata doc in docs |
+| Filename | `gsv-versus-ai.gguf` |
+| Location | `L:\gsv_mirror\models\gsv-versus-ai\` (not git) + manifest/checksums in gitignored data, metadata doc in docs |
 | Build mode | skeleton random-init first; selective compatible transplant second; quantize third |
 | Quant target | **Q4_K_M** (or project-selected Q4 variant supported by target runtime) |
 | Cluster target | min/med Wi-Fi WGPU sets; hub-constrained |
@@ -157,7 +157,7 @@
                                          [quantize/export Q4]
                                                     |
                                                     v
-                                         [gasv-versus-ai.gguf + manifest]
+                                         [gsv-versus-ai.gguf + manifest]
                                                     |
                                                     v
                                     [mirror publish + WGPU cluster smoke eval]
@@ -191,7 +191,7 @@
 - **GASV-D1:** compatible tensor transplant engine (manifest-driven) — ✅ 2026-11-21 (`t-1795272283289364000`, `6fa1bd4`).
 - **GASV-D2:** incompatible tensor policy (skip/project/research flag; no silent corruption) — ✅ 2026-11-21 (`t-1795272283395485900`, `b9aabda`).
 - **GASV-D3:** Q4 quant/export pipeline + checksums/provenance — ✅ 2026-11-21 (`t-1795272283500474100`, `90a2a02`; supported Q4_0/Q8_0, Q4_K_M parity-gated deferred).
-- **GASV-D4:** publish `gasv-versus-ai.gguf` to mirror only after eval gate — ⏸ owner-gated (`t-1795272283607411700`).
+- **GASV-D4:** publish `gsv-versus-ai.gguf` to mirror only after eval gate — ⏸ owner-gated (`t-1795272283607411700`).
 
 ### Phase E — Cluster eval
 - **GASV-E1:** min set (hub+bifrost) smoke: load/dispatch/proof/latency — ✅ 2026-11-21 (`t-1795272283721764300`): hub healthy (`0.248.0`), bifrost **peer 39 alive=true** (38 present/alive=false). Owner-go canary `mt-641` `weights_matvec blk.7.ffn_gate_shexp.weight` shards=1 → **done** on peer 39, `max_err_model=5.55e-17`, `elapsed_ms~261`, `8.03 MFLOPS`. Fail-open/proof-gate unchanged.

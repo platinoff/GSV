@@ -1586,7 +1586,7 @@ async fn call_tool(state: &AppState, params: &Value, session: Option<&str>) -> V
             }
             tool_ok(json!({
                 "ok": true,
-                "plan": "docs/superpowers/plans/2026-11-21-gasv-versus-ai-wgpu-cluster-skeleton.md",
+                "plan": "docs/superpowers/plans/2026-11-21-gsv-versus-ai-wgpu-cluster-skeleton.md",
                 "research": [
                     "docs/gsv/research/GASV_A1_ECOSYSTEM_VERIFICATION_2026-11-21.md",
                     "docs/gsv/research/GASV_A2_GGUF_SKELETON_WRITER_FEASIBILITY.md",
@@ -1600,7 +1600,7 @@ async fn call_tool(state: &AppState, params: &Value, session: Option<&str>) -> V
                     "max": {"name":"med+pi4","target":"spec_only","peers":["hub","#38","#35","#36 pi4"]}
                 },
                 "artifact": {
-                    "name":"gasv-versus-ai.gguf",
+                    "name":"gsv-versus-ai.gguf",
                     "status":"planned",
                     "mirror_root":"L:/gsv_mirror/wgpu_weights",
                     "publish_policy":"no git weights; manifest+sha256+eval gate"
