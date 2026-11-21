@@ -1,6 +1,6 @@
-# CNV-1 — omniroute TS→Rust (Wave 1–19 progress)
+# CNV-1 — omniroute TS→Rust (Wave 1–20 progress)
 
-**Status:** Wave 1–19 done (bounded slices) · **Date:** 2026-11-21  
+**Status:** Wave 1–20 done (bounded slices) · **Date:** 2026-11-21  
 **Ticket:** CNV-1 (owner: exempt-till-epic → epic started)  
 **Repo:** `S:\rust\omniroute` (origin `https://github.com/platinoff/OmniRoute` fork in use, branch `release/v3.8.50`)  
 **Scope reality:** 8,263 tracked TS/JS-family files deferred under CNV-1 (Next.js 16 app + `open-sse/` streaming engine + Electron + CLI + tests + scripts). Full migration is a multi-wave epic; waves deliver additive, bounded, testable ports without breaking existing npm/Node runtime.
@@ -234,13 +234,25 @@
 
 **W19 implementation:** additive, portable core crate coverage; no napi/wasm/runtime wiring changes (opt-in exposure not required this wave).
 
+## Wave 20 (W19 output-mode/lite text helpers exposed via napi/wasm/adapter) — done
+
+| ID | Deliverable | Status |
+|----|-------------|--------|
+| W20-NAPI | Opt-in napi exports: `compressionBuildCavemanOutputInstruction`, `compressionShouldBypassCavemanOutputMode`, `compressionApplyCavemanOutputMode`, `compressionTrimTrailingHorizontalWhitespace`, `compressionCollapseNewlineRuns`, `compressionNormalizeMessageWhitespace`, `compressionBackOffToWordBoundary`, `compressionTruncateToolContent` | done (`66cb8a9`) |
+| W20-WASM | Opt-in wasm-bindgen exports for the same helpers (wasm32 target) | done |
+| W20-ADAPTER-SMOKE | `open-sse/services/compression/nativeRust.ts` types/wrappers + `scripts/cnv1-smoke-rust-bridge.mjs` extended (`compression_output_lite_ok`) | done |
+| W20-GATES | `cargo fmt --all --check`, clippy clean for `omniroute-compression/gcf/sse/napi`, tests: `omniroute-compression` **38 passed**, `omniroute-sse` **16 passed**, `omniroute-gcf` **16 passed** (9 unit + 7 integration); `cargo build -p omniroute-wasm --target wasm32-unknown-unknown --release` **ok**; napi smoke probe/addon build not executed in this env (expected until addon built) | done |
+| W20-COMMIT | Conventional commit in omniroute + push | done (`66cb8a9`) |
+
+**W20 implementation:** additive, opt-in napi/wasm/adapter boundaries only. No default runtime wiring.
+
 ## Proposed next waves (owner-prioritized, in order)
 
 | Wave | Candidate | Rationale | Risk |
 |------|-----------|-----------|------|
-| W20 | Protocol/primitives continued (additional bounded chunk/value utilities, adapter ergonomics) behind opt-in boundaries; optionally expose W19 helpers via napi/wasm if useful | deepen hot-path leverage / ergonomics | M/L |
 | W21 | Extend compression core further (e.g. stats/token-estimation primitives, diff/heatmap portable helpers, or more lite body-level transforms where dependency-light) with parity tests | extend portable core | M |
-| W22+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
+| W22 | Protocol/primitives continued (additional bounded chunk/value utilities, adapter ergonomics, e.g. reasoning-field helpers) behind opt-in boundaries | deepen hot-path leverage | M/L |
+| W23+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
 
 > W2 hardening option open: TS-shared golden vectors/fixture harness for GCF.
 
