@@ -20,9 +20,9 @@
 
 | Item | Fact | Evidence |
 |---|---|---|
-| **Minimal set (execution target)** | **Hub + bifrost #38** — перший live smoke/eval target для GASV | `docs/gsv/MESH_ROADMAP_TASKS_2026-11-19.md` + owner 2026-11-21 |
-| Medium set | Minimal + **valhall #35** (re-peer when online) | MESH_ROADMAP_TASKS |
-| Max set (deferred spec) | Medium + **Pi 4** when NAND/SD restored | Owner ask 2026-11-21; Pi dead per HANDOFF |
+| **Minimal set (execution target)** | **Hub RDNA2 WGPU + bifrost** (PC WGPU = Firefox RDNA2 peer; зараз #37 stale/navigator.gpu blocked на ПК, bifrost #39 alive/ready) | `docs/gsv/MESH_ROADMAP_TASKS_2026-11-19.md` + owner 2026-11-21 |
+| Medium set | **Hub + bifrost + valhall** (valhall #40 alive/ready 2026-11-21) | MESH_ROADMAP_TASKS + owner 2026-11-21 |
+| Max set (deferred spec) | **Medium + Pi4** через ~місяць (можливо; NAND/SD/remote owner-gated) | Owner ask 2026-11-21 |
 | Hub | `gsv-server` `:9999`, crate 0.248.0, RAM pressure | HANDOFF/MESH docs |
 | WGPU mirror | **Підтверджено owner:** peer mirror на диску `L:` — `L:\gsv_mirror\wgpu_weights\` (chunks + blk f32 shexp); ~184M total seen | local fs snapshot 2026-11-21 + owner confirm |
 | L: snapshot 2026-11-21 | `gsv_mirror/blk7..12` shexp f32 = 18×4MiB (72MiB); `wgpu_weights/chunks` = 31 chunks, ~112MiB, `index.json` present, hits>0; `wgpu_weights_tensors.json` не видно в цьому dir | `ls/du/find` snapshot 2026-11-21 |
@@ -102,7 +102,7 @@
 ### R4. Wi-Fi WGPU cluster sets and ops envelope
 **Question:** what is stable for min/med/max sets?  
 **Research:**
-- Define cluster profiles: `min=hub+bifrost`, `med=min+valhall`, `max=med+pi4 (spec only)`.
+- Define cluster profiles: `min=hub RDNA2 WGPU+bifrost`, `med=hub+bifrost+valhall`, `max=med+pi4 (~month, maybe, spec/gated)`.
 - Capacity, latency, reconnect thrash, proof gate, mirror bandwidth/size budgets.
 - WGPU op coverage needed for skeleton validation (matvec/matmul/layernorm/softmax/mlpblock; weights_matvec block path).
 
@@ -191,7 +191,7 @@
 - **GASV-D1:** compatible tensor transplant engine (manifest-driven) — ✅ 2026-11-21 (`t-1795272283289364000`, `6fa1bd4`).
 - **GASV-D2:** incompatible tensor policy (skip/project/research flag; no silent corruption) — ✅ 2026-11-21 (`t-1795272283395485900`, `b9aabda`).
 - **GASV-D3:** Q4 quant/export pipeline + checksums/provenance — ✅ 2026-11-21 (`t-1795272283500474100`, `90a2a02`; supported Q4_0/Q8_0, Q4_K_M parity-gated deferred).
-- **GASV-D4:** publish `gsv-versus-ai.gguf` to mirror after eval gate — ✅ 2026-11-21 (`t-1795272283607411700`): owner confirmed publish after eval-gate smoke (inspect/manifest/publish-check dry-run OK; validate/infer N/A for minimal gasv skeleton; no quality/parity claim). Published to `L:\gsv_mirror\models\gsv-versus-ai\` (`gsv-versus-ai.gguf` + manifest, sha256 `77ceba58…` verified). No git weights.
+- **GASV-D4:** publish `gsv-versus-ai.gguf` to mirror after eval gate — ✅ 2026-11-21 (`t-1795272283607411700`): owner confirmed publish after eval-gate smoke (inspect/manifest/publish-check dry-run OK; validate/infer N/A for minimal gsv skeleton; no quality/parity claim). Republished as `arch:"gsv"` (owner-confirmed): `L:\gsv_mirror\models\gsv-versus-ai\` (`gsv-versus-ai.gguf` + manifest, sha256 `17aa63ef…` verified). No git weights.
 
 ### Phase E — Cluster eval
 - **GASV-E1:** min set (hub+bifrost) smoke: load/dispatch/proof/latency — ✅ 2026-11-21 (`t-1795272283721764300`): hub healthy (`0.248.0`), bifrost **peer 39 alive=true** (38 present/alive=false). Owner-go canary `mt-641` `weights_matvec blk.7.ffn_gate_shexp.weight` shards=1 → **done** on peer 39, `max_err_model=5.55e-17`, `elapsed_ms~261`, `8.03 MFLOPS`. Fail-open/proof-gate unchanged.
