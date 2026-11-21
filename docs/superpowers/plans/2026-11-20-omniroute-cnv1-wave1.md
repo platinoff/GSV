@@ -278,13 +278,25 @@
 
 **W23 implementation:** additive, dependency-light, opt-in; no napi/wasm/runtime wiring changes.
 
+## Wave 24 (compression stats napi/wasm/adapter exposure) — done
+
+| ID | Deliverable | Status |
+|----|-------------|--------|
+| W24-NAPI | Opt-in napi exports: `compressionEstimateTokens`, `compressionEstimateTokenSavings`, `compressionRatio`, `compressionSavingsJson` | done (`726a8e4`) |
+| W24-WASM | Opt-in wasm-bindgen exports for same stats helpers (wasm32 target) | done |
+| W24-ADAPTER-SMOKE | `open-sse/services/compression/nativeRust.ts` types/wrappers + `scripts/cnv1-smoke-rust-bridge.mjs` extended (`compression_stats_ok`) | done |
+| W24-GATES | `cargo fmt --all --check`, clippy clean for `omniroute-napi` (`--all-targets -- -D warnings`), tests: `omniroute-compression` **50 passed**, `omniroute-gcf` **16 passed**, `omniroute-sse` **16 passed**; `cargo build -p omniroute-wasm --target wasm32-unknown-unknown --release` **ok** | done |
+| W24-COMMIT | Conventional commit in omniroute + push | done (`726a8e4`) |
+
+**W24 implementation:** additive, opt-in napi/wasm/adapter boundaries only. No default runtime wiring.
+
 ## Proposed next waves (owner-prioritized, in order)
 
 | Wave | Candidate | Rationale | Risk |
 |------|-----------|-----------|------|
-| W24 | Additional portable compression/protocol helper parity (bounded, dependency-light) + optional opt-in exposure where useful | extend portable surface | M |
 | W25 | Protocol/primitives continued (bounded chunk/value utilities, adapter ergonomics, reasoning-field helpers) with parity tests, behind opt-in boundaries | deepen hot-path/core leverage | M/L |
-| W26+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
+| W26 | Additional portable compression/protocol helper parity (bounded, dependency-light) + optional opt-in exposure where useful | extend portable surface | M |
+| W27+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
 
 > W2 hardening option open: TS-shared golden vectors/fixture harness for GCF.
 
