@@ -1,6 +1,6 @@
-# CNV-1 — omniroute TS→Rust (Wave 1–2 progress)
+# CNV-1 — omniroute TS→Rust (Wave 1–3 progress)
 
-**Status:** Wave 1 done, Wave 2 (GCF generic parity slice) done · **Date:** 2026-11-20  
+**Status:** Wave 1–3 done (bounded slices) · **Date:** 2026-11-20  
 **Ticket:** CNV-1 (owner: exempt-till-epic → epic started)  
 **Repo:** `S:\rust\omniroute` (origin `https://github.com/platinoff/OmniRoute` fork in use, branch `release/v3.8.50`)  
 **Scope reality:** 8,263 tracked TS/JS-family files deferred under CNV-1 (Next.js 16 app + `open-sse/` streaming engine + Electron + CLI + tests + scripts). Full migration is a multi-wave epic; waves deliver additive, bounded, testable ports without breaking existing npm/Node runtime.
@@ -41,39 +41,54 @@
 
 | ID | Deliverable | Status |
 |----|-------------|--------|
-| W2-PORT-GENERIC | Port `generic.ts` (`encode_generic`) and `decode_generic.ts` (`decode_generic`) to Rust | done |
+| W2-PORT-GENERIC | Port `generic.ts` (`encode_generic`) and `decode_generic.ts` (`decode_generic`) to Rust | done (`fcdfe68`) |
 | W2-PARITY-TESTS | Round-trip/parity integration tests incl. B-GCF-QUOTE inline-array quoting cases | done |
 | W2-GATES | `cargo fmt --all --check`, `cargo clippy -p omniroute-gcf --all-targets` clean, `cargo test -p omniroute-gcf` pass | done |
-| W2-COMMIT | Conventional commit in omniroute + push | pending (this wave) |
+| W2-COMMIT | Conventional commit in omniroute + push | done (`fcdfe68`) |
 
-**W2 implementation:**
-- `crates/omniroute-gcf/src/generic.rs` — generic encoder (objects/arrays, tabular detection, flattening, inline/shared attachments/arrays, expanded forms) over `serde_json::Value` (preserve_order).
-- `crates/omniroute-gcf/src/decode_generic.rs` — generic decoder (profile/header validation, root forms, object/array/tabular/expanded parsing, attachments, path-column unflatten with order preservation, numeric parity preserving integer forms and `-0.0`).
-- `crates/omniroute-gcf/tests/generic.rs` — 7 integration round-trips: B-GCF-QUOTE lossless case (`ERR[404]: Not Found`, `[Speaker 1]: ...`), homogeneous/simple, root primitives/arrays, simple object, heterogeneous keys, mixed-type columns, nested objects/tabular flattening.
+**W2 implementation:** `crates/omniroute-gcf/src/generic.rs`, `decode_generic.rs`, `tests/generic.rs` (7 round-trips: B-GCF-QUOTE, homogeneous/heterogeneous/mixed, primitives/arrays/object, nested tabular flattening). **Parity:** 16 tests green, clippy clean.
 
-**Parity evidence (Rust):** 16 tests total green (9 scalar unit + 7 generic integration), `clippy` clean for `omniroute-gcf`.
+## Wave 3 (compression pure utilities: validators/helpers) — done
 
-## Proposed next waves (owner-prioritized)
+| ID | Deliverable | Status |
+|----|-------------|--------|
+| W3-COMPRESSION-CRATE | `crates/omniroute-compression` (additive workspace member) | done |
+| W3-EXCLUSIONS | Port `open-sse/services/compression/exclusions.ts` (normalize/match, wildcard `*`, metachar escaping) | done |
+| W3-PRESERVATION-HELPERS | Port fenced-code extraction helpers from `preservation.ts` (`find/extract_fenced_code_blocks`) for validation parity | done |
+| W3-VALIDATION | Port `open-sse/services/compression/validation.ts` (`validate_compression`, collectors, preview formatting) | done |
+| W3-GATES | `cargo fmt --all --check`, `cargo clippy -p omniroute-compression -p omniroute-gcf --all-targets` clean, `cargo test -p omniroute-compression -p omniroute-gcf` pass | done |
+| W3-COMMIT | Conventional commit in omniroute + push | pending (this wave) |
+
+**W3 implementation:**
+- `crates/omniroute-compression/src/exclusions.rs` — exclusion normalization/dedup/cap and `is_compression_excluded` (provider/model + composite, case-insensitive, escaped metacharacters, `*` wildcard), parity tests.
+- `crates/omniroute-compression/src/preservation.rs` — fenced code block parsing/extraction (```/~~~ fences, nesting/indent/close rules) used by validation.
+- `crates/omniroute-compression/src/validation.rs` — `ValidationResult` + `validate_compression` and collectors (fenced/inline code, URLs, markdown links, frontmatter, headings, table rows, math/LaTeX, versions, CONST_CASE), exact-presence checks, fence-count check, preview whitespace collapsing.
+
+**Parity evidence (Rust):** 13 tests green in `omniroute-compression` (+ gcf 16 still green), workspace clippy clean for ported crates.
+
+**Not in this slice (future W3+):** caveman rule engine/data (`caveman.ts`/`cavemanRules.ts`/JSON rule packs, JS-regex semantics), `ruleLoader` FS/validation flows, preservation sentinels/random-seed block extraction, stats/language detection — candidates for subsequent bounded ports.
+
+## Proposed next waves (owner-prioritized, in order)
 
 | Wave | Candidate | Rationale | Risk |
 |------|-----------|-----------|------|
-| W3 | Compression pure utilities (caveman rules/token helpers/validators) as crate(s) | perf/value, testable | M |
-| W4 | N-API or WASM bindings for selected crate(s) + Node adapter | integration boundary | M/L |
-| W5 | `open-sse` hot-path components (translator/chunk/protocol primitives) behind adapters | core engine leverage | L |
-| W6+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
+| W4 | Caveman pure rule/token helpers as Rust crate/module slice (rule metadata/selectors, deterministic transforms feasible without JS-only regex features) and/or `ruleLoader` pack validation | continues W3 "caveman rules/token helpers" direction | M |
+| W5 | N-API or WASM bindings for selected crate(s) + Node adapter | integration boundary | M/L |
+| W6 | `open-sse` hot-path components (translator/chunk/protocol primitives) behind adapters | core engine leverage | L |
+| W7+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
 
-> Note: original W2 draft listed "GCF generic + golden vectors vs TS"; core generic encode/decode + Rust parity tests are landed. Additional TS-shared golden vectors / full TS↔Rust fixture harness can be appended as hardening if desired.
+> W2 hardening option still open: TS-shared golden vectors/fixture harness for GCF.
 
 ## Risks / constraints
 
 - omniroute CI is Node/npm-centric (many workflows); Rust jobs/toolchain may need to be added in a later wave (not changing existing workflows except additive files).
-- Some TS modules depend on Node/browser APIs; not all are portable to pure Rust lib.
+- Some TS modules depend on Node/browser APIs; not all are portable to pure Rust lib. JS regex features (lookarounds/backrefs/Unicode semantics) require care (`regex` vs `fancy-regex` vs redesign).
 - License/provenance: preserve upstream notices for vendored logic ports (GCF MIT noted in TS originals).
 - Keep omniroute `.env`/keys out of commits (SEC rules still apply).
-- npm/npx hooks may be skipped in constrained envs (as in W1/W2 commits); TS/JS untouched in these waves, Rust gates authoritative for changed Rust code.
+- npm/npx hooks may be skipped in constrained envs; TS/JS untouched in these waves, Rust gates authoritative for changed Rust code.
 
 ## Gates
 
-- Rust: `cargo fmt --all -- --check`, `cargo clippy -p omniroute-gcf --all-targets` (clean), `cargo test -p omniroute-gcf` in omniroute workspace.
+- Rust: `cargo fmt --all -- --check`, `cargo clippy -p omniroute-compression -p omniroute-gcf --all-targets` (clean), `cargo test -p omniroute-compression -p omniroute-gcf` in omniroute workspace.
 - No changes to tracked TS runtime behavior in these waves.
 - Commit: one conventional commit per wave/slice in omniroute, push with summary. Plan doc maintained in GSV.
