@@ -106,7 +106,7 @@ GSV omni catalog adapted for local hybrid bunke-rock/rusty lanes (see commit `f1
 
 ### P2 — MCP/rules/toolchain normalization
 - **SYM-4 (done):** Kit wiring audit/fix across registered projects. Evidence: cursor/opencode/grok/skills refs ok; added rust-toolchain.toml to adoreble_wifi `d1eba73` (pushed) and mesh-node `e00537e` (local, no remote). GSV ticket close `051e5fb`.
-- **SYM-5:** Verify rust-toolchain alignment across all Rust repos/crates (including omniroute `crates/*` if required) and document exceptions.
+- **SYM-5 (done):** Rust toolchain alignment audit across registered Rust repos + omniroute crates; exceptions documented. Evidence: `docs/gsv/RUST_TOOLCHAIN_ALIGNMENT_2026-11-21.md`.
 - **SYM-6 (done):** NanoJev operational runbook in `rusty-engine` (`docs/NANOJEV_RUNBOOK.md`, `31b84f6` pushed). Inspect smoke 322 tensors OK; replay `--limit 2` attempted but terminated on constrained box (documented).
 
 ### P3 — Functional symbiosis tuning
@@ -122,8 +122,9 @@ GSV omni catalog adapted for local hybrid bunke-rock/rusty lanes (see commit `f1
 - `t-1795243604357865800` — **SYM-4:** normalize kit wiring (MCP/rules/skills/instructions) across registered projects (`gsv`, **done**)
 - `t-1795243604437440700` — **SYM-6:** rusty-engine nanojev runbook and replay smoke verification (`rusty-engine`, **done**)
 - `t-1795266315914397600` — **SYM-3:** FM skeletons for remaining registered plugins (`gsv`, **done**)
+- `t-1795266595024087500` — **SYM-5:** rust-toolchain alignment audit across Rust repos/crates (`gsv`, **done**)
 
-(Additional tickets SYM-5/SYM-7/SYM-8/SYM-9 to be created/scheduled as dependencies clear; SYM-8/SYM-9 tracked in existing backlog plans.)
+(Additional tickets SYM-7/SYM-8/SYM-9 to be created/scheduled as dependencies clear; SYM-8/SYM-9 tracked in existing backlog plans.)
 
 ## 8. Gates / execution rules
 
