@@ -128,10 +128,10 @@
 
 | ID | Deliverable | Status |
 |----|-------------|--------|
-| W10-NORMALIZER | `SseDataLineNormalizer` in `omniroute-sse` (buffered multiline `data:` merge, self-describing pending flush on control/comment boundaries, blank-line flush, `[DONE]`/JSON normalization semantics) | done (`19b30ff`) |
+| W10-NORMALIZER | `SseDataLineNormalizer` in `omniroute-sse` (buffered multiline `data:` merge, self-describing pending flush on control/comment boundaries, blank-line flush, `[DONE]`/JSON normalization semantics) | done (`50fcd3e`) |
 | W10-PREFIX-BUFFER | `SseEventPrefixBuffer` (remember/emit-once prefix for `data:` frames, `event_type`, `flush`, `clear`) | done |
 | W10-GATES | `cargo fmt --all --check`, `cargo clippy -p omniroute-sse --all-targets` clean, `cargo test -p omniroute-sse` pass | done |
-| W10-COMMIT | Conventional commit in omniroute + push | done (`19b30ff`) |
+| W10-COMMIT | Conventional commit in omniroute + push | done (`50fcd3e`) |
 
 **W10 implementation:** additive methods/structs in `crates/omniroute-sse/src/lib.rs` with parity-oriented tests. **Parity evidence (Rust):** 9 tests green in `omniroute-sse`. Not wired into runtime/adapters.
 
