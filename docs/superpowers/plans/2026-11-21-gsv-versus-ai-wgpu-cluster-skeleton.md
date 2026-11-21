@@ -191,7 +191,7 @@
 - **GASV-D1:** compatible tensor transplant engine (manifest-driven) — ✅ 2026-11-21 (`t-1795272283289364000`, `6fa1bd4`).
 - **GASV-D2:** incompatible tensor policy (skip/project/research flag; no silent corruption) — ✅ 2026-11-21 (`t-1795272283395485900`, `b9aabda`).
 - **GASV-D3:** Q4 quant/export pipeline + checksums/provenance — ✅ 2026-11-21 (`t-1795272283500474100`, `90a2a02`; supported Q4_0/Q8_0, Q4_K_M parity-gated deferred).
-- **GASV-D4:** publish `gsv-versus-ai.gguf` to mirror only after eval gate — ⏸ owner-gated (`t-1795272283607411700`).
+- **GASV-D4:** publish `gsv-versus-ai.gguf` to mirror after eval gate — ✅ 2026-11-21 (`t-1795272283607411700`): owner confirmed publish after eval-gate smoke (inspect/manifest/publish-check dry-run OK; validate/infer N/A for minimal gasv skeleton; no quality/parity claim). Published to `L:\gsv_mirror\models\gsv-versus-ai\` (`gsv-versus-ai.gguf` + manifest, sha256 `77ceba58…` verified). No git weights.
 
 ### Phase E — Cluster eval
 - **GASV-E1:** min set (hub+bifrost) smoke: load/dispatch/proof/latency — ✅ 2026-11-21 (`t-1795272283721764300`): hub healthy (`0.248.0`), bifrost **peer 39 alive=true** (38 present/alive=false). Owner-go canary `mt-641` `weights_matvec blk.7.ffn_gate_shexp.weight` shards=1 → **done** on peer 39, `max_err_model=5.55e-17`, `elapsed_ms~261`, `8.03 MFLOPS`. Fail-open/proof-gate unchanged.
