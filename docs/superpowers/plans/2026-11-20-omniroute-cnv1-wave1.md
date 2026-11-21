@@ -1,6 +1,6 @@
-# CNV-1 — omniroute TS→Rust (Wave 1–11 progress)
+# CNV-1 — omniroute TS→Rust (Wave 1–13 progress)
 
-**Status:** Wave 1–11 done (bounded slices) · **Date:** 2026-11-20  
+**Status:** Wave 1–13 done (bounded slices) · **Date:** 2026-11-20  
 **Ticket:** CNV-1 (owner: exempt-till-epic → epic started)  
 **Repo:** `S:\rust\omniroute` (origin `https://github.com/platinoff/OmniRoute` fork in use, branch `release/v3.8.50`)  
 **Scope reality:** 8,263 tracked TS/JS-family files deferred under CNV-1 (Next.js 16 app + `open-sse/` streaming engine + Electron + CLI + tests + scripts). Full migration is a multi-wave epic; waves deliver additive, bounded, testable ports without breaking existing npm/Node runtime.
@@ -145,13 +145,35 @@
 
 **W11 implementation:** pure JSON-shape predicates ported from `open-sse/utils/streamHelpers.ts` semantics with Rust tests. **Parity evidence (Rust):** 10 tests green in `omniroute-sse`. Additive, not wired into runtime.
 
+## Wave 12 (Gemini unwrap + opt-in napi/adapter exposure for SSE predicates) — done
+
+| ID | Deliverable | Status |
+|----|-------------|--------|
+| W12-UNWRAP | `unwrap_gemini_chunk` in `omniroute-sse` (Cloud Code envelope unwrap when top-level `candidates` absent) | done (`73e2904`) |
+| W12-NAPI-ADAPTER | `omniroute-napi` exports + `nativeRust.ts` wrappers + smoke coverage for SSE predicates/unwrap (`sseIsOpenaiChoicesPayload`, `sseHasOpenaiFinishReason`, `sseIsKnownNonClaudeStreamPayload`, `sseUnwrapGeminiChunk`) | done |
+| W12-GATES | `cargo fmt --all --check`, `cargo check/clippy -p omniroute-napi`, clippy/tests for `omniroute-sse/compression/gcf` green; smoke probe exit 2 as expected (no built addon) | done |
+| W12-COMMIT | Conventional commit in omniroute + push | done (`73e2904`) |
+
+**W12 implementation:** additive, opt-in boundary only. **Parity evidence (Rust):** 11 tests green in `omniroute-sse`.
+
+## Wave 13 (SSE batch normalization + napi exposure) — done
+
+| ID | Deliverable | Status |
+|----|-------------|--------|
+| W13-BATCH | `normalize_sse_data_lines` (fresh-normalizer batch helper) in `omniroute-sse` | done (`d66a836`) |
+| W13-NAPI-ADAPTER | `sseNormalizeLinesBatch` napi export + `normalizeSseLinesBatchNative` wrapper + smoke assertion | done |
+| W13-GATES | `cargo fmt --all --check`, `cargo check/clippy -p omniroute-napi -p omniroute-sse -p omniroute-compression -p omniroute-gcf --all-targets` clean, `cargo test -p omniroute-sse -p omniroute-compression -p omniroute-gcf` pass; smoke probe exit 2 as expected | done |
+| W13-COMMIT | Conventional commit in omniroute + push | done (`d66a836`) |
+
+**W13 implementation:** single-batch, stateless-from-JS helper (fresh `SseDataLineNormalizer` per call). **Parity evidence (Rust):** 12 tests green in `omniroute-sse`.
+
 ## Proposed next waves (owner-prioritized, in order)
 
 | Wave | Candidate | Rationale | Risk |
 |------|-----------|-----------|------|
-| W12 | Hot-path/protocol primitives continued (e.g. additional bounded chunk/value helpers or opt-in napi exposure for SSE predicates/stateful helpers) behind opt-in boundaries | deepen core engine leverage safely | M/L |
-| W13 | Pure compression/rules core continued as needed (deterministic helpers, regex-semantics-safe transforms, pack/data abstractions) | extend portable core | M |
-| W14+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
+| W14 | Protocol/primitives continued (e.g. bounded `fix_invalid_id`-style deterministic helpers, chunk/value utilities, or napi class wrappers for stateful SSE helpers) behind opt-in boundaries | deepen hot-path leverage | M/L |
+| W15 | Pure compression/rules core continued (deterministic helpers, regex-semantics-safe transforms, pack/data abstractions) | extend portable core | M |
+| W16+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
 
 > W2 hardening option open: TS-shared golden vectors/fixture harness for GCF.
 
