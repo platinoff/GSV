@@ -1,6 +1,6 @@
 # GASV-G2 Regrep Extraction (in-progress, 2026-11-21)
 
-**Status:** in-progress. Sequential F32 extraction from downloaded GGUFs in Rust workspace.  
+**Status:** ✅ done (2026-11-21). Sequential F32 extraction from downloaded GGUFs in Rust workspace. Total extracted: **1519 tensors** (35B 381 + 1B 301 + Granite 225 + Inkling 612), all <=16MB F32, fail=0.  
 **Constraint:** no Python; no git weight blobs; no silent coercion. NanoJev = eval/oracle only.
 
 ## Source models (downloaded in S:/rust)
@@ -10,7 +10,7 @@
 | MiniCPM-V-4_7-35B-A3B-Q4_K_M.gguf | qwen35moe | 733 | 501 | 129.12 GB | ✅ extracted 381 new (121 already in mirror), staging `data/wgpu_weights_staging/35b_f32/` |
 | MiniCPM-V-4_7-1B-Q4_K_M.gguf | qwen35 | 321 | 301 | 3.75 GB | ✅ extracted 301/301 <=16MB to `data/wgpu_weights_staging/1b_f32/` |
 | granite-3.1-3b-a800m-instruct-Q4_K_M.gguf | granitemoe | 322 | 225 | 12.29 GB | ✅ extracted 225/225 <=16MB to `data/wgpu_weights_staging/granite_f32/` |
-| Inkling-2-Mini-UD-Q4_K_M.gguf | inkling2 | 734 | 612 | 97.12 GB | 🔄 extracting to `data/wgpu_weights_staging/inkling_f32/` |
+| Inkling-2-Mini-UD-Q4_K_M.gguf | inkling2 | 734 | 612 | 97.12 GB | ✅ extracted 612/612 <=16MB to `data/wgpu_weights_staging/inkling_f32/` |
 
 ## Policy
 
