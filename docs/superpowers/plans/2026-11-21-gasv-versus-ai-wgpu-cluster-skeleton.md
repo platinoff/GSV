@@ -178,14 +178,14 @@
 - **GASV-A5 (gsv):** cluster set spec min/med/max + WGPU smoke criteria (bifrost minimal) — ✅ done 2026-11-21 (`t-1795270403265695800`).
 
 ### Phase B — Tooling (read-only / manifest)
-- **GASV-B1 (rusty-engine):** GGUF metadata inspector enhancement (if needed) + manifest export.
-- **GASV-B2 (gsv xtask):** mirror inventory + checksum manifest generator.
-- **GASV-B3 (gsv MCP):** read-only MCP tools/resources for model/mirror/cluster skeleton status.
+- **GASV-B1 (rusty-engine):** GGUF metadata/manifest read-only export — ✅ done 2026-11-21 (`t-1795270985412515600`, rusty-engine `8c4dcc8`).
+- **GASV-B2 (gsv xtask):** mirror inventory + checksum manifest generator — ✅ done 2026-11-21 (`t-1795270985512066300`, GSV `f72eb4c`).
+- **GASV-B3 (gsv MCP):** read-only MCP tools/resources for model/mirror/cluster skeleton status — ✅ done 2026-11-21 (`t-1795270985609581700`, GSV `d27afa3`).
 
 ### Phase C — Skeleton builder (owner-approved engineering)
-- **GASV-C1 (rusty-engine):** GGUF writer minimal viable (header/kv/tensors/alignment).
-- **GASV-C2 (rusty-engine):** deterministic random-init skeleton generator from spec.
-- **GASV-C3 (rusty-engine):** validation: inspect/load/smoke infer.
+- **GASV-C1 (rusty-engine):** GGUF writer minimal viable (header/kv/tensors/alignment) — ✅ done 2026-11-21 (`t-1795271801803502800`, rusty-engine `dd0d2a3`).
+- **GASV-C2 (rusty-engine):** deterministic random-init skeleton generator from spec — ✅ done 2026-11-21 (`t-1795271801906749600`, rusty-engine `931e13a`).
+- **GASV-C3 (rusty-engine):** validation: inspect/load/smoke infer — ✅ done 2026-11-21 (`t-1795271802006964200`, rusty-engine `52cb0bd`).
 
 ### Phase D — Weight transplant / quant (strict gates)
 - **GASV-D1:** compatible tensor transplant engine (manifest-driven).
