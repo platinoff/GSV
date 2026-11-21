@@ -30,13 +30,23 @@ Owner explicit `X-Omni-Provider` still wins (bypass cooldown).
 
 Cursor-only speed lane: **Composer 2.5** (Cursor Models monthly pool). Not an Omni upstream unless you configure a base URL.
 
-## Local llama provider `bunke-rock` (band 225)
+## Local hybrid providers (`bunke-rock` / `rusty-*`, adapted 2026-11-21)
 
-Local **llama-rs** backend (`S:/rust/llama-rs`, llama.cpp) registered as catalog `bunke-rock` / `lama-2.8` — deep tier since band 235: `models/Qwen3-30B-A3B-UD-IQ2_XXS.gguf` (IQ2_XXS MoE, ctx 40960, tg 0.497 measured 2026-09-15; 27B dense stays reserved as fallback; free tier).
+Local models are cataloged for **offline-first / hybrid** routing across the GSV ecosystem (hub API, MCP omni tools, IDE clients via hub). Readiness is gated by model file presence (and fresh heartbeat for rusty-engine serve lanes).
 
-- **Kind** `local` (vs `remote` API vendors): `GET /api/omni` lists it with `kind: local`; `enabled` is **gated on the model file existing** (`catalog::host_ready`, same file Great Galaxy keep-live reads).
-- **Routing:** `GET /api/omni/route?task=rust&prefer_free=true` can pick it as the free lane (skips cooling); no base_url/token needed (defaults to `http://127.0.0.1:8080/v1` if it ever proxies).
-- In path of a running llama-rs: works offline, no quota timers.
+| Provider | Kind | Base URL | Model file gate | Catalog model IDs |
+|---|---|---|---|---|
+| `bunke-rock` | local (llama-rs, deep) | `http://127.0.0.1:8080/v1` | `S:/rust/rusty-engine/data/models/granite-3.1-3b-a800m-instruct-Q4_K_M.gguf` | `lama-2.8`, `granite-a800m` |
+| `bunke-rock-fast` | local (llama-rs, fast) | `http://127.0.0.1:8082/v1` | `S:/rust/rusty-engine/data/models/MiniCPM-V-4_7-1B-Q4_K_M.gguf` | `lama-1.5`, `minicpm-v47-1b-local` |
+| `rusty-serve` | local (rusty-engine) | `http://127.0.0.1:8092/v1` | `S:/rust/rusty-engine/data/models/Inkling-2-Mini-UD-Q4_K_M.gguf` (+ mmproj-F16) + fresh `rusty_heartbeat.json` | `rusty-05`, `inkling-2-mini` |
+| `rusty-hybrid` | local (rusty-engine qwen35) | `http://127.0.0.1:8088/v1` | `S:/rust/rusty-engine/data/models/MiniCPM-V-4_7-1B-Q4_K_M.gguf` + fresh `rusty_heartbeat.json` | `rusty-mcp-v47` |
+| `rusty-minicpm-mesh` | local (mesh fanout) | `http://127.0.0.1:8099/v1` | `S:/rust/rusty-engine/data/models/MiniCPM-V-4_7-1B-Q4_K_M.gguf` + fresh `mesh_heartbeat.json` | `rusty-mesh-v47` |
+| `rusty-minicpm-35b` | local (rusty-engine) | `http://127.0.0.1:8091/v1` | `S:/rust/rusty-engine/data/models/MiniCPM-V-4_7-35B-A3B-Q4_K_M.gguf` (+ mmproj-35b) + fresh `rusty_heartbeat.json` | `minicpm-v47-35b` |
+
+- **Kind** `local` (vs `remote` API vendors): `GET /api/omni` lists with `kind: local`; `enabled` is gated by `catalog::host_ready` (model file / heartbeat as above).
+- **Routing:** `GET /api/omni/route?task=rust|web&prefer_free=true` can pick ready local lanes (skips cooling/missing base_url). Tier mapping: `X-Omni-Tier: fast → lama-1.5`, `deep → lama-2.8`.
+- **Hybrid:** local lanes are first-class alongside cloud providers; explicit provider/model selection and auto-fallback follow `data/omni.toml` + quota/cooldown state.
+- **Note:** Inkling file may be present but incomplete during download; rusty-engine serve lanes still require a fresh heartbeat before becoming routable. Keep model weights in `S:/rust/...` (not committed).
 
 ## Offline-first routing policy (2026-09-14, verified in code)
 
@@ -65,9 +75,10 @@ Released **2026-08-11**: open 30B MoE / **3B active** execution-layer model (Mam
 
 ## IDE onboarding via the hub (verified 2026-09-14)
 
-Hub base: `http://127.0.0.1:9999/api/omni/v1` (`GET /v1/models` lists 43 rows
-incl. `lama-2.8`/`bunke-rock`; dry-run route 200). SSE is piped through,
-so streaming clients work.
+Hub base: `http://127.0.0.1:9999/api/omni/v1` (`GET /v1/models` lists catalog rows
+including local `lama-2.8`/`lama-1.5`/`rusty-05` and explicit local IDs such as
+`granite-a800m`, `minicpm-v47-1b-local`, `inkling-2-mini`, `minicpm-v47-35b`; dry-run route 200).
+SSE is piped through, so streaming clients work.
 
 ### OpenCode — custom provider (confirmed pattern, cf. Atomic Chat docs)
 
@@ -80,8 +91,11 @@ so streaming clients work.
       "name": "GSV Hub (OmniRouter)",
       "options": { "baseURL": "http://127.0.0.1:9999/api/omni/v1" },
       "models": {
-        "lama-2.8": { "name": "Lama 2.8 (BunkeRock, local 27B)" },
-        "lama-1.5": { "name": "Lama 1.5 (BunkeRock fast, local)" },
+        "lama-2.8": { "name": "Granite A800M (bunke-rock deep, local)" },
+        "lama-1.5": { "name": "MiniCPM 1B (bunke-rock fast, local)" },
+        "granite-a800m": { "name": "Granite 3.1 3B A800M Instruct (local)" },
+        "inkling-2-mini": { "name": "Inkling 2 Mini UD-Q4_K_M (local, rusty)" },
+        "minicpm-v47-35b": { "name": "MiniCPM-V 4.7 35B A3B (local, rusty)" },
         "grok-4.6": { "name": "Grok 4.6 (via hub)" }
       }
     },
@@ -90,18 +104,14 @@ so streaming clients work.
       "name": "Llama fast tier (direct)",
       "options": { "baseURL": "http://127.0.0.1:8082/v1" },
       "models": {
-        "lama-1.5": { "name": "Lama 1.5 (local 1.5B, ~2 tok/s)" }
+        "lama-1.5": { "name": "MiniCPM 1B (local fast tier)" }
       }
     }
   }
 }
 ```
 
-`lama-1.5` **з 2026-10-15 теж у hub-каталозі** (`GET /api/omni/v1/models` віддає
-`lama-2.8` + `lama-1.5`, `owned_by bunke-rock`/`bunke-rock-fast`, `clients` вкл. `opencode`) —
-через hub працює авто-перемикання local↔cloud з cooldown; прямі `:8080`/`:8082` лишаються
-найшвидшими для довгих генерацій без хаба. Paid providers flow through the hub with their keys
-in `GSV/data/omni.toml` (or `OMNI_*_API_KEY` env).
+`lama-2.8` / `lama-1.5` / `rusty-05` залишаються стабільними ID для tier/сумісності; додані явні ID для конкретних локальних моделей (`granite-a800m`, `inkling-2-mini`, `minicpm-v47-1b-local`, `minicpm-v47-35b`). Через hub працює авто-перемикання local↔cloud з cooldown; прямі локальні endpoint-и лишаються найшвидшими для довгих генерацій без хаба. Paid providers flow through the hub with keys in `GSV/data/omni.toml` (or `OMNI_*_API_KEY` env).
 
 ### Cursor — Override OpenAI Base URL
 

@@ -9,27 +9,28 @@
 //! Addendum **2026-08-21**: Nemotron 3.5 Lightning (released 2026-08-11) on
 //! NIM / OpenRouter — agentic execution layer (tool calls incl. websearch),
 //! not a Rust/web brain; pick it explicitly.
+//!
+//! Addendum **2026-11-21**: local model inventory adapted to current Rust
+//! workspace reality (Granite + MiniCPM + Inkling GGUFs under
+//! `S:/rust/rusty-engine/data/models`) for local/hybrid bunke-rock routing.
 
 /// Shared research stamp (MCP + Galaxy card).
 pub const RESEARCHED_AT: &str = "2026-08-18";
 
-/// Local llama-rs model the `bunke-rock` provider serves (kind `local`).
-/// The provider is host-ready only while this file exists on disk.
-/// 2026-10-30 owner cleanup: llama-rs keeps only the tested
-/// `Qwen2.5-0.5B-Instruct-Q4_K_M.gguf` (27B / 30B-A3B / 1.5B / MTP quants
-/// removed); both llama tier gates now resolve to that single file, so the
-/// deep/interactive routing stays live without resurrecting old quants.
-pub const BUNKE_ROCK_MODEL_FILE: &str = "S:/rust/llama-rs/models/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf";
+/// Local llama-rs model the `bunke-rock` provider serves (kind `local`, deep lane).
+/// File-gated: host-ready when the model exists on disk.
+pub const BUNKE_ROCK_MODEL_FILE: &str =
+    "S:/rust/rusty-engine/data/models/granite-3.1-3b-a800m-instruct-Q4_K_M.gguf";
 
-/// Local llama-rs model the `bunke-rock-fast` provider serves (interactive
-/// tier on `llama_serve :8082`, `llama-rs/docs/BENCHMARKS.md`).
+/// Local llama-rs model the `bunke-rock-fast` provider serves (interactive lane).
+/// File-gated: host-ready when the model exists on disk.
 pub const BUNKE_ROCK_FAST_MODEL_FILE: &str =
-    "S:/rust/llama-rs/models/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf";
+    "S:/rust/rusty-engine/data/models/MiniCPM-V-4_7-1B-Q4_K_M.gguf";
 
-/// Local rusty-engine model the `rusty-serve` provider serves (`rusty serve
-/// -m … :8090`, PH-507 bunke-rock pattern, portable-plugin tree).
+/// Local rusty-engine model the `rusty-serve` provider serves (`rusty serve`
+/// OpenAI-compat lane, heartbeat-gated).
 pub const RUSTY_SERVE_MODEL_FILE: &str =
-    "S:/rust/rusty-engine/data/models/qwen2.5-0.5b-q4_k_m.gguf";
+    "S:/rust/rusty-engine/data/models/Inkling-2-Mini-UD-Q4_K_M.gguf";
 
 /// Local rusty-engine **qwen35 hybrid** model the `rusty-hybrid` provider serves
 /// (`rusty serve -m … :8088`, PH-1306 serve wiring — MiniCPM-V 4.7-1B Q4_K_M +
@@ -43,18 +44,21 @@ pub const RUSTY_HYBRID_MODEL_FILE: &str =
 pub const RUSTY_MESH_MODEL_FILE: &str =
     "S:/rust/rusty-engine/data/models/MiniCPM-V-4_7-1B-Q4_K_M.gguf";
 
+/// Local rusty-engine **MiniCPM 35B** model (large local lane, heartbeat-gated).
+pub const RUSTY_MINICPM_35B_MODEL_FILE: &str =
+    "S:/rust/rusty-engine/data/models/MiniCPM-V-4_7-35B-A3B-Q4_K_M.gguf";
+
 /// Heartbeat stamped by the mesh runtime while an inference serve is live on
-/// the box (default `:8099`). Without it the provider shows as disabled — the
-/// real-weights mesh demo is pending owner's WebGPU browser session, but
-/// the provider row shipped first so routing/telemetry have a target.
+/// the box (default `:8099`). Without it the provider shows as disabled.
 pub const RUSTY_MESH_HEARTBEAT_FILE: &str = "S:/rust/rusty-engine/target/live/mesh_heartbeat.json";
 
 /// Heartbeat stamped by `rusty serve` at startup + every connection (PH-504);
-/// the `rusty-serve` host gate reads its mtime (PH-507).
+/// rusty-engine serve lanes (`rusty-serve`, `rusty-hybrid`, `rusty-minicpm-35b`)
+/// read its mtime.
 pub const RUSTY_SERVE_HEARTBEAT_FILE: &str =
     "S:/rust/rusty-engine/target/live/rusty_heartbeat.json";
 
-/// Freshness window for the rusty heartbeat (aligns llama-rs keep-live 60s).
+/// Freshness window for rusty heartbeats (aligns llama-rs keep-live 60s).
 pub const RUSTY_SERVE_FRESH_SECS: u64 = 60;
 
 /// Rate-limit window used for MCP auto-switch after 429 / RPM exhaustion.
@@ -265,11 +269,11 @@ pub fn providers() -> &'static [ProviderSpec] {
         },
         ProviderSpec {
             id: "bunke-rock",
-            name: "BunkeRock (llama-rs)",
+            name: "BunkeRock (llama-rs, deep)",
             region: "Local",
             free: true,
             default_base_url: "http://127.0.0.1:8080/v1",
-            notes: "Local llama-rs deep lane (:8080; hybrid router works on the single kept model S:/rust/llama-rs/models/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf; 27B/30B quants removed by owner 2026-10-30; pure-Rust hybrid MoE/GDN lane is rusty-serve :8092)",
+            notes: "Local llama-rs deep lane (:8080, hybrid local provider). Model gate: Granite 3.1 3B A800M Instruct Q4_K_M (S:/rust/rusty-engine/data/models/granite-3.1-3b-a800m-instruct-Q4_K_M.gguf).",
             quota: QUOTA_PAID,
         },
         ProviderSpec {
@@ -278,7 +282,7 @@ pub fn providers() -> &'static [ProviderSpec] {
             region: "Local",
             free: true,
             default_base_url: "http://127.0.0.1:8082/v1",
-            notes: "Local llama-rs fast/interactive lane (:8082; hybrid router works on the single kept model Qwen2.5-0.5B Q4_K_M; deep lane is bunke-rock :8080, pure-Rust hybrid lane is rusty-serve :8092)",
+            notes: "Local llama-rs fast/interactive lane (:8082, hybrid local provider). Model gate: MiniCPM-V 4.7 1B Q4_K_M (S:/rust/rusty-engine/data/models/MiniCPM-V-4_7-1B-Q4_K_M.gguf).",
             quota: QUOTA_PAID,
         },
         ProviderSpec {
@@ -287,7 +291,7 @@ pub fn providers() -> &'static [ProviderSpec] {
             region: "Local",
             free: true,
             default_base_url: "http://127.0.0.1:8092/v1",
-            notes: "Local pure-Rust MoE engine OpenAI-compat (PH-507; rusty serve -m Qwen2.5-0.5B-Q4_K_M :8092, LAN-first band 233; port moved 8090→8092 on 2026-11-02 — rebook RB-5 axum viewer owns loopback :8090; gated on model file + fresh rusty_heartbeat.json)",
+            notes: "Local rusty-engine OpenAI-compat lane (:8092). Model gate: Inkling 2 Mini UD-Q4_K_M + mmproj-F16 in rusty-engine/data/models; ready only with fresh rusty_heartbeat.json.",
             quota: QUOTA_PAID,
         },
         ProviderSpec {
@@ -296,7 +300,7 @@ pub fn providers() -> &'static [ProviderSpec] {
             region: "Local",
             free: true,
             default_base_url: "http://127.0.0.1:8088/v1",
-            notes: "Local pure-Rust qwen35 GDN-hybrid lane (PH-1306; rusty serve -m MiniCPM-V-4_7-1B_Q4_K_M :8088, one Completes wire with the dense lane; gated on model file + fresh rusty_heartbeat.json; mmproj-model-f16 sits beside it for the image-prefix band)",
+            notes: "Local pure-Rust qwen35 GDN-hybrid lane (PH-1306; rusty serve -m MiniCPM-V-4_7-1B_Q4_K_M :8088, gated on model file + fresh rusty_heartbeat.json; mmproj-model-f16 sits beside it for the image-prefix band).",
             quota: QUOTA_PAID,
         },
         ProviderSpec {
@@ -305,7 +309,16 @@ pub fn providers() -> &'static [ProviderSpec] {
             region: "Local",
             free: true,
             default_base_url: "http://127.0.0.1:8099/v1",
-            notes: "MiniCPM-V 4.7-1B Q4_K_M served via GSV-WGPU mesh fanout (product=gsv-wgpu, real workload of the WSP/weights_matvec track); routing only when mesh_heartbeat.json is fresh (else disabled); absent heartbeat = mesh not running — no fallbacks into the mesh port",
+            notes: "MiniCPM-V 4.7-1B Q4_K_M served via GSV-WGPU mesh fanout (product=gsv-wgpu); routing only when mesh_heartbeat.json is fresh (else disabled).",
+            quota: QUOTA_PAID,
+        },
+        ProviderSpec {
+            id: "rusty-minicpm-35b",
+            name: "Rusty MiniCPM 35B (rusty-engine)",
+            region: "Local",
+            free: true,
+            default_base_url: "http://127.0.0.1:8091/v1",
+            notes: "Local rusty-engine lane for MiniCPM-V 4.7 35B A3B Q4_K_M (S:/rust/rusty-engine/data/models/MiniCPM-V-4_7-35B-A3B-Q4_K_M.gguf, mmproj-model-f16-35b.gguf alongside). Gated on model file + fresh rusty_heartbeat.json.",
             quota: QUOTA_PAID,
         },
         ProviderSpec {
@@ -522,12 +535,25 @@ pub fn clients() -> &'static [ClientSpec] {
 /// Full model registry.
 pub fn models() -> &'static [ModelSpec] {
     static MODELS: &[ModelSpec] = &[
-        // ── Recommended for GSV Rust + web (2026-08-18) ─────────────
+        // ── Local hybrid models (bunke-rock / rusty-engine, 2026-11-21) ──
         m(
             "lama-2.8",
-            "Lama deep 0.5 (BunkeRock · llama-rs, Qwen2.5-0.5B hybrid lane :8080)",
+            "Granite 3.1 3B A800M Instruct Q4_K_M (BunkeRock deep · llama-rs :8080)",
             "bunke-rock",
-            Some(32_768),
+            Some(131_072),
+            Some(4_096),
+            true,
+            false,
+            "local",
+            true,
+            true,
+            C_ALL,
+        ),
+        m(
+            "granite-a800m",
+            "Granite 3.1 3B A800M Instruct Q4_K_M (local, bunke-rock hybrid)",
+            "bunke-rock",
+            Some(131_072),
             Some(4_096),
             true,
             false,
@@ -538,7 +564,20 @@ pub fn models() -> &'static [ModelSpec] {
         ),
         m(
             "lama-1.5",
-            "Lama fast 0.5 (BunkeRock fast · llama-rs, Qwen2.5-0.5B hybrid lane :8082)",
+            "MiniCPM-V 4.7 1B Q4_K_M (BunkeRock fast · llama-rs :8082)",
+            "bunke-rock-fast",
+            Some(32_768),
+            Some(1_024),
+            true,
+            false,
+            "local",
+            true,
+            true,
+            C_ALL,
+        ),
+        m(
+            "minicpm-v47-1b-local",
+            "MiniCPM-V 4.7 1B Q4_K_M (local, bunke-rock-fast hybrid)",
             "bunke-rock-fast",
             Some(32_768),
             Some(1_024),
@@ -551,10 +590,23 @@ pub fn models() -> &'static [ModelSpec] {
         ),
         m(
             "rusty-05",
-            "Rusty 0.5B (rusty serve · rusty-engine)",
+            "Inkling 2 Mini UD-Q4_K_M (rusty serve · rusty-engine :8092)",
             "rusty-serve",
-            Some(32_768),
-            Some(8),
+            Some(131_072),
+            Some(4_096),
+            true,
+            false,
+            "local",
+            true,
+            true,
+            C_ALL,
+        ),
+        m(
+            "inkling-2-mini",
+            "Inkling 2 Mini UD-Q4_K_M (local, rusty-engine hybrid, mmproj-F16)",
+            "rusty-serve",
+            Some(131_072),
+            Some(4_096),
             true,
             false,
             "local",
@@ -588,6 +640,20 @@ pub fn models() -> &'static [ModelSpec] {
             true,
             C_ALL,
         ),
+        m(
+            "minicpm-v47-35b",
+            "MiniCPM-V 4.7 35B A3B Q4_K_M (local, rusty-engine :8091, mmproj-35b)",
+            "rusty-minicpm-35b",
+            Some(131_072),
+            Some(4_096),
+            true,
+            false,
+            "local",
+            true,
+            true,
+            C_ALL,
+        ),
+        // ── Recommended for GSV Rust + web (2026-08-18) ─────────────,
         m(
             "grok-4.6",
             "Grok 4.6",
@@ -1154,7 +1220,12 @@ pub fn provider(id: &str) -> Option<&'static ProviderSpec> {
 pub fn provider_kind(id: &str) -> &'static str {
     if matches!(
         id,
-        "bunke-rock" | "bunke-rock-fast" | "rusty-serve" | "rusty-hybrid" | "rusty-minicpm-mesh"
+        "bunke-rock"
+            | "bunke-rock-fast"
+            | "rusty-serve"
+            | "rusty-hybrid"
+            | "rusty-minicpm-mesh"
+            | "rusty-minicpm-35b"
     ) {
         "local"
     } else {
@@ -1186,24 +1257,23 @@ pub fn local_model_file(id: &str) -> Option<&'static str> {
         "rusty-serve" => Some(RUSTY_SERVE_MODEL_FILE),
         "rusty-hybrid" => Some(RUSTY_HYBRID_MODEL_FILE),
         "rusty-minicpm-mesh" => Some(RUSTY_MESH_MODEL_FILE),
+        "rusty-minicpm-35b" => Some(RUSTY_MINICPM_35B_MODEL_FILE),
         _ => None,
     }
 }
 
 /// A `local` backend is ready only when its model file exists; remote
-/// providers are always ready (subject to quota timers elsewhere). PH-507:
-/// `rusty-serve` additionally requires a **fresh** `rusty_heartbeat.json`
-/// (mtime ≤ [`RUSTY_SERVE_FRESH_SECS`]) — the bunke-rock pattern with the
-/// heartbeat gate the owner directive pins. Unreadable mtime fails open
-/// (presence alone); a heartbeat older than the window means the serve is
-/// dead and the router must switch to the next host.
+/// providers are always ready (subject to quota timers elsewhere). Rusty-engine
+/// serve lanes require a **fresh** `rusty_heartbeat.json` (mtime ≤
+/// [`RUSTY_SERVE_FRESH_SECS`]); mesh requires a fresh `mesh_heartbeat.json`.
+/// llama-rs lanes (`bunke-rock*`) are file-gated only.
 pub fn host_ready(id: &str) -> bool {
     match local_model_file(id) {
         Some(file) => {
             if !std::path::Path::new(file).exists() {
                 return false;
             }
-            if id == "rusty-serve" || id == "rusty-hybrid" {
+            if id == "rusty-serve" || id == "rusty-hybrid" || id == "rusty-minicpm-35b" {
                 return heartbeat_mtime_fresh(
                     std::path::Path::new(RUSTY_SERVE_HEARTBEAT_FILE),
                     RUSTY_SERVE_FRESH_SECS,
@@ -1266,13 +1336,19 @@ mod tests {
         assert!(p.free, "local llama is free tier");
         assert_eq!(provider_kind("bunke-rock"), "local");
         assert_eq!(local_model_file("bunke-rock"), Some(BUNKE_ROCK_MODEL_FILE));
+        assert!(
+            BUNKE_ROCK_MODEL_FILE.ends_with("granite-3.1-3b-a800m-instruct-Q4_K_M.gguf"),
+            "bunke-rock deep lane should gate on Granite"
+        );
         let lama = find_models("lama-2.8");
         assert!(!lama.is_empty(), "lama-2.8 in catalog");
         for spec in &lama {
             assert_eq!(spec.provider, "bunke-rock");
-            assert_eq!(spec.context_window, Some(32_768));
             assert!(spec.free && spec.rust, "{} free+rust lane", spec.id);
         }
+        let granite = find_models("granite-a800m");
+        assert!(!granite.is_empty(), "granite-a800m in catalog");
+        assert_eq!(granite[0].provider, "bunke-rock");
     }
 
     #[test]
@@ -1285,14 +1361,19 @@ mod tests {
             local_model_file("rusty-serve"),
             Some(RUSTY_SERVE_MODEL_FILE)
         );
+        assert!(
+            RUSTY_SERVE_MODEL_FILE.ends_with("Inkling-2-Mini-UD-Q4_K_M.gguf"),
+            "rusty-serve should gate on Inkling local model"
+        );
         let rusty = find_models("rusty-05");
         assert!(!rusty.is_empty(), "rusty-05 in catalog");
         for spec in &rusty {
             assert_eq!(spec.provider, "rusty-serve");
-            assert_eq!(spec.context_window, Some(32_768));
-            assert_eq!(spec.max_output, Some(8));
             assert!(spec.free && spec.rust, "{} free+rust lane", spec.id);
         }
+        let inkling = find_models("inkling-2-mini");
+        assert!(!inkling.is_empty(), "inkling-2-mini in catalog");
+        assert_eq!(inkling[0].provider, "rusty-serve");
     }
 
     #[test]
@@ -1348,6 +1429,10 @@ mod tests {
             local_model_file("bunke-rock-fast"),
             Some(BUNKE_ROCK_FAST_MODEL_FILE)
         );
+        assert!(
+            BUNKE_ROCK_FAST_MODEL_FILE.ends_with("MiniCPM-V-4_7-1B-Q4_K_M.gguf"),
+            "bunke-rock-fast should gate on MiniCPM 1B"
+        );
         let lama = find_models("lama-1.5");
         assert!(!lama.is_empty(), "lama-1.5 in catalog");
         for spec in &lama {
@@ -1355,6 +1440,8 @@ mod tests {
             assert!(spec.free && spec.rust && spec.web, "{} lanes", spec.id);
             assert_eq!(spec.tier, "local");
         }
+        let m1 = find_models("minicpm-v47-1b-local");
+        assert!(!m1.is_empty(), "minicpm-v47-1b-local in catalog");
     }
 
     #[test]
@@ -1409,6 +1496,32 @@ mod tests {
             RUSTY_SERVE_FRESH_SECS,
         );
         assert_eq!(host_ready("rusty-minicpm-mesh"), model && hb);
+    }
+
+    #[test]
+    fn rusty_minicpm_35b_is_local_with_model_and_heartbeat_gate() {
+        let p = provider("rusty-minicpm-35b").expect("rusty-minicpm-35b provider");
+        assert!(p.free, "local 35b lane is free tier");
+        assert_eq!(p.default_base_url, "http://127.0.0.1:8091/v1");
+        assert_eq!(provider_kind("rusty-minicpm-35b"), "local");
+        assert_eq!(
+            local_model_file("rusty-minicpm-35b"),
+            Some(RUSTY_MINICPM_35B_MODEL_FILE)
+        );
+        assert!(
+            RUSTY_MINICPM_35B_MODEL_FILE.ends_with("MiniCPM-V-4_7-35B-A3B-Q4_K_M.gguf"),
+            "35b lane should gate on MiniCPM 35B"
+        );
+        let spec = find_models("minicpm-v47-35b");
+        assert!(!spec.is_empty(), "minicpm-v47-35b in catalog");
+        assert_eq!(spec[0].provider, "rusty-minicpm-35b");
+        let file = local_model_file("rusty-minicpm-35b").expect("local file");
+        let model = std::path::Path::new(file).exists();
+        let hb = heartbeat_mtime_fresh(
+            std::path::Path::new(RUSTY_SERVE_HEARTBEAT_FILE),
+            RUSTY_SERVE_FRESH_SECS,
+        );
+        assert_eq!(host_ready("rusty-minicpm-35b"), model && hb);
     }
 
     #[test]

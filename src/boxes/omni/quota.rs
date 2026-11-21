@@ -344,7 +344,11 @@ mod tests {
             Ok(pick) => {
                 if catalog::host_ready("bunke-rock") {
                     assert_eq!(pick.provider, "bunke-rock");
-                    assert_eq!(pick.model, "lama-2.8");
+                    assert!(
+                        pick.model == "lama-2.8" || pick.model == "granite-a800m",
+                        "expected bunke-rock local model, got {}",
+                        pick.model
+                    );
                     assert!(pick.free);
                 } else {
                     assert_ne!(pick.provider, "bunke-rock", "gated host must not be picked");
