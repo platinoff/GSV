@@ -1,7 +1,7 @@
 # GASV-VERSUS-AI — Wi-Fi WGPU cluster skeleton / weight-mirror research plan
 
 **Date:** 2026-11-21  
-**Status:** A–F executed (2026-11-21). F3 eval gate passed (parity 121/121, med canaries #37/#39/#40 <1e-4); F4 owner-gated publish done (variant 1, canonical Q8_0); F5 regression recorded. Artifact remains **partial shexp-pack** (no runnable full LLM, no quality/parity claim). 
+**Status:** A–G2b executed (2026-11-21). F3 eval gate passed (parity 121/121). G2 regrep extracted 1519 <=16MB F32 tensors from 35B/1B/Granite/Inkling (fail=0). G2b built 502-tensor candidate, versioned-published, live WGPU canaries pass. G3 NanoJev eval-oracle PASS (fitness gates; no weight gen). G4 cluster regression PASS. **Owner-gated promote (2026-11-21, msg "1"):** canonical is now `gsv-versus-ai.gguf` = G2b F32 706495136B sha256 `25fadfbb...`; G2b Q8_0/Q4_0 published; F4 Q8_0 canonical backed up. Artifact remains **partial pack** (no runnable full LLM, no quality/parity claim). 
 **Owner ask:** перевірка екосистеми, ресерч/адаптація харнесів + MCP toolchain, доадаптація GSV MCP openbot / poolAI / Kubernetes / WGPU mirror / NanoJev; робота з WGPU у Wi-Fi кластері через NanoJev; зібрати наново ваги у mirror з поточних моделей (де можливо); спробувати зібрати skeleton з random weights під Wi-Fi cluster архітектуру; потім через NanoJev + regrep повитягувати ваги з поточних моделей у Rust у mirror і назвати 4-квантовану збірку `gsv-versus-ai.gguf`.  
 **Rule:** спочатку план з deep research, потім тікети. Жодних ваг/секретів у git. Rust-first. MSYS2 bash. No `rebook/**`.
 
