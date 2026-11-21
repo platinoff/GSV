@@ -1,6 +1,6 @@
-# CNV-1 — omniroute TS→Rust (Wave 1–14 progress)
+# CNV-1 — omniroute TS→Rust (Wave 1–15 progress)
 
-**Status:** Wave 1–14 done (bounded slices) · **Date:** 2026-11-20  
+**Status:** Wave 1–15 done (bounded slices) · **Date:** 2026-11-20  
 **Ticket:** CNV-1 (owner: exempt-till-epic → epic started)  
 **Repo:** `S:\rust\omniroute` (origin `https://github.com/platinoff/OmniRoute` fork in use, branch `release/v3.8.50`)  
 **Scope reality:** 8,263 tracked TS/JS-family files deferred under CNV-1 (Next.js 16 app + `open-sse/` streaming engine + Electron + CLI + tests + scripts). Full migration is a multi-wave epic; waves deliver additive, bounded, testable ports without breaking existing npm/Node runtime.
@@ -178,13 +178,23 @@
 
 **W14 notes:** policy-aligned with allowed `.wasm` output; opt-in only (no default runtime wiring). In ESM-root projects, `--target nodejs` output may need `pkg/package.json` `{"type":"commonjs"}` when required from ESM contexts.
 
+## Wave 15 (extend opt-in WASM parity with compression helpers) — done
+
+| ID | Deliverable | Status |
+|----|-------------|--------|
+| W15-WASM-COMPRESSION | `crates/omniroute-wasm` extended with `omniroute-compression` APIs: `validateCompressionJson`, `validateRulePackJson`, `isCompressionExcluded` (string/JSON boundary) | done (`e4d4bce`) |
+| W15-BUILD-SMOKE | `cargo check -p omniroute-wasm`, `cargo build -p omniroute-wasm --target wasm32-unknown-unknown --release` + `wasm-bindgen --target nodejs` + Node smoke (GCF/SSE + compression validation/rule-pack/exclusions) — **ok** (generated `pkg/` gitignored) | done |
+| W15-COMMIT | Conventional commit in omniroute + push | done (`e4d4bce`) |
+
+**W15 implementation:** opt-in WASM parity broadened to wasm-compatible compression helpers (including rule-pack validation path backed by `fancy-regex` on wasm32). No default runtime wiring.
+
 ## Proposed next waves (owner-prioritized, in order)
 
 | Wave | Candidate | Rationale | Risk |
 |------|-----------|-----------|------|
-| W15 | Extend opt-in WASM/N-API parity (e.g. expose WASM for compression primitives where wasm-compatible, or unify adapter strategy) behind opt-in boundaries | broaden portable integration | M |
-| W16 | Protocol/primitives continued (bounded deterministic helpers, chunk/value utilities, stateful wrappers) behind opt-in boundaries | deepen hot-path leverage | M/L |
-| W17+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
+| W16 | Protocol/primitives continued (bounded deterministic helpers, chunk/value utilities, stateful napi/wasm wrappers) behind opt-in boundaries | deepen hot-path leverage | M/L |
+| W17 | Extend compression/rules core coverage where portable (deterministic helpers, pack/data abstractions) with parity tests | extend portable core | M |
+| W18+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
 
 > W2 hardening option open: TS-shared golden vectors/fixture harness for GCF.
 
