@@ -76,12 +76,39 @@
 5. Паралельний `cargo` на один `target/` — заборонений; poolAI повний test локально не ганяємо (CI-авторитет).
 6. RB/book-тікети не відкривати; rebook — лише якщо owner явно скаже.
 
-## 3. Статус
+## 3. Статус (стан плану + recheck)
 
 | Група | Статус |
 |-------|--------|
-| SEC-1..4 | **ready** (факти зібрані) |
-| GEN-0..5 | ready (GEN-3/4 — owner-confirm) |
-| CLN-1..6 | ready (CLN-2/4/6 — owner) |
-| CNV-0..6 | ready (CNV-1/5 — owner) |
-| VER-1..4 | blocked by попередні |
+| SEC-1..4 | виконано у sweep (зафіксовано в inventory/комітах; tracked secrets = 0 actionable) |
+| GEN-0..5 | GEN-0/1/2/3 виконано в межах sweep; GEN-4 owner-gated (mesh-node deferred); GEN-5 exempt (`.jsonl` метадані) |
+| CLN-1..6 | CLN-1/3/5 виконано; CLN-2/4 owner-gated/kept; CLN-6 rebook не чіпати |
+| CNV-0..6 | CNV-0/2/3/4/6 закрито; CNV-1 **exempt-till-epic** (owner); CNV-5 png/jpg exempt, svg owner |
+| VER-1..4 | виконано (гейти по чіпнутих репо, інвентар, пуші/самарі sweep). **Recheck 2026-11-20 (regrep):** підтверджено знову |
+
+## 4. Recheck 2026-11-20 (regrep, екосистема/інвайромент)
+
+Команда: `cargo xtask inventory` / `cargo xtask inventory --tracked` (root `S:\rust`, 17 репо). Перед recheck прибрано transient gitignored build-output `omniroute/crates/omniroute-wasm/pkg/`.
+
+| Метрика | Final sweep | **Recheck (post-CNV1 W1–W16)** |
+|---|---:|---:|
+| Violating (all non-allowed) | 22,560 | **22,570** |
+| Tracked violating | 9,257 | **9,266** |
+| Exempt | 1,321 | **1,329** |
+| Deferred | 21,239 | **21,241** |
+| **Actionable (all/tracked)** | **0 / 0** | **0 / 0** |
+| Untracked violating | 13,303 | **13,304** |
+| Allowed | 4,476 | **4,494** |
+
+**Залишок (не відповідає canon-форматам, але не actionable):** 22,570 файлів — усі **exempt** або **deferred** (див. `docs/gsv/FORMAT_INVENTORY_2026-11-20.md`). Зміни vs final логічні: +18 allowed (нові `.rs/.md`), +8 exempt (`Cargo.toml`/repo-config), +2 deferred CNV-1 (opt-in `omniroute` bridge `.ts/.mjs`), +1 untracked — наслідок bounded CNV-1 W1–W16 (`efb4bec`, `release/v3.8.50`) без зміни default runtime.
+
+### Короткі описи залишку
+- **Deferred:** CNV-1 omniroute TS/JS family 8,265 (owner-epic); vendored CMake 7,985 + LLVM/clang 256 + llama.cpp 2,140; ECO-8.2 patches 9; rebook 2,555 (untouchable); mesh-node scripts/images 15 (GEN-4, owner); rusty-engine model artifacts 16.
+- **Exempt:** repo/CI/config, UI glue, docs/assets/binary/media, DB migrations, ops/deploy/native scripts & sources, IDE/test fixtures, metadata/runtime artifacts, env templates, untracked local secrets, editor/stray artifacts (0 actionable).
+
+### Логічна заміна на дозволені формати (наступні кроки)
+- **CNV-1 (omniroute, пріоритет Rust→WASM→.md/.json/.js):** продовжувати bounded порти в `.rs` (`crates/*`), opt-in **`.wasm`** та мінімальні **`.js`**-адаптери; strangler-fig без ламання npm/Node/CI. TS лишається source of truth до owner-wiring.
+- **Owner-gated/не конвертувати:** vendored toolchains/upstream та ECO-8.2 patches — лише за owner-стрімом; rebook/model weights — untouchable/binary; mesh-node GEN-4 — перенос інструкцій у **`.md`**/прибирання артефактів лише за owner-рішенням.
+- **Exempt формати:** лишати як є (контракти інструментів/CI/runtime); точкова заміна на `.rs`/`cargo xtask`/`.md`/`.json` можлива лише де семантично безпечно (окремі тікети, owner-confirm для чужих репо).
+
+**Вердикт recheck:** порушень, що потребують дії (**actionable**), немає. Далі — CNV-1 epic хвилями та owner-gated рішення.
