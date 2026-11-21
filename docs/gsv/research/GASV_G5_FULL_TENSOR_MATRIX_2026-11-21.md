@@ -20,8 +20,9 @@ Machine-readable matrix: `docs/gsv/research/GASV_G5_FULL_TENSOR_MATRIX.json` (gi
 - Large 3D MoE experts (123.79GB F32) block "full working LLM" on this box; they require dedicated storage/compute plan and runtime support.
 - `already-in-mirror` covers 502 live tensors after G2b merge; matrix count 501 reflects manifest-name presence.
 
-## Next
+## Next (updated by G6)
 
-- Finish 110 large-tensor extraction; register compatible tensors; G5b canary.
-- Define MoE expert chunking/mirror plan (owner-gated, disk/RAM). 
+- G5 extraction/register/canary done (g-708 PASS). Remaining blocker: 122 huge MoE experts (123.79GB F32) - owner-gated dedicated storage/compute/chunking plan.
+- Q4 orientation: G2b Q4_0 export is the 4-bit ecosystem candidate (`ec1cdf86...`, 7.1111x); canonical remains F32 until owner-gated promotion.
+- NanoJev: eval/oracle/fitness only; no weight transplant/generation. Use as fitness gate alongside WGPU canaries.
 - Runtime infer/quality gate remains N/A until full compatible graph is assembled and validated.

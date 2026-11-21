@@ -1,7 +1,7 @@
 # GASV-VERSUS-AI — Wi-Fi WGPU cluster skeleton / weight-mirror research plan
 
 **Date:** 2026-11-21  
-**Status:** A–G2b executed (2026-11-21). F3 eval gate passed (parity 121/121). G2 regrep extracted 1519 <=16MB F32 tensors from 35B/1B/Granite/Inkling (fail=0). G2b built 502-tensor candidate, versioned-published, live WGPU canaries pass. G3 NanoJev eval-oracle PASS (fitness gates; no weight gen). G4 cluster regression PASS. **Owner-gated promote (2026-11-21, msg "1"):** canonical is now `gsv-versus-ai.gguf` = G2b F32 706495136B sha256 `25fadfbb...`; G2b Q8_0/Q4_0 published; F4 Q8_0 canonical backed up. Artifact remains **partial pack** (no runnable full LLM, no quality/parity claim). 
+**Status:** A–G5 executed (2026-11-21). F3 parity 121/121; G2 1519 <=16MB F32 tensors extracted (fail=0); G2b 502-tensor candidate promoted canonical by owner-gate (msg "1") as F32 `25fadfbb...`, Q8_0/Q4_0 versioned. G3 NanoJev eval-oracle PASS (fitness gates; no weight gen/transplant). G4 cluster regression PASS (<1e-4). **G5 done:** 35B full-tensor matrix classified (733: 501 in-mirror, 110 large-chunked-feasible extracted/registered, 122 huge MoE experts 123.79GB infeasible on this box); live wgpu index 612; G5 canary `g-708` PASS. **G6 done (slice):** Q4 orientation/adaptation, NanoJev fitness boundary explicit, WGPU canaries g-708/g-709 PASS evidence, doc steady-state sync. Artifact remains **partial pack** (no runnable full LLM, no quality/parity claim). 
 **Owner ask:** перевірка екосистеми, ресерч/адаптація харнесів + MCP toolchain, доадаптація GSV MCP openbot / poolAI / Kubernetes / WGPU mirror / NanoJev; робота з WGPU у Wi-Fi кластері через NanoJev; зібрати наново ваги у mirror з поточних моделей (де можливо); спробувати зібрати skeleton з random weights під Wi-Fi cluster архітектуру; потім через NanoJev + regrep повитягувати ваги з поточних моделей у Rust у mirror і назвати 4-квантовану збірку `gsv-versus-ai.gguf`.  
 **Rule:** спочатку план з deep research, потім тікети. Жодних ваг/секретів у git. Rust-first. MSYS2 bash. No `rebook/**`.
 
@@ -228,10 +228,16 @@ Research: [`docs/gsv/research/GASV_F_PROPER_NEXT_STEPS_2026-11-21.md`](../../gsv
 ## 9. Phase F outcome (2026-11-21)
 
 1. **F1–F5 done:** artifact contract/provenance, Q8_0/Q4_0 eval, parity 121/121, med canaries #37/#39/#40 <1e-4, owner-gated publish (variant 1, canonical Q8_0), regression record.
-2. **Published:** `L:\gsv_mirror\models\gsv-versus-ai\` — canonical `gsv-versus-ai.gguf` (Q8_0, 137601184B, `99938926…`), `gsv-versus-ai-f32.gguf` (`591b6310…`), `gsv-versus-ai-q4_0.gguf` (`cf0a5e40…`), prior 16KB skeleton preserved, manifests/reports included.
-3. **Caveat:** partial shexp-pack only; not runnable full LLM; no infer/quality claim. Next real step beyond this plan requires full tensor coverage/architecture compatibility matrix and owner-approved inference target.
+2. **Published (F4 state):** `L:\gsv_mirror\models\gsv-versus-ai\` had canonical Q8_0 at F4; later **G2b promoted canonical by owner-gate (msg "1")** to F32 `25fadfbb...` with G2b Q8_0/Q4_0 and F4 Q8_0 backup retained. See `gsv-versus-ai.publish.json` for current truth.
+3. **Caveat:** partial pack; not runnable full LLM; no infer/quality claim.
 
-## 10. Reference files
+## 10. Phase G outcome / steady state (2026-11-21)
+
+1. **G1–G5 done:** regrep matrix, extraction (1519 <=16MB), G2b build/promote, NanoJev eval-oracle PASS, cluster regression PASS, 35B full-tensor matrix (733) with 110 large tensors extracted/registered and `g-708` PASS. Live wgpu index 612.
+2. **G6 done (slice):** Q4 orientation, NanoJev fitness boundary explicit, WGPU canary extension (g-708/g-709 PASS). Q4_0 is the 4-bit ecosystem candidate (`ec1cdf86...`, 7.1111x, quant report present); canonical remains F32 until owner-gated promotion. NanoJev not used for GGUF weight transplant/generation.
+3. **Hard blocker:** 122 huge MoE expert tensors (123.79GB F32) infeasible on this box. Full runnable LLM requires owner-gated storage/compute/chunking plan + runtime infer/quality gate.
+
+## 11. Reference files
 
 - `docs/gsv/GSV_ECOSYSTEM_SYMBIOSIS.md`, `docs/gsv/GSV_FUNCTION_MANAGEMENT.md`, `docs/gsv/LOCAL_MODEL_ROLES_2026-11-21.md`
 - `docs/gsv/MESH_ROADMAP_TASKS_2026-11-19.md`, `docs/gsv/MESH_DISPATCH_RESEARCH_2026-11-18.md`, `docs/gsv/K8S_WGPU_SYNTHESIS_2026-11-18.md`
