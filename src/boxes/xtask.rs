@@ -126,6 +126,10 @@ pub const TASKS: &[(&str, &str)] = &[
         "Read-only WGPU mirror/store inventory (chunks/index/tensors/blk f32, optional sha256 verify) — JSON (`--data-dir <path>`, `--verify`)",
     ),
     (
+        "gasv-publish-check",
+        "Read-only GASV D4 dry-run: validate artifact+manifest+sha256 and report planned mirror publish destination (no copy, no git weights)",
+    ),
+    (
         "record-scenario-bench",
         "Time abrakadabra-session walk → docs/gsv/scenario_bench.json",
     ),

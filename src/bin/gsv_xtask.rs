@@ -587,6 +587,75 @@ fn main() -> ExitCode {
             );
             ExitCode::SUCCESS
         }
+        "gasv-publish-check" => {
+            let artifact = flag_value(&args, "--artifact").map(PathBuf::from);
+            let manifest = flag_value(&args, "--manifest").map(PathBuf::from);
+            let dest = flag_value(&args, "--dest")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("L:/gsv_mirror/models/gasv-versus-ai"));
+            let mut errors: Vec<String> = Vec::new();
+            let mut artifact_info = serde_json::Value::Null;
+            let mut manifest_info = serde_json::Value::Null;
+            if let Some(p) = &artifact {
+                match std::fs::metadata(p) {
+                    Ok(m) => {
+                        let sha = gsv::boxes::weight_store::sha256_file(p).ok();
+                        artifact_info = serde_json::json!({
+                            "path": p.display().to_string(),
+                            "exists": true,
+                            "bytes": m.len(),
+                            "sha256": sha,
+                        });
+                    }
+                    Err(e) => errors.push(format!("artifact: {}: {e}", p.display())),
+                }
+            } else {
+                errors.push("missing --artifact <path>".to_string());
+            }
+            if let Some(p) = &manifest {
+                match std::fs::read_to_string(p) {
+                    Ok(text) => match serde_json::from_str::<serde_json::Value>(&text) {
+                        Ok(v) => {
+                            let sha = gsv::boxes::weight_store::sha256_file(p).ok();
+                            let schema =
+                                v.get("schema").and_then(|x| x.as_str()).map(str::to_string);
+                            manifest_info = serde_json::json!({
+                                "path": p.display().to_string(),
+                                "exists": true,
+                                "sha256": sha,
+                                "schema": schema,
+                                "tensor_count": v.get("tensor_count").or_else(|| v.get("n_tensors")),
+                            });
+                        }
+                        Err(e) => errors.push(format!("manifest json: {}: {e}", p.display())),
+                    },
+                    Err(e) => errors.push(format!("manifest: {}: {e}", p.display())),
+                }
+            } else {
+                errors.push("missing --manifest <path>".to_string());
+            }
+            let ok = errors.is_empty();
+            let out = serde_json::json!({
+                "ok": ok,
+                "dry_run": true,
+                "owner_gated_publish": true,
+                "no_git_weights": true,
+                "dest": dest.display().to_string(),
+                "artifact": artifact_info,
+                "manifest": manifest_info,
+                "errors": errors,
+                "note": "D4 publish is owner-gated and allowed only after eval gate; this command never copies."
+            });
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&out).unwrap_or_else(|_| "{}".to_string())
+            );
+            if ok {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(2)
+            }
+        }
         "record-scenario-bench" => match xtask::record_scenario_bench(&root) {
             Ok(0) => ExitCode::SUCCESS,
             Ok(_) => ExitCode::FAILURE,

@@ -85,7 +85,7 @@ fn tensors_path(data_dir: &Path) -> PathBuf {
     data_dir.join(TENSORS_FILE)
 }
 
-fn sha256_hex(bytes: &[u8]) -> String {
+pub fn sha256_hex(bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(bytes);
     let digest = hasher.finalize();
@@ -94,6 +94,12 @@ fn sha256_hex(bytes: &[u8]) -> String {
         out.push_str(&format!("{b:02x}"));
     }
     out
+}
+
+/// Read-only file SHA-256 hex (used by GASV publish checks).
+pub fn sha256_file(path: &Path) -> std::io::Result<String> {
+    let bytes = std::fs::read(path)?;
+    Ok(sha256_hex(&bytes))
 }
 
 fn clean_key(key: &str) -> Option<String> {
