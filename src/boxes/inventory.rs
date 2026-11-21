@@ -98,6 +98,9 @@ fn defer_reason(rel: &str) -> Option<&'static str> {
     if rel.starts_with("llama-rs/.cmake/") {
         return Some("CLN-2 vendored cmake distro (owner)");
     }
+    if rel.starts_with("llama-rs/.llvm/") {
+        return Some("CLN-2 vendored llvm/clang distro (owner)");
+    }
     if rel.starts_with("llama-rs/llama.cpp-master/") {
         return Some("vendored llama.cpp (owner)");
     }
@@ -162,14 +165,21 @@ fn exempt_reason(rel: &str) -> Option<&'static str> {
             | "Dockerfile"
             | "sonar-project.properties"
             | "flake.nix"
+            | "pid"
     ) {
         return Some("repo-infra");
     }
     if rel.contains("/.husky/") || rel.starts_with(".husky/") {
         return Some("repo-infra");
     }
+    // Untracked local secrets (tracked secret shapes are SEC-actionable in classify).
+    // Env templates are exempted earlier in classify as `env-template`.
     if is_secret_basename(base) {
         return Some("local-secret (untracked)");
+    }
+    // Runtime/generated data blobs (not source).
+    if rel.starts_with("poolAI/data/") || rel.contains("/poolai-e2e-visual/") {
+        return Some("runtime-data-artifact");
     }
     // Path-specific overrides (before generic extension rules).
     if rel.starts_with("poolAI/e2e/") {
@@ -207,7 +217,8 @@ fn exempt_reason(rel: &str) -> Option<&'static str> {
         "csv" => Some("data-export"),
         "exe" | "dll" => Some("release-binary"),
         "bin" | "gguf" | "safetensors" | "img" | "xz" | "pth" | "onnx" | "mp4" | "mov" | "webm"
-        | "pdf" | "icns" | "mp3" | "wav" | "m4a" => Some("binary-artifact"),
+        | "pdf" | "icns" | "mp3" | "wav" | "m4a" | "gz" | "bz2" | "zst" | "zip" | "7z" | "tar"
+        | "tgz" | "qch" | "inv" | "hex" | "sig" => Some("binary-artifact"),
         "log" | "pid" => Some("runtime-output"),
         "patch" => Some("patch-set"),
         "sh" => Some("shell-ops-script"),
@@ -215,7 +226,7 @@ fn exempt_reason(rel: &str) -> Option<&'static str> {
         "py" => Some("ops-script (python)"),
         "properties" | "ini" | "conf" | "nix" => Some("repo-config"),
         "gyp" => Some("native-build-config"),
-        "c" | "h" => Some("native-source (build)"),
+        "c" | "h" | "inc" | "def" | "modulemap" => Some("native-source (build)"),
         "container" | "volume" | "network" => Some("deploy-config (quadlet)"),
         "tpl" => Some("template-config"),
         "example" | "sample" | "template" => Some("config-template"),

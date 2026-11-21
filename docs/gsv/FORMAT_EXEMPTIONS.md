@@ -22,13 +22,13 @@ below would otherwise match.
 
 | Reason | Scope | Why it stays |
 |--------|-------|--------------|
-| `repo-infra` | `.gitignore`, `.gitattributes`, `.dockerignore`, `.cbmignore`, `.gitkeep`, `.npmrc`, `.nvmrc`, `.editorconfig`, `.prettierrc*`, `.eslintrc`, `.npmignore`, `.node-version`, `.trivyignore`, `.vale.ini`, `.cursorrules`, `CODEOWNERS`, `LICENSE*`, `gsv.code-workspace`, `Makefile`, `CMakeLists.txt`, `Dockerfile`, `sonar-project.properties`, `flake.nix`, `.husky/**` | VCS/CI/tooling hooks and repo config read by name by external tools. |
+| `repo-infra` | `.gitignore`, `.gitattributes`, `.dockerignore`, `.cbmignore`, `.gitkeep`, `.npmrc`, `.nvmrc`, `.editorconfig`, `.prettierrc*`, `.eslintrc`, `.npmignore`, `.node-version`, `.trivyignore`, `.vale.ini`, `.cursorrules`, `CODEOWNERS`, `LICENSE*`, `gsv.code-workspace`, `Makefile`, `CMakeLists.txt`, `Dockerfile`, `sonar-project.properties`, `flake.nix`, `pid`, `.husky/**` | VCS/CI/tooling hooks and repo config read by name by external tools. |
 | `rust-ci-infra` | `*.toml`, `*.lock`, `*.yml`, `*.yaml` | Cargo manifests/lockfiles and CI workflow/config YAML — native formats. |
 | `repo-config` | `*.properties`, `*.ini`, `*.conf`, `*.nix` | Tool/runtime config in native formats. |
 | `ui-glue` | `*.html`, `*.css` | Thin UI glue (AGENTS.md; `ratio.rs` exempt). |
 | `docs-assets` | `*.svg`, `*.png`, `*.jpg`, `*.jpeg`, `*.gif`, `*.webp`, `*.ico` | Binary/pixel assets for docs (CNV-5: png/jpg exempt, svg not touched). |
 | `metadata-ring` | `*.jsonl` | Append-only rings/telemetry/tickets metadata. |
-| `binary-artifact` | `*.exe`, `*.dll`, `*.bin`, `*.gguf`, `*.safetensors`, `*.img`, `*.xz`, `*.pth`, `*.onnx`, `*.mp4`, `*.mov`, `*.webm`, `*.pdf`, `*.icns`, `*.mp3`, `*.wav`, `*.m4a` | Build/model/media binary artifacts (weights never converted). |
+| `binary-artifact` | `*.exe`, `*.dll`, `*.bin`, `*.gguf`, `*.safetensors`, `*.img`, `*.xz`, `*.pth`, `*.onnx`, `*.mp4`, `*.mov`, `*.webm`, `*.pdf`, `*.icns`, `*.mp3`, `*.wav`, `*.m4a`, `*.gz`, `*.bz2`, `*.zst`, `*.zip`, `*.7z`, `*.tar`, `*.tgz`, `*.qch`, `*.inv`, `*.hex`, `*.sig` | Build/model/media/compressed/binary artifacts (weights never converted). |
 | `release-binary` | `*.exe`, `*.dll` | Covered by `binary-artifact` (kept for registry clarity). |
 | `runtime-output` | `*.log`, `*.pid` | Process output. |
 | `db-migrations` | `*.sql` | Native migration dialect. |
@@ -37,7 +37,7 @@ below would otherwise match.
 | `os-ops-script` | `*.ps1` | OS-specific ops scripts. |
 | `ops-script (python)` | `*.py` | Python ops/CI/tooling scripts in foreign repos. |
 | `native-build-config` | `*.gyp` | Native addon/build config. |
-| `native-source (build)` | `*.c`, `*.h` | Native sources required by build/tooling. |
+| `native-source (build)` | `*.c`, `*.h`, `*.inc`, `*.def`, `*.modulemap` | Native sources/includes required by build/tooling. |
 | `deploy-config (quadlet)` | `*.container`, `*.volume`, `*.network` | Podman Quadlet units. |
 | `template-config` | `*.tpl` | Template files (e.g. Helm helpers). |
 | `config-template` | `*.example`, `*.sample`, `*.template` (non-env basename patterns) | Documented config templates/placeholders. |
@@ -50,6 +50,7 @@ below would otherwise match.
 | `data-export` | `*.csv` | Tabular exports. |
 | `patch-set` | `*.patch` | Applied patch artifacts (ECO-8.2 stream). |
 | `editor-backup` | `*.new`, `*.bak`, `*.orig` | Editor/merge backup artifacts. |
+| `runtime-data-artifact` | `poolAI/data/**`, `**/poolai-e2e-visual/**` | Generated runtime/test data blobs (not source). |
 | `stray-artifact (tracked)` | specific tracked oddities (e.g. `poolAI/ -5`, `poolAI/0.0`) | Known tracked artifacts with non-canonical names; exempted to avoid false-actionable, not auto-deleted. |
 | `typescript-source` | `*.ts`, `*.tsx`, `*.mts`, `*.cts` (when not deferred) | TypeScript sources outside allowed set; omniroute TS family deferred by CNV-1. |
 | `playwright-e2e-js` | `poolAI/e2e/**` | poolAI browser E2E (owner-gated). |
@@ -61,7 +62,8 @@ below would otherwise match.
 | Reason | Ticket | Content |
 |--------|--------|---------|
 | `CLN-1 next-build output (untracked)` | CLN-1 | `omniroute/.build/**` — Next.js build cache (~19 k files, gitignored). **Removed 2026-11-20** (~2.2 GB). |
-| `CLN-2 vendored cmake distro (owner)` | CLN-2 | `llama-rs/.cmake/**` — vendored CMake tree (~130 MB on disk). **Kept (2026-11-20, verified):** `.cargo/config.toml` pins `CMAKE` to `S:\rust\llama-rs\.cmake\cmake-3.31.9-windows-x86_64\bin\cmake.exe` and docs reference it — build dependency, not deleted; gitignored. |
+| `CLN-2 vendored cmake distro (owner)` | CLN-2 | `llama-rs/.cmake/**` — vendored CMake tree. **Kept (2026-11-20, verified):** pinned in `.cargo/config.toml`/docs — build dependency, not deleted; gitignored. |
+| `CLN-2 vendored llvm/clang distro (owner)` | CLN-2 | `llama-rs/.llvm/**` — vendored LLVM/clang toolchain tree (build/runtime toolchain, owner-managed). |
 | `CLN-3 test artifacts (untracked)` | CLN-3 | `poolAI/.tmp/**` — test scratch (~198). **Removed 2026-11-20** (untracked, gitignored). |
 | `CNV-1 omniroute TS→Rust owner epic` | CNV-1 | omniroute `*.ts/tsx/mjs/jsx/cjs/mts/cts` (tracked) — **owner decision 2026-11-20: exempt-till-epic** (TS→Rust = separate epic, not this sweep). |
 | `CNV-5 docs assets (owner)` | CNV-5 | `*.png/*.jpg/*.jpeg` exempt as `docs-assets`; `*.svg` not touched (owner 2026-11-20). |
