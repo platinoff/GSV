@@ -194,7 +194,7 @@
 - **GASV-D4:** publish `gasv-versus-ai.gguf` to mirror only after eval gate — ⏸ owner-gated (`t-1795272283607411700`).
 
 ### Phase E — Cluster eval
-- **GASV-E1:** min set (hub+bifrost) smoke: load/dispatch/proof/latency — 🔄 read-only evidence 2026-11-21 (`t-1795272283721764300`): initial no-live-peers snapshot; recheck shows hub healthy (`0.248.0`) and bifrost **peer 39 alive=true** (38 present/alive=false, 37 dead), 57 measured, recent done groups max_err <1e-6. No canary dispatch executed (owner-gated).
+- **GASV-E1:** min set (hub+bifrost) smoke: load/dispatch/proof/latency — ✅ 2026-11-21 (`t-1795272283721764300`): hub healthy (`0.248.0`), bifrost **peer 39 alive=true** (38 present/alive=false). Owner-go canary `mt-641` `weights_matvec blk.7.ffn_gate_shexp.weight` shards=1 → **done** on peer 39, `max_err_model=5.55e-17`, `elapsed_ms~261`, `8.03 MFLOPS`. Fail-open/proof-gate unchanged.
 - **GASV-E2:** med set (+valhall) when online — ⏸ opportunistic (`t-1795272283847007500`).
 - **GASV-E3:** max set spec only (Pi deferred) — ✅ spec-only 2026-11-21 (`t-1795272283960030800`): Pi4 max set is documentation-only until hardware restored; no tests/dispatch; requires owner gate, dedicated node/RAM, restored mesh-node remote, and reproducible parity evidence before any activation.
 
