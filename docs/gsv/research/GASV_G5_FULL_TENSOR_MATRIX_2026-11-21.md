@@ -1,0 +1,27 @@
+# GASV-G5 Full Tensor Regrep Matrix (35B-A3B, 2026-11-21)
+
+**Status:** in-progress (matrix done; large-tensor extraction running)  
+**Model:** `S:/rust/rusty-engine/data/models/MiniCPM-V-4_7-35B-A3B-Q4_K_M.gguf` (qwen35moe, 733 tensors)
+
+## Classification (by F32 materialized size)
+
+| Class | Count | F32 GB | Action |
+|---|---:|---:|---|
+| already-in-mirror | 501 | 0.64 | present in `data/wgpu_weights_tensors.json` (502 entries total incl prior) |
+| large-chunked-feasible (16-128MB) | 110 | 4.69 | extraction in progress to `L:/gsv_mirror/staging_g5/35b_large_f32/` via `rusty dump-f32` |
+| huge-moe-expert-needs-plan (>128MB) | 122 | 123.79 | **infeasible on this box** (disk/RAM); needs dedicated plan/node/mirror chunking strategy |
+
+Machine-readable matrix: `docs/gsv/research/GASV_G5_FULL_TENSOR_MATRIX.json` (git-trackable metadata; no weights).
+
+## Boundaries
+
+- No silent coercion. `dump-f32` is explicit dequant/convert; class recorded.
+- NanoJev eval/oracle only.
+- Large 3D MoE experts (123.79GB F32) block "full working LLM" on this box; they require dedicated storage/compute plan and runtime support.
+- `already-in-mirror` covers 502 live tensors after G2b merge; matrix count 501 reflects manifest-name presence.
+
+## Next
+
+- Finish 110 large-tensor extraction; register compatible tensors; G5b canary.
+- Define MoE expert chunking/mirror plan (owner-gated, disk/RAM). 
+- Runtime infer/quality gate remains N/A until full compatible graph is assembled and validated.
