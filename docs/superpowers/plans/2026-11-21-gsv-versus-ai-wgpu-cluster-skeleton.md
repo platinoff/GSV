@@ -195,7 +195,7 @@
 
 ### Phase E — Cluster eval
 - **GASV-E1:** min set (hub+bifrost) smoke: load/dispatch/proof/latency — ✅ 2026-11-21 (`t-1795272283721764300`): hub healthy (`0.248.0`), bifrost **peer 39 alive=true** (38 present/alive=false). Owner-go canary `mt-641` `weights_matvec blk.7.ffn_gate_shexp.weight` shards=1 → **done** on peer 39, `max_err_model=5.55e-17`, `elapsed_ms~261`, `8.03 MFLOPS`. Fail-open/proof-gate unchanged.
-- **GASV-E2:** med set (+valhall) when online — ⏸ opportunistic (`t-1795272283847007500`).
+- **GASV-E2:** med set (+valhall) opportunistic — ✅ 2026-11-21 (`t-1795272283847007500`): valhall rejoined as peer **#40** (`arm/valhall`, phone) `alive/ready`. Probe `mt-644` `matmul64` done `65.5ms/op · 8.0 MFLOPS · max_err=0`. Smoke `mt-646` `weights_matvec blk.7.ffn_up_shexp.weight` shards=1 routed to peer 40, status `done`. No failover incident induced.
 - **GASV-E3:** max set spec only (Pi deferred) — ✅ spec-only 2026-11-21 (`t-1795272283960030800`): Pi4 max set is documentation-only until hardware restored; no tests/dispatch; requires owner gate, dedicated node/RAM, restored mesh-node remote, and reproducible parity evidence before any activation.
 
 ## 7. Gates / Definition of Done
