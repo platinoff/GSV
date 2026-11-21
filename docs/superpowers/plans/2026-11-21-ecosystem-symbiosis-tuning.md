@@ -100,7 +100,7 @@ GSV omni catalog adapted for local hybrid bunke-rock/rusty lanes (see commit `f1
 - [x] Create execution tickets (board)
 
 ### P1 — Documentation & FM symbiosis
-- **SYM-1 (GSV):** Record nanojev verification + model-role notes in GSV docs (HANDOFF/NEXT or dedicated note) and link from symbiosis plan.
+- **SYM-1 (GSV, done):** Record nanojev verification + model-role notes in GSV docs. Evidence: `docs/gsv/LOCAL_MODEL_ROLES_2026-11-21.md`, `docs/NEXT_SESSION_PROMPT.md` updated.
 - **SYM-2 (multi-plugin, ticket per repo or batched by owner):** Add FM skeleton docs for high-priority plugins (`rusty-engine`, `llama-rs`, `mesh-node`, `GSV-WGPU`, `telenetis`) — one commit per repo, minimal factual skeleton.
 - **SYM-3:** Extend FM skeletons to remaining registered plugins (`omniroute`, `LinFS`, `rebook`, `ORR_DESKTOP`, `CoreBoard_Labs_shop`, `sport-forcast`, `adoreble_wifi`) as follow-up.
 
@@ -117,7 +117,7 @@ GSV omni catalog adapted for local hybrid bunke-rock/rusty lanes (see commit `f1
 ## 7. Ticket map (created for this plan)
 
 - `t-1795243252280126900` — **Ecosystem symbiosis: audit nanojev/FM/rules/MCP toolchain and create tuning plan+tickets** (this audit/plan) — **done**
-- `t-1795243604178088100` — **SYM-1:** document nanojev verification and local model roles in GSV canon (`gsv`, open)
+- `t-1795243604178088100` — **SYM-1:** document nanojev verification and local model roles in GSV canon (`gsv`, **done**)
 - `t-1795243604268301300` — **SYM-2:** add FM skeletons for high-priority plugins (`rusty-engine,llama-rs,mesh-node,GSV-WGPU,telenetis`) (`gsv`, open)
 - `t-1795243604357865800` — **SYM-4:** normalize kit wiring (MCP/rules/skills/instructions) across registered projects (`gsv`, open)
 - `t-1795243604437440700` — **SYM-6:** rusty-engine nanojev runbook and replay smoke verification (`rusty-engine`, open)
