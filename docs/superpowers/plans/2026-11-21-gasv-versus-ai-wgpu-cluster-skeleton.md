@@ -173,7 +173,7 @@
 ### Phase A — Research/docs (no weight writes)
 - **GASV-A1 (gsv):** ecosystem verification matrix + doc/plan sync — ✅ done 2026-11-21 (`t-1795270402999084900`, `6088f45`).
 - **GASV-A2 (rusty-engine):** GGUF writer/skeleton feasibility doc + API sketch — ✅ done 2026-11-21 (`t-1795270403090130500`, rusty-engine `d555900`).
-- **GASV-A3 (gsv):** weight transplant matrix schema + source model tensor inventory script/spec (Rust xtask, read-only) — open.
+- **GASV-A3 (gsv):** weight transplant matrix schema + source model tensor inventory script/spec (Rust xtask, read-only) — ✅ done 2026-11-21 (`t-1795270403148226800`).
 - **GASV-A4 (gsv/poolAI docs):** NanoJev role clarification + WSP/K8s boundary update — ✅ done 2026-11-21 (`t-1795270403204663600`).
 - **GASV-A5 (gsv):** cluster set spec min/med/max + WGPU smoke criteria (bifrost minimal) — ✅ done 2026-11-21 (`t-1795270403265695800`).
 
