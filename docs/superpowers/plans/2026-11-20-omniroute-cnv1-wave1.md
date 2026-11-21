@@ -1,6 +1,6 @@
-# CNV-1 — omniroute TS→Rust (Wave 1–6 progress)
+# CNV-1 — omniroute TS→Rust (Wave 1–7 progress)
 
-**Status:** Wave 1–6 done (bounded slices) · **Date:** 2026-11-20  
+**Status:** Wave 1–7 done (bounded slices) · **Date:** 2026-11-20  
 **Ticket:** CNV-1 (owner: exempt-till-epic → epic started)  
 **Repo:** `S:\rust\omniroute` (origin `https://github.com/platinoff/OmniRoute` fork in use, branch `release/v3.8.50`)  
 **Scope reality:** 8,263 tracked TS/JS-family files deferred under CNV-1 (Next.js 16 app + `open-sse/` streaming engine + Electron + CLI + tests + scripts). Full migration is a multi-wave epic; waves deliver additive, bounded, testable ports without breaking existing npm/Node runtime.
@@ -89,13 +89,25 @@
 
 **W6 notes:** native addon build/distribution, CI artifact strategy, and any call-site swaps behind feature flags remain follow-ups (opt-in only, no default behavior change).
 
+## Wave 7 (caveman rule-pack data helpers, pure/FS-safe) — done
+
+| ID | Deliverable | Status |
+|----|-------------|--------|
+| W7-PARSE-VALIDATE | `parse_rule_pack_value` / `parse_rule_pack_str` / `validate_rule_pack_str` (JSON parse + existing structural validation + typed deserialization) in `omniroute-compression::caveman_rules` | done (`6e54136`) |
+| W7-SUMMARY-META | `RulePackMetadata` and `summarize_language_packs` (language/categories sorted+dedup/rule_count aggregation), pure in-memory | done |
+| W7-SELECTORS | `filter_file_rules_for_context` and `select_file_rule_metadata` for `FileRule` sets (context/intensity, FS-safe) | done |
+| W7-GATES | `cargo fmt --all --check`, `cargo clippy -p omniroute-compression -p omniroute-gcf --all-targets` clean, `cargo test -p omniroute-compression -p omniroute-gcf` pass | done |
+| W7-COMMIT | Conventional commit in omniroute + push | done (`6e54136`) |
+
+**W7 implementation:** extended `crates/omniroute-compression/src/caveman_rules.rs` + exports in `lib.rs`. **Parity evidence (Rust):** 20 tests green in `omniroute-compression` (+ gcf 16 green). No FS/Node deps, no JS-regex apply/execution, no TS runtime changes.
+
 ## Proposed next waves (owner-prioritized, in order)
 
 | Wave | Candidate | Rationale | Risk |
 |------|-----------|-----------|------|
-| W7 | Pure compression/rules core continued (deterministic helpers, regex-semantics-safe transforms, pack/data abstractions; optional FS-safe rule-pack loading abstractions) | extend portable core before deeper coupling | M |
 | W8 | `open-sse` hot-path components (translator/chunk/protocol primitives) behind adapters / opt-in flags | core engine leverage | L |
-| W9+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
+| W9 | Pure compression/rules core continued (further deterministic helpers, regex-semantics-safe transforms, additional pack/data abstractions) as needed | extend portable core | M |
+| W10+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
 
 > W2 hardening option open: TS-shared golden vectors/fixture harness for GCF.
 
