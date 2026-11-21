@@ -1,6 +1,6 @@
-# CNV-1 — omniroute TS→Rust (Wave 1–10 progress)
+# CNV-1 — omniroute TS→Rust (Wave 1–11 progress)
 
-**Status:** Wave 1–10 done (bounded slices) · **Date:** 2026-11-20  
+**Status:** Wave 1–11 done (bounded slices) · **Date:** 2026-11-20  
 **Ticket:** CNV-1 (owner: exempt-till-epic → epic started)  
 **Repo:** `S:\rust\omniroute` (origin `https://github.com/platinoff/OmniRoute` fork in use, branch `release/v3.8.50`)  
 **Scope reality:** 8,263 tracked TS/JS-family files deferred under CNV-1 (Next.js 16 app + `open-sse/` streaming engine + Electron + CLI + tests + scripts). Full migration is a multi-wave epic; waves deliver additive, bounded, testable ports without breaking existing npm/Node runtime.
@@ -135,13 +135,23 @@
 
 **W10 implementation:** additive methods/structs in `crates/omniroute-sse/src/lib.rs` with parity-oriented tests. **Parity evidence (Rust):** 9 tests green in `omniroute-sse`. Not wired into runtime/adapters.
 
+## Wave 11 (SSE stream payload predicate helpers) — done
+
+| ID | Deliverable | Status |
+|----|-------------|--------|
+| W11-PREDICATES | `is_openai_choices_payload`, `has_openai_finish_reason`, `is_known_non_claude_stream_payload` (+ internal value-shape helpers for OpenAI/Responses/Gemini stream detection) in `omniroute-sse` | done (`3add676`) |
+| W11-GATES | `cargo fmt --all --check`, `cargo clippy -p omniroute-sse --all-targets` clean, `cargo test -p omniroute-sse` pass | done |
+| W11-COMMIT | Conventional commit in omniroute + push | done (`3add676`) |
+
+**W11 implementation:** pure JSON-shape predicates ported from `open-sse/utils/streamHelpers.ts` semantics with Rust tests. **Parity evidence (Rust):** 10 tests green in `omniroute-sse`. Additive, not wired into runtime.
+
 ## Proposed next waves (owner-prioritized, in order)
 
 | Wave | Candidate | Rationale | Risk |
 |------|-----------|-----------|------|
-| W11 | Hot-path/protocol primitives continued (e.g. opt-in napi/adapter exposure for stateful SSE helpers, or bounded translator/chunk/value predicates) behind opt-in boundaries | deepen core engine leverage safely | M/L |
-| W12 | Pure compression/rules core continued as needed (deterministic helpers, regex-semantics-safe transforms, pack/data abstractions) | extend portable core | M |
-| W13+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
+| W12 | Hot-path/protocol primitives continued (e.g. additional bounded chunk/value helpers or opt-in napi exposure for SSE predicates/stateful helpers) behind opt-in boundaries | deepen core engine leverage safely | M/L |
+| W13 | Pure compression/rules core continued as needed (deterministic helpers, regex-semantics-safe transforms, pack/data abstractions) | extend portable core | M |
+| W14+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
 
 > W2 hardening option open: TS-shared golden vectors/fixture harness for GCF.
 
