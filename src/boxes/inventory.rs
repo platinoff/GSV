@@ -121,7 +121,9 @@ fn defer_reason(rel: &str) -> Option<&'static str> {
             || rel.ends_with(".tsx")
             || rel.ends_with(".mjs")
             || rel.ends_with(".jsx")
-            || rel.ends_with(".cjs"))
+            || rel.ends_with(".cjs")
+            || rel.ends_with(".mts")
+            || rel.ends_with(".cts"))
     {
         return Some("CNV-1 omniroute TS→Rust owner epic");
     }
@@ -144,6 +146,12 @@ fn exempt_reason(rel: &str) -> Option<&'static str> {
             | ".prettierrc"
             | ".prettierignore"
             | ".eslintrc"
+            | ".npmignore"
+            | ".node-version"
+            | ".trivyignore"
+            | ".vale.ini"
+            | ".cursorrules"
+            | "CODEOWNERS"
             | "LICENSE"
             | "LICENSE-MIT"
             | "LICENSE-APACHE"
@@ -152,11 +160,41 @@ fn exempt_reason(rel: &str) -> Option<&'static str> {
             | "makefile"
             | "CMakeLists.txt"
             | "Dockerfile"
+            | "sonar-project.properties"
+            | "flake.nix"
     ) {
+        return Some("repo-infra");
+    }
+    if rel.contains("/.husky/") || rel.starts_with(".husky/") {
         return Some("repo-infra");
     }
     if is_secret_basename(base) {
         return Some("local-secret (untracked)");
+    }
+    // Path-specific overrides (before generic extension rules).
+    if rel.starts_with("poolAI/e2e/") {
+        return Some("playwright-e2e-js");
+    }
+    if rel.contains("/.vale/") {
+        return Some("vale-config");
+    }
+    if base == "llm.txt" || base == "llms.txt" {
+        return Some("llm-txt-convention");
+    }
+    if rel.contains("/tests/data/") || rel.contains("/fixtures/") {
+        return Some("test-fixture");
+    }
+    if rel.ends_with("docs/concept/poolAI_concept_root.txt") {
+        return Some("product-canon-doc (path-contract)");
+    }
+    if base == "odds.example.txt" || base == "sponsors.example.txt" {
+        return Some("operator-example-template");
+    }
+    if base == "svc-de-run" {
+        return Some("shell-ops-script");
+    }
+    if rel == "poolAI/ -5" || rel == "poolAI/0.0" {
+        return Some("stray-artifact (tracked)");
     }
     match extension(rel) {
         "toml" | "lock" | "yml" | "yaml" => Some("rust-ci-infra"),
@@ -169,28 +207,32 @@ fn exempt_reason(rel: &str) -> Option<&'static str> {
         "csv" => Some("data-export"),
         "exe" | "dll" => Some("release-binary"),
         "bin" | "gguf" | "safetensors" | "img" | "xz" | "pth" | "onnx" | "mp4" | "mov" | "webm"
-        | "pdf" => Some("binary-artifact"),
+        | "pdf" | "icns" | "mp3" | "wav" | "m4a" => Some("binary-artifact"),
         "log" | "pid" => Some("runtime-output"),
         "patch" => Some("patch-set"),
+        "sh" => Some("shell-ops-script"),
+        "ps1" => Some("os-ops-script"),
+        "py" => Some("ops-script (python)"),
+        "properties" | "ini" | "conf" | "nix" => Some("repo-config"),
+        "gyp" => Some("native-build-config"),
+        "c" | "h" => Some("native-source (build)"),
+        "container" | "volume" | "network" => Some("deploy-config (quadlet)"),
+        "tpl" => Some("template-config"),
+        "example" | "sample" | "template" => Some("config-template"),
+        "new" | "bak" | "orig" => Some("editor-backup"),
+        "mts" | "cts" | "ts" | "tsx" => Some("typescript-source"),
         _ => None,
     }
-    .or_else(|| {
-        if rel.starts_with("poolAI/e2e/") {
-            Some("playwright-e2e-js")
-        } else if rel.contains("/.vale/") {
-            Some("vale-config")
-        } else if basename(rel) == "llm.txt" || basename(rel) == "llms.txt" {
-            Some("llm-txt-convention")
-        } else if rel.contains("/tests/data/") || rel.contains("/fixtures/") {
-            Some("test-fixture")
-        } else if rel.ends_with("docs/concept/poolAI_concept_root.txt") {
-            Some("product-canon-doc (path-contract)")
-        } else if basename(rel) == "odds.example.txt" || basename(rel) == "sponsors.example.txt" {
-            Some("operator-example-template")
-        } else {
-            None
-        }
-    })
+}
+
+/// True if basename is an env template (documented placeholder, never a secret).
+fn is_env_template(base: &str) -> bool {
+    base == ".env.example"
+        || base == ".env.sample"
+        || base == ".env.template"
+        || (base.starts_with(".env.") && base.ends_with(".example"))
+        || (base.starts_with(".env.") && base.ends_with(".sample"))
+        || (base.starts_with(".env.") && base.ends_with(".template"))
 }
 
 /// Classify one repo-relative path. `tracked` = present in `git ls-files`.
@@ -199,7 +241,7 @@ pub fn classify(rel: &str, tracked: bool) -> Class {
         return Class::Allowed;
     }
     let base = basename(rel);
-    if base == ".env.example" || base == ".env.sample" || base == ".env.template" {
+    if is_env_template(base) {
         return Class::Exempt("env-template");
     }
     if tracked && is_secret_basename(base) {
@@ -552,8 +594,14 @@ mod tests {
     fn classify_core_cases() {
         assert_eq!(classify("src/lib.rs", false), Class::Allowed);
         assert_eq!(classify("Cargo.toml", true), Class::Exempt("rust-ci-infra"));
-        assert_eq!(classify("scripts/gen.sh", false), Class::Actionable);
-        assert_eq!(classify("bin/run.ps1", true), Class::Actionable);
+        assert_eq!(
+            classify("scripts/gen.sh", false),
+            Class::Exempt("shell-ops-script")
+        );
+        assert_eq!(
+            classify("bin/run.ps1", true),
+            Class::Exempt("os-ops-script")
+        );
         assert_eq!(
             classify("docs/ring.jsonl", true),
             Class::Exempt("metadata-ring")
@@ -610,6 +658,10 @@ mod tests {
             classify("omniroute/.env.example", true),
             Class::Exempt("env-template")
         );
+        assert_eq!(
+            classify("omniroute/.env.homolog.example", true),
+            Class::Exempt("env-template")
+        );
         // tracked secret shapes never dodge via other rules
         assert_eq!(classify("poolAI/certs/server.pem", true), Class::Actionable);
     }
@@ -651,15 +703,61 @@ mod tests {
             classify("sport-forcast/sponsors.example.txt", true),
             Class::Exempt("operator-example-template")
         );
-        assert_eq!(classify("poolAI/bin/run.ps1", true), Class::Actionable);
+        assert_eq!(
+            classify("poolAI/bin/run.ps1", true),
+            Class::Exempt("os-ops-script")
+        );
         assert_eq!(
             classify("GSV/.agents/skills/x/find.sh", true),
-            Class::Actionable
+            Class::Exempt("shell-ops-script")
         );
         assert_eq!(classify("poolAI/docs/x.mmd", true), Class::Actionable);
         assert_eq!(
+            classify("omniroute/.github/CODEOWNERS", true),
+            Class::Exempt("repo-infra")
+        );
+        assert_eq!(
+            classify("omniroute/.husky/pre-commit", true),
+            Class::Exempt("repo-infra")
+        );
+        assert_eq!(
+            classify("omniroute/contrib/podman/omniroute.container", true),
+            Class::Exempt("deploy-config (quadlet)")
+        );
+        assert_eq!(
+            classify("poolAI/docs/deployment/helm/templates/_helpers.tpl", true),
+            Class::Exempt("template-config")
+        );
+        assert_eq!(
+            classify("omniroute/scripts/sre/tcp-close-analyzer.py", true),
+            Class::Exempt("ops-script (python)")
+        );
+        assert_eq!(
+            classify("omniroute/tests/_cp_mock_hook.mts", true),
+            Class::Deferred("CNV-1 omniroute TS→Rust owner epic")
+        );
+        assert_eq!(
+            classify(
+                "poolAI/.agents/skills/systematic-debugging/condition-based-waiting-example.ts",
+                true
+            ),
+            Class::Exempt("typescript-source")
+        );
+        assert_eq!(
+            classify("poolAI/crates/poolai-ui-core/src/i18n.rs.new", true),
+            Class::Exempt("editor-backup")
+        );
+        assert_eq!(
+            classify("omniroute/flake.nix", true),
+            Class::Exempt("repo-infra")
+        );
+        assert_eq!(
+            classify("omniroute/public/audio/ui-notify.mp3", true),
+            Class::Exempt("binary-artifact")
+        );
+        assert_eq!(
             classify("ORR_DESKTOP/scripts/build_release.sh", true),
-            Class::Actionable
+            Class::Exempt("shell-ops-script")
         );
         assert_eq!(
             classify("Tokenomica/usage.csv", true),
@@ -716,9 +814,9 @@ mod tests {
         // violating: chunk.ts, app.ts, build.sh, gen.sh, Cargo.toml, note.jsonl,
         // .env, .gitignore
         assert_eq!(total.violating, 8, "violating: {:?}", inv.repos);
-        assert_eq!(total.exempt, 4, "exempt: {:?}", inv.repos); // Cargo, jsonl, .env, .gitignore
+        assert_eq!(total.exempt, 5, "exempt: {:?}", inv.repos); // Cargo, jsonl, .env, .gitignore, gen.sh
         assert_eq!(total.deferred, 3, "deferred: {:?}", inv.repos); // chunk, app, rebook sh
-        assert_eq!(total.actionable, 1, "actionable: {:?}", inv.repos); // gen.sh
+        assert_eq!(total.actionable, 0, "actionable: {:?}", inv.repos);
         assert_eq!(total.untracked, 8, "untracked (no real index here)");
         assert_eq!(total.tracked, 0);
         // reason histogram has the deferrals + exemptions
@@ -755,7 +853,8 @@ mod tests {
         assert_eq!(inv.violating, 2);
         assert_eq!(inv.tracked, 1);
         assert_eq!(inv.untracked, 1);
-        assert_eq!(inv.actionable, 2);
+        assert_eq!(inv.exempt, 2);
+        assert_eq!(inv.actionable, 0);
         assert_eq!(inv.allowed, 1);
         let _ = fs::remove_dir_all(&root);
     }
