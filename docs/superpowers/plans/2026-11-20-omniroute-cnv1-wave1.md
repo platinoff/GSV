@@ -322,13 +322,25 @@
 
 **W27 implementation:** additive, dependency-light, opt-in; no runtime wiring.
 
+## Wave 28 (reasoning extract/drop napi/wasm/adapter exposure) — done
+
+| ID | Deliverable | Status |
+|----|-------------|--------|
+| W28-NAPI | Opt-in napi exports: `compressionExtractReasoningContent`, `compressionDropReasoningContent` | done (`a2e1e9f`) |
+| W28-WASM | Opt-in wasm-bindgen exports for same reasoning helpers (wasm32 target) | done |
+| W28-ADAPTER-SMOKE | `open-sse/services/compression/nativeRust.ts` wrappers + `scripts/cnv1-smoke-rust-bridge.mjs` extended (`compression_reasoning_ok` covers extract/drop) | done |
+| W28-GATES | `cargo fmt --all --check`, clippy clean for `omniroute-napi` (`--all-targets -- -D warnings`), tests: `omniroute-compression` **56 passed**, `omniroute-gcf` **16 passed**, `omniroute-sse` **16 passed**; `cargo build -p omniroute-wasm --target wasm32-unknown-unknown --release` **ok** | done |
+| W28-COMMIT | Conventional commit in omniroute + push | done (`a2e1e9f`) |
+
+**W28 implementation:** additive, opt-in napi/wasm/adapter boundaries only. No default runtime wiring.
+
 ## Proposed next waves (owner-prioritized, in order)
 
 | Wave | Candidate | Rationale | Risk |
 |------|-----------|-----------|------|
-| W28 | Additional portable compression/protocol helper parity (bounded, dependency-light) + optional opt-in exposure where useful | extend portable surface | M |
-| W29 | Protocol/primitives continued (bounded chunk/value utilities, adapter ergonomics) with parity tests, behind opt-in boundaries | deepen hot-path/core leverage | M/L |
-| W30+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
+| W29 | Additional portable compression/protocol helper parity (bounded, dependency-light) + optional opt-in exposure where useful | extend portable surface | M |
+| W30 | Protocol/primitives continued (bounded chunk/value utilities, adapter ergonomics) with parity tests, behind opt-in boundaries | deepen hot-path/core leverage | M/L |
+| W31+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
 
 > W2 hardening option open: TS-shared golden vectors/fixture harness for GCF.
 
