@@ -1,6 +1,6 @@
-# CNV-1 — omniroute TS→Rust (Wave 1–13 progress)
+# CNV-1 — omniroute TS→Rust (Wave 1–14 progress)
 
-**Status:** Wave 1–13 done (bounded slices) · **Date:** 2026-11-20  
+**Status:** Wave 1–14 done (bounded slices) · **Date:** 2026-11-20  
 **Ticket:** CNV-1 (owner: exempt-till-epic → epic started)  
 **Repo:** `S:\rust\omniroute` (origin `https://github.com/platinoff/OmniRoute` fork in use, branch `release/v3.8.50`)  
 **Scope reality:** 8,263 tracked TS/JS-family files deferred under CNV-1 (Next.js 16 app + `open-sse/` streaming engine + Electron + CLI + tests + scripts). Full migration is a multi-wave epic; waves deliver additive, bounded, testable ports without breaking existing npm/Node runtime.
@@ -167,13 +167,24 @@
 
 **W13 implementation:** single-batch, stateless-from-JS helper (fresh `SseDataLineNormalizer` per call). **Parity evidence (Rust):** 12 tests green in `omniroute-sse`.
 
+## Wave 14 (opt-in WASM bindings for GCF/SSE) — done
+
+| ID | Deliverable | Status |
+|----|-------------|--------|
+| W14-WASM-CRATE | `crates/omniroute-wasm` (wasm-bindgen, `wasm32-unknown-unknown`) exposing string/JSON APIs for `omniroute-gcf` and `omniroute-sse` primitives (encode/decode, SSE parse/format/strip/predicates/unwrap/normalize batch) | done (`dc588cc`) |
+| W14-WORKSPACE | Workspace member + `wasm-bindgen` pinned to CLI-compatible version; host deps cfg-gated for wasm32; `.gitignore` for `pkg/` output | done |
+| W14-BUILD-SMOKE | `cargo build -p omniroute-wasm --target wasm32-unknown-unknown --release` + `wasm-bindgen --target nodejs` + Node smoke (gcf round-trip, SSE strip/done/unwrap/normalize batch) — **ok** (generated `pkg/` gitignored) | done |
+| W14-COMMIT | Conventional commit in omniroute + push | done (`dc588cc`) |
+
+**W14 notes:** policy-aligned with allowed `.wasm` output; opt-in only (no default runtime wiring). In ESM-root projects, `--target nodejs` output may need `pkg/package.json` `{"type":"commonjs"}` when required from ESM contexts.
+
 ## Proposed next waves (owner-prioritized, in order)
 
 | Wave | Candidate | Rationale | Risk |
 |------|-----------|-----------|------|
-| W14 | Protocol/primitives continued (e.g. bounded `fix_invalid_id`-style deterministic helpers, chunk/value utilities, or napi class wrappers for stateful SSE helpers) behind opt-in boundaries | deepen hot-path leverage | M/L |
-| W15 | Pure compression/rules core continued (deterministic helpers, regex-semantics-safe transforms, pack/data abstractions) | extend portable core | M |
-| W16+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
+| W15 | Extend opt-in WASM/N-API parity (e.g. expose WASM for compression primitives where wasm-compatible, or unify adapter strategy) behind opt-in boundaries | broaden portable integration | M |
+| W16 | Protocol/primitives continued (bounded deterministic helpers, chunk/value utilities, stateful wrappers) behind opt-in boundaries | deepen hot-path leverage | M/L |
+| W17+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
 
 > W2 hardening option open: TS-shared golden vectors/fixture harness for GCF.
 
