@@ -102,7 +102,7 @@ GSV omni catalog adapted for local hybrid bunke-rock/rusty lanes (see commit `f1
 ### P1 — Documentation & FM symbiosis
 - **SYM-1 (GSV, done):** Record nanojev verification + model-role notes in GSV docs. Evidence: `docs/gsv/LOCAL_MODEL_ROLES_2026-11-21.md`, `docs/NEXT_SESSION_PROMPT.md` updated.
 - **SYM-2 (done):** Add FM skeleton docs for high-priority plugins (`rusty-engine`, `llama-rs`, `mesh-node`, `GSV-WGPU`, `telenetis`) — one commit per repo. Evidence: rusty-engine `bf20c64`, llama-rs `2761710`, telenetis `bc81a69` pushed; mesh-node `bafca35`, GSV-WGPU `9c65f59` local (no remote, owner-gate).
-- **SYM-3:** Extend FM skeletons to remaining registered plugins (`omniroute`, `LinFS`, `rebook`, `ORR_DESKTOP`, `CoreBoard_Labs_shop`, `sport-forcast`, `adoreble_wifi`) as follow-up.
+- **SYM-3 (done):** FM skeletons added for remaining registered plugins (`omniroute`, `LinFS`, `rebook`, `ORR_DESKTOP`, `CoreBoard_Labs_shop`, `sport-forcast`, `adoreble_wifi`). Evidence: omniroute `8af33ac`, LinFS `95d4e23`, rebook `869bef8`, ORR_DESKTOP `337b2b1`, CoreBoard_Labs_shop `85d6e8f`, sport-forcast `c7213ea`, adoreble_wifi `c1c8ff4` (all pushed).
 
 ### P2 — MCP/rules/toolchain normalization
 - **SYM-4 (done):** Kit wiring audit/fix across registered projects. Evidence: cursor/opencode/grok/skills refs ok; added rust-toolchain.toml to adoreble_wifi `d1eba73` (pushed) and mesh-node `e00537e` (local, no remote). GSV ticket close `051e5fb`.
@@ -121,8 +121,9 @@ GSV omni catalog adapted for local hybrid bunke-rock/rusty lanes (see commit `f1
 - `t-1795243604268301300` — **SYM-2:** add FM skeletons for high-priority plugins (`rusty-engine,llama-rs,mesh-node,GSV-WGPU,telenetis`) (`gsv`, **done**)
 - `t-1795243604357865800` — **SYM-4:** normalize kit wiring (MCP/rules/skills/instructions) across registered projects (`gsv`, **done**)
 - `t-1795243604437440700` — **SYM-6:** rusty-engine nanojev runbook and replay smoke verification (`rusty-engine`, **done**)
+- `t-1795266315914397600` — **SYM-3:** FM skeletons for remaining registered plugins (`gsv`, **done**)
 
-(Additional tickets SYM-3/SYM-5/SYM-7/SYM-8/SYM-9 to be created/scheduled as dependencies clear; SYM-8/SYM-9 tracked in existing backlog plans.)
+(Additional tickets SYM-5/SYM-7/SYM-8/SYM-9 to be created/scheduled as dependencies clear; SYM-8/SYM-9 tracked in existing backlog plans.)
 
 ## 8. Gates / execution rules
 
