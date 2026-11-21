@@ -18,7 +18,15 @@ use crate::boxes::{keep_live, products, tickets, vision, watchdog};
 
 /// Read-only MCP / HTTP tasks. Mutating work stays on `cargo xtask`.
 /// `sync` here is `--check` only (drift gate); remirror is `gsv_vision_sync`.
-pub const MCP_TASKS: &[&str] = &["catalog", "products", "disk", "sync", "rules", "fm-xlink"];
+pub const MCP_TASKS: &[&str] = &[
+    "catalog",
+    "products",
+    "disk",
+    "sync",
+    "rules",
+    "fm-xlink",
+    "mirror-inventory",
+];
 
 /// CLI tasks (`cargo xtask <name>`).
 pub const TASKS: &[(&str, &str)] = &[
@@ -112,6 +120,10 @@ pub const TASKS: &[(&str, &str)] = &[
     (
         "inventory",
         "Format inventory over the environment root (default: parent of repo): allowed/violating/tracked/exempt/deferred/actionable/untracked per repo (`--root <path>`, `--json`, `--tracked` = list tracked violating files)",
+    ),
+    (
+        "mirror-inventory",
+        "Read-only WGPU mirror/store inventory (chunks/index/tensors/blk f32, optional sha256 verify) — JSON (`--data-dir <path>`, `--verify`)",
     ),
     (
         "record-scenario-bench",
@@ -370,6 +382,12 @@ pub fn disk_wire(repo_root: &Path, enforce: bool) -> Value {
     json!(disk_report(repo_root, enforce))
 }
 
+/// Read-only WGPU mirror/store inventory (GASV-B2).
+pub fn mirror_inventory_wire(repo_root: &Path, verify_sha256: bool) -> Value {
+    let data_dir = repo_root.join("data");
+    crate::boxes::weight_store::mirror_inventory(&data_dir, verify_sha256)
+}
+
 /// Catalog wire for MCP `gsv_xtask` without a task / `task=catalog`.
 pub fn catalog_wire() -> Value {
     json!({
@@ -404,8 +422,9 @@ pub fn mcp_run(repo_root: &Path, task: &str) -> Result<Value, String> {
                 "orphans": report.orphans,
             }))
         }
+        "mirror-inventory" => Ok(mirror_inventory_wire(repo_root, false)),
         other => Err(format!(
-            "unknown or mutating xtask '{other}' — use `cargo xtask {other}` (MCP is catalog/products/disk/sync/rules --check only)"
+            "unknown or mutating xtask '{other}' — use `cargo xtask {other}` (MCP read-only tasks only)"
         )),
     }
 }

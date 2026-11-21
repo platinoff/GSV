@@ -445,6 +445,133 @@ pub fn manifest(data_dir: &Path) -> Value {
     })
 }
 
+/// Read-only mirror/store inventory for GASV-B2.
+/// Reports configured store root, index/chunk/tensor presence, disk chunk files,
+/// optional sha256 verification, and nearby blk*.f32 mirror files.
+pub fn mirror_inventory(data_dir: &Path, verify_sha256: bool) -> Value {
+    let root = store_root(data_dir);
+    let chunks_dir = chunks_root(data_dir);
+    let index = read_index(data_dir);
+    let tensors = read_tensors(data_dir);
+    let index_bytes = std::fs::metadata(index_path(data_dir))
+        .map(|m| m.len())
+        .unwrap_or(0);
+    let tensors_file = tensors_path(data_dir);
+    let tensors_bytes = std::fs::metadata(&tensors_file)
+        .map(|m| m.len())
+        .unwrap_or(0);
+
+    let mut disk_chunks: Vec<String> = Vec::new();
+    if let Ok(rd) = std::fs::read_dir(&chunks_dir) {
+        for e in rd.flatten() {
+            let p = e.path();
+            if p.extension().and_then(|s| s.to_str()) == Some("bin") {
+                if let Some(stem) = p.file_stem().and_then(|s| s.to_str()) {
+                    disk_chunks.push(stem.to_ascii_lowercase());
+                }
+            }
+        }
+    }
+    disk_chunks.sort();
+    let index_keys: std::collections::BTreeSet<String> = index
+        .iter()
+        .filter_map(|r| {
+            r.get("key")
+                .and_then(Value::as_str)
+                .map(|s| s.to_ascii_lowercase())
+        })
+        .collect();
+    let disk_set: std::collections::BTreeSet<String> = disk_chunks.iter().cloned().collect();
+    let missing_on_disk: Vec<String> = index_keys.difference(&disk_set).cloned().collect();
+    let orphan_on_disk: Vec<String> = disk_set.difference(&index_keys).cloned().collect();
+
+    let mut verified_ok = 0u64;
+    let mut verified_bad = 0u64;
+    let mut verified_bytes = 0u64;
+    let mut verify_errors: Vec<Value> = Vec::new();
+    if verify_sha256 {
+        for key in &index_keys {
+            let p = chunks_dir.join(format!("{key}.bin"));
+            match std::fs::read(&p) {
+                Ok(bytes) => {
+                    let got = sha256_hex(&bytes);
+                    if &got == key {
+                        verified_ok += 1;
+                        verified_bytes += bytes.len() as u64;
+                    } else {
+                        verified_bad += 1;
+                        verify_errors
+                            .push(json!({"key": key, "error": "sha256_mismatch", "got": got}));
+                    }
+                }
+                Err(e) => {
+                    verified_bad += 1;
+                    verify_errors.push(json!({"key": key, "error": format!("read_failed: {e}")}));
+                }
+            }
+        }
+    }
+
+    let mut blk_files: Vec<Value> = Vec::new();
+    if let Some(parent) = root.parent() {
+        let mut candidates: Vec<PathBuf> = Vec::new();
+        if let Ok(rd) = std::fs::read_dir(parent) {
+            for e in rd.flatten() {
+                let p = e.path();
+                if p.is_file() {
+                    let name = p.file_name().and_then(|s| s.to_str()).unwrap_or("");
+                    if name.starts_with("blk") && name.ends_with(".f32") {
+                        candidates.push(p);
+                    }
+                } else if p.is_dir() {
+                    let name = p.file_name().and_then(|s| s.to_str()).unwrap_or("");
+                    if name.starts_with("blk") {
+                        if let Ok(rd2) = std::fs::read_dir(&p) {
+                            for e2 in rd2.flatten() {
+                                let p2 = e2.path();
+                                let n2 = p2.file_name().and_then(|s| s.to_str()).unwrap_or("");
+                                if p2.is_file() && n2.starts_with("blk") && n2.ends_with(".f32") {
+                                    candidates.push(p2);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        candidates.sort();
+        for p in candidates {
+            let bytes = std::fs::metadata(&p).map(|m| m.len()).unwrap_or(0);
+            blk_files.push(json!({
+                "path": p.to_string_lossy(),
+                "bytes": bytes,
+            }));
+        }
+    }
+
+    json!({
+        "ok": true,
+        "store_root": root.to_string_lossy(),
+        "env_override": std::env::var("GSV_WEIGHTS_STORE_DIR").ok(),
+        "index_path": index_path(data_dir).to_string_lossy(),
+        "index_bytes": index_bytes,
+        "index_rows": index.len(),
+        "tensors_path": tensors_file.to_string_lossy(),
+        "tensors_bytes": tensors_bytes,
+        "tensors_rows": tensors.len(),
+        "disk_chunk_files": disk_chunks.len(),
+        "missing_on_disk": missing_on_disk,
+        "orphan_on_disk": orphan_on_disk,
+        "verify_sha256": verify_sha256,
+        "verified_ok": verified_ok,
+        "verified_bad": verified_bad,
+        "verified_bytes": verified_bytes,
+        "verify_errors": verify_errors,
+        "blk_f32_files": blk_files,
+        "manifest": manifest(data_dir),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -565,5 +692,23 @@ mod tests {
             evict_lru(vec![json!({"key":"dd","bytes":5,"stored_ts":1})], 100, 5);
         assert_eq!(kept2.len(), 1);
         assert!(evicted2.is_empty());
+    }
+
+    #[test]
+    fn mirror_inventory_reports_chunks_and_verification() {
+        let dir = temp_dir("inventory");
+        let payload = b"gasv-mirror-inventory".to_vec();
+        let stored = store_chunk(&dir, &payload).expect("store");
+        let key = stored["key"].as_str().unwrap().to_string();
+        let inv = mirror_inventory(&dir, true);
+        assert_eq!(inv["ok"], true);
+        assert_eq!(inv["index_rows"], 1);
+        assert_eq!(inv["disk_chunk_files"], 1);
+        assert_eq!(inv["verified_ok"], 1);
+        assert_eq!(inv["verified_bad"], 0);
+        assert!(inv["missing_on_disk"].as_array().unwrap().is_empty());
+        assert!(inv["orphan_on_disk"].as_array().unwrap().is_empty());
+        assert_eq!(inv["manifest"]["chunks"][0]["key"], key);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

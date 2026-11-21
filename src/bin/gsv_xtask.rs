@@ -575,6 +575,18 @@ fn main() -> ExitCode {
                 ExitCode::SUCCESS
             }
         }
+        "mirror-inventory" => {
+            let verify = args.iter().any(|a| a == "--verify");
+            let data_dir = flag_value(&args, "--data-dir")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| root.join("data"));
+            let inv = gsv::boxes::weight_store::mirror_inventory(&data_dir, verify);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&inv).unwrap_or_else(|_| "{}".to_string())
+            );
+            ExitCode::SUCCESS
+        }
         "record-scenario-bench" => match xtask::record_scenario_bench(&root) {
             Ok(0) => ExitCode::SUCCESS,
             Ok(_) => ExitCode::FAILURE,
