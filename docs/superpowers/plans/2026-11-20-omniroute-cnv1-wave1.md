@@ -1,6 +1,6 @@
-# CNV-1 — omniroute TS→Rust (Wave 1–9 progress)
+# CNV-1 — omniroute TS→Rust (Wave 1–10 progress)
 
-**Status:** Wave 1–9 done (bounded slices) · **Date:** 2026-11-20  
+**Status:** Wave 1–10 done (bounded slices) · **Date:** 2026-11-20  
 **Ticket:** CNV-1 (owner: exempt-till-epic → epic started)  
 **Repo:** `S:\rust\omniroute` (origin `https://github.com/platinoff/OmniRoute` fork in use, branch `release/v3.8.50`)  
 **Scope reality:** 8,263 tracked TS/JS-family files deferred under CNV-1 (Next.js 16 app + `open-sse/` streaming engine + Electron + CLI + tests + scripts). Full migration is a multi-wave epic; waves deliver additive, bounded, testable ports without breaking existing npm/Node runtime.
@@ -124,13 +124,24 @@
 
 **W9 notes:** binding/addon not built or wired into default runtime; exposure remains opt-in.
 
+## Wave 10 (stateful SSE normalization/prefix primitives) — done
+
+| ID | Deliverable | Status |
+|----|-------------|--------|
+| W10-NORMALIZER | `SseDataLineNormalizer` in `omniroute-sse` (buffered multiline `data:` merge, self-describing pending flush on control/comment boundaries, blank-line flush, `[DONE]`/JSON normalization semantics) | done (`19b30ff`) |
+| W10-PREFIX-BUFFER | `SseEventPrefixBuffer` (remember/emit-once prefix for `data:` frames, `event_type`, `flush`, `clear`) | done |
+| W10-GATES | `cargo fmt --all --check`, `cargo clippy -p omniroute-sse --all-targets` clean, `cargo test -p omniroute-sse` pass | done |
+| W10-COMMIT | Conventional commit in omniroute + push | done (`19b30ff`) |
+
+**W10 implementation:** additive methods/structs in `crates/omniroute-sse/src/lib.rs` with parity-oriented tests. **Parity evidence (Rust):** 9 tests green in `omniroute-sse`. Not wired into runtime/adapters.
+
 ## Proposed next waves (owner-prioritized, in order)
 
 | Wave | Candidate | Rationale | Risk |
 |------|-----------|-----------|------|
-| W10 | Hot-path/protocol primitives continued (e.g. bounded stateful SSE normalization/prefix helpers, or additional translator/chunk primitives) behind opt-in boundaries | deepen core engine leverage safely | M/L |
-| W11 | Pure compression/rules core continued as needed (deterministic helpers, regex-semantics-safe transforms, pack/data abstractions) | extend portable core | M |
-| W12+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
+| W11 | Hot-path/protocol primitives continued (e.g. opt-in napi/adapter exposure for stateful SSE helpers, or bounded translator/chunk/value predicates) behind opt-in boundaries | deepen core engine leverage safely | M/L |
+| W12 | Pure compression/rules core continued as needed (deterministic helpers, regex-semantics-safe transforms, pack/data abstractions) | extend portable core | M |
+| W13+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
 
 > W2 hardening option open: TS-shared golden vectors/fixture harness for GCF.
 
