@@ -19,9 +19,17 @@
 - **Compatibility:** only tensors compatible with target arch/layout can be transplanted into a candidate. 35B shexp tensors already proven direct-copy into gsv-versus-ai. Other-arch tensors are staged as extracted assets, not silently transplanted.
 - **Mirror:** staged under `S:/rust/GSV/data/wgpu_weights_staging/` (gitignored data area). Registration into live `wgpu_weights` index/chunks requires explicit follow-up pass and disk/gate check.
 
+## G2b result (2026-11-21)
+
+- **Expanded candidate:** `L:/gsv_mirror/staging_g2b/gsv-versus-ai-g2b.gguf`
+- **502 tensors**, 706,495,136 B, F32, `arch=gsv`, seed 20261121
+- **sha256:** `25fadfbb37242047126ed8cbb904acbc56f94685be487ef016d71543222c9995`
+- **transplant-mirror:** replaced=502, kept_skeleton=0, bytes_written=706495136
+- **Spot parity:** OK for `blk.0.attn_norm.weight`, `blk.20.ffn_gate_inp.weight`, `blk.39.post_attention_norm.weight` vs staged F32 bins
+- **Publish:** not published to mirror (owner-gated). Still partial pack, no runnable full LLM, no quality claim.
+
 ## Next
 
-- Finish 1B/Granite/Inkling <=16MB extraction.
-- Build machine-readable extraction manifest (source, tensor, dtype, dims, f32 bytes, sha256, class).
-- G2b: register compatible 35B tensors into mirror/chunks and expand candidate only for direct-copy compatible tensors.
+- G2b publish decision (owner-gated) / register compatible tensors in live mirror.
 - G3: NanoJev eval-oracle fitness on candidate (no weight generation).
+- G4: WGPU cluster eval/regression on obtained artifact.
