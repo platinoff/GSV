@@ -268,13 +268,23 @@
 
 **W22 implementation:** additive, opt-in napi/wasm/adapter boundaries only. No default runtime wiring.
 
+## Wave 23 (compression stats/token-estimation helpers) — done
+
+| ID | Deliverable | Status |
+|----|-------------|--------|
+| W23-STATS | `omniroute-compression::stats`: `estimate_tokens` (UTF-16 code units, `ceil(len/4)` parity), `estimate_token_savings`, `compression_ratio`, `CompressionSavings` + `compression_savings` | done (`ceb1e5a`) |
+| W23-GATES | `cargo fmt --all --check`, clippy clean for `omniroute-compression/gcf/sse` (`--all-targets -- -D warnings`), tests: `omniroute-compression` **50 passed** (+7), `omniroute-gcf` **16 passed** (9+7), `omniroute-sse` **16 passed** | done |
+| W23-COMMIT | Conventional commit in omniroute + push | done (`ceb1e5a`) |
+
+**W23 implementation:** additive, dependency-light, opt-in; no napi/wasm/runtime wiring changes.
+
 ## Proposed next waves (owner-prioritized, in order)
 
 | Wave | Candidate | Rationale | Risk |
 |------|-----------|-----------|------|
-| W23 | Protocol/primitives continued (bounded chunk/value utilities, adapter ergonomics, e.g. reasoning-field helpers) and/or portable compression-core extensions (stats/token-estimation, diff/heatmap helpers where dependency-light) with parity tests, behind opt-in boundaries | deepen hot-path/core leverage | M/L |
 | W24 | Additional portable compression/protocol helper parity (bounded, dependency-light) + optional opt-in exposure where useful | extend portable surface | M |
-| W25+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
+| W25 | Protocol/primitives continued (bounded chunk/value utilities, adapter ergonomics, reasoning-field helpers) with parity tests, behind opt-in boundaries | deepen hot-path/core leverage | M/L |
+| W26+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
 
 > W2 hardening option open: TS-shared golden vectors/fixture harness for GCF.
 
