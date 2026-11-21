@@ -312,13 +312,23 @@
 
 **W26 implementation:** additive, opt-in napi/wasm/adapter boundaries only. No default runtime wiring.
 
+## Wave 27 (reasoning-field extract/drop helpers) — done
+
+| ID | Deliverable | Status |
+|----|-------------|--------|
+| W27-REASONING | `omniroute-compression::reasoning_fields`: `extract_reasoning_content`, `drop_reasoning_content` | done (`9d12c44`) |
+| W27-GATES | `cargo fmt --all --check`, clippy clean for `omniroute-compression/gcf/sse` (`--all-targets -- -D warnings`), tests: `omniroute-compression` **56 passed** (+2) | done |
+| W27-COMMIT | Conventional commit in omniroute + push | done (`9d12c44`) |
+
+**W27 implementation:** additive, dependency-light, opt-in; no runtime wiring.
+
 ## Proposed next waves (owner-prioritized, in order)
 
 | Wave | Candidate | Rationale | Risk |
 |------|-----------|-----------|------|
-| W27 | Additional portable compression/protocol helper parity (bounded, dependency-light) + optional opt-in exposure where useful | extend portable surface | M |
-| W28 | Protocol/primitives continued (bounded chunk/value utilities, adapter ergonomics) with parity tests, behind opt-in boundaries | deepen hot-path/core leverage | M/L |
-| W29+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
+| W28 | Additional portable compression/protocol helper parity (bounded, dependency-light) + optional opt-in exposure where useful | extend portable surface | M |
+| W29 | Protocol/primitives continued (bounded chunk/value utilities, adapter ergonomics) with parity tests, behind opt-in boundaries | deepen hot-path/core leverage | M/L |
+| W30+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
 
 > W2 hardening option open: TS-shared golden vectors/fixture harness for GCF.
 
