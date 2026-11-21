@@ -188,15 +188,15 @@
 - **GASV-C3 (rusty-engine):** validation: inspect/load/smoke infer — ✅ done 2026-11-21 (`t-1795271802006964200`, rusty-engine `52cb0bd`).
 
 ### Phase D — Weight transplant / quant (strict gates)
-- **GASV-D1:** compatible tensor transplant engine (manifest-driven).
-- **GASV-D2:** incompatible tensor policy (skip/project/research flag; no silent corruption).
-- **GASV-D3:** Q4 quant/export pipeline + checksums/provenance.
-- **GASV-D4:** publish `gasv-versus-ai.gguf` to mirror only after eval gate.
+- **GASV-D1:** compatible tensor transplant engine (manifest-driven) — ✅ 2026-11-21 (`t-1795272283289364000`, `6fa1bd4`).
+- **GASV-D2:** incompatible tensor policy (skip/project/research flag; no silent corruption) — ✅ 2026-11-21 (`t-1795272283395485900`, `b9aabda`).
+- **GASV-D3:** Q4 quant/export pipeline + checksums/provenance — ✅ 2026-11-21 (`t-1795272283500474100`, `90a2a02`; supported Q4_0/Q8_0, Q4_K_M parity-gated deferred).
+- **GASV-D4:** publish `gasv-versus-ai.gguf` to mirror only after eval gate — ⏸ owner-gated (`t-1795272283607411700`).
 
 ### Phase E — Cluster eval
-- **GASV-E1:** min set (hub+bifrost) smoke: load/dispatch/proof/latency.
-- **GASV-E2:** med set (+valhall) when online.
-- **GASV-E3:** max set spec only (Pi deferred).
+- **GASV-E1:** min set (hub+bifrost) smoke: load/dispatch/proof/latency — 🔄 read-only evidence gathered 2026-11-21 (`t-1795272283721764300`): hub healthy, mesh peers currently all dead/alive=false; no canary dispatch without live peer window; fail-open/proof-gate rules remain in force.
+- **GASV-E2:** med set (+valhall) when online — ⏸ opportunistic (`t-1795272283847007500`).
+- **GASV-E3:** max set spec only (Pi deferred) — ✅ spec-only 2026-11-21 (`t-1795272283960030800`): Pi4 max set is documentation-only until hardware restored; no tests/dispatch; requires owner gate, dedicated node/RAM, restored mesh-node remote, and reproducible parity evidence before any activation.
 
 ## 7. Gates / Definition of Done
 
