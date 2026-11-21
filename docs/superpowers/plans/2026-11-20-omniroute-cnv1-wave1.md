@@ -1,6 +1,6 @@
-# CNV-1 — omniroute TS→Rust (Wave 1–8 progress)
+# CNV-1 — omniroute TS→Rust (Wave 1–9 progress)
 
-**Status:** Wave 1–8 done (bounded slices) · **Date:** 2026-11-20  
+**Status:** Wave 1–9 done (bounded slices) · **Date:** 2026-11-20  
 **Ticket:** CNV-1 (owner: exempt-till-epic → epic started)  
 **Repo:** `S:\rust\omniroute` (origin `https://github.com/platinoff/OmniRoute` fork in use, branch `release/v3.8.50`)  
 **Scope reality:** 8,263 tracked TS/JS-family files deferred under CNV-1 (Next.js 16 app + `open-sse/` streaming engine + Electron + CLI + tests + scripts). Full migration is a multi-wave epic; waves deliver additive, bounded, testable ports without breaking existing npm/Node runtime.
@@ -110,15 +110,27 @@
 | W8-GATES | `cargo fmt --all --check`, `cargo clippy -p omniroute-sse -p omniroute-compression -p omniroute-gcf --all-targets` clean, `cargo test -p omniroute-sse -p omniroute-compression -p omniroute-gcf` pass | done |
 | W8-COMMIT | Conventional commit in omniroute + push | done (`1280e69`) |
 
-**W8 implementation:** `crates/omniroute-sse/src/lib.rs` + `Cargo.toml`; JSON boundary via `serde_json::Value` (preserve_order). **Parity evidence (Rust):** 6 tests green in `omniroute-sse` (+ compression 20, gcf 16). Additive, not wired into default runtime; opt-in adapter exposure can follow.
+**W8 implementation:** `crates/omniroute-sse/src/lib.rs` + `Cargo.toml`; JSON boundary via `serde_json::Value` (preserve_order). **Parity evidence (Rust):** 6 tests green in `omniroute-sse` (+ compression 20, gcf 16). Additive, not wired into default runtime.
+
+## Wave 9 (opt-in napi + adapter exposure for `omniroute-sse`) — done
+
+| ID | Deliverable | Status |
+|----|-------------|--------|
+| W9-NAPI | `omniroute-napi` depends on `omniroute-sse` and exports `sseStripAnsiCodes`, `sseParseDataPayload`, `sseParseDataLines`, `sseExtractDataLine`, `sseParseLine`, `sseFormatSse` | done (`2c796dd`) |
+| W9-ADAPTER | `open-sse/services/compression/nativeRust.ts` extended with SSE wrappers (opt-in, not in default runtime/index exports) | done |
+| W9-SMOKE | `scripts/cnv1-smoke-rust-bridge.mjs` extended with SSE assertions (runs under tsx; graceful exit 2 when addon unavailable) | done |
+| W9-GATES | `cargo fmt/check/clippy -p omniroute-napi` + clippy/tests for `omniroute-sse/compression/gcf` green; smoke probe exit 2 as expected (no built addon) | done |
+| W9-COMMIT | Conventional commit in omniroute + push | done (`2c796dd`) |
+
+**W9 notes:** binding/addon not built or wired into default runtime; exposure remains opt-in.
 
 ## Proposed next waves (owner-prioritized, in order)
 
 | Wave | Candidate | Rationale | Risk |
 |------|-----------|-----------|------|
-| W9 | Hot-path/protocol primitives continued (translator/chunk helpers, stateful SSE normalization slices, or opt-in napi/adapter exposure for `omniroute-sse`) behind opt-in boundaries | deepen core engine leverage safely | M/L |
-| W10 | Pure compression/rules core continued as needed (deterministic helpers, regex-semantics-safe transforms, pack/data abstractions) | extend portable core | M |
-| W11+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
+| W10 | Hot-path/protocol primitives continued (e.g. bounded stateful SSE normalization/prefix helpers, or additional translator/chunk primitives) behind opt-in boundaries | deepen core engine leverage safely | M/L |
+| W11 | Pure compression/rules core continued as needed (deterministic helpers, regex-semantics-safe transforms, pack/data abstractions) | extend portable core | M |
+| W12+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
 
 > W2 hardening option open: TS-shared golden vectors/fixture harness for GCF.
 
