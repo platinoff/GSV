@@ -1,6 +1,6 @@
-# CNV-1 — omniroute TS→Rust (Wave 1–5 progress)
+# CNV-1 — omniroute TS→Rust (Wave 1–6 progress)
 
-**Status:** Wave 1–5 done (bounded slices) · **Date:** 2026-11-20  
+**Status:** Wave 1–6 done (bounded slices) · **Date:** 2026-11-20  
 **Ticket:** CNV-1 (owner: exempt-till-epic → epic started)  
 **Repo:** `S:\rust\omniroute` (origin `https://github.com/platinoff/OmniRoute` fork in use, branch `release/v3.8.50`)  
 **Scope reality:** 8,263 tracked TS/JS-family files deferred under CNV-1 (Next.js 16 app + `open-sse/` streaming engine + Electron + CLI + tests + scripts). Full migration is a multi-wave epic; waves deliver additive, bounded, testable ports without breaking existing npm/Node runtime.
@@ -65,25 +65,36 @@
 
 | ID | Deliverable | Status |
 |----|-------------|--------|
-| W5-NAPI-CRATE | `crates/omniroute-napi` (cdylib, `napi-rs` v2) exposing Rust primitives | done |
+| W5-NAPI-CRATE | `crates/omniroute-napi` (cdylib, `napi-rs` v2) exposing Rust primitives | done (`2b83c1b`) |
 | W5-BINDING-API | `gcfEncodeJson`, `gcfDecodeToJson`, `validateRulePackJson`, `validateCompressionJson`, `isCompressionExcluded` (JSON/string boundary) | done |
 | W5-PKG-SCAFFOLD | Opt-in `crates/omniroute-napi/package.json` (`@napi-rs/cli`), README, local `.gitignore` (not in root workspaces/build) | done |
 | W5-GATES | `cargo fmt`, `cargo check/clippy -p omniroute-napi` green; existing crates clippy/tests green | done |
-| W5-COMMIT | Conventional commit in omniroute + push | pending (this wave) |
+| W5-COMMIT | Conventional commit in omniroute + push | done (`2b83c1b`) |
 
 **W5 implementation:**
 - `crates/omniroute-napi/src/lib.rs` — napi exports bridging `omniroute-gcf` and `omniroute-compression` over JSON/string inputs/outputs (additive, no runtime wiring).
 - `build.rs`, `Cargo.toml`, `package.json`, `README.md`, `.gitignore` for opt-in local builds.
 
-**Notes:** binding is **not** wired into omniroute npm build/test/CI and not added to root workspaces; Node adapter/call-site swaps and CI artifact strategy are follow-ups.
+**Notes:** binding is **not** wired into omniroute npm build/test/CI and not added to root workspaces.
+
+## Wave 6 (Node adapter + opt-in smoke boundary) — done
+
+| ID | Deliverable | Status |
+|----|-------------|--------|
+| W6-ADAPTER | Opt-in bridge module `open-sse/services/compression/nativeRust.ts` (lazy-load napi addon, candidate path resolution incl. `OMNIROUTE_RUST_NAPI_PATH`, typed wrappers mirroring TS-level result shapes) | done (`8643034`) |
+| W6-BOUNDARY | **Not** exported from `compression/index.ts` and not imported by default runtime paths (explicit opt-in import only) | done |
+| W6-SMOKE | Opt-in smoke script `scripts/cnv1-smoke-rust-bridge.mjs` (tsx-runnable) covering GCF round-trip, validation, rule-pack validation, exclusions; graceful `exit 2` when addon unavailable | done |
+| W6-GATES | Smoke executed in-env via tsx → `RUST_BRIDGE_UNAVAILABLE`/exit 2 as expected (no built addon); no Rust/runtime default-path changes | done |
+| W6-COMMIT | Conventional commit in omniroute + push | done (`8643034`) |
+
+**W6 notes:** native addon build/distribution, CI artifact strategy, and any call-site swaps behind feature flags remain follow-ups (opt-in only, no default behavior change).
 
 ## Proposed next waves (owner-prioritized, in order)
 
 | Wave | Candidate | Rationale | Risk |
 |------|-----------|-----------|------|
-| W6 | Node adapter + opt-in wiring for napi bindings (internal package/import boundary, smoke tests) without changing default runtime behavior | make W5 consumable safely | M |
-| W7 | Pure compression/rules core continued (deterministic helpers, regex-semantics-safe transforms, pack/data abstractions) | extend portable core | M |
-| W8 | `open-sse` hot-path components (translator/chunk/protocol primitives) behind adapters | core engine leverage | L |
+| W7 | Pure compression/rules core continued (deterministic helpers, regex-semantics-safe transforms, pack/data abstractions; optional FS-safe rule-pack loading abstractions) | extend portable core before deeper coupling | M |
+| W8 | `open-sse` hot-path components (translator/chunk/protocol primitives) behind adapters / opt-in flags | core engine leverage | L |
 | W9+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
 
 > W2 hardening option open: TS-shared golden vectors/fixture harness for GCF.
