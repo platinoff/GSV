@@ -1,6 +1,6 @@
-# CNV-1 — omniroute TS→Rust (Wave 1–15 progress)
+# CNV-1 — omniroute TS→Rust (Wave 1–16 progress)
 
-**Status:** Wave 1–15 done (bounded slices) · **Date:** 2026-11-20  
+**Status:** Wave 1–16 done (bounded slices) · **Date:** 2026-11-20  
 **Ticket:** CNV-1 (owner: exempt-till-epic → epic started)  
 **Repo:** `S:\rust\omniroute` (origin `https://github.com/platinoff/OmniRoute` fork in use, branch `release/v3.8.50`)  
 **Scope reality:** 8,263 tracked TS/JS-family files deferred under CNV-1 (Next.js 16 app + `open-sse/` streaming engine + Electron + CLI + tests + scripts). Full migration is a multi-wave epic; waves deliver additive, bounded, testable ports without breaking existing npm/Node runtime.
@@ -188,13 +188,24 @@
 
 **W15 implementation:** opt-in WASM parity broadened to wasm-compatible compression helpers (including rule-pack validation path backed by `fancy-regex` on wasm32). No default runtime wiring.
 
+## Wave 16 (SSE chunk helpers and stateful napi/wasm wrappers) — done
+
+| ID | Deliverable | Status |
+|----|-------------|--------|
+| W16-SSE-HELPERS | `omniroute-sse`: deterministic chunk/value helpers `append_bounded_text` (`STREAM_SUMMARY_TEXT_LIMIT`), `has_active_delta_value`, `fix_invalid_id` (explicit fallback resolution), `build_synthetic_chat_chunk` (explicit id/model/created) | done (`efb4bec`) |
+| W16-NAPI-WASM | Opt-in napi exports + stateful classes (`SseDataLineNormalizerState`, `SseEventPrefixBufferState`) and napi adapter/smoke extensions; opt-in WASM exports + stateful wrappers for same helpers/classes; `created` exposed as JS number for boundary ergonomics | done |
+| W16-GATES | `cargo fmt --all --check`, clippy clean for `omniroute-sse/compression/gcf/napi`, `cargo test -p omniroute-sse` **16 passed** (+4), napi bridge smoke probe exit 2 as expected (no addon); `cargo build -p omniroute-wasm --target wasm32-unknown-unknown --release` + wasm-bindgen + Node smoke **ok** (helpers + stateful normalizer/prefix buffer) | done |
+| W16-COMMIT | Conventional commit in omniroute + push | done (`efb4bec`) |
+
+**W16 implementation:** additive, opt-in boundaries only (napi/wasm/adapter). No default runtime wiring.
+
 ## Proposed next waves (owner-prioritized, in order)
 
 | Wave | Candidate | Rationale | Risk |
 |------|-----------|-----------|------|
-| W16 | Protocol/primitives continued (bounded deterministic helpers, chunk/value utilities, stateful napi/wasm wrappers) behind opt-in boundaries | deepen hot-path leverage | M/L |
 | W17 | Extend compression/rules core coverage where portable (deterministic helpers, pack/data abstractions) with parity tests | extend portable core | M |
-| W18+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
+| W18 | Protocol/primitives continued (additional bounded chunk/value utilities, adapter ergonomics) behind opt-in boundaries | deepen hot-path leverage | M/L |
+| W19+ | Services/handlers/routes/domain slices, incremental strangler-fig | broad app impact | L/XL |
 
 > W2 hardening option open: TS-shared golden vectors/fixture harness for GCF.
 
