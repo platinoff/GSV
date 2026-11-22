@@ -334,7 +334,9 @@ pub fn tensor_bytes(data_dir: &Path, name: &str) -> Option<Vec<u8>> {
     let mut out = Vec::new();
     for key in chunks {
         let key = key.as_str()?;
-        let bytes = std::fs::read(chunks_root(data_dir).join(format!("{key}.bin"))).ok()?;
+        // read_chunk falls back to artifact sources (GASV-G20), so this also
+        // works for tensors whose bytes live only in the artifact GGUF.
+        let bytes = read_chunk(data_dir, key).ok()?;
         out.extend_from_slice(&bytes);
     }
     Some(out)

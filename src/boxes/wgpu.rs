@@ -756,13 +756,9 @@ pub fn weights_matvec_reference(data_dir: &Path, tensor: &str, x: &[f64]) -> Opt
             return matvec_rows(floats, rows, cols, x);
         }
     }
-    let bytes = crate::boxes::weight_store::tensor_bytes(data_dir, tensor)?;
-    let floats: Vec<f32> = bytes
-        .as_chunks::<4>()
-        .0
-        .iter()
-        .map(|c| f32::from_le_bytes(*c))
-        .collect();
+    // GASV-G21: dequantize Q4_K artifact-backed tensors (F32 store-backed path
+    // is unchanged) so the hub reference matches what a Q4_K-aware peer computes.
+    let floats = crate::boxes::wgpu_dequant::tensor_f32(data_dir, tensor)?;
     if floats.len() != rows.checked_mul(cols)? {
         return None;
     }

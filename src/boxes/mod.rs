@@ -74,6 +74,7 @@ pub mod vision;
 pub mod watchdog;
 pub mod weight_store;
 pub mod wgpu;
+pub mod wgpu_dequant;
 pub mod workflow;
 pub mod wspush;
 pub mod xtask;
