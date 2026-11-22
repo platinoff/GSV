@@ -13,7 +13,8 @@
 | Ticket | Status | Next action |
 |---|---|---|
 | G15 | **done** | — |
-| G16 | open | G10/G12 reconcile + Min placement manifest (#37+#39) |
+| G16 | **done** | G10/G12 reconciled + Min placement manifest (#37+#39) |
+| G22 | open | scale lane to 122 huge MoE experts (hub range-dequant primitive done) |
 | G17 | **done** | — |
 | G18 | open | Vision/mmproj weight-change feasibility (owner-gated) |
 | G19 | open | Staged Q4_K patch — **DO NOT START** (G17 found no safe candidate) |
@@ -27,12 +28,11 @@
 - `artifact/blk.0.attn_gate.weight` [2048,4096] Q4_K registered (2 chunks), chunk GET sha256 == key.
 - `g-721` weights_matvec shards=2 on Min [39,37]: both `done`, `max_err_model=6.938893903907228e-18` (<1e-4). G21 done via MCP.
 
-## Next possible work (not yet ticketed)
+## Next ticketed work
 
-- Scale the verified lane to the 122 huge MoE experts (~151 MB each) — generator is ready (`rusty artifact-chunks`), registration + canary per tensor. Still no runnable full LLM (G13 blocked).
-- Vision/mmproj weight-change feasibility G18 (owner-gated, open).
-- G16 (G10/G12 reconcile + Min placement manifest), open.
-4. Gates: `cargo test --lib`, `cargo clippy --all-targets -- -D warnings`, `gsv_disk` (12 GB min), one commit per repo, `tickets_done` with evidence. No full-LLM/quality claim; G13 blocked.
+- **G22** `t-1795359320465948200` (open): scale lane to 122 huge MoE experts (~151 MB each). Hub-side primitive `dequant_q4_k_range` done (3 unit tests green). Remaining: wire range into `weights_matvec_reference`; add page-side shard-range dequant in `downloadWeightsFlat` (dequant only shard rows, not whole 1 GB tensor); canary a huge expert with `max_err_model < 1e-4` on Min [37,39]. Do NOT deploy without owner OK. Still no runnable full LLM (G13 blocked).
+- **G18** (open, owner-gated): vision/mmproj weight-change feasibility.
+- **G19** — DO NOT START (G17 found no safe weight-patch candidate).
 
 ## Rules (hard)
 

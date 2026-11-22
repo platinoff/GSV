@@ -70,6 +70,27 @@ pub fn dequant_q4_k(data: &[u8]) -> Vec<f32> {
     out
 }
 
+/// GASV-G22: dequantize only the value range `[value_start, value_end)`.
+/// Q4_K blocks hold 256 values / 144 bytes, so we expand only the overlapping
+/// blocks and trim to the exact range. This avoids materializing ~1 GB of f32
+/// for a huge MoE expert when a peer only needs one shard's row segment.
+pub fn dequant_q4_k_range(data: &[u8], value_start: usize, value_end: usize) -> Option<Vec<f32>> {
+    const BLK: usize = 256;
+    const BLK_BYTES: usize = 144;
+    if value_end < value_start {
+        return None;
+    }
+    let b0 = value_start / BLK;
+    let b1 = value_end.div_ceil(BLK);
+    let lo_byte = b0.checked_mul(BLK_BYTES)?;
+    let hi_byte = b1.checked_mul(BLK_BYTES)?;
+    let slice = data.get(lo_byte..hi_byte)?;
+    let full = dequant_q4_k(slice);
+    let lo = value_start - b0 * BLK;
+    let hi = value_end - b0 * BLK;
+    full.get(lo..hi).map(|s| s.to_vec())
+}
+
 /// Return f32 values for a registered tensor, dequantizing when its dtype or
 /// ggml_type says Q4_K. F32 tensors pass through; unsupported types return
 /// `None` so the caller fails closed rather than reading garbage.
@@ -110,6 +131,28 @@ mod tests {
         let out = dequant_q4_k(&block);
         assert_eq!(out.len(), 256);
         assert!(out.iter().all(|v| *v == 0.0));
+    }
+
+    #[test]
+    fn dequant_q4_k_range_matches_full_slice() {
+        // Build 3 blocks of deterministic Q4_K data and compare a mid-range
+        // slice against the full dequant (the G22 shard-range primitive).
+        let mut data = vec![0u8; 144 * 3];
+        for (i, b) in data.as_chunks_mut::<144>().0.iter_mut().enumerate() {
+            b[0..2].copy_from_slice(&(((i + 1) as u16) * 0x3c00u16).to_le_bytes());
+            b[4..8].fill(1);
+            for q in b[16..144].iter_mut() {
+                *q = 0x11;
+            }
+        }
+        let full = dequant_q4_k(&data);
+        assert_eq!(full.len(), 768);
+        for (start, end) in [(0, 256), (100, 400), (256, 512), (700, 768)] {
+            let ranged = dequant_q4_k_range(&data, start, end).expect("range");
+            assert_eq!(ranged.len(), end - start);
+            assert_eq!(ranged, full[start..end], "range {start}..{end}");
+        }
+        assert!(dequant_q4_k_range(&data, 400, 100).is_none());
     }
 
     #[test]
