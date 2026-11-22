@@ -1,7 +1,16 @@
 # GASV-G11 NanoJev Eval-Oracle Fitness Draft (2026-11-21)
 
-**Status:** draft (prep)  
+**Status:** canaries EXECUTED + PASS (2026-11-22); scorecard/ticket-close pending (G11 was reclaimed on lease expiry).  
 **Boundary:** NanoJev = eval/oracle/fitness only. No GGUF generation, no weight transplant, no silent coercion.
+
+## 2026-11-22 canary evidence (actual)
+
+| Group | Tensor | Peers | max_err_model | Verdict |
+|---|---|---|---|---|
+| g-711 | blk.3.attn_output.weight (shards 2) | #37, #40 | `6.938893903907228e-18` | PASS (<1e-4) |
+| g-712 | blk.11.attn_output.weight (shards 2) | #39, #37 | `6.938893903907228e-18` | PASS (<1e-4) |
+
+Note: g-711 routed via #40 valhall but owner withdrew #40 on 2026-11-22; rerun in **Min** (#37+#39) is the G15 ticket. Root cause of "fitness didn't run" impression: canaries DID run, but G11 ticket lease expired → reclaimed before scorecard/report/done. See `GASV_G14_WEIGHT_FIX_CLUSTER_ADAPTATION_2026-11-22.md`.
 
 ## Inputs
 

@@ -12,13 +12,13 @@
 
 ## Global Constraints
 
-- **Rust-first / MSYS2 bash.** No Python/PowerShell for project work. Allowed formats `.rs/.md/.mdc/.json/.js/.wasm`; no weights/secrets in git.
+- **Rust-first / MSYS2 bash + GSV MCP tools.** **No Python, no Perl, no PowerShell** for project work — including "throwaway"/scratch scratch scripts and JSONL edits (use MCP `gsv_tickets_*` or Rust/`cargo xtask` utilities instead). Allowed formats `.rs/.md/.mdc/.json/.js/.wasm`; no weights/secrets in git.
 - **One meaningful commit per repo touched.** No `git add -A`. Push after green gates.
 - **NanoJev = eval/oracle/fitness only.** No GGUF generation, no weight transplant, no silent coercion.
 - **No "full working LLM" claim** until full tensor graph coverage + runtime infer/quality gate pass on owner-approved target.
 - **Owner-gated publish/canonical change.** Mirror publish requires checksums/manifests/reports; no git weight blobs.
 - **Disk/RAM budget:** S: ~44G free, L: ~40G free, host RAM ~7.7GB. Never materialize 123.79GB F32 MoE experts at once. Stage/chunk/quantize and delete temp F32.
-- **Cluster steady state:** alive peers #37 pc-wgpu (30.84 mflops), #39 bifrost phone (137.97), #40 valhall phone (328.0); dead #36 pi4, #38, #41. Canaries must respect proof/readiness/fail-open.
+- **Cluster steady state (2026-11-22):** owner withdrew **valhall #40** → active **Min = hub RDNA2 WGPU (#37) + bifrost #39**; Med = Min + #40 (spec, owner returns phone); Max = Med + Pi4 #36 (spec/gated). #38/#41 dead. Gates run in Min; Med/Max only add throughput. Canaries must respect proof/readiness/fail-open.
 - **Q4 target:** Q4_K (type 12) supported; Q4_K_M is `q4_k_m-no-imatrix-fallback=q4_k` unless Q6_K encoder+imatrix implemented. Report policy explicitly.
 
 ## Steady State (2026-11-21)
@@ -37,12 +37,14 @@
 
 | Ticket | Title | Status | Depends | Owner gate |
 |---|---|---|---|---|
-| `t-1795273000000000010` | G8 Research: full 35B MoE 4-bit GSV/cluster plan synthesis | done (this plan) | - | no |
-| `t-1795273000000000011` | G9: Q4_K staged extraction for 122 MoE experts (no full F32) | todo | G8 | disk budget confirmation |
-| `t-1795273000000000012` | G10: Full-tensor GSV-VERSUS-AI 4-bit assembly + manifest | todo | G9 | publish owner-gated |
-| `t-1795273000000000013` | G11: NanoJev eval-oracle fitness + weight-fix/selection loop | todo | G10 | no (eval only) |
-| `t-1795273000000000014` | G12: MoE cluster placement/tuning for alive peers + WGPU regression | todo | G10,G11 | canary dispatch reasonable |
+| `t-1795273000000000010` | G8 Research: full 35B MoE 4-bit GSV/cluster plan synthesis | done | - | no |
+| `t-1795273000000000011` | G9: Q4_K direct-copy full 733-tensor assembly (Strategy C) | done (G9 artifact `2f37d609…`) | G8 | no publish |
+| `t-1795273000000000012` | G10: Full-tensor manifest/publish-prep reconcile | todo (artifact-report exists; ticket stale) | G9 | publish owner-gated |
+| `t-1795273000000000013` | G11: NanoJev eval-oracle fitness + WGPU regression | open (canaries g-711/g-712 PASS `6.94e-18`; reclaimed lease — finalize scorecard) | G10 | no (eval only) |
+| `t-1795273000000000014` | G12: MoE cluster placement/tuning — **Min active** (#37+#39) | todo | G10,G11 | canary dispatch reasonable |
 | `t-1795273000000000015` | G13: Runtime infer/quality gate (full LLM claim gate) | blocked | G12 | owner-approved runtime target + RAM/node |
+
+> 2026-11-22 adaptation: G14 research/adaptation doc + rusty-engine NanoJev commit `3bb3397`; tickets G15–G19 created via GSV MCP for fitness finalize, Min placement, Astra-style candidate audit, vision/mmproj feasibility, staged patch candidate. See `docs/gsv/research/GASV_G14_WEIGHT_FIX_CLUSTER_ADAPTATION_2026-11-22.md`.
 
 ## Phase G8 — Research (this document)
 
@@ -80,8 +82,8 @@
 
 ## Phase G9 — Staged MoE expert extraction (ticket `t-1795273000000000011`)
 
-- [ ] **Step 1: Inventory 122 huge tensors from G5 matrix**
-  - Run: `perl`/`jq`-free script (rust xtask or simple perl file) to list names, f32_bytes, dims, source ggml type.
+- [x] **Step 1: Inventory 122 huge tensors from G5 matrix** — done via `rusty manifest` + GSV docs (no Perl/Python).
+  - Tooling rule: use `cargo xtask` / `rusty manifest` / GSV MCP tools only; **never Perl/Python**, even for "scratch" JSON parsing.
   - Expected: 122 tensors, ~123.79GB F32.
 - [ ] **Step 2: Pick strategy C/B per tensor**
   - If source tensor already Q4_K/Q6_K/Q4_0/Q8_0 and acceptable, direct-copy bytes with provenance.
