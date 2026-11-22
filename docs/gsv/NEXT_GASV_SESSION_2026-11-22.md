@@ -25,7 +25,7 @@
 
 1. Read `docs/gsv/research/GASV_G20_ARTIFACT_WEIGHT_LANE_2026-11-22.md` §5. Done: `rusty artifact-chunks` generator (rusty-engine `f40b942`), `register_tensor` N-dim artifact-backed + `read_chunk` fallback (GSV `2355f21`), `data/wgpu_weights_artifact_sources.json` (36 rows for `blk.5.ffn_gate_exps.weight`), isolated-server proof (register ok / 4 MiB chunk GET / sha256 == key MATCH).
 2. Deploy new `gsv-server` to canon `:9999` (`cargo xtask live` + watchdog respawn; brief peer reconnect — owner OK before restart). Re-POST registration on :9999.
-3. Add Q4_K dequant to the `/wgpu` page WGPU op (F32 chunks only today) or a hub-side dequant reference, then enqueue `weights_matvec` canary on the huge expert; require `max_err_model < 1e-4` on Min (#37 hub RDNA2 + #39 bifrost).
+3. Hub-side Q4_K dequant DONE (GSV `1b187db`: `wgpu_dequant.rs`, `weights_matvec_reference` → `tensor_f32`). Remaining: add Q4_K dequant to the `/wgpu` page WGPU op (`downloadWeightsFlat` builds `Float32Array` directly from chunk bytes; needs dtype-driven `dequantQ4K` lane) so the peer matches the hub reference, then enqueue `weights_matvec` canary on the huge expert; require `max_err_model < 1e-4` on Min (#37 hub RDNA2 + #39 bifrost).
 4. Gates: `cargo test --lib`, `cargo clippy --all-targets -- -D warnings`, `gsv_disk` (12 GB min), one commit per repo, `tickets_done` with evidence. No full-LLM/quality claim; G13 blocked.
 
 ## Rules (hard)
