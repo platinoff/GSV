@@ -3218,7 +3218,17 @@ async function buildWeightsMatvec(device,tensor,shardId,shards){
   const bg=device.createBindGroup({layout:pipeline.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:wBuf}},{binding:1,resource:{buffer:xBuf}},{binding:2,resource:{buffer:yBuf}}]});
   const read=device.createBuffer({size:per*4,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
   const ref=new Float32Array(per); // CPU-check lives on the hub; display keeps bounds
-  CACHE[key]={device:device,adapterName:adapterName,pipeline:pipeline,bg:bg,out:yBuf,read:read,bytes:per*4,ref:ref,flops:2*per*cols,dispatch:[Math.ceil(per/64)],rows:rows,cols:cols,r0:r0,per:per,xBuf:xBuf};
+  // GASV-G22: keep only the current shard's W on the device. Caching all 8
+  // shards of a huge expert would hold ~1 GB of f32 and crash the page.
+  const pfx='weights_matvec#'+tensor+'#';
+  for(const k of Object.keys(CACHE)){
+    if(k.startsWith(pfx)&&k!==key){
+      const old=CACHE[k];
+      try{old.out.destroy();old.read.destroy();old.xBuf.destroy();if(old.wBuf)old.wBuf.destroy();}catch(e){}
+      delete CACHE[k];
+    }
+  }
+  CACHE[key]={device:device,adapterName:adapterName,pipeline:pipeline,bg:bg,out:yBuf,read:read,wBuf:wBuf,bytes:per*4,ref:ref,flops:2*per*cols,dispatch:[Math.ceil(per/64)],rows:rows,cols:cols,r0:r0,per:per,xBuf:xBuf};
   return CACHE[key];
 }
 const WASM_W_CACHE={};
@@ -3229,6 +3239,14 @@ async function runWeightsMatvecWasm(tensor,shardId,shards,xArr){
   let entry=WASM_W_CACHE[wkey];
   const reused=!!entry;
   if(!entry){
+    // GASV-G22: free any other shard of this tensor before allocating — 8
+    // cached shards would hold ~1 GB in WASM memory and crash the page.
+    for(const k of Object.keys(WASM_W_CACHE)){
+      if(k.startsWith(tensor+'#')){
+        try{WASM.inst.mesh_free(WASM_W_CACHE[k].ptr,WASM_W_CACHE[k].bytes);}catch(e){}
+        delete WASM_W_CACHE[k];
+      }
+    }
     // GASV-G22: cache only this shard's dequantized rows, not the whole tensor.
     const flat=await downloadWeightsFlat(tensor,shardId,shards);
     const wptr=WASM.inst.mesh_alloc(flat.W.byteLength); if(!wptr)throw new Error('wasm alloc tensor failed');
