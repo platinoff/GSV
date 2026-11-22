@@ -30,7 +30,7 @@
 
 ## Next ticketed work
 
-- **G22** `t-1795359320465948200` (open): scale lane to 122 huge MoE experts (~151 MB each). Hub-side primitive `dequant_q4_k_range` done (3 unit tests green). Remaining: wire range into `weights_matvec_reference`; add page-side shard-range dequant in `downloadWeightsFlat` (dequant only shard rows, not whole 1 GB tensor); canary a huge expert with `max_err_model < 1e-4` on Min [37,39]. Do NOT deploy without owner OK. Still no runnable full LLM (G13 blocked).
+- **G22** `t-1795359320465948200` (in_progress): scale lane to 122 huge MoE experts. DONE + deployed to canon :9999: hub `dequant_q4_k_range` + `weights_matvec_reference_segment`, page `downloadWeightsFlat(tensor,shardId,shards)` (shard-row dequant), `x_spec=onehot:<idx>:<len>` compact enqueue, 3D cols flatten (GSV `234c01f`, `465b808`). 65 wgpu tests + clippy green. `g-726` weights_matvec on `blk.5.ffn_gate_exps.weight` shards=8 enqueued; **shard 0/8 computed by peer #37 in 926 ms @ 72 MFLOPS (256×131072)** — streaming dequant works. Group completion pending. If all 8 shards `done` with `max_err_model < 1e-4`, close G22 via MCP. Note: `apply` alone does NOT respawn when version is unchanged — manually kill the listener PID and let the watchdog respawn from the rebuilt binary. Still no runnable full LLM (G13 blocked).
 - **G18** (open, owner-gated): vision/mmproj weight-change feasibility.
 - **G19** — DO NOT START (G17 found no safe weight-patch candidate).
 
