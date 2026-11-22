@@ -31,6 +31,9 @@ pub const CHUNKS_DIR: &str = "chunks";
 pub const INDEX_FILE: &str = "index.json";
 pub const TENSORS_FILE: &str = "wgpu_weights_tensors.json";
 pub const AUDIT_FILE: &str = "wgpu_weights_audit.jsonl";
+/// Artifact-backed chunk sources (GASV-G20): maps a content-addressed chunk key
+/// to a byte range inside a large GGUF on the mirror, avoiding chunk duplication.
+pub const ARTIFACT_SOURCES_FILE: &str = "wgpu_weights_artifact_sources.json";
 /// Hard cap for any single chunk (bytes).
 pub const MAX_CHUNK_BYTES: usize = 4 * 1024 * 1024;
 /// Default store cap (bytes): 4 GiB — the phone + PC mesh only needs the active
@@ -79,6 +82,40 @@ fn index_path(data_dir: &Path) -> PathBuf {
 
 fn audit_path(data_dir: &Path) -> PathBuf {
     data_dir.join(AUDIT_FILE)
+}
+
+fn artifact_sources_path(data_dir: &Path) -> PathBuf {
+    data_dir.join(ARTIFACT_SOURCES_FILE)
+}
+
+/// Read the artifact-source manifest (gitignored, lives beside the store).
+fn read_artifact_sources(data_dir: &Path) -> Vec<Value> {
+    let path = artifact_sources_path(data_dir);
+    match std::fs::read_to_string(&path) {
+        Ok(s) => serde_json::from_str::<Vec<Value>>(&s).unwrap_or_default(),
+        Err(_) => Vec::new(),
+    }
+}
+
+/// Range-read a chunk directly from a large artifact GGUF. The key is the
+/// SHA-256 of the original bytes, so we verify the slice before returning it;
+/// a mismatch is treated as "not found" (fail-closed, no silent corruption).
+fn read_chunk_artifact(data_dir: &Path, key: &str) -> Option<Vec<u8>> {
+    let row = read_artifact_sources(data_dir)
+        .into_iter()
+        .find(|r| r.get("key").and_then(Value::as_str) == Some(key))?;
+    let artifact = row.get("artifact").and_then(Value::as_str)?;
+    let offset = row.get("offset").and_then(Value::as_u64)?;
+    let len = row.get("len").and_then(Value::as_u64)? as usize;
+    use std::io::{Read, Seek, SeekFrom};
+    let mut f = std::fs::File::open(artifact).ok()?;
+    f.seek(SeekFrom::Start(offset)).ok()?;
+    let mut buf = vec![0u8; len];
+    f.read_exact(&mut buf).ok()?;
+    if sha256_hex(&buf) != key {
+        return None;
+    }
+    Some(buf)
 }
 
 fn tensors_path(data_dir: &Path) -> PathBuf {
@@ -406,7 +443,11 @@ pub fn read_chunk(data_dir: &Path, key: &str) -> Result<Vec<u8>, String> {
     let key = clean_key(key)
         .ok_or_else(|| "field `key` must be a lowercase 64-char sha256".to_string())?;
     let path = chunks_root(data_dir).join(format!("{key}.bin"));
-    let bytes = std::fs::read(&path).map_err(|e| format!("chunk `{key}` not stored: {e}"))?;
+    let bytes = match std::fs::read(&path) {
+        Ok(b) => b,
+        Err(_) => read_chunk_artifact(data_dir, &key)
+            .ok_or_else(|| format!("chunk `{key}` not stored in chunk dir or artifact source"))?,
+    };
     let mut rows = read_index(data_dir);
     let mut bumped = false;
     for row in rows.iter_mut() {
@@ -581,6 +622,44 @@ pub fn mirror_inventory(data_dir: &Path, verify_sha256: bool) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn artifact_backed_chunk_reads_and_verifies_sha256() {
+        let dir = temp_dir("artifact_src");
+        let _ = std::fs::create_dir_all(&dir);
+        let artifact = dir.join("artifact.bin");
+        let payload = b"GASV-G20 artifact-backed chunk payload 0123456789";
+        // Put the payload at a nonzero offset to exercise seek.
+        let mut blob = vec![0u8; 7];
+        blob.extend_from_slice(payload);
+        std::fs::write(&artifact, &blob).unwrap();
+        let key = sha256_hex(payload);
+        let sources = serde_json::json!([{
+            "key": key,
+            "artifact": artifact.to_string_lossy(),
+            "offset": 7u64,
+            "len": payload.len() as u64,
+        }]);
+        std::fs::write(
+            artifact_sources_path(&dir),
+            serde_json::to_string(&sources).unwrap(),
+        )
+        .unwrap();
+        // No chunk dir file exists -> falls back to artifact source.
+        let got = read_chunk(&dir, &key).expect("artifact-backed read");
+        assert_eq!(got, payload);
+        // Tampered manifest (wrong len) -> sha256 mismatch -> fail closed.
+        let bad = serde_json::json!([{"key": key, "artifact": artifact.to_string_lossy(), "offset": 7u64, "len": 3u64}]);
+        std::fs::write(
+            artifact_sources_path(&dir),
+            serde_json::to_string(&bad).unwrap(),
+        )
+        .unwrap();
+        assert!(
+            read_chunk(&dir, &key).is_err(),
+            "tampered artifact source must fail closed"
+        );
+    }
 
     fn temp_dir(tag: &str) -> PathBuf {
         let d =
