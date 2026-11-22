@@ -302,7 +302,7 @@ pub fn register_tensor(data_dir: &Path, body: &Value) -> Result<Value, String> {
     Ok(json!({ "ok": true, "tensor": name, "chunks": chunks.len(), "bytes": total_bytes }))
 }
 
-fn chunks_len(data_dir: &Path, key: &str) -> Option<u64> {
+pub(crate) fn chunks_len(data_dir: &Path, key: &str) -> Option<u64> {
     std::fs::metadata(chunks_root(data_dir).join(format!("{key}.bin")))
         .ok()
         .map(|m| m.len())

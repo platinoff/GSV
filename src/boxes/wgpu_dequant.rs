@@ -118,6 +118,46 @@ pub fn dequant_q4_k_range(data: &[u8], value_start: usize, value_end: usize) -> 
     full.get(lo..hi).map(|s| s.to_vec())
 }
 
+/// GASV-G22: read only the chunks overlapping `[value_start, value_end)`.
+/// Q4_K bytes are 144/256 per value; align to 144-byte block boundaries.
+/// Reading (~5 of 36) chunks instead of all 151 MB keeps `task_result` fast
+/// enough for the peer's result POST (each chunk read verifies SHA-256).
+fn tensor_raw_range(
+    data_dir: &std::path::Path,
+    name: &str,
+    value_start: usize,
+    value_end: usize,
+    q4_k: bool,
+) -> Option<Vec<u8>> {
+    use crate::boxes::weight_store::read_chunk;
+    let entry = tensor_entry(data_dir, name)?;
+    let chunks = entry.get("chunks")?.as_array()?;
+    let (bytes_per_value_num, bytes_per_value_den) =
+        if q4_k { (144usize, 256usize) } else { (4, 1) };
+    let lo = value_start * bytes_per_value_num / bytes_per_value_den;
+    let hi = value_end.div_ceil(bytes_per_value_den) * bytes_per_value_num;
+    let mut out = Vec::new();
+    let mut off = 0usize;
+    for key in chunks {
+        let key = key.as_str()?;
+        let len = crate::boxes::weight_store::chunks_len(data_dir, key)? as usize;
+        let c_lo = off;
+        let c_hi = off + len;
+        off = c_hi;
+        if c_hi <= lo {
+            continue;
+        }
+        if c_lo >= hi {
+            break;
+        }
+        let bytes = read_chunk(data_dir, key).ok()?;
+        let from = lo.saturating_sub(c_lo).min(len);
+        let to = hi.saturating_sub(c_lo).min(len);
+        out.extend_from_slice(bytes.get(from..to)?);
+    }
+    Some(out)
+}
+
 /// GASV-G22: return only `[value_start, value_end)` f32 values for a tensor.
 /// Q4_K tensors use the block-aligned range dequant; F32 tensors slice the raw
 /// bytes. Avoids the ~1 GB full dequant for huge MoE expert shards.
@@ -128,7 +168,8 @@ pub fn tensor_f32_range(
     value_end: usize,
 ) -> Option<Vec<f32>> {
     let entry = tensor_entry(data_dir, name)?;
-    let raw = tensor_bytes(data_dir, name)?;
+    let q4 = tensor_is_q4_k(&entry);
+    let raw = tensor_raw_range(data_dir, name, value_start, value_end, q4)?;
     if tensor_is_q4_k(&entry) {
         dequant_q4_k_range(&raw, value_start, value_end)
     } else if entry.get("dtype").and_then(Value::as_str) == Some("f32") {
@@ -210,6 +251,30 @@ mod tests {
             assert_eq!(ranged, full[start..end], "range {start}..{end}");
         }
         assert!(dequant_q4_k_range(&data, 400, 100).is_none());
+    }
+
+    #[test]
+    fn dequant_q4_k_matches_rusty_engine_golden() {
+        // Golden: first 144-byte Q4_K block of blk.5.ffn_gate_exps.weight from
+        // gsv-versus-ai-full-q4k.gguf (offset 3620476800). rusty-engine's
+        // `rusty tensor` reports the first dequant values as
+        // [0.0072112083, 0.012537479, ...] — this test proves the GSV hub
+        // port produces the same f32 values (no shared transcription bug).
+        let block: Vec<u8> = vec![
+            93, 4, 122, 17, 168, 234, 171, 241, 169, 157, 102, 229, 14, 218, 167, 255, 157, 175,
+            61, 45, 190, 222, 122, 12, 108, 92, 106, 121, 49, 241, 144, 198, 70, 170, 4, 203, 149,
+            155, 137, 62, 223, 74, 46, 199, 121, 147, 218, 38, 152, 140, 108, 182, 135, 38, 74,
+            187, 129, 48, 104, 174, 155, 106, 147, 8, 121, 123, 39, 44, 124, 170, 107, 197, 136,
+            218, 150, 21, 180, 91, 170, 246, 100, 167, 7, 184, 103, 135, 79, 240, 217, 120, 205,
+            157, 91, 35, 119, 151, 52, 186, 71, 53, 185, 86, 88, 137, 135, 165, 55, 170, 119, 185,
+            102, 105, 178, 230, 193, 225, 241, 183, 192, 129, 181, 8, 244, 199, 185, 181, 102, 160,
+            191, 170, 167, 198, 177, 118, 212, 129, 102, 216, 93, 167, 170, 107, 154, 202,
+        ];
+        assert_eq!(block.len(), 144);
+        let out = dequant_q4_k(&block);
+        assert_eq!(out.len(), 256);
+        assert!((out[0] - 0.0072112083).abs() < 1e-7, "first {}", out[0]);
+        assert!((out[1] - 0.012537479).abs() < 1e-7, "second {}", out[1]);
     }
 
     #[test]
