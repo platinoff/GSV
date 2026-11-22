@@ -1930,28 +1930,48 @@ pub fn task_enqueue(data_dir: &Path, body: &Value) -> Result<Value, String> {
             .first()
             .and_then(Value::as_u64)
             .ok_or("dims[0] must be u64")? as usize;
-        let cols = dims_v
-            .get(1)
-            .and_then(Value::as_u64)
-            .ok_or("dims[1] must be u64")? as usize;
+        // GASV-G22: flatten 3D MoE experts [rows,d,e] -> rows x (d*e).
+        let mut cols = 1usize;
+        for d in dims_v.iter().skip(1) {
+            cols = cols
+                .checked_mul(d.as_u64().ok_or("dims entries must be u64")? as usize)
+                .ok_or("dims product overflow")?;
+        }
         if rows == 0 || !rows.is_multiple_of(shards) {
             return Err(format!(
                 "rows {rows} must divide evenly into {shards} shards"
             ));
         }
-        let x = body
-            .get("x")
-            .and_then(Value::as_array)
-            .ok_or("field `x` must be an array of floats with len == cols")?
-            .iter()
-            .map(|v| {
-                let f = v.as_f64().ok_or("x entries must be numbers")?;
-                if !f.is_finite() {
-                    return Err("x entries must be finite".to_string());
-                }
-                Ok(f)
-            })
-            .collect::<Result<Vec<f64>, String>>()?;
+        let x = if let Some(arr) = body.get("x").and_then(Value::as_array) {
+            arr.iter()
+                .map(|v| {
+                    let f = v.as_f64().ok_or("x entries must be numbers")?;
+                    if !f.is_finite() {
+                        return Err("x entries must be finite".to_string());
+                    }
+                    Ok(f)
+                })
+                .collect::<Result<Vec<f64>, String>>()?
+        } else if let Some(spec) = body.get("x_spec").and_then(Value::as_str) {
+            // Compact form for huge tensors: "onehot:<index>:<len>" keeps the
+            // enqueue POST under the 256 KiB body cap (131072 floats ~= 262 KiB).
+            let parts: Vec<&str> = spec.split(':').collect();
+            if parts.len() != 3 || parts[0] != "onehot" {
+                return Err("x_spec must be 'onehot:<index>:<len>'".to_string());
+            }
+            let idx: usize = parts[1].parse().map_err(|_| "bad x_spec index")?;
+            let len: usize = parts[2].parse().map_err(|_| "bad x_spec length")?;
+            if len != cols || idx >= len {
+                return Err(format!(
+                    "x_spec len {len} != cols {cols} or index out of range"
+                ));
+            }
+            let mut v = vec![0.0f64; len];
+            v[idx] = 1.0;
+            v
+        } else {
+            return Err("field `x` or `x_spec` is required for weights_matvec".to_string());
+        };
         if x.len() != cols {
             return Err(format!(
                 "field `x` must have exactly {cols} floats (got {})",
