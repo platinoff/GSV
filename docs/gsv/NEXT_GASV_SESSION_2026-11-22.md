@@ -17,15 +17,16 @@
 | G17 | **done** | — |
 | G18 | open | Vision/mmproj weight-change feasibility (owner-gated) |
 | G19 | open | Staged Q4_K patch — **DO NOT START** (G17 found no safe candidate) |
-| **G20** | **in_progress** | artifact-backed WGPU weight lane — next focus |
+| **G20** | **done** | artifact-backed WGPU weight lane implemented + proved end-to-end (doc §5) |
+| **G21** | open | deploy lane to canon hub + page-side Q4_K dequant canary — next focus |
 | G13 | blocked | owner runtime/RAM + infer/quality |
 
-## Exact next steps (G20)
+## Exact next steps (G21)
 
-1. Read `docs/gsv/research/GASV_G20_ARTIFACT_WEIGHT_LANE_2026-11-22.md`. Code slice already in `src/boxes/weight_store.rs`: `read_chunk` falls back to `read_chunk_artifact` with sha256 verification; unit test green; clippy green.
-2. Implement the **generator** (Rust, `cargo xtask` or `rusty` subcommand): parse artifact GGUF header → for a huge tensor split bytes into ≤4 MiB slices → sha256 each slice as key → append rows to `data/wgpu_weights_artifact_sources.json` → register tensor via `weight_store::register_tensor`.
-3. Live-prove: register `blk.5.ffn_gate_exps.weight`, `GET /api/wgpu/weights/chunk?key=…` serves range bytes, enqueue `weights_matvec` canary on Min (#37+#39), require `max_err_model < 1e-4`.
-4. Gates: `cargo test --lib`, `cargo clippy --all-targets -- -D warnings`, `gsv_disk` (12 GB min), one GSV commit, `tickets_done` with evidence.
+1. Read `docs/gsv/research/GASV_G20_ARTIFACT_WEIGHT_LANE_2026-11-22.md` §5. Done: `rusty artifact-chunks` generator (rusty-engine `f40b942`), `register_tensor` N-dim artifact-backed + `read_chunk` fallback (GSV `2355f21`), `data/wgpu_weights_artifact_sources.json` (36 rows for `blk.5.ffn_gate_exps.weight`), isolated-server proof (register ok / 4 MiB chunk GET / sha256 == key MATCH).
+2. Deploy new `gsv-server` to canon `:9999` (`cargo xtask live` + watchdog respawn; brief peer reconnect — owner OK before restart). Re-POST registration on :9999.
+3. Add Q4_K dequant to the `/wgpu` page WGPU op (F32 chunks only today) or a hub-side dequant reference, then enqueue `weights_matvec` canary on the huge expert; require `max_err_model < 1e-4` on Min (#37 hub RDNA2 + #39 bifrost).
+4. Gates: `cargo test --lib`, `cargo clippy --all-targets -- -D warnings`, `gsv_disk` (12 GB min), one commit per repo, `tickets_done` with evidence. No full-LLM/quality claim; G13 blocked.
 
 ## Rules (hard)
 
