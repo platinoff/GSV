@@ -45,3 +45,10 @@ Content-addressed chunks are keyed by SHA-256 of the raw bytes. Instead of stori
 - Therefore the highest-value path to "best 4-bit MoE ideally working in the ecosystem" is **making all 733 tensors dispatchable** (G20), not editing weights.
 
 No Perl/Python, no git weight blobs, no full-LLM/quality claim.
+
+## 5. Implemented + proved (2026-11-22, later round)
+
+- **Generator shipped:** `rusty artifact-chunks <gguf> <tensor> [--max N]` in rusty-engine (commit pending) emits `gasv.artifact-chunks.v1` with `{key, offset, len}` per ≤4 MiB slice. Ran on `blk.5.ffn_gate_exps.weight`: 150,994,944 B → 36 chunks, first key `cab595f4…`.
+- **`register_tensor` extended (GSV):** accepts N-dim (1..=4) artifact-backed tensors with `source:"artifact"`, `dtype`, `ggml_type`, `bytes`; `chunk_len_any` checks store index + artifact sources; cap raised to 1 Gi values for artifact-backed. Store-backed path unchanged (2D/F32/64 Mi cap). Two new unit tests green; `cargo clippy --all-targets -- -D warnings` green.
+- **Live proof (isolated server, port 9998, temp data-dir `target/live/g20_test_data`):** wrote `wgpu_weights_artifact_sources.json` (36 rows); `POST /api/wgpu/weights/register_tensor` → `{"ok":true,"tensor":"blk.5.ffn_gate_exps.weight","chunks":36,"bytes":150994944}`; `GET /api/wgpu/weights/chunk?key=<first>` returned 4,194,304 B; independent `sha256(decoded_bytes)` = `cab595f4c4fce114f669f54dc24d8873681f4c4d348d5884ae54fa2f0cab8798` = key → **MATCH**. Lane verified end-to-end.
+- **Remaining (next session / owner):** deploy to canon hub (`:9999`) needs `cargo xtask live` recopy + watchdog respawn (brief peer reconnect; do when owner OK). Then re-POST registration on :9999 and run a Min WGPU canary on the huge tensor — **requires page-side Q4_K dequant** (the peer WGPU op currently consumes F32 chunks; this is a new JS/WASM lane, ticket G21). No full-LLM/quality claim; G13 blocked.

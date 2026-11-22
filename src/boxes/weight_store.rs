@@ -167,14 +167,6 @@ fn read_tensors(data_dir: &Path) -> Vec<Value> {
         .unwrap_or_default()
 }
 
-/// Every stored chunk key (set membership lookups).
-fn chunk_keys(data_dir: &Path) -> Vec<String> {
-    read_index(data_dir)
-        .into_iter()
-        .filter_map(|r| r.get("key").and_then(Value::as_str).map(str::to_string))
-        .collect()
-}
-
 fn write_index(data_dir: &Path, rows: &[Value]) -> Result<(), String> {
     let root = store_root(data_dir);
     std::fs::create_dir_all(&root).map_err(|e| format!("store root: {e}"))?;
@@ -213,26 +205,33 @@ pub fn register_tensor(data_dir: &Path, body: &Value) -> Result<Value, String> {
     {
         return Err("field `tensor` may contain only [a-zA-Z0-9._/-]".to_string());
     }
-    let rows = body
+    let dims_arr = body
         .get("dims")
         .and_then(Value::as_array)
-        .and_then(|a| {
-            if a.len() == 2 {
-                let r = a[0].as_u64()?;
-                let c = a[1].as_u64()?;
-                Some((r, c))
-            } else {
-                None
-            }
-        })
-        .ok_or("field `dims` must be [rows, cols]")?;
-    // 4 bytes per f32 value, total must fit the chunk cap spirit.
-    let numel = rows
-        .0
-        .checked_mul(rows.1)
-        .ok_or_else(|| format!("dims overflow: {}x{}", rows.0, rows.1))?;
-    if numel > 64 * 1024 * 1024 {
-        return Err("dims too large (> 64 Mi values)".to_string());
+        .ok_or("field `dims` must be an array")?;
+    let artifact_source = body.get("source").and_then(Value::as_str) == Some("artifact");
+    if !artifact_source && dims_arr.len() != 2 {
+        return Err("field `dims` must be [rows, cols] for store-backed tensors".to_string());
+    }
+    if dims_arr.is_empty() || dims_arr.len() > 4 {
+        return Err("field `dims` must have 1..=4 entries".to_string());
+    }
+    let mut numel = 1u64;
+    for d in dims_arr {
+        numel = numel
+            .checked_mul(d.as_u64().ok_or("dims entries must be integers")?)
+            .ok_or("dims overflow")?;
+    }
+    let dims: Vec<u64> = dims_arr.iter().map(|d| d.as_u64().unwrap_or(0)).collect();
+    // Store-backed tensors stay F32 with the historical cap; artifact-backed
+    // tensors may be larger/quantized because bytes are range-served on demand.
+    let cap = if artifact_source {
+        1u64 << 30
+    } else {
+        64 * 1024 * 1024
+    };
+    if numel > cap {
+        return Err(format!("dims too large (> {cap} values)"));
     }
     let chunks: Vec<String> = body
         .get("chunks")
@@ -255,32 +254,50 @@ pub fn register_tensor(data_dir: &Path, body: &Value) -> Result<Value, String> {
     if chunks.is_empty() {
         return Err("field `chunks` must list at least one chunk".to_string());
     }
-    let have: std::collections::HashSet<String> = chunk_keys(data_dir).into_iter().collect();
     let mut total_bytes = 0u64;
     for key in &chunks {
-        if !have.contains(key) {
-            return Err(format!("chunk `{key}` is not stored in the weight store"));
-        }
-        total_bytes += chunks_len(data_dir, key)
-            .ok_or_else(|| format!("chunk `{key}` missing from the store"))?;
+        total_bytes += chunk_len_any(data_dir, key)
+            .ok_or_else(|| format!("chunk `{key}` is neither stored nor an artifact source"))?;
     }
-    if total_bytes != numel * 4 {
+    let expected = if artifact_source {
+        body.get("bytes")
+            .and_then(Value::as_u64)
+            .ok_or("artifact-backed tensors require `bytes`")?
+    } else {
+        numel * 4
+    };
+    if total_bytes != expected {
         return Err(format!(
-            "chunks total {total_bytes} B does not match dims {rows:?} (expected {} B)",
-            numel * 4
+            "chunks total {total_bytes} B does not match declared {expected} B for dims {dims:?}"
         ));
     }
+    let dtype = if artifact_source {
+        body.get("dtype")
+            .and_then(Value::as_str)
+            .unwrap_or("q4_k")
+            .to_string()
+    } else {
+        "f32".to_string()
+    };
+    let ggml_type = body.get("ggml_type").and_then(Value::as_u64);
     let mut tensors = read_tensors(data_dir);
     tensors.retain(|t| t.get("tensor").and_then(Value::as_str) != Some(name.as_str()));
-    tensors.push(json!({
+    let mut row = json!({
         "tensor": name,
-        "dims": [rows.0, rows.1],
+        "dims": dims,
         "chunks": chunks,
-        "dtype": "f32",
+        "dtype": dtype,
         "numel": numel,
         "bytes": total_bytes,
         "registered_ts": now_secs(),
-    }));
+    });
+    if artifact_source {
+        row["source"] = json!("artifact");
+        if let Some(t) = ggml_type {
+            row["ggml_type"] = json!(t);
+        }
+    }
+    tensors.push(row);
     write_tensors(data_dir, &tensors)?;
     Ok(json!({ "ok": true, "tensor": name, "chunks": chunks.len(), "bytes": total_bytes }))
 }
@@ -289,6 +306,17 @@ fn chunks_len(data_dir: &Path, key: &str) -> Option<u64> {
     std::fs::metadata(chunks_root(data_dir).join(format!("{key}.bin")))
         .ok()
         .map(|m| m.len())
+}
+
+/// Chunk length from either the local store or an artifact source (GASV-G20).
+fn chunk_len_any(data_dir: &Path, key: &str) -> Option<u64> {
+    if let Some(n) = chunks_len(data_dir, key) {
+        return Some(n);
+    }
+    read_artifact_sources(data_dir)
+        .into_iter()
+        .find(|r| r.get("key").and_then(Value::as_str) == Some(key))
+        .and_then(|r| r.get("len").and_then(Value::as_u64))
 }
 
 /// Look up one registered tensor entry.
@@ -622,6 +650,46 @@ pub fn mirror_inventory(data_dir: &Path, verify_sha256: bool) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn register_artifact_backed_quantized_tensor() {
+        let dir = temp_dir("artifact_register");
+        let _ = std::fs::create_dir_all(&dir);
+        let artifact = dir.join("artifact.bin");
+        let a = vec![1u8; 8];
+        let b = vec![2u8; 8];
+        let mut blob = a.clone();
+        blob.extend_from_slice(&b);
+        std::fs::write(&artifact, &blob).unwrap();
+        let ka = sha256_hex(&a);
+        let kb = sha256_hex(&b);
+        let sources = serde_json::json!([
+            {"key": ka, "artifact": artifact.to_string_lossy(), "offset": 0u64, "len": 8u64},
+            {"key": kb, "artifact": artifact.to_string_lossy(), "offset": 8u64, "len": 8u64},
+        ]);
+        std::fs::write(
+            artifact_sources_path(&dir),
+            serde_json::to_string(&sources).unwrap(),
+        )
+        .unwrap();
+        let body = serde_json::json!({
+            "tensor": "blk.0.ffn_gate_exps.weight",
+            "dims": [4, 2, 2],
+            "chunks": [ka, kb],
+            "source": "artifact",
+            "dtype": "q4_k",
+            "ggml_type": 12,
+            "bytes": 16,
+        });
+        let out = register_tensor(&dir, &body).expect("register artifact tensor");
+        assert_eq!(out["chunks"], 2);
+        assert_eq!(out["bytes"], 16);
+        let entry = tensor_entry(&dir, "blk.0.ffn_gate_exps.weight").expect("entry");
+        assert_eq!(entry["source"], "artifact");
+        assert_eq!(entry["dtype"], "q4_k");
+        assert_eq!(entry["ggml_type"], 12);
+        assert_eq!(entry["dims"].as_array().unwrap().len(), 3);
+    }
 
     #[test]
     fn artifact_backed_chunk_reads_and_verifies_sha256() {
