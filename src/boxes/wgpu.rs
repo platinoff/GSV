@@ -3088,13 +3088,31 @@ async function runOp(op,iters){
   return {ok:maxErr<1e-3,adapter:r.adapterName,elapsed_ms:Math.round(per*100)/100,total_ms:Math.round(total*100)/100,iters:N,max_err:maxErr,mflops:Math.round(mflops*100)/100,ops_per_sec:Math.round(opsPerSec*100)/100,device_reused:reused};
 }
 // MC-2: real-weights matvec — device computes its row range of the actual
-// MiniCPM-V tensor (blk.0.ffn_down.weight) from the hub weight store.
+// MiniCPM-V tensor from the hub weight store. GASV-G21: artifact-backed
+// tensors may be Q4_K (ggml 12); dequantize to f32 so peer and hub reference
+// agree on the same values. F32 store-backed tensors pass through unchanged.
+function f16ToF32(h){const s=(h&0x8000)?-1:1,e=(h>>10)&31,f=h&1023;
+  if(e===0)return s*Math.pow(2,-14)*(f/1024);
+  if(e===31)return f?NaN:s*Infinity;
+  return s*Math.pow(2,e-15)*(1+f/1024);}
+function dequantQ4K(bytes){const n=Math.floor(bytes.length/144)*256,out=new Float32Array(n);let o=0;
+  const sm=(j,q)=>{if(j<4)return[q[j]&63,q[j+4]&63];return[(q[j+4]&15)|((q[j-4]>>6)<<4),(q[j+4]>>4)|((q[j]>>6)<<4)];};
+  for(let off=0;off+144<=bytes.length;off+=144){
+    const d=f16ToF32(bytes[off]|bytes[off+1]<<8),dm=f16ToF32(bytes[off+2]|bytes[off+3]<<8);
+    const sc=bytes.subarray(off+4,off+16);
+    for(let g=0;g<4;g++){
+      const [sc0,m0]=sm(g*2,sc),[sc1,m1]=sm(g*2+1,sc),d1=d*sc0,dm1=dm*m0,d2=d*sc1,dm2=dm*m1,b=off+16+g*32;
+      for(let l=0;l<32;l++){const q=bytes[b+l];out[o++]=d1*(q&15)-dm1;}
+      for(let l=0;l<32;l++){const q=bytes[b+l];out[o++]=d2*(q>>4)-dm2;}
+    }
+  }
+  return out;}
 async function downloadWeightsFlat(tensor){
   const man=await(await fetch('api/wgpu/weights/manifest')).json();
   if(!man.ok)throw new Error('weights manifest failed');
   const tm=(man.tensors||[]).find(t=>t.tensor===tensor);
   if(!tm)throw new Error('tensor not in hub store: '+tensor);
-  const rows=tm.dims[0],cols=tm.dims[1];
+  const rows=tm.dims[0],cols=tm.dims.length===2?tm.dims[1]:tm.dims.slice(1).reduce((a,b)=>a*b,1);
   const pieces=[];
   const canVerify = typeof crypto !== 'undefined' && crypto.subtle && crypto.subtle.digest;
   for(const c of tm.chunks){
@@ -3113,7 +3131,9 @@ async function downloadWeightsFlat(tensor){
   }
   const totalBytes=pieces.reduce((a,p)=>a+p.byteLength,0);
   const flat=new Uint8Array(totalBytes);let off=0;for(const p of pieces){flat.set(p,off);off+=p.byteLength;}
-  return {W:new Float32Array(flat.buffer,0,totalBytes/4),rows:rows,cols:cols};
+  const qt=tm.ggml_type!=null?tm.ggml_type:(tm.dtype==='q4_k'?12:0);
+  const W=(qt===12)?dequantQ4K(flat):new Float32Array(flat.buffer,0,totalBytes/4);
+  return {W:W,rows:rows,cols:cols};
 }
 async function buildWeightsMatvec(device,tensor,shardId,shards){
   const key='weights_matvec#'+tensor+'#'+shardId+'#'+shards;
@@ -3606,6 +3626,15 @@ mod tests {
         let p = page();
         for marker in ["weights_matvec_block", "runWeightsMatvecBlock"] {
             assert!(p.contains(marker), "missing R4 marker: {marker}");
+        }
+    }
+
+    #[test]
+    fn page_carries_q4_k_dequant_markers() {
+        // GASV-G21: the peer must match the hub Q4_K dequant reference.
+        let p = page();
+        for marker in ["dequantQ4K", "f16ToF32", "tm.ggml_type"] {
+            assert!(p.contains(marker), "missing G21 dequant marker: {marker}");
         }
     }
 
