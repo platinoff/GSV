@@ -70,6 +70,33 @@ pub fn dequant_q4_k(data: &[u8]) -> Vec<f32> {
     out
 }
 
+/// Flatten an N-dim registered tensor into `(rows, cols)` where cols is the
+/// product of all trailing dims. 2D tensors keep their historical meaning;
+/// 3D MoE experts `[rows, d, e]` become `rows x (d*e)` so a `weights_matvec`
+/// canary can address them with a flat x vector.
+pub fn tensor_rows_cols(entry: &Value) -> Option<(usize, usize)> {
+    let dims = entry.get("dims")?.as_array()?;
+    if dims.is_empty() {
+        return None;
+    }
+    let rows = dims[0].as_u64()? as usize;
+    let mut cols = 1usize;
+    for d in &dims[1..] {
+        cols = cols.checked_mul(d.as_u64()? as usize)?;
+    }
+    Some((rows, cols))
+}
+
+/// Q4_K type from ggml_type or dtype, if this is a Q4_K tensor.
+pub fn tensor_is_q4_k(entry: &Value) -> bool {
+    entry
+        .get("ggml_type")
+        .and_then(Value::as_u64)
+        .map(|t| t == 12)
+        .unwrap_or(false)
+        || entry.get("dtype").and_then(Value::as_str) == Some("q4_k")
+}
+
 /// GASV-G22: dequantize only the value range `[value_start, value_end)`.
 /// Q4_K blocks hold 256 values / 144 bytes, so we expand only the overlapping
 /// blocks and trim to the exact range. This avoids materializing ~1 GB of f32
@@ -89,6 +116,36 @@ pub fn dequant_q4_k_range(data: &[u8], value_start: usize, value_end: usize) -> 
     let lo = value_start - b0 * BLK;
     let hi = value_end - b0 * BLK;
     full.get(lo..hi).map(|s| s.to_vec())
+}
+
+/// GASV-G22: return only `[value_start, value_end)` f32 values for a tensor.
+/// Q4_K tensors use the block-aligned range dequant; F32 tensors slice the raw
+/// bytes. Avoids the ~1 GB full dequant for huge MoE expert shards.
+pub fn tensor_f32_range(
+    data_dir: &std::path::Path,
+    name: &str,
+    value_start: usize,
+    value_end: usize,
+) -> Option<Vec<f32>> {
+    let entry = tensor_entry(data_dir, name)?;
+    let raw = tensor_bytes(data_dir, name)?;
+    if tensor_is_q4_k(&entry) {
+        dequant_q4_k_range(&raw, value_start, value_end)
+    } else if entry.get("dtype").and_then(Value::as_str) == Some("f32") {
+        let lo = value_start.checked_mul(4)?;
+        let hi = value_end.checked_mul(4)?;
+        let slice = raw.get(lo..hi)?;
+        Some(
+            slice
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .map(|c| f32::from_le_bytes(*c))
+                .collect(),
+        )
+    } else {
+        None
+    }
 }
 
 /// Return f32 values for a registered tensor, dequantizing when its dtype or

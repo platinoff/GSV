@@ -742,11 +742,36 @@ fn matvec_rows(floats: &[f32], rows: usize, cols: usize, x: &[f64]) -> Option<Ve
 /// `tensor#(dims|chunk-keys)` signature — the previous implementation re-read
 /// and re-decoded the whole 4 MiB tensor on every dispatch verification
 /// (~6 ms parse-dominant, vs ~1 ms of actual dot products).
+/// GASV-G22: CPU reference for one shard's row segment, dequantizing only the
+/// needed value range. Avoids materializing ~1 GB f32 for huge Q4_K MoE experts.
+pub fn weights_matvec_reference_segment(
+    data_dir: &Path,
+    tensor: &str,
+    x: &[f64],
+    row_start: usize,
+    row_end: usize,
+) -> Option<Vec<f64>> {
+    let entry = crate::boxes::weight_store::tensor_entry(data_dir, tensor)?;
+    let (rows, cols) = crate::boxes::wgpu_dequant::tensor_rows_cols(&entry)?;
+    if x.len() != cols || row_end > rows || row_start >= row_end {
+        return None;
+    }
+    let floats = crate::boxes::wgpu_dequant::tensor_f32_range(
+        data_dir,
+        tensor,
+        row_start * cols,
+        row_end * cols,
+    )?;
+    if floats.len() != (row_end - row_start) * cols {
+        return None;
+    }
+    matvec_rows(&floats, row_end - row_start, cols, x)
+}
+
 pub fn weights_matvec_reference(data_dir: &Path, tensor: &str, x: &[f64]) -> Option<Vec<f64>> {
     let entry = crate::boxes::weight_store::tensor_entry(data_dir, tensor)?;
-    let dims = entry.get("dims")?.as_array()?;
-    let rows = dims.first()?.as_u64()? as usize;
-    let cols = dims.get(1)?.as_u64()? as usize;
+    // GASV-G22: flatten N-dim tensors (3D MoE experts [rows,d,e] -> rows x d*e).
+    let (rows, cols) = crate::boxes::wgpu_dequant::tensor_rows_cols(&entry)?;
     if x.len() != cols {
         return None;
     }
@@ -1490,37 +1515,38 @@ pub fn task_result(data_dir: &Path, body: &Value) -> Result<Value, String> {
                     .unwrap_or_default();
                 let row_start = t.get("row_start").and_then(Value::as_u64).unwrap_or(0) as usize;
                 let row_end = t.get("row_end").and_then(Value::as_u64).unwrap_or(0) as usize;
-                if let Some(full) = weights_matvec_reference(data_dir, &tensor, &x) {
-                    if row_end <= full.len() {
-                        let seg = &full[row_start..row_end];
-                        if let Some(arr) = body.get("partial").and_then(Value::as_array) {
-                            if arr.len() != seg.len() {
-                                // A peer that posts a partial of the wrong row count
-                                // (stale page running another kernel) is a failed task,
-                                // not a silent skip.
-                                t["status"] = json!("failed");
-                                t["error"] = json!(format!(
-                                    "partial length mismatch: got {} floats, row range expects {}",
-                                    arr.len(),
-                                    seg.len()
+                // GASV-G22: verify only this shard's row segment, dequantizing
+                // just the overlapping Q4_K blocks (no ~1 GB full-tensor f32).
+                if let Some(seg) =
+                    weights_matvec_reference_segment(data_dir, &tensor, &x, row_start, row_end)
+                {
+                    if let Some(arr) = body.get("partial").and_then(Value::as_array) {
+                        if arr.len() != seg.len() {
+                            // A peer that posts a partial of the wrong row count
+                            // (stale page running another kernel) is a failed task,
+                            // not a silent skip.
+                            t["status"] = json!("failed");
+                            t["error"] = json!(format!(
+                                "partial length mismatch: got {} floats, row range expects {}",
+                                arr.len(),
+                                seg.len()
+                            ));
+                            settled = Some((task_id.clone(), t["status"].clone()));
+                            continue;
+                        }
+                        let mut max_err = 0.0f64;
+                        for (i, v) in arr.iter().enumerate() {
+                            let e = (v.as_f64().unwrap_or(f64::NAN) - seg[i]).abs();
+                            if e > max_err {
+                                max_err = e;
+                            }
+                        }
+                        t["max_err_model"] = json!(max_err);
+                        if max_err > 1e-2 {
+                            t["status"] = json!("failed");
+                            t["error"] = json!(format!(
+                                    "model mismatch: max_err_model {max_err} (weights_matvec {tensor} rows {row_start}..{row_end})"
                                 ));
-                                settled = Some((task_id.clone(), t["status"].clone()));
-                                continue;
-                            }
-                            let mut max_err = 0.0f64;
-                            for (i, v) in arr.iter().enumerate() {
-                                let e = (v.as_f64().unwrap_or(f64::NAN) - seg[i]).abs();
-                                if e > max_err {
-                                    max_err = e;
-                                }
-                            }
-                            t["max_err_model"] = json!(max_err);
-                            if max_err > 1e-2 {
-                                t["status"] = json!("failed");
-                                t["error"] = json!(format!(
-                                        "model mismatch: max_err_model {max_err} (weights_matvec {tensor} rows {row_start}..{row_end})"
-                                    ));
-                            }
                         }
                     }
                 }
@@ -3107,12 +3133,14 @@ function dequantQ4K(bytes){const n=Math.floor(bytes.length/144)*256,out=new Floa
     }
   }
   return out;}
-async function downloadWeightsFlat(tensor){
+async function downloadWeightsFlat(tensor,shardId,shards){
   const man=await(await fetch('api/wgpu/weights/manifest')).json();
   if(!man.ok)throw new Error('weights manifest failed');
   const tm=(man.tensors||[]).find(t=>t.tensor===tensor);
   if(!tm)throw new Error('tensor not in hub store: '+tensor);
-  const rows=tm.dims[0],cols=tm.dims.length===2?tm.dims[1]:tm.dims.slice(1).reduce((a,b)=>a*b,1);
+  const fullRows=tm.dims[0],cols=tm.dims.length===2?tm.dims[1]:tm.dims.slice(1).reduce((a,b)=>a*b,1);
+  const per=Math.max(1,Math.floor(fullRows/Math.max(1,shards|0)));
+  const r0=(shardId|0)*per;
   const pieces=[];
   const canVerify = typeof crypto !== 'undefined' && crypto.subtle && crypto.subtle.digest;
   for(const c of tm.chunks){
@@ -3132,24 +3160,34 @@ async function downloadWeightsFlat(tensor){
   const totalBytes=pieces.reduce((a,p)=>a+p.byteLength,0);
   const flat=new Uint8Array(totalBytes);let off=0;for(const p of pieces){flat.set(p,off);off+=p.byteLength;}
   const qt=tm.ggml_type!=null?tm.ggml_type:(tm.dtype==='q4_k'?12:0);
-  const W=(qt===12)?dequantQ4K(flat):new Float32Array(flat.buffer,0,totalBytes/4);
-  return {W:W,rows:rows,cols:cols};
+  // GASV-G22: dequantize only this shard's value range. For a huge MoE expert
+  // this avoids materializing ~1 GB of f32 in the browser.
+  const vStart=r0*cols,vEnd=(r0+per)*cols;
+  let W;
+  if(qt===12){
+    const BLK=256,BB=144,b0=Math.floor(vStart/BLK),b1=Math.ceil(vEnd/BLK);
+    const full=dequantQ4K(flat.subarray(b0*BB,b1*BB));
+    const lo=vStart-b0*BLK,hi=vEnd-b0*BLK;
+    W=full.subarray(lo,hi);
+  }else{
+    W=new Float32Array(flat.buffer,vStart*4,vEnd-vStart);
+  }
+  return {W:W,rows:per,cols:cols,r0:r0,fullRows:fullRows};
 }
 async function buildWeightsMatvec(device,tensor,shardId,shards){
   const key='weights_matvec#'+tensor+'#'+shardId+'#'+shards;
   if(CACHE[key])return CACHE[key];
-  const flat=await downloadWeightsFlat(tensor);
-  const tm={rows:flat.rows,cols:flat.cols};
-  const rows=tm.rows,cols=tm.cols;
-  const per=rows/shards;
-  const r0=shardId*per;
+  const flat=await downloadWeightsFlat(tensor,shardId,shards);
+  const rows=flat.rows,cols=flat.cols;
+  const per=rows;
+  const r0=flat.r0;
   const W=flat.W;
   const WGSL_W=`@group(0) @binding(0) var<storage,read> w:array<f32>;@group(0) @binding(1) var<storage,read> x:array<f32>;@group(0) @binding(2) var<storage,read_write> y:array<f32>;@compute @workgroup_size(64)
     fn main(@builtin(global_invocation_id) g:vec3<u32>) {
       let r=g.x;
       if (r>=${per}u) { return; }
       var acc=0.0;
-      for (var k=0u; k<${cols}u; k++) { acc = acc + w[(${r0}u+r)*${cols}u+k]*x[k]; }
+      for (var k=0u; k<${cols}u; k++) { acc = acc + w[r*${cols}u+k]*x[k]; }
       y[r]=acc;
     }`;
   const wBuf=device.createBuffer({size:W.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
@@ -3167,29 +3205,31 @@ const WASM_W_CACHE={};
 async function runWeightsMatvecWasm(tensor,shardId,shards,xArr){
   const t0=performance.now();
   if(!(await loadMeshWasm()))throw new Error('wasm mesh unavailable');
-  let entry=WASM_W_CACHE[tensor];
+  const wkey=tensor+'#'+(shardId|0)+'#'+(shards|0);
+  let entry=WASM_W_CACHE[wkey];
   const reused=!!entry;
   if(!entry){
-    const flat=await downloadWeightsFlat(tensor);
+    // GASV-G22: cache only this shard's dequantized rows, not the whole tensor.
+    const flat=await downloadWeightsFlat(tensor,shardId,shards);
     const wptr=WASM.inst.mesh_alloc(flat.W.byteLength); if(!wptr)throw new Error('wasm alloc tensor failed');
     new Float32Array(WASM.inst.memory.buffer,wptr,flat.W.length).set(flat.W);
-    entry={ptr:wptr,rows:flat.rows,cols:flat.cols,bytes:flat.W.byteLength};
-    WASM_W_CACHE[tensor]=entry;
-    log('wasm tensor cached: '+tensor+' '+entry.rows+'x'+entry.cols+' ('+Math.round(entry.bytes/1024)+' KB)');
+    entry={ptr:wptr,rows:flat.rows,cols:flat.cols,bytes:flat.W.byteLength,r0:flat.r0};
+    WASM_W_CACHE[wkey]=entry;
+    log('wasm tensor cached: '+tensor+' shard '+(shardId|0)+' '+entry.rows+'x'+entry.cols+' ('+Math.round(entry.bytes/1024)+' KB)');
   }
-  const shardCount=Math.max(1,shards|0), per=Math.floor(entry.rows/shardCount), r0=shardId*per;
+  const per=entry.rows;
   const cols=entry.cols, xBytes=cols*4;
   const xptr=WASM.inst.mesh_alloc(xBytes); if(!xptr)throw new Error('wasm alloc x failed');
   const xb=new Float32Array(WASM.inst.memory.buffer,xptr,cols);
   for(let i=0;i<cols;i++)xb[i]=xArr&&xArr[i]?xArr[i]:0;
   const yptr=WASM.inst.mesh_alloc(per*4); if(!yptr){WASM.inst.mesh_free(xptr,xBytes);throw new Error('wasm alloc y failed');}
-  WASM.inst.mesh_matvec_partial(entry.ptr+r0*cols*4,xptr,yptr,per,cols,0,cols);
+  WASM.inst.mesh_matvec_partial(entry.ptr,xptr,yptr,per,cols,0,cols);
   const y=wasmDownload(yptr,per);
   WASM.inst.mesh_free(xptr,xBytes); WASM.inst.mesh_free(yptr,per*4);
   const total=performance.now()-t0;
   const mflops=(2*per*cols)/((total/1000)*1e6);
   const opsPerSec=1/(total/1000);
-  log('wasm weights_matvec '+tensor+' shard '+shardId+'/'+shardCount+': '+total.toFixed(2)+'ms · '+mflops.toFixed(2)+' MFLOPS · '+opsPerSec.toFixed(2)+' ops/s · rows '+per+' cols '+cols);
+  log('wasm weights_matvec '+tensor+' shard '+shardId+'/'+Math.max(1,shards|0)+': '+total.toFixed(2)+'ms · '+mflops.toFixed(2)+' MFLOPS · '+opsPerSec.toFixed(2)+' ops/s · rows '+per+' cols '+cols);
   return {ok:true,adapter:'wasm-simd128',elapsed_ms:Math.round(total*100)/100,max_err:0,iters:1,mflops:Math.round(mflops*100)/100,ops_per_sec:Math.round(opsPerSec*100)/100,device_reused:reused,partial:Array.from(y),wasm:true};
 }
 async function runWeightsMatvec(tensor,shardId,shards,xArr){
@@ -3635,6 +3675,14 @@ mod tests {
         let p = page();
         for marker in ["dequantQ4K", "f16ToF32", "tm.ggml_type"] {
             assert!(p.contains(marker), "missing G21 dequant marker: {marker}");
+        }
+        // G22: shard-range streaming (no full-tensor f32 on the peer).
+        for marker in [
+            "vStart",
+            "flat.subarray",
+            "downloadWeightsFlat(tensor,shardId,shards)",
+        ] {
+            assert!(p.contains(marker), "missing G22 streaming marker: {marker}");
         }
     }
 
@@ -5189,5 +5237,29 @@ mod tests {
         assert!(proof_gate(&peers, &tasks, 42, now));
         // And an unproven peer still fails hard.
         assert!(!proof_gate(&peers, &tasks, 99, now));
+    }
+
+    #[test]
+    fn matvec_reference_segment_matches_full() {
+        // GASV-G22: verify the row-segment reference (used at task_result) is
+        // identical to the historical full reference for an F32 tensor.
+        let dir = temp_dir("ref_segment");
+        let _ = std::fs::create_dir_all(&dir);
+        let payload: Vec<u8> = [1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
+            .iter()
+            .flat_map(|v| v.to_le_bytes())
+            .collect();
+        let s = crate::boxes::weight_store::store_chunk(&dir, &payload).expect("store");
+        let key = s["key"].as_str().expect("key").to_string();
+        crate::boxes::weight_store::register_tensor(
+            &dir,
+            &json!({"tensor":"seg_test","dims":[4,2],"chunks":[key]}),
+        )
+        .expect("register");
+        let x = [1.5f64, -2.0];
+        let full = weights_matvec_reference(&dir, "seg_test", &x).expect("full ref");
+        let seg = weights_matvec_reference_segment(&dir, "seg_test", &x, 1, 3).expect("seg ref");
+        assert_eq!(seg.len(), 2);
+        assert_eq!(seg, full[1..3]);
     }
 }
