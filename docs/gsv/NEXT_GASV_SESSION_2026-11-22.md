@@ -18,14 +18,20 @@
 | G18 | open | Vision/mmproj weight-change feasibility (owner-gated) |
 | G19 | open | Staged Q4_K patch — **DO NOT START** (G17 found no safe candidate) |
 | **G20** | **done** | artifact-backed WGPU weight lane implemented + proved end-to-end (doc §5) |
-| **G21** | open | deploy lane to canon hub + page-side Q4_K dequant canary — next focus |
+| **G21** | **done** | Q4_K canary PASS `g-721` `6.94e-18` on peers [39,37] |
 | G13 | blocked | owner runtime/RAM + infer/quality |
 
-## Exact next steps (G21)
+## G21 outcome (closed)
 
-1. Read `docs/gsv/research/GASV_G20_ARTIFACT_WEIGHT_LANE_2026-11-22.md` §5. Done: `rusty artifact-chunks` generator (rusty-engine `f40b942`), `register_tensor` N-dim artifact-backed + `read_chunk` fallback (GSV `2355f21`), `data/wgpu_weights_artifact_sources.json` (36 rows for `blk.5.ffn_gate_exps.weight`), isolated-server proof (register ok / 4 MiB chunk GET / sha256 == key MATCH).
-2. Deploy new `gsv-server` to canon `:9999` (`cargo xtask live` + watchdog respawn; brief peer reconnect — owner OK before restart). Re-POST registration on :9999.
-3. Hub-side (GSV `1b187db`) + page-side (GSV `2fa9eb2`) Q4_K dequant DONE and deployed to canon :9999 (`/api/update/apply`). Artifact tensor `artifact/blk.0.attn_gate.weight` registered (2 chunks), chunk GET verified sha256. **Canary NOT passed**: after hub restart mesh degraded (#37 down, #39 stuck claim `within_quota:false`, `route_peer:null`, result POSTs failed 3x). Next session: wait FW-7 requeue (~300 s) / peer page reload, re-probe matmul64 to restore proof gate, re-enqueue Q4_K `weights_matvec`, require `max_err_model < 1e-4` on Min. Do NOT claim canary PASS without the numeric result.
+- Canon :9999 deployed (build + `/api/update/apply`), hub-side (`1b187db`) + page-side (`2fa9eb2`) Q4_K dequant live.
+- `artifact/blk.0.attn_gate.weight` [2048,4096] Q4_K registered (2 chunks), chunk GET sha256 == key.
+- `g-721` weights_matvec shards=2 on Min [39,37]: both `done`, `max_err_model=6.938893903907228e-18` (<1e-4). G21 done via MCP.
+
+## Next possible work (not yet ticketed)
+
+- Scale the verified lane to the 122 huge MoE experts (~151 MB each) — generator is ready (`rusty artifact-chunks`), registration + canary per tensor. Still no runnable full LLM (G13 blocked).
+- Vision/mmproj weight-change feasibility G18 (owner-gated, open).
+- G16 (G10/G12 reconcile + Min placement manifest), open.
 4. Gates: `cargo test --lib`, `cargo clippy --all-targets -- -D warnings`, `gsv_disk` (12 GB min), one commit per repo, `tickets_done` with evidence. No full-LLM/quality claim; G13 blocked.
 
 ## Rules (hard)
