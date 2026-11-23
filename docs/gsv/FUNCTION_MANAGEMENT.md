@@ -71,7 +71,9 @@
 - `cargo clippy --all-targets -- -D warnings` — green (65 wgpu + 7 dequant tests green after GASV track).
 - `cargo xtask record-speed --skip-run` — ok (останній повний `cargo test` 518s, exit 0).
 - `cargo fmt --all -- --check` — ok.
-- `gsv-loc-audit --stretch-96` → **99.64%** (Rust-first ≥ 95% ✅).
+- `gsv-loc-audit --stretch-96` → **99.65%** (rust 71158 / product 71408, виміряно 2026-11-23; Rust-first ≥ 95% ✅).
+- `cargo xtask mirrors --check` → **ok** (canon `.agents/skills` == `.cursor/skills` + `.opencode/skills`).
+- `cargo xtask fingerprint-recheck` → advisory: historical `unknown_model`/`missing_band` rows 148–150 (2026-11-15), `missing_band` on `eae0003` (fingerprint без `--band`), 1 duplicate line 89 (0.232.0). Не hard gate; не чіпаємо без owner/drain-кроку.
 - Vision rev (canonical) — **516**, next **PH-S3129**; `sync` green.
 - 4-bit MoE canaries: g-721 `6.94e-18`, g-730 `3.47e-18`, g-736 `1.73e-18` (all < 1e-4); 122/122 huge experts addressable; no runnable-full-LLM/quality claim (G13 blocked).
 
