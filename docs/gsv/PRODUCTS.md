@@ -43,6 +43,23 @@ Keep-live (band 225): llama-rs writes `target/live/llama_heartbeat.json` when ru
 
 Discovered but **not** in this table → S0 + git in that tree; no PH-S* drain until a row is added. OmniRoute is registered (band 149, owner-opt-in).
 
+### Plugin automation / toolchain matrix (2026-11-23, read-only facts)
+
+Джерело: `cargo xtask products --state` + `--wiring` + `rust-toolchain.toml` по репо. Політика SLI — [`GSV_SLI_ADOPTION_POLICY_2026-11-23.md`](./research/GSV_SLI_ADOPTION_POLICY_2026-11-23.md).
+
+| id | Toolchain pin class | Wiring | Git remote |
+|---|---|---|---|
+| gsv (host) | GNU stable `stable-x86_64-pc-windows-gnu` | na (host) | origin |
+| poolai | GNU stable | ok | origin (CI-authority for tests) |
+| linfs, telenetis, llama-rs, rebook, orr_desktop, omniroute, rusty-engine, gsv-wgpu, sport-forcast, coreboard_labs_shop | GNU stable | ok | origin |
+| adoreble_wifi, mesh-node | host-agnostic `stable` (cross-platform CI / Pi) | ok | origin — **крім mesh-node: no remote, owner gate** |
+| gsv-wgpu | GNU stable | ok | **no remote, owner gate** |
+| freebeat.ai, platinoff-profile | n/a (git-only) | na | unregistered |
+
+**Звірено 2026-11-23:** 14 registered (gsv host + 13 plugins), усі `wiring=ok`; 2 unregistered `na`. Старий P6.5 «mesh-node missing» знято —_remote_ досі owner-gated, wiring справний. `omniroute` = policy-down, не піднімати без owner.
+
+**Безпечний read-only drain-гейт:** `cargo xtask eco-check` → `rules-check` → `fm-xlink` → `mirrors --check` → `products --state/--wiring` → `gsv-loc-audit --stretch-96`. Mutating (`bump`, `fingerprint`, `push`, `live`, `tunnel`, `watchdog-install`) — окремі owner/drain кроки.
+
 ## Shared vs plugin
 
 | Lives in GSV (host kit) | Lives in the plugin repo |
