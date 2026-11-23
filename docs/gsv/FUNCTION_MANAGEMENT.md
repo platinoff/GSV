@@ -1,6 +1,6 @@
 # FUNCTION_MANAGEMENT.md — GSV (мама, хаб)
 
-**Status:** Canon, agent-drafted 2026-11-17 (owner ratified 2026-11-17) · **Owner:** platinoff
+**Status:** Canon, adapted 2026-11-23 @ HEAD `42b74c6` (toolchain rust 1.100.0; owner ratified 2026-11-17, steady-state sync 2026-11-23) · **Owner:** platinoff
 **Компаньйони:** [`GSV_FUNCTION_MANAGEMENT.md`](./GSV_FUNCTION_MANAGEMENT.md) (майстер-матриця) · [`GSV_ECOSYSTEM_SYMBIOSIS.md`](./GSV_ECOSYSTEM_SYMBIOSIS.md) (мама/тато) · [`PRODUCTS.md`](./PRODUCTS.md)
 **Шар:** мама — операційний план екосистеми (хаб). poolAI (тато-план, FM) очолює управління; цей файл — функційний реєстр GSV.
 
@@ -59,17 +59,21 @@
 | 40 | README/docs canon (hero SVGs, install, cards list) | `docs/`, `ui/` | І | `tests/gsv_readme_contracts.rs` |
 | 41 | mesh-wasm (hub-side mesh ops + grants) | `crates/mesh-wasm/` | І | `tests/gsv_wgpu_contracts.rs` (hub lane) |
 | 42 | fm-xlink (FM↔tickets advisory cross-link report: `cargo xtask fm-xlink`; `--strict` for CI) | `boxes/fm_xlink.rs`, `bin/gsv_xtask.rs` | І (read-only, advisory — poolAI FM is taто-plan, this only reports id-resolution of `fm_ref` in GSV tickets) | inline unit + `tests/gsv_xtask_contracts.rs` |
+| 43 | Artifact-backed WGPU weight lane: 122/122 huge MoE tensors range-read from the 21 GB 4-bit artifact, no weight duplication (4698 artifact-source keys) | `boxes/wgpu.rs`, `boxes/wgpu_dequant.rs`, `boxes/weight_store.rs` | І | `tests/gsv_wgpu_contracts.rs` + `boxes::wgpu_dequant` unit tests; canaries g-721/g-730/g-736 |
+| 44 | Q4_K + Q6_K streaming dequant with golden parity vs rusty-engine oracle (0.0072112083 / 0.017808557); compact `x_spec` tasks + `MAX_TASKS=32` + `spawn_blocking`/`Semaphore(2)` | `boxes/wgpu_dequant.rs` (7 unit tests), `boxes/wgpu.rs` | І | `boxes::wgpu_dequant` 7 tests + 65 wgpu tests, clippy `-D warnings` green |
+| 45 | Durable peer identity `wgpu_peer_ids.json` (device_key→peer_id, never pruned; stable IDs/logging/metrics across reconnect) | `boxes/wgpu.rs` (`peer_join`), `data/wgpu_peer_ids.json` | І | `tests/gsv_wgpu_contracts.rs::peer_rejoin_after_prune_keeps_durable_id` + reuse test |
+| 46 | Versioned 4-bit MoE companion in mirror `publish.json` (`gsv-versus-ai-full-q4k.gguf` 733 tensors, sha256 `2f37d609…`), canonical F32 unchanged | `docs/gsv/research/GASV_G20_ARTIFACT_WEIGHT_LANE_2026-11-22.md`, mirror publish-set | І (docs/evidence) | `docs/gsv/research/GASV_G15_FITNESS_SCORECARD_2026-11-22.md` + G20–G23 MCP evidence |
 
-## 2. Гейти (2026-11-17)
+## 2. Гейти (2026-11-23 steady state)
 
-- `cargo test` — **exit 0**, ELAPSED=567s (усі suites ok).
-- `cargo clippy --all-targets` — **0 warnings**.
+- Toolchain: rustc/cargo **1.100.0** stable (`stable-x86_64-pc-windows-gnu` pin on 11 products; host-agnostic `stable` on adoreble_wifi/mesh-node; omniroute no pin, policy-down). `RUSTUP_TOOLCHAIN` unset.
+- `cargo xtask record-rust` — **warnings=0 errors=0** @ HEAD `42b74c6`.
+- `cargo clippy --all-targets -- -D warnings` — green (65 wgpu + 7 dequant tests green after GASV track).
+- `cargo xtask record-speed --skip-run` — ok (останній повний `cargo test` 518s, exit 0).
 - `cargo fmt --all -- --check` — ok.
-- `gsv-loc-audit --stretch-96` → **99.61%** (rust 64215 / product 64465).
-- `--features stand_smoke` — **9/9**.
-- Stand smoke проти живого хаба (2026-11-17) — **87/87** exit=0 (див. poolAI FM evidence row).
-- Rust ratio формально ≥ 95% ✅.
-- Vision rev (canonical) — **516**; poolAI internal — **499** (mirror rule — owner Q, P6.1 phase 5).
+- `gsv-loc-audit --stretch-96` → **99.64%** (Rust-first ≥ 95% ✅).
+- Vision rev (canonical) — **516**, next **PH-S3129**; `sync` green.
+- 4-bit MoE canaries: g-721 `6.94e-18`, g-730 `3.47e-18`, g-736 `1.73e-18` (all < 1e-4); 122/122 huge experts addressable; no runnable-full-LLM/quality claim (G13 blocked).
 
 ## 3. Дублі / межі
 
@@ -77,13 +81,17 @@
 - Свідомо розділено: D1/D2/D5 (див. майстер §3).
 - 35B dispatch: GSV `weights_matvec` маршрутизація → engine виконує (rope recompute на практиці через hub probe).
 
-## 4. Owner-decision queue (GSV-side)
+## 4. Owner-decision queue (GSV-side, 2026-11-23)
 
-1. **RAM/EDR** — причина вічних падінь хаба; потрібен Defender exclusion `target/live/gsv-server.exe` або розвантаження box.
-2. **Vision rev mirror rule** (GSV 516 vs poolAI 499).
-3. **P4 protocol federation** (FM↔tickets deep-link через hub).
-4. Поверхня host-ага (куплена одиниця): раскачування backup/sync кодексу — не в GSV.
-5. PoolAI CI runner — поза цим репо; коли з'явиться — GSV не блокується.
+1. **G13 — runnable full LLM**: потрібен owner-approved runtime target/RAM node + infer/quality gate; 4-bit MoE artifact готовий, але quality/infer не заявляється.
+2. **RAM/EDR** — Defender exclusion `target/live/gsv-server.exe` або розвантаження box (historical hub падіння); зараз стабільно ~30–45 MB RSS після G22/G23 fix.
+3. **Vision rev mirror rule** (GSV 516 vs poolAI 499), next PH-S3129.
+4. **P4 protocol federation** (FM↔tickets deep-link через hub).
+5. **Plugin remotes**: `gsv-wgpu` (HEAD `9c65f59`) і `mesh-node` (`08cf81b`) не мають remote — створити `github.com/platinoff/<name>` і запушити (owner gate).
+6. **omniroute** — policy-down (`:20128`), не піднімати без owner.
+7. Поверхня host-ага (куплена одиниця): раскачування backup/sync кодексу — не в GSV.
+8. PoolAI CI runner — поза цим репо; коли з'явиться — GSV не блокується.
+9. **G19** (Astra-style weight patch) — не стартувати: G17 не знайшов безпечного кандидата (ability-gap, не obstacle-gap).
 
 ## 5. Як агенти користуються
 

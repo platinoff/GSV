@@ -2345,3 +2345,22 @@ Not a versioned band (crate stayed **0.244.0**; PH-S queue не змінювал
 - Міграція: [`GSV_MIGRATION.md`](./GSV_MIGRATION.md)
 - MCP horizon: [`GSV_MCP_OPENBOT.md`](./GSV_MCP_OPENBOT.md)
 - PoolAI FM (sibling repo, not this tree): `S:/rust/poolAI/docs/catalog/FUNCTION_MANAGEMENT.md`
+
+## Addendum 2026-11-23 — GASV G15–G24 + 1.100 standardization
+
+**Steady state research:** [`docs/gsv/research/ECOSYSTEM_1_100_STEADY_STATE_2026-11-23.md`](../gsv/research/ECOSYSTEM_1_100_STEADY_STATE_2026-11-23.md) · **Updated plan:** [`docs/superpowers/plans/2026-11-23-ecosystem-1-100-adaptation.md`](../superpowers/plans/2026-11-23-ecosystem-1-100-adaptation.md)
+
+| Ticket / band | Outcome | Evidence |
+|---|---|---|
+| G15 | Fitness scorecard: Min cluster gate, no fake full-LLM claim | `GASV_G15_FITNESS_SCORECARD_2026-11-22.md` |
+| G16 | Min placement manifest: hub RDNA2 #37 + bifrost #39, proof/fail-open | `GASV_G16_MIN_PLACEMENT_2026-11-22.md` |
+| G17 | Astra-style candidate audit — negative (ability-gap, no safe patch) | `GASV_G17_ASTRA_CANDIDATE_AUDIT_2026-11-22.md` |
+| G18 | Vision/mmproj feasibility — negative for now (BF16 UnsupportedType, no evaluator) | `GASV_G18_VISION_MMPROJ_FEASIBILITY_2026-11-22.md` |
+| G20 | Artifact-backed WGPU weight lane: 122/122 huge MoE tensors addressable, no duplication | `GASV_G20_ARTIFACT_WEIGHT_LANE_2026-11-22.md` |
+| G21 | Q4_K canary `g-721` `6.94e-18` on [39,37] | G21 MCP evidence |
+| G22 | Huge Q4_K `g-730` 8/8 shards, `3.47e-18` on #37 | G22 MCP evidence |
+| G23 | Huge Q6_K `g-736` 8/8 shards, `1.73e-18` on [39,37] | G23 MCP evidence |
+| G24 | Durable device_key→peer_id map, stable IDs/metrics across reconnect | `wgpu_peer_ids.json`, `peer_rejoin_after_prune_keeps_durable_id` |
+| Kit gates | rust 1.100.0 · record-rust 0/0 · sync rev 516 next **PH-S3129** · FM rows 43–46 | `FUNCTION_MANAGEMENT.md` §2 |
+
+**Next:** PH-S3129 (1.100 standardization + eco-check automation, plan above). **Blocked:** G13 (runnable full LLM — owner runtime/RAM + infer/quality). **Not started:** G19 (no safe patch candidate per G17). Canonical artifact remains F32 `25fadfbb…`; 4-bit MoE is a versioned companion.
