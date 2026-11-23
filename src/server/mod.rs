@@ -198,6 +198,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/wgpu/task/enqueue", post(api_wgpu_task_enqueue))
         .route("/api/wgpu/task/poll", post(api_wgpu_task_poll))
         .route("/api/wgpu/task/result", post(api_wgpu_task_result))
+        .route("/api/wgpu/task/result", get(api_wgpu_task_result_get))
         .route("/api/rust-intel", get(api_rust_intel))
         .route("/api/xtask", get(api_xtask))
         .route("/api/disk", get(api_disk))
@@ -1006,6 +1007,17 @@ async fn api_wgpu_weights_chunk_post(
     }
 }
 
+/// GASV-G33: read verified per-shard result vectors back for a group.
+async fn api_wgpu_task_result_get(
+    State(state): State<AppState>,
+    Query(q): Query<GroupQuery>,
+) -> Response {
+    match crate::boxes::wgpu::group_results(&state.data_dir, &q.group.unwrap_or_default()) {
+        Ok(v) => Json(v).into_response(),
+        Err(e) => err_json(StatusCode::BAD_REQUEST, e),
+    }
+}
+
 /// Band MC-3: read one weight chunk by its sha256 key.
 async fn api_wgpu_weights_chunk_get(
     State(state): State<AppState>,
@@ -1127,6 +1139,10 @@ async fn api_usage(State(state): State<AppState>) -> Json<Value> {
 #[derive(serde::Deserialize)]
 struct KeyQuery {
     key: Option<String>,
+}
+#[derive(serde::Deserialize)]
+struct GroupQuery {
+    group: Option<String>,
 }
 #[derive(serde::Deserialize)]
 struct XtaskQuery {

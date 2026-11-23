@@ -483,3 +483,34 @@ async fn task_result_rejects_negative_throughput() {
     assert_eq!(bad["ok"], false);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn group_results_returns_ordered_verified_partials() {
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("target")
+        .join(format!("wgpu_group_results_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("data dir");
+    let row = |shard: u64, peer: u64| {
+        serde_json::json!({
+            "group_id": "g-test", "status": "done", "shard_index": shard,
+            "shards": 2, "peer_id": peer, "task_id": format!("mt-test-{shard}"),
+            "row_start": shard * 2, "row_end": shard * 2 + 2,
+            "max_err_model": 1e-18, "elapsed_ms": 12.5,
+            "partial": [shard as f64, 1.0], "x": vec![7.0; 1024],
+        })
+    };
+    let text = format!("{}\n{}\n", row(1, 39), row(0, 37));
+    std::fs::write(dir.join("wgpu_tasks.jsonl"), text).expect("write tasks");
+    let out = gsv::boxes::wgpu::group_results(&dir, "g-test").expect("group results");
+    assert_eq!(out["shards_done"], 2);
+    assert_eq!(out["results"][0]["peer_id"], 37);
+    assert_eq!(out["results"][1]["peer_id"], 39);
+    assert_eq!(out["results"][0]["partial"][0], 0.0);
+    assert!(
+        out["results"][0].get("x").is_none(),
+        "no huge x on the wire"
+    );
+    assert!(gsv::boxes::wgpu::group_results(&dir, "bad../id").is_err());
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -54,6 +54,31 @@ gsv versus ai 4 квант тепер треба покращений блок �
 перевіркою роутингів і збереженими бенчмарками (per-shard `elapsed_ms`: 18.7…
 2633 мс для g-739; 38…149 мс для g-740). Канон F32 і 4-квант тексту не змінено.
 
+## Продовження (G33) — блок зору як forward, а не лише окремі ваги
+
+Додано **result bus** (`GET /api/wgpu/task/result?group=<id>` у
+`src/boxes/wgpu.rs` + `server/mod.rs`): хаб тепер читає перевірені peer-частки
+з `wgpu_tasks.jsonl` і повертає їх за `shard_index`. Це закриває відсутню
+половину вагового лейна — результат кластера більше не «пишеться в JSONL і
+забувається», а стає входом для наступного шару.
+
+`cargo xtask vision-forward` (`src/boxes/vision_forward.rs`) виконує 4-токенний
+(class + 3 patch) forward Inkling-2 Q4_K Vision Transformer: **усі лінійні
+шари (patch_embd, Q/K/V, attn_out, ffn_up, ffn_down, mm.1, mm.2) ідуть на
+кластер** через `weights_matvec`; хаб лишає LayerNorm, attention-softmax,
+GELU та residual--scale. Ваги Q4_K range-сервуються з дзеркала як
+artifact-backed (без F32-матеріалізації й без git-блобів).
+
+| Прогон | Блоків | Cluster matvec-ів | shard'ів на matvec | Час | `max_abs` виходу | `ok` |
+|---|---|---|---|---|---|---|
+| 1 | 1 | 27 | 4 | 230 s | 2.61 | true |
+| 2 | 3 | 75 | 2 | 413 s | 2.44 | true |
+
+Обидва дали скінченний 2304-вимірний Inkling-2 vision-вектор; роутинг і
+per-shard `elapsed_ms` збережено в `data/vision_q4_forward_bench.jsonl`
+(gitignored). Повний 23-блоковий прогон оцінюється ~30–90 хв за поточних
+shard-налаштувань — робиться окремим запланованим смугом, не в цій сесії.
+
 ## Межі (чесно)
 
 Це **ваговий/роутинг-рівень**: кластер виконує реальні Q4_K-тензори зору з

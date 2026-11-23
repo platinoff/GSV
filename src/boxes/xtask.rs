@@ -130,6 +130,10 @@ pub const TASKS: &[(&str, &str)] = &[
         "GASV-G32: register a Q4_K vision-projector tensor from the mirror as artifact-backed and run a weights_matvec canary on the live Min cluster; persists routing/benchmark evidence in data/ (`--artifact`, `--tensor`, `--label`, `--shards`, `--hub`, `--wait-secs`)",
     ),
     (
+        "vision-forward",
+        "GASV-G33: 2-token Q4_K vision-block forward on the Min cluster (all linear layers via weights_matvec; hub keeps norms/attention/GELU); persists routing/benchmark in data/ (`--artifact`, `--blocks`, `--shards`, `--hub`)",
+    ),
+    (
         "gasv-publish-check",
         "Read-only GASV D4 dry-run: validate artifact+manifest+sha256 and report planned mirror publish destination (no copy, no git weights)",
     ),

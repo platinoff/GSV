@@ -2571,6 +2571,48 @@ fn freshest_peer_rows(peers: &[Value]) -> Vec<Value> {
     rows.into_iter().take(20).cloned().collect()
 }
 
+/// GASV-G33: verified per-shard results for one group, ordered by shard index.
+/// This is the missing read-back half of the weight lane: a hub-side forward
+/// can now consume the vectors the peers actually computed (no recompute).
+pub fn group_results(data_dir: &Path, group_id: &str) -> Result<Value, String> {
+    if group_id.is_empty()
+        || group_id.len() > 64
+        || !group_id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        return Err("field `group` must be a short [a-zA-Z0-9-_] id".to_string());
+    }
+    let tasks = read_jsonl(&data_dir.join(TASKS_FILE));
+    let mut rows: Vec<Value> = tasks
+        .into_iter()
+        .filter(|t| {
+            t.get("group_id").and_then(Value::as_str) == Some(group_id)
+                && t.get("status").and_then(Value::as_str) == Some("done")
+        })
+        .map(|t| {
+            json!({
+                "task_id": t.get("task_id").cloned().unwrap_or(Value::Null),
+                "shard_index": t.get("shard_index").cloned().unwrap_or(Value::Null),
+                "shards": t.get("shards").cloned().unwrap_or(Value::Null),
+                "peer_id": t.get("peer_id").cloned().unwrap_or(Value::Null),
+                "row_start": t.get("row_start").cloned().unwrap_or(Value::Null),
+                "row_end": t.get("row_end").cloned().unwrap_or(Value::Null),
+                "max_err_model": t.get("max_err_model").cloned().unwrap_or(Value::Null),
+                "elapsed_ms": t.get("elapsed_ms").cloned().unwrap_or(Value::Null),
+                "partial": t.get("partial").cloned().unwrap_or(Value::Null),
+            })
+        })
+        .collect();
+    rows.sort_by_key(|r| r["shard_index"].as_u64().unwrap_or(0));
+    Ok(json!({
+        "ok": true,
+        "group_id": group_id,
+        "shards_done": rows.len(),
+        "results": rows,
+    }))
+}
+
 pub fn mesh_wire(data_dir: &Path) -> Value {
     let _g = mesh_lock();
     let now = now_secs();

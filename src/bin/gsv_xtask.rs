@@ -654,6 +654,65 @@ fn main() -> ExitCode {
                 }
             }
         }
+        "vision-forward" => {
+            // GASV-G33: run a 2-token Q4_K vision-block forward on the cluster.
+            let artifact = match flag_value(&args, "--artifact").map(PathBuf::from) {
+                Some(p) => p,
+                None => {
+                    eprintln!("usage: cargo xtask vision-forward --artifact <gguf> [--blocks N] [--shards N] [--hub URL]");
+                    return ExitCode::FAILURE;
+                }
+            };
+            let hub =
+                flag_value(&args, "--hub").unwrap_or_else(|| "http://127.0.0.1:9999".to_string());
+            let data_dir = flag_value(&args, "--data-dir")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| root.join("data"));
+            let rusty = flag_value(&args, "--rusty")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("S:/rust/rusty-engine/target/debug/rusty.exe"));
+            let scratch = root.join("target").join("vision_forward");
+            let blocks = flag_value(&args, "--blocks")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(1);
+            let shards = flag_value(&args, "--shards")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(8);
+            let wait_secs = flag_value(&args, "--wait-secs")
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(180);
+            let opts = gsv::boxes::vision_forward::ForwardOpts {
+                artifact: &artifact,
+                hub: &hub,
+                data_dir: &data_dir,
+                rusty: &rusty,
+                scratch: &scratch,
+                blocks,
+                shards,
+                wait_secs,
+            };
+            let rt = match tokio::runtime::Runtime::new() {
+                Ok(rt) => rt,
+                Err(e) => {
+                    eprintln!("vision-forward: runtime: {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            match rt.block_on(gsv::boxes::vision_forward::report(&opts)) {
+                Ok(v) => {
+                    println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+                    if v["ok"].as_bool() == Some(true) {
+                        ExitCode::SUCCESS
+                    } else {
+                        ExitCode::FAILURE
+                    }
+                }
+                Err(e) => {
+                    eprintln!("vision-forward: {e}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
         "gasv-publish-check" => {
             let artifact = flag_value(&args, "--artifact").map(PathBuf::from);
             let manifest = flag_value(&args, "--manifest").map(PathBuf::from);
