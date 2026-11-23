@@ -186,6 +186,7 @@ pub fn dequant_q6_k_matvec(
             let qb = half * 64;
             let hb = half * 32;
             let sb = half * 8;
+            let vb = half * 128;
             for l in 0..32 {
                 let is = l / 16;
                 let q1 = ((ql[qb + l] & 0xF) as i32 | ((qh[hb + l] & 3) as i32) << 4) - 32;
@@ -194,10 +195,10 @@ pub fn dequant_q6_k_matvec(
                 let q3 = ((ql[qb + l] >> 4) as i32 | (((qh[hb + l] >> 4) & 3) as i32) << 4) - 32;
                 let q4 =
                     ((ql[qb + l + 32] >> 4) as i32 | (((qh[hb + l] >> 6) & 3) as i32) << 4) - 32;
-                vals[l] = d * sc[sb + is] as i8 as f32 * q1 as f32;
-                vals[l + 32] = d * sc[sb + is + 2] as i8 as f32 * q2 as f32;
-                vals[l + 64] = d * sc[sb + is + 4] as i8 as f32 * q3 as f32;
-                vals[l + 96] = d * sc[sb + is + 6] as i8 as f32 * q4 as f32;
+                vals[vb + l] = d * sc[sb + is] as i8 as f32 * q1 as f32;
+                vals[vb + l + 32] = d * sc[sb + is + 2] as i8 as f32 * q2 as f32;
+                vals[vb + l + 64] = d * sc[sb + is + 4] as i8 as f32 * q3 as f32;
+                vals[vb + l + 96] = d * sc[sb + is + 6] as i8 as f32 * q4 as f32;
             }
         }
         for v in vals {
@@ -447,6 +448,23 @@ mod tests {
             .map(|row| row.iter().zip(&x).map(|(w, xi)| *w as f64 * xi).sum())
             .collect();
         let streamed = dequant_q4_k_matvec(&data, 0, full.len(), cols, &x).expect("matvec");
+        assert_eq!(streamed.len(), expected.len());
+        for (a, b) in streamed.iter().zip(&expected) {
+            assert!((a - b).abs() < 1e-9, "{a} vs {b}");
+        }
+    }
+
+    #[test]
+    fn dequant_q6_k_matvec_matches_full_reference() {
+        let data = vec![1u8; 210 * 3];
+        let cols = 128usize;
+        let x: Vec<f64> = (0..cols).map(|i| (i % 7) as f64 * 0.1).collect();
+        let full = dequant_q6_k(&data);
+        let expected: Vec<f64> = full
+            .chunks(cols)
+            .map(|row| row.iter().zip(&x).map(|(w, xi)| *w as f64 * xi).sum())
+            .collect();
+        let streamed = dequant_q6_k_matvec(&data, 0, full.len(), cols, &x).expect("matvec");
         assert_eq!(streamed.len(), expected.len());
         for (a, b) in streamed.iter().zip(&expected) {
             assert!((a - b).abs() < 1e-9, "{a} vs {b}");
