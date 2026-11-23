@@ -15,9 +15,7 @@ fn ladder_bounds() {
 #[test]
 fn mcp_exposes_ranks_and_doc() {
     assert!(mcp::tool_names().contains(&"gsv_ranks"));
-    // 2026-11-23: gsv_gasv_status was added in the GASV track (G15–G24),
-    // bringing the stable MCP tool list from 60 to 61.
-    assert_eq!(mcp::tool_names().len(), 61);
+    assert_eq!(mcp::tool_names().len(), mcp::TOOL_COUNT);
 }
 
 #[test]

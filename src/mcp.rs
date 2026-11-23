@@ -832,10 +832,17 @@ const TOOL_NAMES: &[&str] = &[
     "gsv_rust_updates",
 ];
 
+/// Stable tool count (tests use this instead of a hardcoded number so adding
+/// a tool does not silently break unrelated contracts).
+pub const TOOL_COUNT: usize = 61;
+
 /// Stable tool name list (tests / GET /mcp).
 pub fn tool_names() -> &'static [&'static str] {
     TOOL_NAMES
 }
+
+/// Compile-time guard: TOOL_COUNT must track TOOL_NAMES.
+const _: () = assert!(TOOL_COUNT == TOOL_NAMES.len());
 
 /// Hint when Cursor's agent toolkit is frozen (agent refresh is not enough).
 pub const CATALOG_HINT_RESTART: &str = "restart Cursor — agent refresh does not re-list tools";
