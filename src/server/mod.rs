@@ -1,6 +1,7 @@
 //! GSV server — axum router, static UI, REST API boxes, SSE events.
 
 use std::convert::Infallible;
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use axum::body::{Body, Bytes};
@@ -1073,10 +1074,28 @@ async fn api_wgpu_task_poll(State(state): State<AppState>, Json(body): Json<Valu
     }
 }
 
+/// GASV-G22: at most 2 concurrent huge-expert verifications. Each Q4_K shard
+/// result reads ~19 MB of chunks and builds a 256-row reference; 8 parallel
+/// calls previously pushed hub RSS to ~1.16 GB. Heavier ops wait on a permit
+/// without blocking the async runtime.
+static WGPU_VERIFY_PERMITS: OnceLock<tokio::sync::Semaphore> = OnceLock::new();
+fn wgpu_verify_permits() -> &'static tokio::sync::Semaphore {
+    WGPU_VERIFY_PERMITS.get_or_init(|| tokio::sync::Semaphore::new(2))
+}
+
 async fn api_wgpu_task_result(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
     // GASV-G22: huge-expert result verification dequantizes Q4_K blocks and
     // runs a 256x131072 matvec — CPU-heavy and synchronous. Offload to the
     // blocking pool so health/poll/start-worker stay responsive.
+    let heavy = matches!(
+        body.get("op").and_then(Value::as_str),
+        Some("weights_matvec") | Some("weights_matvec_block")
+    );
+    let _permit = if heavy {
+        wgpu_verify_permits().acquire().await.ok()
+    } else {
+        None
+    };
     let data_dir = state.data_dir.clone();
     match tokio::task::spawn_blocking(move || crate::boxes::wgpu::task_result(&data_dir, &body))
         .await
