@@ -27,7 +27,7 @@ fn fixture(tag: &str) -> PathBuf {
     .unwrap();
     std::fs::write(
         d.join("docs/vision/manifest.json"),
-        "{\"revision\":516,\"next\":\"PH-S3129\"}",
+        "{\"revision\":516,\"next_sprint\":\"PH-S3129\"}",
     )
     .unwrap();
     d

@@ -55,7 +55,7 @@ pub fn report(root: &Path) -> Value {
         .and_then(Value::as_u64)
         .unwrap_or(0);
     let next = manifest
-        .get("next")
+        .get("next_sprint")
         .and_then(Value::as_str)
         .unwrap_or("")
         .to_string();

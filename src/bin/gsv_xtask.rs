@@ -664,6 +664,29 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         },
+        "eco-check" => {
+            let json_out = args.iter().any(|a| a == "--json");
+            let r = gsv::boxes::eco_check::report(&root);
+            if json_out {
+                println!("{}", serde_json::to_string_pretty(&r).unwrap_or_default());
+            } else {
+                println!(
+                    "eco-check pin={} ok1_100={} products={} registered={} fm_rows={} rev={} next={}",
+                    r["toolchain"]["pin"].as_str().unwrap_or("?"),
+                    r["toolchain"]["ok_1_100"],
+                    r["products"]["discovered"],
+                    r["products"]["registered"],
+                    r["fm"]["row_count"],
+                    r["vision"]["rev"],
+                    r["vision"]["next"].as_str().unwrap_or("?"),
+                );
+            }
+            if r["ok"].as_bool().unwrap_or(false) {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::FAILURE
+            }
+        }
         "sync" => {
             let check = args.iter().any(|a| a == "--check");
             match xtask::vision_sync(&root, check) {
