@@ -1410,13 +1410,10 @@ pub fn peer_poll(data_dir: &Path, body: &Value) -> Result<Value, String> {
         t["status"] = json!("claimed");
         t["peer_id"] = json!(peer_id);
         t["claimed_ts"] = json!(now);
-        // GASV-G22: expand compact x_spec for the peer (page JS unchanged).
-        let mut task = t.clone();
-        if task.get("x_spec").is_some() {
-            if let Some(x) = expand_task_x(&task) {
-                task["x"] = json!(x);
-            }
-        }
+        // GASV-G22: keep x_spec compact in the poll payload — the page expands
+        // it in JS. Expanding 8x131072 f64 server-side every 2s grew RSS to
+        // ~474 MB through repeated 1 MB allocations.
+        let task = t.clone();
         write_jsonl(&tasks_path, &tasks)?;
         return Ok(json!({
             "ok": true,
@@ -3324,6 +3321,7 @@ async function runWeightsMatvecWasm(tensor,shardId,shards,xArr){
   log('wasm weights_matvec '+tensor+' shard '+shardId+'/'+Math.max(1,shards|0)+': '+total.toFixed(2)+'ms · '+mflops.toFixed(2)+' MFLOPS · '+opsPerSec.toFixed(2)+' ops/s · rows '+per+' cols '+cols);
   return {ok:true,adapter:'wasm-simd128',elapsed_ms:Math.round(total*100)/100,max_err:0,iters:1,mflops:Math.round(mflops*100)/100,ops_per_sec:Math.round(opsPerSec*100)/100,device_reused:reused,partial:Array.from(y),wasm:true};
 }
+function taskX(task){if(Array.isArray(task.x))return task.x;const s=task.x_spec||'';const p=s.split(':');if(p[0]!=='onehot')return[];const i=parseInt(p[1],10)||0,n=parseInt(p[2],10)||0;if(n<=0||i>=n)return[];const a=new Array(n).fill(0);a[i]=1;return a;}
 async function runWeightsMatvec(tensor,shardId,shards,xArr){
   if(navigator.gpu){
     try{ return await runWeightsMatvecGpu(tensor,shardId,shards,xArr); }
@@ -3492,7 +3490,7 @@ async function workerLoop(){
       if(d.ok&&d.task){
         const iters=d.task.iters||1;
         log('mesh task '+d.task.task_id+' ('+d.task.op+' x'+iters+')');
-        let r;try{if(d.task.op==='matvec_shard'){r=await runShard(d.task.shard_id||0,d.task.shards||1);}else if(d.task.op==='mlpblock'){r=await runBlock();}else if(d.task.op==='layernorm'){r=await runLayernorm();}else if(d.task.op==='softmax'){r=await runSoftmax();}else if(d.task.op==='minilm'){r=await runMinilm(d.task.token||0,d.task.layer||0);}else if(d.task.op==='weights_matvec'){r=await runWeightsMatvec(d.task.tensor,d.task.shard_index||0,d.task.shards||2,d.task.x||[]);}else if(d.task.op==='weights_matvec_block'){r=await runWeightsMatvecBlock(d.task.items||[],d.task.shard_index||0,d.task.shards||1);}else{r=await runOp(d.task.op,iters);}}catch(e){r={ok:false,elapsed_ms:0,max_err:0,adapter:'error: '+String(e).slice(0,60)};log('task '+d.task.task_id+' ERR: '+r.adapter);}
+        let r;try{if(d.task.op==='matvec_shard'){r=await runShard(d.task.shard_id||0,d.task.shards||1);}else if(d.task.op==='mlpblock'){r=await runBlock();}else if(d.task.op==='layernorm'){r=await runLayernorm();}else if(d.task.op==='softmax'){r=await runSoftmax();}else if(d.task.op==='minilm'){r=await runMinilm(d.task.token||0,d.task.layer||0);}else if(d.task.op==='weights_matvec'){r=await runWeightsMatvec(d.task.tensor,d.task.shard_index||0,d.task.shards||2,taskX(d.task));}else if(d.task.op==='weights_matvec_block'){r=await runWeightsMatvecBlock(d.task.items||[],d.task.shard_index||0,d.task.shards||1);}else{r=await runOp(d.task.op,iters);}}catch(e){r={ok:false,elapsed_ms:0,max_err:0,adapter:'error: '+String(e).slice(0,60)};log('task '+d.task.task_id+' ERR: '+r.adapter);}
         if(d.task.op==='minilm'){
           const lay=(d.task.layer||0)+1;
           if(r.ok&&(lay<2)){await fetch('api/wgpu/task/enqueue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'minilm',token:d.task.token||0,layer:lay})});}
@@ -3773,6 +3771,7 @@ mod tests {
             "vStart",
             "flat.subarray",
             "downloadWeightsFlat(tensor,shardId,shards)",
+            "taskX",
         ] {
             assert!(p.contains(marker), "missing G22 streaming marker: {marker}");
         }
