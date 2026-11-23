@@ -38,6 +38,7 @@
 pub mod adopt;
 pub mod apk;
 pub mod deny;
+pub mod eco_check;
 pub mod edge;
 pub mod fingerprint;
 pub mod fm_xlink;
