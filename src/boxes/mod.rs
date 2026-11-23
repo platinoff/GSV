@@ -72,6 +72,7 @@ pub mod ui_errors;
 pub mod update;
 pub mod usage;
 pub mod vision;
+pub mod vision_canary;
 pub mod watchdog;
 pub mod weight_store;
 pub mod wgpu;

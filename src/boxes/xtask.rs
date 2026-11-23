@@ -126,6 +126,10 @@ pub const TASKS: &[(&str, &str)] = &[
         "Read-only WGPU mirror/store inventory (chunks/index/tensors/blk f32, optional sha256 verify) — JSON (`--data-dir <path>`, `--verify`)",
     ),
     (
+        "vision-canary",
+        "GASV-G32: register a Q4_K vision-projector tensor from the mirror as artifact-backed and run a weights_matvec canary on the live Min cluster; persists routing/benchmark evidence in data/ (`--artifact`, `--tensor`, `--label`, `--shards`, `--hub`, `--wait-secs`)",
+    ),
+    (
         "gasv-publish-check",
         "Read-only GASV D4 dry-run: validate artifact+manifest+sha256 and report planned mirror publish destination (no copy, no git weights)",
     ),
