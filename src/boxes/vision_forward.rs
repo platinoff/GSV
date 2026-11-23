@@ -413,6 +413,17 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
         return Err("block_count is 0".to_string());
     }
     let d = g.embed;
+    // Labels must be artifact-specific: the same block index has different
+    // geometry in different projectors; reusing a label would silently serve
+    // stale chunk metadata (partial-length mismatch on the peer).
+    let tag = format!(
+        "vf_{}_{}",
+        g.family,
+        opts.artifact
+            .file_stem()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_else(|| "artifact".to_string())
+    );
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(120))
         .build()
@@ -461,14 +472,14 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
 
     // Patch embeddings: real PNG patches when provided, else a flat 0.5 probe.
     let patch_name = "v.patch_embd.weight";
-    let patch_label = "vf_patch_embd";
+    let patch_label = format!("{tag}_patch_embd");
     register_weight(
         &client,
         base,
         opts.rusty,
         opts.artifact,
         patch_name,
-        patch_label,
+        &patch_label,
         [
             d as u64,
             (g.dims[patch_name].iter().product::<u64>()) / d as u64,
@@ -489,7 +500,7 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
         let (patch, ev) = matvec(
             &client,
             base,
-            patch_label,
+            &patch_label,
             input,
             opts.shards,
             opts.wait_secs,
@@ -617,7 +628,7 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
             .collect();
         let mut qkv: Vec<Vec<Vec<f64>>> = Vec::new();
         for name in ["attn_q", "attn_k", "attn_v"] {
-            let label = format!("vf_blk{block}_{name}");
+            let label = format!("{tag}_blk{block}_{name}");
             if !registered.contains(&label) {
                 let dims = linear_dims(&g, &format!("{prefix}.{name}.weight"))?;
                 register_weight(
@@ -671,7 +682,7 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
             }
         }
 
-        let out_label = format!("vf_blk{block}_attn_out");
+        let out_label = format!("{tag}_blk{block}_attn_out");
         if !registered.contains(&out_label) {
             let dims = linear_dims(&g, &format!("{prefix}.attn_out.weight"))?;
             register_weight(
@@ -707,8 +718,8 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
             .iter()
             .map(|t| layer_norm(t, &ln2w, &ln2b, 1e-5))
             .collect();
-        let up_label = format!("vf_blk{block}_ffn_up");
-        let down_label = format!("vf_blk{block}_ffn_down");
+        let up_label = format!("{tag}_blk{block}_ffn_up");
+        let down_label = format!("{tag}_blk{block}_ffn_down");
         for (label, name) in [(&up_label, "ffn_up"), (&down_label, "ffn_down")] {
             if !registered.contains(label) {
                 let dims = linear_dims(&g, &format!("{prefix}.{name}.weight"))?;
@@ -784,7 +795,7 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
         ));
     }
     for (name, activate) in [(&g.proj_up, true), (&g.proj_down, false)] {
-        let label = format!("vf_{}", name.replace('.', "_"));
+        let label = format!("{tag}_{}", name.replace('.', "_"));
         if !registered.contains(&label) {
             let dims = linear_dims(&g, name)?;
             register_weight(
