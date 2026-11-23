@@ -334,7 +334,11 @@ pub const POLL_SECS: u64 = 2;
 const PEERS_FILE: &str = "wgpu_peers.jsonl";
 const TASKS_FILE: &str = "wgpu_tasks.jsonl";
 const MAX_PEERS: usize = 50;
-const MAX_TASKS: usize = 200;
+// GASV-G22: a huge-expert weights_matvec task carries a 131072-float x
+// (~262 KB JSON). Keeping 200 such rows made wgpu_tasks.jsonl ~50 MB and
+// every poll/mesh re-parse stalled the hub. 32 tasks is plenty for the
+// proof-gate's recent-done window.
+const MAX_TASKS: usize = 32;
 /// Rows whose lease expired more than this long ago are dropped on the next
 /// join (auto-prune): stale, unproven peers never accumulate.
 const MESH_STALE_PRUNE_SECS: u64 = 86_400;

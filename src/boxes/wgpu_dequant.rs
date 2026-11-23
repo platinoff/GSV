@@ -171,14 +171,18 @@ pub fn tensor_f32_range(
     let q4 = tensor_is_q4_k(&entry);
     let raw = tensor_raw_range(data_dir, name, value_start, value_end, q4)?;
     if tensor_is_q4_k(&entry) {
-        dequant_q4_k_range(&raw, value_start, value_end)
+        // tensor_raw_range returned a block-aligned slice; trim using offsets
+        // LOCAL to the first included Q4_K block (256 values / 144 bytes).
+        const BLK: usize = 256;
+        let b0 = value_start / BLK;
+        let lo = value_start - b0 * BLK;
+        let hi = value_end - b0 * BLK;
+        let full = dequant_q4_k(&raw);
+        full.get(lo..hi).map(|s| s.to_vec())
     } else if entry.get("dtype").and_then(Value::as_str) == Some("f32") {
-        let lo = value_start.checked_mul(4)?;
-        let hi = value_end.checked_mul(4)?;
-        let slice = raw.get(lo..hi)?;
+        // tensor_raw_range already sliced to the requested value range.
         Some(
-            slice
-                .as_chunks::<4>()
+            raw.as_chunks::<4>()
                 .0
                 .iter()
                 .map(|c| f32::from_le_bytes(*c))
