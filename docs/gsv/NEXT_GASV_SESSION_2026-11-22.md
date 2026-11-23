@@ -20,6 +20,7 @@
 | G19 | open | Staged Q4_K patch — **DO NOT START** (G17 found no safe candidate) |
 | **G20** | **done** | artifact-backed WGPU weight lane implemented + proved end-to-end (doc §5) |
 | **G21** | **done** | Q4_K canary PASS `g-721` `6.94e-18` on peers [39,37] |
+| G23 | **done** | Q6_K canary `g-736` PASS `1.73e-18/3.47e-18` on [39,37] — 122/122 experts addressable |
 | G24 | **done** | durable device_key→peer_id map (`wgpu_peer_ids.json`), stable IDs across reconnect |
 | G13 | blocked | owner runtime/RAM + infer/quality |
 
