@@ -738,6 +738,27 @@ fn matvec_rows(floats: &[f32], rows: usize, cols: usize, x: &[f64]) -> Option<Ve
     Some(y)
 }
 
+/// GASV-G22: expand a task's compact `x_spec` ("onehot:i:n") into the f64
+/// vector the peer/reference needs. Small tensors store `x` directly.
+fn expand_task_x(t: &Value) -> Option<Vec<f64>> {
+    if let Some(arr) = t.get("x").and_then(Value::as_array) {
+        return Some(arr.iter().map(|v| v.as_f64().unwrap_or(0.0)).collect());
+    }
+    let spec = t.get("x_spec")?.as_str()?;
+    let parts: Vec<&str> = spec.split(':').collect();
+    if parts.len() != 3 || parts[0] != "onehot" {
+        return None;
+    }
+    let idx: usize = parts[1].parse().ok()?;
+    let len: usize = parts[2].parse().ok()?;
+    if idx >= len || len > 4_000_000 {
+        return None;
+    }
+    let mut v = vec![0.0f64; len];
+    v[idx] = 1.0;
+    Some(v)
+}
+
 /// CPU reference of the full `weights_matvec` (`y = W * x` from the hub store,
 /// real tensor bytes big-endian → f32). Returns None if the tensor is not
 /// registered or `x` length mismatches.
@@ -1389,7 +1410,13 @@ pub fn peer_poll(data_dir: &Path, body: &Value) -> Result<Value, String> {
         t["status"] = json!("claimed");
         t["peer_id"] = json!(peer_id);
         t["claimed_ts"] = json!(now);
-        let task = t.clone();
+        // GASV-G22: expand compact x_spec for the peer (page JS unchanged).
+        let mut task = t.clone();
+        if task.get("x_spec").is_some() {
+            if let Some(x) = expand_task_x(&task) {
+                task["x"] = json!(x);
+            }
+        }
         write_jsonl(&tasks_path, &tasks)?;
         return Ok(json!({
             "ok": true,
@@ -1523,11 +1550,7 @@ pub fn task_result(data_dir: &Path, body: &Value) -> Result<Value, String> {
                     .and_then(Value::as_str)
                     .unwrap_or("")
                     .to_string();
-                let x: Vec<f64> = t
-                    .get("x")
-                    .and_then(Value::as_array)
-                    .map(|a| a.iter().map(|v| v.as_f64().unwrap_or(0.0)).collect())
-                    .unwrap_or_default();
+                let x = expand_task_x(t).unwrap_or_default();
                 let row_start = t.get("row_start").and_then(Value::as_u64).unwrap_or(0) as usize;
                 let row_end = t.get("row_end").and_then(Value::as_u64).unwrap_or(0) as usize;
                 // GASV-G22: verify only this shard's row segment, dequantizing
@@ -2085,7 +2108,14 @@ pub fn task_enqueue(data_dir: &Path, body: &Value) -> Result<Value, String> {
             row["tensor"] = json!(tensor);
             row["rows"] = json!(rows);
             row["cols"] = json!(cols);
-            row["x"] = json!(x);
+            // GASV-G22: never persist a 131072-float x (~262 KB JSON) — keep
+            // only the compact spec for huge tensors; peers get it expanded
+            // at poll time. Small tensors keep the direct x for compatibility.
+            if let Some(spec) = body.get("x_spec").and_then(Value::as_str) {
+                row["x_spec"] = json!(spec);
+            } else {
+                row["x"] = json!(x);
+            }
             row["row_start"] = json!(shard_id * row_count);
             row["row_end"] = json!(shard_id * row_count + row_count);
             row["shard_index"] = json!(shard_id);
@@ -2338,9 +2368,7 @@ fn reduce_groups(tasks: &[Value], data_dir: &Path) -> Vec<Value> {
                 .unwrap_or("");
             let x: Vec<f64> = shard_rows
                 .first()
-                .and_then(|t| t.get("x"))
-                .and_then(Value::as_array)
-                .map(|a| a.iter().map(|v| v.as_f64().unwrap_or(0.0)).collect())
+                .and_then(|t| expand_task_x(t))
                 .unwrap_or_default();
             weights_matvec_reference(data_dir, tensor_name, &x)
                 .unwrap_or_else(|| fallback_reference.clone())
@@ -2505,7 +2533,18 @@ pub fn mesh_wire(data_dir: &Path) -> Value {
             .filter(|t| t.get("status").and_then(Value::as_str) == Some(s))
             .count()
     };
-    let task_tail: Vec<Value> = tasks.iter().rev().take(10).rev().cloned().collect();
+    // GASV-G22: mesh is a status surface — never ship huge x arrays here.
+    let task_tail: Vec<Value> = tasks
+        .iter()
+        .rev()
+        .take(10)
+        .rev()
+        .map(|t| {
+            let mut r = t.clone();
+            r.as_object_mut().map(|o| o.remove("x"));
+            r
+        })
+        .collect();
     let capability = capability_rows(&peers, &tasks, now);
     let best_peer = capability
         .iter()
