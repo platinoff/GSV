@@ -2357,8 +2357,28 @@ fn reduce_groups(tasks: &[Value], data_dir: &Path) -> Vec<Value> {
             .first()
             .and_then(|t| t.get("op").and_then(Value::as_str))
             .unwrap_or("matvec_shard");
-        // MC-2: real-tensor reference from the hub weight store.
-        let reference: Vec<f64> = if op == "weights_matvec" {
+        let done: Vec<&&Value> = shard_rows
+            .iter()
+            .filter(|t| t.get("status").and_then(Value::as_str) == Some("done"))
+            .collect();
+        // GASV-G22: task_result already stamps an authoritative per-task
+        // `max_err_model` (computed with the streaming segment reference).
+        // Reuse those instead of dequantizing a whole huge expert into ~1 GB
+        // of f32 on every /api/wgpu/mesh call. Small/legacy groups without
+        // stamped errors keep the historical full-reference path.
+        let stamped: Vec<f64> = done
+            .iter()
+            .filter_map(|t| t.get("max_err_model").and_then(Value::as_f64))
+            .collect();
+        let prechecked =
+            if op == "weights_matvec" && !done.is_empty() && stamped.len() == done.len() {
+                Some(stamped.into_iter().fold(0.0f64, f64::max))
+            } else {
+                None
+            };
+        let reference: Vec<f64> = if prechecked.is_some() {
+            Vec::new()
+        } else if op == "weights_matvec" {
             let tensor_name = shard_rows
                 .first()
                 .and_then(|t| t.get("tensor").and_then(Value::as_str))
@@ -2372,10 +2392,6 @@ fn reduce_groups(tasks: &[Value], data_dir: &Path) -> Vec<Value> {
         } else {
             fallback_reference.clone()
         };
-        let done: Vec<&&Value> = shard_rows
-            .iter()
-            .filter(|t| t.get("status").and_then(Value::as_str) == Some("done"))
-            .collect();
         // R4 block: no task-level `partial` exists — the result handler verifies
         // every item against the golden-x chunk store and stamps per-task
         // `max_err_model`. Reduce from that (do not force a toy-reference sum).
@@ -2447,15 +2463,19 @@ fn reduce_groups(tasks: &[Value], data_dir: &Path) -> Vec<Value> {
             }
             sum
         };
-        complete = complete && y_ref.len() == reference.len();
-        let max_err = if complete {
+        if prechecked.is_none() {
+            complete = complete && y_ref.len() == reference.len();
+        }
+        let max_err = if !complete {
+            0.0
+        } else if let Some(e) = prechecked {
+            e
+        } else {
             y_ref
                 .iter()
                 .zip(reference.iter())
                 .map(|(a, b)| (a - b).abs())
                 .fold(0.0f64, f64::max)
-        } else {
-            0.0
         };
         rows.push(json!({
             "group_id": g,
@@ -5328,6 +5348,38 @@ mod tests {
         assert!(proof_gate(&peers, &tasks, 42, now));
         // And an unproven peer still fails hard.
         assert!(!proof_gate(&peers, &tasks, 99, now));
+    }
+
+    #[test]
+    #[ignore = "diagnostic: requires local mirror registry"]
+    fn diag_huge_expert_segment() {
+        let dir = std::path::Path::new("data");
+        let mut x = vec![0.0f64; 131072];
+        x[0] = 1.0;
+        let e = crate::boxes::weight_store::tensor_entry(dir, "blk.5.ffn_gate_exps.weight");
+        println!("diag entry={}", e.is_some());
+        if let Some(ref en) = e {
+            println!(
+                "diag rc={:?} q4={}",
+                crate::boxes::wgpu_dequant::tensor_rows_cols(en),
+                crate::boxes::wgpu_dequant::tensor_is_q4_k(en)
+            );
+            let raw = crate::boxes::wgpu_dequant::tensor_raw_range(
+                dir,
+                "blk.5.ffn_gate_exps.weight",
+                0,
+                256 * 131072,
+                true,
+            );
+            println!("diag raw={:?}", raw.as_ref().map(|r| r.len()));
+        }
+        let seg = weights_matvec_reference_segment(dir, "blk.5.ffn_gate_exps.weight", &x, 0, 256);
+        println!(
+            "diag seg len={:?} first={:?}",
+            seg.as_ref().map(|v| v.len()),
+            seg.as_ref().map(|v| v[0])
+        );
+        assert!(seg.is_some());
     }
 
     #[test]

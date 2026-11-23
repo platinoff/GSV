@@ -197,7 +197,8 @@ pub(crate) fn tensor_raw_range(
     let mut off = 0usize;
     for key in chunks {
         let key = key.as_str()?;
-        let len = crate::boxes::weight_store::chunks_len(data_dir, key)? as usize;
+        // Artifact-backed keys have no local .bin file — check both sources.
+        let len = crate::boxes::weight_store::chunk_len_any(data_dir, key)? as usize;
         let c_lo = off;
         let c_hi = off + len;
         off = c_hi;

@@ -309,7 +309,7 @@ pub(crate) fn chunks_len(data_dir: &Path, key: &str) -> Option<u64> {
 }
 
 /// Chunk length from either the local store or an artifact source (GASV-G20).
-fn chunk_len_any(data_dir: &Path, key: &str) -> Option<u64> {
+pub(crate) fn chunk_len_any(data_dir: &Path, key: &str) -> Option<u64> {
     if let Some(n) = chunks_len(data_dir, key) {
         return Some(n);
     }
