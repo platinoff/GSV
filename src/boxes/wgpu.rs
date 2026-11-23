@@ -5430,6 +5430,21 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "diagnostic: requires local mirror registry"]
+    fn diag_q6k_expert_segment() {
+        let dir = std::path::Path::new("data");
+        let mut x = vec![0.0f64; 524288];
+        x[0] = 1.0;
+        let seg = weights_matvec_reference_segment(dir, "blk.0.ffn_down_exps.weight", &x, 0, 64);
+        println!(
+            "diag q6k seg={:?} first={:?}",
+            seg.as_ref().map(|v| v.len()),
+            seg.as_ref().map(|v| v[0])
+        );
+        assert!(seg.is_some());
+    }
+
+    #[test]
     fn matvec_reference_segment_matches_full() {
         // GASV-G22: verify the row-segment reference (used at task_result) is
         // identical to the historical full reference for an F32 tensor.
