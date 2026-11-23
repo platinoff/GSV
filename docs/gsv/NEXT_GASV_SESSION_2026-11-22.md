@@ -14,7 +14,7 @@
 |---|---|---|
 | G15 | **done** | — |
 | G16 | **done** | G10/G12 reconciled + Min placement manifest (#37+#39) |
-| G22 | open | scale lane to 122 huge MoE experts (hub range-dequant primitive done) |
+| G22 | **done** | huge-expert canary g-730 PASS `3.47e-18` on #37 (8/8 shards) |
 | G17 | **done** | — |
 | G18 | open | Vision/mmproj weight-change feasibility (owner-gated) |
 | G19 | open | Staged Q4_K patch — **DO NOT START** (G17 found no safe candidate) |
@@ -27,6 +27,10 @@
 - Canon :9999 deployed (build + `/api/update/apply`), hub-side (`1b187db`) + page-side (`2fa9eb2`) Q4_K dequant live.
 - `artifact/blk.0.attn_gate.weight` [2048,4096] Q4_K registered (2 chunks), chunk GET sha256 == key.
 - `g-721` weights_matvec shards=2 on Min [39,37]: both `done`, `max_err_model=6.938893903907228e-18` (<1e-4). G21 done via MCP.
+
+## Closed outcome
+
+- G21 PASS (`g-721` 6.94e-18 on [39,37]); **G22 PASS (`g-730` 3.47e-18, 8/8 shards on #37)**. 100 Q4_K huge MoE experts registered (3638 artifact-source keys). Hub stable ~35 MB with 8-shard load. Remaining: G18 (vision, owner-gated), G13 (blocked), Q6_K lane for 20 experts.
 
 ## Next ticketed work
 
