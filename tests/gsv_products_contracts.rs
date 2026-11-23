@@ -251,7 +251,13 @@ fn discover_omniroute_registered_when_sibling_present() {
             )
         });
     assert!(row.registered, "omniroute must be registered: {row:?}");
-    assert_eq!(row.kind, "node", "{row:?}");
+    // 2026-11-23: omniroute gained a Rust layer (Cargo.toml, Nov 20) alongside
+    // package.json; discovery now classifies it `rust` (cargo wins). Both are
+    // valid — the product is a hybrid, not a pure node tree anymore.
+    assert!(
+        row.kind == "node" || row.kind == "rust",
+        "omniroute kind must be node or rust (hybrid): {row:?}"
+    );
     let scan = products::scan(&root, "omniroute").expect("scan omniroute");
     assert!(scan.handoff_exists, "AGENTS.md counts as handoff: {scan:?}");
     assert!(scan.next_exists, "docs/ROADMAP.md counts as next: {scan:?}");
