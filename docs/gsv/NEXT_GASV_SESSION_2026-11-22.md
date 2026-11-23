@@ -16,13 +16,17 @@
 | G16 | **done** | G10/G12 reconciled + Min placement manifest (#37+#39) |
 | G22 | **done** | huge-expert canary g-730 PASS `3.47e-18` on #37 (8/8 shards) |
 | G17 | **done** | — |
-| G18 | open | Vision/mmproj weight-change feasibility (owner-gated) |
+| G18 | **done** | Vision/mmproj feasibility verdict delivered (owner-gated code) |
 | G19 | open | Staged Q4_K patch — **DO NOT START** (G17 found no safe candidate) |
 | **G20** | **done** | artifact-backed WGPU weight lane implemented + proved end-to-end (doc §5) |
 | **G21** | **done** | Q4_K canary PASS `g-721` `6.94e-18` on peers [39,37] |
+| G22 | **done** | huge-expert Q4_K canary `g-730` PASS `3.47e-18` on #37 (8/8 shards) |
 | G23 | **done** | Q6_K canary `g-736` PASS `1.73e-18/3.47e-18` on [39,37] — 122/122 experts addressable |
 | G24 | **done** | durable device_key→peer_id map (`wgpu_peer_ids.json`), stable IDs across reconnect |
+| G25–G30 | **done** | FM/roadmap 1.100 adaptation · eco-check scanner · SLI adoption · policy matrix · gates fact-check |
+| G31 | **done** | `gsv_gasv_status` live-state fix (see addendum below) |
 | G13 | blocked | owner runtime/RAM + infer/quality |
+| G11 | open | Superseded by G15 scorecard; keep open pending owner close |
 
 ## G21 outcome (closed)
 
@@ -39,6 +43,29 @@
 - **G22** `t-1795359320465948200` (in_progress): scale lane to 122 huge MoE experts. DONE + deployed to canon :9999: hub `dequant_q4_k_range` + `weights_matvec_reference_segment`, page `downloadWeightsFlat(tensor,shardId,shards)` (shard-row dequant), `x_spec=onehot:<idx>:<len>` compact enqueue, 3D cols flatten (GSV `234c01f`, `465b808`). 65 wgpu tests + clippy green. `g-726` weights_matvec on `blk.5.ffn_gate_exps.weight` shards=8 enqueued; **shard 0/8 computed by peer #37 in 926 ms @ 72 MFLOPS (256×131072)** — streaming dequant works. Group completion pending. If all 8 shards `done` with `max_err_model < 1e-4`, close G22 via MCP. Note: `apply` alone does NOT respawn when version is unchanged — manually kill the listener PID and let the watchdog respawn from the rebuilt binary. Still no runnable full LLM (G13 blocked).
 - **G18** (open, owner-gated): vision/mmproj weight-change feasibility.
 - **G19** — DO NOT START (G17 found no safe weight-patch candidate).
+
+## 2026-11-23 addendum — `gsv_gasv_status` live-state fix (G31)
+
+The MCP status tool had hardcoded `artifact.status:"planned"` and dead peer ids
+(`#35/#36/#38`), which contradicted the published artifact and the Min cluster.
+Fixed in `src/mcp.rs`:
+
+- `gasv_artifact_from_publish()` reads `L:/gsv_mirror/models/gsv-versus-ai/gsv-versus-ai.publish.json`
+  at runtime (override `GSV_GASV_PUBLISH_JSON`). Missing/unreadable publish set →
+  `status:"unknown"` + `note` (no artifact claim). Live probe now reports
+  `status:"published"`, canonical F32 `25fadfbb…`, 4-bit companion
+  `gsv-versus-ai-full-q4k.gguf` (733 tensors, sha256 `2f37d609…`) and the
+  g-721/g-730/g-736 fitness canaries.
+- `gasv_cluster_sets_wire()` reflects the current steady state: Min =
+  hub RDNA2 `#37` + bifrost `#39` (execution); valhall `#40` owner-withdrawn;
+  Med gated / Max spec-only. No `#35`/`#38` rows.
+- Stale drain-prompt contract `tool_count (60)` → `61` (TOOL_COUNT symbol),
+  updated in `src/mcp.rs` and `tests/gsv_mcp_contracts.rs`.
+
+Gates: `cargo fmt --all`, `cargo clippy --all-targets -- -D warnings`,
+`cargo test -q` (all suites 0 failed), stdio `tools/call gsv_gasv_status` probe.
+Ticket `t-1795434418581894100` claim→done via GSV MCP. This is read-only status
+plumbing — no mirror/canonical mutation, no owner-gated item started.
 
 ## Rules (hard)
 
