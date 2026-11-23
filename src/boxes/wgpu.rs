@@ -760,16 +760,27 @@ pub fn weights_matvec_reference_segment(
     if x.len() != cols || row_end > rows || row_start >= row_end {
         return None;
     }
-    let floats = crate::boxes::wgpu_dequant::tensor_f32_range(
-        data_dir,
-        tensor,
-        row_start * cols,
-        row_end * cols,
-    )?;
-    if floats.len() != (row_end - row_start) * cols {
-        return None;
+    let value_start = row_start * cols;
+    let value_end = row_end * cols;
+    let entry = crate::boxes::weight_store::tensor_entry(data_dir, tensor)?;
+    if crate::boxes::wgpu_dequant::tensor_is_q4_k(&entry) {
+        // GASV-G22: stream dequant per 144-byte block — no 134 MB f32 buffer.
+        let raw = crate::boxes::wgpu_dequant::tensor_raw_range(
+            data_dir,
+            tensor,
+            value_start,
+            value_end,
+            true,
+        )?;
+        crate::boxes::wgpu_dequant::dequant_q4_k_matvec(&raw, value_start, value_end, cols, x)
+    } else {
+        let floats =
+            crate::boxes::wgpu_dequant::tensor_f32_range(data_dir, tensor, value_start, value_end)?;
+        if floats.len() != (row_end - row_start) * cols {
+            return None;
+        }
+        matvec_rows(&floats, row_end - row_start, cols, x)
     }
-    matvec_rows(&floats, row_end - row_start, cols, x)
 }
 
 pub fn weights_matvec_reference(data_dir: &Path, tensor: &str, x: &[f64]) -> Option<Vec<f64>> {

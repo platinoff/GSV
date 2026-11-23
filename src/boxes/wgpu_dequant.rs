@@ -70,6 +70,63 @@ pub fn dequant_q4_k(data: &[u8]) -> Vec<f32> {
     out
 }
 
+/// GASV-G22: streaming `y = W*x` for a Q4_K value range, dequantizing one
+/// 144-byte block at a time into a 256-f32 stack buffer. Avoids allocating
+/// ~134 MB of f32 per shard (8 concurrent verifications reached 1.9 GB RSS).
+/// `data` must be the block-aligned slice starting at `floor(value_start/256)`.
+pub fn dequant_q4_k_matvec(
+    data: &[u8],
+    value_start: usize,
+    value_end: usize,
+    cols: usize,
+    x: &[f64],
+) -> Option<Vec<f64>> {
+    if cols == 0 || x.len() != cols || value_end <= value_start {
+        return None;
+    }
+    let b0 = value_start / 256;
+    let rows = (value_end - value_start).div_ceil(cols);
+    let mut y = vec![0.0f64; rows];
+    let mut idx = 0usize;
+    for b in data.as_chunks::<144>().0 {
+        let d = f16_to_f32(u16::from_le_bytes([b[0], b[1]]));
+        let min = f16_to_f32(u16::from_le_bytes([b[2], b[3]]));
+        let scales = &b[4..16];
+        let qs = &b[16..144];
+        let mut vals = [0f32; 256];
+        let mut o = 0usize;
+        for grp in 0..4 {
+            let (sc0, m0) = get_scale_min_k4(grp * 2, scales);
+            let (sc1, m1) = get_scale_min_k4(grp * 2 + 1, scales);
+            let d1 = d * sc0 as f32;
+            let dm1 = min * m0 as f32;
+            let d2 = d * sc1 as f32;
+            let dm2 = min * m1 as f32;
+            let base = grp * 32;
+            for l in 0..32 {
+                let q = qs[base + l];
+                vals[o] = d1 * (q & 0xF) as f32 - dm1;
+                o += 1;
+            }
+            for l in 0..32 {
+                let q = qs[base + l];
+                vals[o] = d2 * (q >> 4) as f32 - dm2;
+                o += 1;
+            }
+        }
+        for v in vals {
+            let gi = b0 * 256 + idx;
+            idx += 1;
+            if gi >= value_start && gi < value_end {
+                let r = (gi - value_start) / cols;
+                let c = (gi - value_start) % cols;
+                y[r] += v as f64 * x[c];
+            }
+        }
+    }
+    Some(y)
+}
+
 /// Flatten an N-dim registered tensor into `(rows, cols)` where cols is the
 /// product of all trailing dims. 2D tensors keep their historical meaning;
 /// 3D MoE experts `[rows, d, e]` become `rows x (d*e)` so a `weights_matvec`
@@ -122,7 +179,7 @@ pub fn dequant_q4_k_range(data: &[u8], value_start: usize, value_end: usize) -> 
 /// Q4_K bytes are 144/256 per value; align to 144-byte block boundaries.
 /// Reading (~5 of 36) chunks instead of all 151 MB keeps `task_result` fast
 /// enough for the peer's result POST (each chunk read verifies SHA-256).
-fn tensor_raw_range(
+pub(crate) fn tensor_raw_range(
     data_dir: &std::path::Path,
     name: &str,
     value_start: usize,
@@ -255,6 +312,32 @@ mod tests {
             assert_eq!(ranged, full[start..end], "range {start}..{end}");
         }
         assert!(dequant_q4_k_range(&data, 400, 100).is_none());
+    }
+
+    #[test]
+    fn dequant_q4_k_matvec_matches_full_reference() {
+        // Streaming matvec (one 144B block at a time) must equal
+        // dequant_q4_k(full) -> matvec over the same value range.
+        let mut data = vec![0u8; 144 * 3];
+        for (i, b) in data.as_chunks_mut::<144>().0.iter_mut().enumerate() {
+            b[0..2].copy_from_slice(&(((i + 1) as u16) * 0x3c00u16).to_le_bytes());
+            b[4..8].fill(1);
+            for q in b[16..144].iter_mut() {
+                *q = 0x11;
+            }
+        }
+        let cols = 128usize;
+        let x: Vec<f64> = (0..cols).map(|i| (i % 7) as f64 * 0.1).collect();
+        let full = dequant_q4_k(&data);
+        let expected: Vec<f64> = full
+            .chunks(cols)
+            .map(|row| row.iter().zip(&x).map(|(w, xi)| *w as f64 * xi).sum())
+            .collect();
+        let streamed = dequant_q4_k_matvec(&data, 0, full.len(), cols, &x).expect("matvec");
+        assert_eq!(streamed.len(), expected.len());
+        for (a, b) in streamed.iter().zip(&expected) {
+            assert!((a - b).abs() < 1e-9, "{a} vs {b}");
+        }
     }
 
     #[test]
