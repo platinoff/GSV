@@ -85,9 +85,18 @@ fn cargo_alias_xtask() {
 
 #[test]
 fn mcp_readonly_tasks_include_sync_check() {
+    // 2026-11-23: mirror-inventory was added as a read-only MCP xtask (GASV track).
     assert_eq!(
         xtask::MCP_TASKS,
-        &["catalog", "products", "disk", "sync", "rules", "fm-xlink"]
+        &[
+            "catalog",
+            "products",
+            "disk",
+            "sync",
+            "rules",
+            "fm-xlink",
+            "mirror-inventory",
+        ]
     );
     let ok = xtask::mcp_run(&kit_root(), "sync");
     match ok {
