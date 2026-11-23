@@ -87,6 +87,8 @@ path = "benches/gsv_dev.rs"
 
 [dependencies]
 base64 = "0.22"
+# GASV-G37: minimal PNG image input for the Q4_K vision-block forward.
+flate2 = "1.1"
 sha2 = "0.10"
 tracing-appender = "0.2"
 # Serialization

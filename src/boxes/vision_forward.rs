@@ -12,6 +12,9 @@
 //! peers via `weights_matvec` and the verified partials are read back with
 //! `GET /api/wgpu/task/result?group=…` (G33 result bus).
 //!
+//! With `--image <png>`, patch tokens come from a real image (G37); otherwise
+//! a flat 0.5 probe is used for infrastructure benchmarking.
+//!
 //! Scope: image-to-feature forward, NOT image-to-answer. No quality claim
 //! (G13 / PH-1202/1204/1205 open).
 
@@ -26,6 +29,8 @@ use super::vision_canary::merge_sources;
 pub struct ForwardOpts<'a> {
     /// Q4_K vision artifact in the mirror.
     pub artifact: &'a Path,
+    /// Optional PNG; when set, patch tokens come from a real image.
+    pub image: Option<&'a Path>,
     pub hub: &'a str,
     pub data_dir: &'a Path,
     pub rusty: &'a Path,
@@ -45,6 +50,8 @@ struct Geometry {
     tokens: usize,
     proj_in: usize,
     proj_out: usize,
+    image_size: usize,
+    patch_size: usize,
     proj_up: String,
     proj_down: String,
     family: String,
@@ -148,6 +155,8 @@ fn geometry(manifest: &Value) -> Result<Geometry, String> {
         tokens: proj_in / embed,
         proj_in,
         proj_out,
+        image_size: meta_u32(manifest, "clip.vision.image_size").unwrap_or(448),
+        patch_size: meta_u32(manifest, "clip.vision.patch_size").unwrap_or(14),
         proj_up,
         proj_down,
         family,
@@ -450,7 +459,7 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
         opts.scratch,
     )?;
 
-    // One patch token is shared by all positions; add distinct position embeddings.
+    // Patch embeddings: real PNG patches when provided, else a flat 0.5 probe.
     let patch_name = "v.patch_embd.weight";
     let patch_label = "vf_patch_embd";
     register_weight(
@@ -469,28 +478,41 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
     .await?;
     registered.insert(patch_label.to_string());
     let patch_in = (g.dims[patch_name].iter().product::<u64>()) / d as u64;
-    let (patch, ev) = matvec(
-        &client,
-        base,
-        patch_label,
-        &vec![0.5f64; patch_in as usize],
-        opts.shards,
-        opts.wait_secs,
-    )
-    .await?;
-    groups.push(json!({"op": "patch_embd", "label": patch_label, "evidence": ev}));
-
-    let patch: Vec<f64> = patch
-        .iter()
-        .enumerate()
-        .map(|(i, v)| *v + patch_bias_v[i] as f64)
-        .collect();
-    let mut tokens = vec![patch; g.tokens];
-    tokens[0] = class
-        .iter()
-        .enumerate()
-        .map(|(i, v)| *v as f64 + class_pos[i] as f64)
-        .collect();
+    let patch_inputs: Vec<Vec<f64>> = if let Some(image) = opts.image {
+        let img = super::image_input::decode_png(image)?;
+        super::image_input::patch_tokens(&img, g.image_size, g.patch_size, g.tokens - 1)?
+    } else {
+        vec![vec![0.5f64; patch_in as usize]; g.tokens - 1]
+    };
+    let mut patch_embeds: Vec<Vec<f64>> = Vec::new();
+    for input in &patch_inputs {
+        let (patch, ev) = matvec(
+            &client,
+            base,
+            patch_label,
+            input,
+            opts.shards,
+            opts.wait_secs,
+        )
+        .await?;
+        groups.push(json!({"op": "patch_embd", "label": patch_label, "evidence": ev}));
+        patch_embeds.push(
+            patch
+                .iter()
+                .enumerate()
+                .map(|(i, v)| *v + patch_bias_v[i] as f64)
+                .collect(),
+        );
+    }
+    let mut tokens: Vec<Vec<f64>> = Vec::with_capacity(g.tokens);
+    tokens.push(
+        class
+            .iter()
+            .enumerate()
+            .map(|(i, v)| *v as f64 + class_pos[i] as f64)
+            .collect(),
+    );
+    tokens.extend(patch_embeds);
     for (t, token) in tokens.iter_mut().enumerate().skip(1) {
         let off = t * d;
         let base = token.clone();
@@ -800,6 +822,7 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
     let evidence = json!({
         "ok": finite && groups.iter().all(|g| g["evidence"]["max_err_model"].as_f64().unwrap_or(1.0) < 1e-4),
         "artifact": opts.artifact.to_string_lossy(),
+        "image": opts.image.map(|p| p.to_string_lossy().to_string()),
         "geometry": {
             "family": g.family.clone(),
             "embed": g.embed, "heads": g.heads, "ffn": g.ffn,

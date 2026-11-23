@@ -131,7 +131,7 @@ pub const TASKS: &[(&str, &str)] = &[
     ),
     (
         "vision-forward",
-        "GASV-G33: 2-token Q4_K vision-block forward on the Min cluster (all linear layers via weights_matvec; hub keeps norms/attention/GELU); persists routing/benchmark in data/ (`--artifact`, `--blocks`, `--shards`, `--hub`)",
+        "GASV-G33/G37: Q4_K vision-block forward on the Min cluster, optional real PNG patch input (all linear layers via weights_matvec; hub keeps norms/attention/GELU); persists routing/benchmark in data/ (`--artifact`, `--image`, `--blocks`, `--shards`, `--hub`)",
     ),
     (
         "gasv-publish-check",
