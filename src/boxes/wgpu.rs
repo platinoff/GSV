@@ -332,6 +332,10 @@ pub const PEER_LEASE_SECS: u64 = 60;
 /// Poll cadence handed to the browser worker loop.
 pub const POLL_SECS: u64 = 2;
 const PEERS_FILE: &str = "wgpu_peers.jsonl";
+/// GASV-G24: durable device_key -> peer_id identity map. Unlike wgpu_peers.jsonl
+/// (auto-pruned), this registry is never pruned, so a returning device keeps
+/// its historical peer_id and its metrics/logs stay contiguous.
+const PEER_IDS_FILE: &str = "wgpu_peer_ids.json";
 const TASKS_FILE: &str = "wgpu_tasks.jsonl";
 const MAX_PEERS: usize = 50;
 // GASV-G22: a huge-expert weights_matvec task carries a 131072-float x
@@ -1189,19 +1193,38 @@ pub fn peer_join(data_dir: &Path, body: &Value) -> Result<Value, String> {
     let mut peers = read_jsonl(&path);
     let now = now_secs();
     let key = device_key(&adapter, &ua, &device_class, cores, device_memory);
-    let reused_id = peers
-        .iter()
-        .rev()
-        .find(|p| p.get("device_key").and_then(Value::as_str) == Some(key.as_str()))
-        .and_then(|p| p.get("peer_id").and_then(Value::as_u64));
-    let peer_id = reused_id.unwrap_or_else(|| {
+    // GASV-G24: durable identity first — a pruned stale row must not cost the
+    // device its peer_id. Fall back to the historical in-registry lookup for
+    // pre-G24 rows, then allocate a fresh id.
+    let ids_path = data_dir.join(PEER_IDS_FILE);
+    let mut ids: serde_json::Map<String, Value> = std::fs::read_to_string(&ids_path)
+        .ok()
+        .and_then(|s| serde_json::from_str::<serde_json::Map<String, Value>>(&s).ok())
+        .unwrap_or_default();
+    let reused_id = ids.get(&key).and_then(Value::as_u64).or_else(|| {
         peers
             .iter()
-            .filter_map(|p| p.get("peer_id").and_then(Value::as_u64))
+            .rev()
+            .find(|p| p.get("device_key").and_then(Value::as_str) == Some(key.as_str()))
+            .and_then(|p| p.get("peer_id").and_then(Value::as_u64))
+    });
+    let peer_id = reused_id.unwrap_or_else(|| {
+        ids.values()
+            .filter_map(Value::as_u64)
+            .chain(
+                peers
+                    .iter()
+                    .filter_map(|p| p.get("peer_id").and_then(Value::as_u64)),
+            )
             .max()
             .unwrap_or(0)
             + 1
     });
+    ids.insert(key.clone(), json!(peer_id));
+    let _ = std::fs::write(
+        &ids_path,
+        serde_json::to_string_pretty(&ids).unwrap_or_default(),
+    );
     let joined_ts = peers
         .iter()
         .rev()
@@ -4788,6 +4811,30 @@ mod tests {
         let out2 = peer_poll(&dir, &json!({"peer_id": pid})).expect("poll after proof");
         assert_eq!(out2["task"]["task_id"], "mt-gate-1");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn peer_rejoin_after_prune_keeps_durable_id() {
+        // GASV-G24: a stale row can be auto-pruned; the durable device_key map
+        // must still hand the same device its original peer_id.
+        let dir = temp_dir("peer_durable");
+        let _ = std::fs::create_dir_all(&dir);
+        let req = json!({"adapter":"arm/bifrost","ua":"phone-ua","cores":8,"device_memory":4});
+        let j1 = peer_join(&dir, &req).expect("join 1");
+        // Simulate a fully pruned peers registry (stale rows removed) while the
+        // durable id map survives.
+        let peers_path = dir.join(PEERS_FILE);
+        std::fs::write(&peers_path, "").unwrap();
+        let j2 = peer_join(&dir, &req).expect("join 2");
+        assert_eq!(j1["peer_id"], j2["peer_id"], "durable identity");
+        assert_eq!(j2["reused_peer"], true);
+        // A genuinely new device still gets a fresh id.
+        let j3 = peer_join(
+            &dir,
+            &json!({"adapter":"adapter","ua":"pc-ua","cores":16,"device_memory":8}),
+        )
+        .expect("join 3");
+        assert_ne!(j3["peer_id"], j1["peer_id"]);
     }
 
     #[test]
