@@ -1,17 +1,21 @@
-//! GASV-G33 — minimal CLIP/ViT block forward whose LINEAR layers are executed
-//! by the live WGPU cluster on real Q4_K projector weights.
+//! GASV-G33/G34 — CLIP/ViT block forward whose LINEAR layers are executed by
+//! the live WGPU cluster on real Q4_K projector weights.
 //!
-//! The hub keeps only the small non-linear state (LayerNorm, biases, residual
-//! scaling, attention softmax, GELU). Every big matrix-vector product is routed
-//! to peers through `weights_matvec`, and the verified peer partials are read
-//! back with `GET /api/wgpu/task/result?group=…` (GASV-G33 result bus).
+//! Geometry (embed / heads / blocks / ffn / projector) is read from the GGUF
+//! manifest at runtime, so both vision companions work:
+//!   - inkling2-vision-q4k.gguf       (1024 embed, 23 blocks, mm.1/mm.2 -> 2304)
+//!   - gsv-versus-ai-vision-q4k.gguf  (1152 embed, 27 blocks, mm.up/down -> 2048,
+//!     geometry-matched to the versus 4-bit text core)
 //!
-//! Scope: a 4-token (class + 3 patches) forward through `--blocks` ViT blocks
-//! and the `mm.1/mm.2` projector, producing a 2304-dim Inkling-2 vision vector.
-//! This is a real block-level execution/benchmark, NOT an image->answer model:
-//! no tokenizer/text core, no quality claim (G13 / PH-1202/1204/1205 open).
+//! Hub keeps only small non-linear state (LayerNorm, biases, residual scale,
+//! attention softmax, GELU). Every big matrix-vector product is routed to
+//! peers via `weights_matvec` and the verified partials are read back with
+//! `GET /api/wgpu/task/result?group=…` (G33 result bus).
+//!
+//! Scope: image-to-feature forward, NOT image-to-answer. No quality claim
+//! (G13 / PH-1202/1204/1205 open).
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::time::{Duration, Instant};
 
@@ -20,17 +24,150 @@ use serde_json::{json, Value};
 use super::vision_canary::merge_sources;
 
 pub struct ForwardOpts<'a> {
-    /// Q4_K projector artifact (inkling2-vision-q4k.gguf).
+    /// Q4_K vision artifact in the mirror.
     pub artifact: &'a Path,
     pub hub: &'a str,
     pub data_dir: &'a Path,
     pub rusty: &'a Path,
     pub scratch: &'a Path,
-    /// Number of ViT blocks to run (1..=23).
+    /// 0 = use the manifest block_count; otherwise 1..=block_count.
     pub blocks: usize,
-    /// Shards per matvec (rows must divide evenly).
     pub shards: usize,
     pub wait_secs: u64,
+}
+
+#[derive(Debug, Clone)]
+struct Geometry {
+    embed: usize,
+    ffn: usize,
+    heads: usize,
+    blocks: usize,
+    tokens: usize,
+    proj_in: usize,
+    proj_out: usize,
+    proj_up: String,
+    proj_down: String,
+    family: String,
+    norm: String,
+    patch_bias: bool,
+    input_norm: bool,
+    dims: HashMap<String, Vec<u64>>,
+}
+
+fn manifest(rusty: &Path, artifact: &Path) -> Result<Value, String> {
+    let out = std::process::Command::new(rusty)
+        .args(["manifest", &artifact.to_string_lossy()])
+        .output()
+        .map_err(|e| format!("manifest spawn: {e}"))?;
+    if !out.status.success() {
+        return Err(format!(
+            "manifest: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        ));
+    }
+    serde_json::from_slice(&out.stdout).map_err(|e| format!("manifest json: {e}"))
+}
+
+fn meta_u32(manifest: &Value, key: &str) -> Option<usize> {
+    manifest["metadata"]
+        .as_array()?
+        .iter()
+        .find(|m| m["key"] == key)
+        .and_then(|m| {
+            let v = m["value"].as_str()?;
+            let start = v.find('(')? + 1;
+            let end = v[start..].find(')')? + start;
+            v[start..end].parse().ok()
+        })
+}
+
+fn geometry(manifest: &Value) -> Result<Geometry, String> {
+    let mut dims = HashMap::new();
+    for t in manifest["tensors"]
+        .as_array()
+        .ok_or("manifest has no tensors")?
+    {
+        let name = t["name"].as_str().ok_or("tensor without name")?;
+        let d: Vec<u64> = t["dims"]
+            .as_array()
+            .ok_or("tensor without dims")?
+            .iter()
+            .filter_map(Value::as_u64)
+            .collect();
+        dims.insert(name.to_string(), d);
+    }
+    let q = dims
+        .get("v.blk.0.attn_q.weight")
+        .ok_or("no v.blk.0.attn_q.weight")?;
+    let up = dims
+        .get("v.blk.0.ffn_up.weight")
+        .ok_or("no v.blk.0.ffn_up.weight")?;
+    // GGUF stores linear weights as [in, out]; logical rows=out, cols=in.
+    let embed = *q.get(1).ok_or("attn_q has no out dim")? as usize;
+    let ffn = *up.get(1).ok_or("ffn_up has no out dim")? as usize;
+    let heads = meta_u32(manifest, "clip.vision.attention.head_count").unwrap_or(16);
+    let blocks = meta_u32(manifest, "clip.vision.block_count").unwrap_or(23);
+    let (proj_up, proj_down, family) = if dims.contains_key("mm.1.weight") {
+        (
+            "mm.1.weight".to_string(),
+            "mm.2.weight".to_string(),
+            "inkling2v".to_string(),
+        )
+    } else if dims.contains_key("mm.up.weight") {
+        (
+            "mm.up.weight".to_string(),
+            "mm.down.weight".to_string(),
+            "minicpmv4_7".to_string(),
+        )
+    } else {
+        return Err("no projector tensors (mm.1/mm.2 or mm.up/mm.down)".to_string());
+    };
+    let norm = if dims.contains_key("v.pre_ln.weight") {
+        "v.pre_ln".to_string()
+    } else {
+        "v.post_ln".to_string()
+    };
+    let patch_bias = dims.contains_key("v.patch_embd.bias");
+    let input_norm = dims.contains_key("mm.input_norm.weight");
+    let proj_in = *dims
+        .get(&proj_up)
+        .and_then(|d| d.first())
+        .ok_or("projector up has no in dim")? as usize;
+    let proj_out = *dims
+        .get(&proj_down)
+        .and_then(|d| d.get(1))
+        .ok_or("projector down has no out dim")? as usize;
+    if embed == 0 || !proj_in.is_multiple_of(embed) {
+        return Err(format!("bad geometry embed={embed} proj_in={proj_in}"));
+    }
+    Ok(Geometry {
+        embed,
+        ffn,
+        heads,
+        blocks,
+        tokens: proj_in / embed,
+        proj_in,
+        proj_out,
+        proj_up,
+        proj_down,
+        family,
+        norm,
+        patch_bias,
+        input_norm,
+        dims,
+    })
+}
+
+/// Logical [out, in] dims for a GGUF linear weight (stored as [in, out]).
+fn linear_dims(g: &Geometry, name: &str) -> Result<[u64; 2], String> {
+    let d = g
+        .dims
+        .get(name)
+        .ok_or_else(|| format!("tensor {name} not in manifest"))?;
+    if d.len() < 2 {
+        return Err(format!("tensor {name} is not 2-D"));
+    }
+    Ok([d[1], d[0]])
 }
 
 fn dump_f32(
@@ -88,9 +225,6 @@ async fn post(client: &reqwest::Client, url: &str, body: &Value) -> Result<Value
     Ok(v)
 }
 
-/// Register one Q4_K tensor as artifact-backed with LOGICAL dims [rows, cols].
-/// GGUF stores linear weights as [in, out]; pass reversed dims so the hub
-/// reference and the peer produce a y of length `out`.
 #[allow(clippy::too_many_arguments)]
 async fn register_weight(
     client: &reqwest::Client,
@@ -148,13 +282,9 @@ async fn register_weight(
         client,
         &format!("{base}/api/wgpu/weights/register_tensor"),
         &json!({
-            "tensor": label,
-            "dims": dims,
-            "chunks": keys,
-            "source": "artifact",
-            "dtype": "q4_k",
-            "ggml_type": meta["ggml_type"].clone(),
-            "bytes": meta["bytes"].clone(),
+            "tensor": label, "dims": dims, "chunks": keys,
+            "source": "artifact", "dtype": "q4_k",
+            "ggml_type": meta["ggml_type"].clone(), "bytes": meta["bytes"].clone(),
         }),
     )
     .await
@@ -162,7 +292,6 @@ async fn register_weight(
     Ok(())
 }
 
-/// One real cluster matvec: enqueue x, wait for the group, read back partials.
 async fn matvec(
     client: &reqwest::Client,
     base: &str,
@@ -174,10 +303,7 @@ async fn matvec(
     let enq = post(
         client,
         &format!("{base}/api/wgpu/task/enqueue"),
-        &json!({
-            "op": "weights_matvec", "tensor": label,
-            "x": x, "shards": shards,
-        }),
+        &json!({"op": "weights_matvec", "tensor": label, "x": x, "shards": shards}),
     )
     .await
     .map_err(|e| format!("enqueue {label}: {e}"))?;
@@ -203,7 +329,7 @@ async fn matvec(
                 break;
             }
         }
-        tokio::time::sleep(Duration::from_secs(2)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
     }
     if evidence.is_null() {
         return Err(format!("group {group_id} did not complete in {wait_secs}s"));
@@ -214,10 +340,10 @@ async fn matvec(
         .await
         .map_err(|e| format!("result read: {e}"))?;
     let results: Value = resp.json().await.map_err(|e| format!("result json: {e}"))?;
-    let rows = results["results"].as_array().ok_or("no results in group")?;
+    let rows = results["results"].as_array().ok_or("no results")?;
     if rows.len() != shards {
         return Err(format!(
-            "group {group_id}: {} result rows, expected {shards}",
+            "group {group_id}: {} rows, expected {shards}",
             rows.len()
         ));
     }
@@ -229,23 +355,24 @@ async fn matvec(
     let mut y = vec![0.0f64; total_rows];
     for r in rows {
         let start = r["row_start"].as_u64().ok_or("no row_start")? as usize;
-        let part = r["partial"].as_array().ok_or("no partial")?;
-        for (i, v) in part.iter().enumerate() {
+        for (i, v) in r["partial"]
+            .as_array()
+            .ok_or("no partial")?
+            .iter()
+            .enumerate()
+        {
             y[start + i] = v.as_f64().unwrap_or(0.0);
         }
     }
     let ev = json!({
-        "group_id": group_id,
-        "shards": shards,
-        "max_err_model": evidence["max_err"],
-        "route": evidence["peers"].clone(),
+        "group_id": group_id, "shards": shards,
+        "max_err_model": evidence["max_err"], "route": evidence["peers"].clone(),
         "elapsed_ms": rows.iter().map(|r| r["elapsed_ms"].clone()).collect::<Vec<_>>(),
     });
     Ok((y, ev))
 }
 
 fn gelu(x: f64) -> f64 {
-    // tanh approximation, adequate for a benchmark forward.
     let k = 0.7978845608028654 * (x + 0.044715 * x * x * x);
     0.5 * x * (1.0 + k.tanh())
 }
@@ -260,12 +387,23 @@ fn layer_norm(x: &[f64], w: &[f32], b: &[f32], eps: f64) -> Vec<f64> {
         .collect()
 }
 
-/// Full orchestrated forward. Returns the vision vector plus routing/bench data.
+/// Orchestrated forward. Returns the vision vector plus routing/bench data.
 pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
-    if opts.blocks == 0 || opts.blocks > 23 || opts.shards == 0 {
-        return Err("blocks must be 1..=23 and shards > 0".to_string());
+    if opts.shards == 0 {
+        return Err("shards must be > 0".to_string());
     }
     std::fs::create_dir_all(opts.scratch).map_err(|e| format!("scratch: {e}"))?;
+    let mf = manifest(opts.rusty, opts.artifact)?;
+    let g = geometry(&mf)?;
+    let blocks = if opts.blocks == 0 {
+        g.blocks
+    } else {
+        opts.blocks.min(g.blocks)
+    };
+    if blocks == 0 {
+        return Err("block_count is 0".to_string());
+    }
+    let d = g.embed;
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(120))
         .build()
@@ -275,16 +413,36 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
     let mut groups: Vec<Value> = Vec::new();
     let started = Instant::now();
 
-    // Small F32 state from the GGUF (biases / norms / residual scales).
-    let pre_w = dump_f32(opts.rusty, opts.artifact, "v.pre_ln.weight", opts.scratch)?;
-    let pre_b = dump_f32(opts.rusty, opts.artifact, "v.pre_ln.bias", opts.scratch)?;
-    let class = dump_f32(opts.rusty, opts.artifact, "v.class_embd", opts.scratch)?;
-    let class_pos = dump_f32(
+    let pre_w = dump_f32(
         opts.rusty,
         opts.artifact,
-        "v.class_position_embd.weight",
+        &format!("{}.weight", g.norm),
         opts.scratch,
     )?;
+    let pre_b = dump_f32(
+        opts.rusty,
+        opts.artifact,
+        &format!("{}.bias", g.norm),
+        opts.scratch,
+    )?;
+    let (class, class_pos) = if g.family == "inkling2v" {
+        (
+            dump_f32(opts.rusty, opts.artifact, "v.class_embd", opts.scratch)?,
+            dump_f32(
+                opts.rusty,
+                opts.artifact,
+                "v.class_position_embd.weight",
+                opts.scratch,
+            )?,
+        )
+    } else {
+        (vec![0.0f32; d], vec![0.0f32; d])
+    };
+    let patch_bias_v = if g.patch_bias {
+        dump_f32(opts.rusty, opts.artifact, "v.patch_embd.bias", opts.scratch)?
+    } else {
+        vec![0.0f32; d]
+    };
     let pos = dump_f32(
         opts.rusty,
         opts.artifact,
@@ -292,36 +450,42 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
         opts.scratch,
     )?;
 
-    // Patch embedding: 20x20x3 = 1200 inputs -> 1024 outputs.
+    // One patch token is shared by all positions; add distinct position embeddings.
+    let patch_name = "v.patch_embd.weight";
     let patch_label = "vf_patch_embd";
     register_weight(
         &client,
         base,
         opts.rusty,
         opts.artifact,
-        "v.patch_embd.weight",
+        patch_name,
         patch_label,
-        [1024, 1200],
+        [
+            d as u64,
+            (g.dims[patch_name].iter().product::<u64>()) / d as u64,
+        ],
         opts.data_dir,
     )
     .await?;
     registered.insert(patch_label.to_string());
-    let patch_x = vec![0.5f64; 1200];
+    let patch_in = (g.dims[patch_name].iter().product::<u64>()) / d as u64;
     let (patch, ev) = matvec(
         &client,
         base,
         patch_label,
-        &patch_x,
+        &vec![0.5f64; patch_in as usize],
         opts.shards,
         opts.wait_secs,
     )
     .await?;
     groups.push(json!({"op": "patch_embd", "label": patch_label, "evidence": ev}));
 
-    // inkling2v projector takes 4 pooled tokens x 1024 = 4096 inputs.
-    let d = 1024usize;
-    const N_TOKENS: usize = 4;
-    let mut tokens = vec![patch; N_TOKENS];
+    let patch: Vec<f64> = patch
+        .iter()
+        .enumerate()
+        .map(|(i, v)| *v + patch_bias_v[i] as f64)
+        .collect();
+    let mut tokens = vec![patch; g.tokens];
     tokens[0] = class
         .iter()
         .enumerate()
@@ -341,7 +505,7 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
         .map(|t| layer_norm(t, &pre_w, &pre_b, 1e-5))
         .collect();
 
-    for block in 0..opts.blocks {
+    for block in 0..blocks {
         let prefix = format!("v.blk.{block}");
         let ln1w = dump_f32(
             opts.rusty,
@@ -367,18 +531,27 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
             &format!("{prefix}.ln2.bias"),
             opts.scratch,
         )?;
-        let ls1 = dump_f32(
-            opts.rusty,
-            opts.artifact,
-            &format!("{prefix}.ls1.weight"),
-            opts.scratch,
-        )?;
-        let ls2 = dump_f32(
-            opts.rusty,
-            opts.artifact,
-            &format!("{prefix}.ls2.weight"),
-            opts.scratch,
-        )?;
+        // inkling2v has learnable residual scales; minicpmv4_7 does not (1.0).
+        let ls1 = if g.dims.contains_key(&format!("{prefix}.ls1.weight")) {
+            dump_f32(
+                opts.rusty,
+                opts.artifact,
+                &format!("{prefix}.ls1.weight"),
+                opts.scratch,
+            )?
+        } else {
+            vec![1.0f32]
+        };
+        let ls2 = if g.dims.contains_key(&format!("{prefix}.ls2.weight")) {
+            dump_f32(
+                opts.rusty,
+                opts.artifact,
+                &format!("{prefix}.ls2.weight"),
+                opts.scratch,
+            )?
+        } else {
+            vec![1.0f32]
+        };
         let q_b = dump_f32(
             opts.rusty,
             opts.artifact,
@@ -416,20 +589,15 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
             opts.scratch,
         )?;
 
-        // GGUF linear weights are [in,out]; register the logical [out,in].
         let normed: Vec<Vec<f64>> = tokens
             .iter()
             .map(|t| layer_norm(t, &ln1w, &ln1b, 1e-5))
             .collect();
-        let qkv_specs: [(&str, [u64; 2]); 3] = [
-            ("attn_q", [1024, 1024]),
-            ("attn_k", [1024, 1024]),
-            ("attn_v", [1024, 1024]),
-        ];
         let mut qkv: Vec<Vec<Vec<f64>>> = Vec::new();
-        for (name, dims) in qkv_specs {
+        for name in ["attn_q", "attn_k", "attn_v"] {
             let label = format!("vf_blk{block}_{name}");
             if !registered.contains(&label) {
+                let dims = linear_dims(&g, &format!("{prefix}.{name}.weight"))?;
                 register_weight(
                     &client,
                     base,
@@ -447,19 +615,17 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
             for token in &normed {
                 let (y, ev) =
                     matvec(&client, base, &label, token, opts.shards, opts.wait_secs).await?;
-                groups.push(json!({"op": name, "block": block, "label": label, "evidence": ev}));
+                groups.push(json!({"op": name, "block": block, "evidence": ev}));
                 outputs.push(y);
             }
             qkv.push(outputs);
         }
 
-        // Attention (2 tokens, 16 heads, head_dim 64) on the hub.
-        let heads = 16usize;
-        let hd = d / heads;
+        let hd = d / g.heads;
         let scale = (hd as f64).sqrt();
         let mut attended = vec![vec![0.0f64; d]; tokens.len()];
         for t in 0..tokens.len() {
-            for h in 0..heads {
+            for h in 0..g.heads {
                 let off = h * hd;
                 let mut scores = Vec::new();
                 for s in 0..tokens.len() {
@@ -483,9 +649,9 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
             }
         }
 
-        // attn_out is also a real cluster matvec on the attention output.
         let out_label = format!("vf_blk{block}_attn_out");
         if !registered.contains(&out_label) {
+            let dims = linear_dims(&g, &format!("{prefix}.attn_out.weight"))?;
             register_weight(
                 &client,
                 base,
@@ -493,7 +659,7 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
                 opts.artifact,
                 &format!("{prefix}.attn_out.weight"),
                 &out_label,
-                [1024, 1024],
+                dims,
                 opts.data_dir,
             )
             .await?;
@@ -515,21 +681,15 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
             }
         }
 
-        // MLP: ffn_up -> GELU -> ffn_down, all on the cluster; residual scale.
         let normed2: Vec<Vec<f64>> = tokens
             .iter()
             .map(|t| layer_norm(t, &ln2w, &ln2b, 1e-5))
             .collect();
         let up_label = format!("vf_blk{block}_ffn_up");
         let down_label = format!("vf_blk{block}_ffn_down");
-        for label in [&up_label, &down_label] {
+        for (label, name) in [(&up_label, "ffn_up"), (&down_label, "ffn_down")] {
             if !registered.contains(label) {
-                let name = label.trim_start_matches(&format!("vf_blk{block}_"));
-                let dims = if name == "ffn_up" {
-                    [4096, 1024]
-                } else {
-                    [1024, 4096]
-                };
+                let dims = linear_dims(&g, &format!("{prefix}.{name}.weight"))?;
                 register_weight(
                     &client,
                     base,
@@ -577,18 +737,40 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
         }
     }
 
-    // Projector: mm.1 -> GELU -> mm.2 => 2304-dim Inkling-2 vision vector.
-    let proj_specs: [(&str, [u64; 2]); 2] = [("mm.1", [4096, 4096]), ("mm.2", [2304, 4096])];
+    // Projector (geometry-specific names, both Q4_K on the cluster).
     let mut proj_out: Vec<f64> = tokens.iter().flat_map(|t| t.iter().copied()).collect();
-    for (name, dims) in proj_specs {
+    if g.input_norm {
+        let nw = dump_f32(
+            opts.rusty,
+            opts.artifact,
+            "mm.input_norm.weight",
+            opts.scratch,
+        )?;
+        let nb = dump_f32(
+            opts.rusty,
+            opts.artifact,
+            "mm.input_norm.bias",
+            opts.scratch,
+        )?;
+        proj_out = layer_norm(&proj_out, &nw, &nb, 1e-5);
+    }
+    if proj_out.len() != g.proj_in {
+        return Err(format!(
+            "pooled {} floats but projector expects {}",
+            proj_out.len(),
+            g.proj_in
+        ));
+    }
+    for (name, activate) in [(&g.proj_up, true), (&g.proj_down, false)] {
         let label = format!("vf_{}", name.replace('.', "_"));
         if !registered.contains(&label) {
+            let dims = linear_dims(&g, name)?;
             register_weight(
                 &client,
                 base,
                 opts.rusty,
                 opts.artifact,
-                &format!("{name}.weight"),
+                name,
                 &label,
                 dims,
                 opts.data_dir,
@@ -605,8 +787,8 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
             opts.wait_secs,
         )
         .await?;
-        groups.push(json!({"op": name, "label": label, "evidence": ev}));
-        proj_out = if name == "mm.1" {
+        groups.push(json!({"op": name.clone(), "label": label, "evidence": ev}));
+        proj_out = if activate {
             y.into_iter().map(gelu).collect()
         } else {
             y
@@ -618,12 +800,16 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
     let evidence = json!({
         "ok": finite && groups.iter().all(|g| g["evidence"]["max_err_model"].as_f64().unwrap_or(1.0) < 1e-4),
         "artifact": opts.artifact.to_string_lossy(),
-        "blocks": opts.blocks,
-        "tokens": N_TOKENS,
+        "geometry": {
+            "family": g.family.clone(),
+            "embed": g.embed, "heads": g.heads, "ffn": g.ffn,
+            "blocks_total": g.blocks, "blocks_run": blocks, "tokens": g.tokens,
+            "proj_in": g.proj_in, "proj_out": g.proj_out,
+            "projector": [g.proj_up.clone(), g.proj_down.clone()],
+        },
         "shards": opts.shards,
         "vision_dim": proj_out.len(),
-        "finite": finite,
-        "max_abs": max_abs,
+        "finite": finite, "max_abs": max_abs,
         "head": proj_out.iter().take(8).copied().collect::<Vec<_>>(),
         "cluster_ops": groups.len(),
         "route": groups.iter().flat_map(|g| g["evidence"]["route"].as_array().cloned().unwrap_or_default()).collect::<Vec<_>>(),
@@ -631,7 +817,6 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
         "wall_secs": started.elapsed().as_secs(),
         "no_quality_claim": true,
     });
-
     let bench = opts.data_dir.join("vision_q4_forward_bench.jsonl");
     use std::io::Write;
     if let Ok(mut f) = std::fs::OpenOptions::new()
@@ -650,25 +835,32 @@ mod tests {
 
     #[test]
     fn gelu_and_layernorm_are_finite() {
-        assert!((gelu(0.0)).abs() < 1e-12);
+        assert!(gelu(0.0).abs() < 1e-12);
         assert!(gelu(1.0) > 0.0);
-        let out = layer_norm(&[1.0, 2.0, 3.0], &[1.0, 1.0, 1.0], &[0.0; 3], 1e-5);
-        assert_eq!(out.len(), 3);
+        let out = layer_norm(&[1.0, 2.0, 3.0], &[1.0; 3], &[0.0; 3], 1e-5);
         assert!(out.iter().all(|v| v.is_finite()));
     }
 
-    #[tokio::test]
-    async fn rejects_bad_block_count() {
-        let opts = ForwardOpts {
-            artifact: Path::new("x.gguf"),
-            hub: "http://127.0.0.1:9999",
-            data_dir: Path::new("data"),
-            rusty: Path::new("rusty"),
-            scratch: Path::new("target"),
-            blocks: 0,
-            shards: 4,
-            wait_secs: 1,
-        };
-        assert!(report(&opts).await.is_err());
+    #[test]
+    fn geometry_reads_both_projector_families() {
+        let mf = json!({
+            "metadata": [
+                {"key": "clip.vision.attention.head_count", "value": "U32(16)"},
+                {"key": "clip.vision.block_count", "value": "U32(27)"}
+            ],
+            "tensors": [
+                {"name": "v.blk.0.attn_q.weight", "dims": [1152, 1152]},
+                {"name": "v.blk.0.ffn_up.weight", "dims": [1152, 4304]},
+                {"name": "mm.up.weight", "dims": [4608, 4608]},
+                {"name": "mm.down.weight", "dims": [4608, 2048]}
+            ]
+        });
+        let g = geometry(&mf).expect("geometry");
+        assert_eq!(g.embed, 1152);
+        assert_eq!(g.heads, 16);
+        assert_eq!(g.blocks, 27);
+        assert_eq!(g.tokens, 4);
+        assert_eq!(g.proj_out, 2048);
+        assert_eq!(linear_dims(&g, "mm.down.weight").unwrap(), [2048, 4608]);
     }
 }
