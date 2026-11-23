@@ -2376,7 +2376,22 @@ fn reduce_groups(tasks: &[Value], data_dir: &Path) -> Vec<Value> {
             } else {
                 None
             };
-        let reference: Vec<f64> = if prechecked.is_some() {
+        let is_artifact = shard_rows
+            .first()
+            .and_then(|t| t.get("tensor").and_then(Value::as_str))
+            .and_then(|n| crate::boxes::weight_store::tensor_entry(data_dir, n))
+            .map(|e| e.get("source").and_then(Value::as_str) == Some("artifact"))
+            .unwrap_or(false);
+        let reference: Vec<f64> = if is_artifact {
+            // Artifact-backed huge experts: never dequantize the whole tensor
+            // for a UI group summary. Length only; errors come from stamped
+            // per-task max_err_model computed by task_result's streaming path.
+            let rows = shard_rows
+                .first()
+                .and_then(|t| t.get("rows").and_then(Value::as_u64))
+                .unwrap_or(0) as usize;
+            vec![0.0; rows]
+        } else if prechecked.is_some() {
             Vec::new()
         } else if op == "weights_matvec" {
             let tensor_name = shard_rows
