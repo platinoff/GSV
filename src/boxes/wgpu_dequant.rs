@@ -127,6 +127,92 @@ pub fn dequant_q4_k_matvec(
     Some(y)
 }
 
+/// Q6_K block dequant (256 values / 210 bytes): signed 8-bit scales, no min,
+/// value = d * sc * (4-bit nibble | 2-bit high) biased by -32. Faithful port of
+/// rusty-engine `dequant_q6_k`.
+pub fn dequant_q6_k(data: &[u8]) -> Vec<f32> {
+    let mut out = Vec::with_capacity(data.len() / 210 * 256);
+    for b in data.as_chunks::<210>().0 {
+        let d = f16_to_f32(u16::from_le_bytes([b[208], b[209]]));
+        let ql = &b[0..128];
+        let qh = &b[128..192];
+        let sc = &b[192..208];
+        for half in 0..2 {
+            let mut tmp = [0.0f32; 128];
+            let qb = half * 64;
+            let hb = half * 32;
+            let sb = half * 8;
+            for l in 0..32 {
+                let is = l / 16;
+                let q1 = ((ql[qb + l] & 0xF) as i32 | ((qh[hb + l] & 3) as i32) << 4) - 32;
+                let q2 =
+                    ((ql[qb + l + 32] & 0xF) as i32 | (((qh[hb + l] >> 2) & 3) as i32) << 4) - 32;
+                let q3 = ((ql[qb + l] >> 4) as i32 | (((qh[hb + l] >> 4) & 3) as i32) << 4) - 32;
+                let q4 =
+                    ((ql[qb + l + 32] >> 4) as i32 | (((qh[hb + l] >> 6) & 3) as i32) << 4) - 32;
+                tmp[l] = d * sc[sb + is] as i8 as f32 * q1 as f32;
+                tmp[l + 32] = d * sc[sb + is + 2] as i8 as f32 * q2 as f32;
+                tmp[l + 64] = d * sc[sb + is + 4] as i8 as f32 * q3 as f32;
+                tmp[l + 96] = d * sc[sb + is + 6] as i8 as f32 * q4 as f32;
+            }
+            out.extend_from_slice(&tmp);
+        }
+    }
+    out
+}
+
+/// Streaming `y = W*x` for a Q6_K value range, one 210-byte block at a time.
+pub fn dequant_q6_k_matvec(
+    data: &[u8],
+    value_start: usize,
+    value_end: usize,
+    cols: usize,
+    x: &[f64],
+) -> Option<Vec<f64>> {
+    if cols == 0 || x.len() != cols || value_end <= value_start {
+        return None;
+    }
+    let b0 = value_start / 256;
+    let rows = (value_end - value_start).div_ceil(cols);
+    let mut y = vec![0.0f64; rows];
+    let mut idx = 0usize;
+    for b in data.as_chunks::<210>().0 {
+        let d = f16_to_f32(u16::from_le_bytes([b[208], b[209]]));
+        let ql = &b[0..128];
+        let qh = &b[128..192];
+        let sc = &b[192..208];
+        let mut vals = [0f32; 256];
+        for half in 0..2 {
+            let qb = half * 64;
+            let hb = half * 32;
+            let sb = half * 8;
+            for l in 0..32 {
+                let is = l / 16;
+                let q1 = ((ql[qb + l] & 0xF) as i32 | ((qh[hb + l] & 3) as i32) << 4) - 32;
+                let q2 =
+                    ((ql[qb + l + 32] & 0xF) as i32 | (((qh[hb + l] >> 2) & 3) as i32) << 4) - 32;
+                let q3 = ((ql[qb + l] >> 4) as i32 | (((qh[hb + l] >> 4) & 3) as i32) << 4) - 32;
+                let q4 =
+                    ((ql[qb + l + 32] >> 4) as i32 | (((qh[hb + l] >> 6) & 3) as i32) << 4) - 32;
+                vals[l] = d * sc[sb + is] as i8 as f32 * q1 as f32;
+                vals[l + 32] = d * sc[sb + is + 2] as i8 as f32 * q2 as f32;
+                vals[l + 64] = d * sc[sb + is + 4] as i8 as f32 * q3 as f32;
+                vals[l + 96] = d * sc[sb + is + 6] as i8 as f32 * q4 as f32;
+            }
+        }
+        for v in vals {
+            let gi = b0 * 256 + idx;
+            idx += 1;
+            if gi >= value_start && gi < value_end {
+                let r = (gi - value_start) / cols;
+                let c = (gi - value_start) % cols;
+                y[r] += v as f64 * x[c];
+            }
+        }
+    }
+    Some(y)
+}
+
 /// Flatten an N-dim registered tensor into `(rows, cols)` where cols is the
 /// product of all trailing dims. 2D tensors keep their historical meaning;
 /// 3D MoE experts `[rows, d, e]` become `rows x (d*e)` so a `weights_matvec`
@@ -152,6 +238,27 @@ pub fn tensor_is_q4_k(entry: &Value) -> bool {
         .map(|t| t == 12)
         .unwrap_or(false)
         || entry.get("dtype").and_then(Value::as_str) == Some("q4_k")
+}
+
+/// Q6_K type from ggml_type or dtype.
+pub fn tensor_is_q6_k(entry: &Value) -> bool {
+    entry
+        .get("ggml_type")
+        .and_then(Value::as_u64)
+        .map(|t| t == 14)
+        .unwrap_or(false)
+        || entry.get("dtype").and_then(Value::as_str) == Some("q6_k")
+}
+
+/// Bytes-per-value fraction for a registered tensor's quant format.
+fn quant_bpv(entry: &Value) -> (usize, usize) {
+    if tensor_is_q4_k(entry) {
+        (144, 256)
+    } else if tensor_is_q6_k(entry) {
+        (210, 256)
+    } else {
+        (4, 1)
+    }
 }
 
 /// GASV-G22: dequantize only the value range `[value_start, value_end)`.
@@ -184,13 +291,12 @@ pub(crate) fn tensor_raw_range(
     name: &str,
     value_start: usize,
     value_end: usize,
-    q4_k: bool,
+    bpv: (usize, usize),
 ) -> Option<Vec<u8>> {
     use crate::boxes::weight_store::read_chunk;
     let entry = tensor_entry(data_dir, name)?;
     let chunks = entry.get("chunks")?.as_array()?;
-    let (bytes_per_value_num, bytes_per_value_den) =
-        if q4_k { (144usize, 256usize) } else { (4, 1) };
+    let (bytes_per_value_num, bytes_per_value_den) = bpv;
     let lo = value_start * bytes_per_value_num / bytes_per_value_den;
     let hi = value_end.div_ceil(bytes_per_value_den) * bytes_per_value_num;
     let mut out = Vec::new();
@@ -226,17 +332,23 @@ pub fn tensor_f32_range(
     value_end: usize,
 ) -> Option<Vec<f32>> {
     let entry = tensor_entry(data_dir, name)?;
-    let q4 = tensor_is_q4_k(&entry);
-    let raw = tensor_raw_range(data_dir, name, value_start, value_end, q4)?;
-    if tensor_is_q4_k(&entry) {
+    let bpv = quant_bpv(&entry);
+    let raw = tensor_raw_range(data_dir, name, value_start, value_end, bpv)?;
+    if tensor_is_q4_k(&entry) || tensor_is_q6_k(&entry) {
         // tensor_raw_range returned a block-aligned slice; trim using offsets
-        // LOCAL to the first included Q4_K block (256 values / 144 bytes).
+        // LOCAL to the first included K-quant block (256 values).
         const BLK: usize = 256;
         let b0 = value_start / BLK;
         let lo = value_start - b0 * BLK;
         let hi = value_end - b0 * BLK;
-        let full = dequant_q4_k(&raw);
+        let full = if tensor_is_q6_k(&entry) {
+            dequant_q6_k(&raw)
+        } else {
+            dequant_q4_k(&raw)
+        };
         full.get(lo..hi).map(|s| s.to_vec())
+    } else if entry.get("dtype").and_then(Value::as_str) == Some("q6_k") {
+        None
     } else if entry.get("dtype").and_then(Value::as_str) == Some("f32") {
         // tensor_raw_range already sliced to the requested value range.
         Some(
@@ -339,6 +451,30 @@ mod tests {
         for (a, b) in streamed.iter().zip(&expected) {
             assert!((a - b).abs() < 1e-9, "{a} vs {b}");
         }
+    }
+
+    #[test]
+    fn dequant_q6_k_matches_rusty_engine_golden() {
+        // First 210-byte Q6_K block of blk.0.ffn_down_exps.weight from the
+        // full-q4k artifact (offset 732226432). rusty-engine `rusty tensor`
+        // reports first dequant values [0.017808557, -0.0, ..., 0.01263833].
+        let block: Vec<u8> = vec![
+            1, 0, 64, 0, 176, 10, 0, 0, 10, 0, 0, 11, 116, 240, 16, 0, 0, 8, 0, 80, 8, 3, 16, 240,
+            12, 1, 160, 32, 11, 10, 32, 128, 0, 0, 0, 16, 0, 0, 0, 240, 224, 162, 80, 0, 64, 16, 0,
+            176, 7, 0, 228, 28, 64, 0, 0, 0, 0, 0, 154, 0, 112, 0, 32, 96, 0, 6, 11, 4, 80, 9, 0,
+            11, 160, 160, 160, 17, 208, 12, 199, 6, 14, 214, 11, 48, 65, 32, 0, 67, 68, 13, 96, 0,
+            202, 11, 0, 0, 0, 207, 0, 112, 0, 10, 160, 254, 0, 144, 0, 8, 15, 15, 2, 96, 68, 0, 0,
+            0, 176, 80, 141, 0, 9, 64, 0, 241, 209, 0, 0, 54, 168, 162, 170, 234, 154, 168, 170,
+            170, 105, 102, 170, 171, 139, 10, 138, 170, 186, 169, 102, 18, 233, 169, 138, 170, 168,
+            168, 66, 138, 106, 170, 170, 210, 170, 227, 170, 235, 26, 166, 106, 106, 170, 90, 138,
+            128, 170, 169, 169, 98, 165, 138, 138, 162, 152, 234, 38, 58, 146, 232, 170, 158, 34,
+            169, 138, 234, 177, 82, 78, 78, 90, 76, 86, 200, 79, 128, 93, 75, 145, 73, 189, 149,
+            122, 0,
+        ];
+        assert_eq!(block.len(), 210);
+        let out = dequant_q6_k(&block);
+        assert_eq!(out.len(), 256);
+        assert!((out[0] - 0.017808557).abs() < 1e-7, "first {}", out[0]);
     }
 
     #[test]

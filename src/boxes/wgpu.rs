@@ -791,9 +791,19 @@ pub fn weights_matvec_reference_segment(
             tensor,
             value_start,
             value_end,
-            true,
+            (144, 256),
         )?;
         crate::boxes::wgpu_dequant::dequant_q4_k_matvec(&raw, value_start, value_end, cols, x)
+    } else if crate::boxes::wgpu_dequant::tensor_is_q6_k(&entry) {
+        // GASV-G23: Q6_K (256 values / 210 bytes).
+        let raw = crate::boxes::wgpu_dequant::tensor_raw_range(
+            data_dir,
+            tensor,
+            value_start,
+            value_end,
+            (210, 256),
+        )?;
+        crate::boxes::wgpu_dequant::dequant_q6_k_matvec(&raw, value_start, value_end, cols, x)
     } else {
         let floats =
             crate::boxes::wgpu_dequant::tensor_f32_range(data_dir, tensor, value_start, value_end)?;
@@ -3239,6 +3249,27 @@ function dequantQ4K(bytes){const n=Math.floor(bytes.length/144)*256,out=new Floa
     }
   }
   return out;}
+function dequantQ6K(bytes){const n=Math.floor(bytes.length/210)*256,out=new Float32Array(n);let o=0;
+  for(let off=0;off+210<=bytes.length;off+=210){
+    const d=f16ToF32(bytes[off+208]|bytes[off+209]<<8),ql=bytes.subarray(off,off+128),qh=bytes.subarray(off+128,off+192),sc=bytes.subarray(off+192,off+208);
+    const tmp=new Float32Array(128);
+    for(let half=0;half<2;half++){
+      const qb=half*64,hb=half*32,sb=half*8;
+      for(let l=0;l<32;l++){
+        const is=(l/16)|0;
+        const q1=((ql[qb+l]&15)|((qh[hb+l]&3)<<4))-32;
+        const q2=((ql[qb+l+32]&15)|(((qh[hb+l]>>2)&3)<<4))-32;
+        const q3=((ql[qb+l]>>4)|(((qh[hb+l]>>4)&3)<<4))-32;
+        const q4=((ql[qb+l+32]>>4)|(((qh[hb+l]>>6)&3)<<4))-32;
+        tmp[l]=d*(sc[sb+is]<<24>>24)*q1;
+        tmp[l+32]=d*(sc[sb+is+2]<<24>>24)*q2;
+        tmp[l+64]=d*(sc[sb+is+4]<<24>>24)*q3;
+        tmp[l+96]=d*(sc[sb+is+6]<<24>>24)*q4;
+      }
+      out.set(tmp,o);o+=128;
+    }
+  }
+  return out;}
 async function downloadWeightsFlat(tensor,shardId,shards){
   const man=await(await fetch('api/wgpu/weights/manifest')).json();
   if(!man.ok)throw new Error('weights manifest failed');
@@ -3265,14 +3296,14 @@ async function downloadWeightsFlat(tensor,shardId,shards){
   }
   const totalBytes=pieces.reduce((a,p)=>a+p.byteLength,0);
   const flat=new Uint8Array(totalBytes);let off=0;for(const p of pieces){flat.set(p,off);off+=p.byteLength;}
-  const qt=tm.ggml_type!=null?tm.ggml_type:(tm.dtype==='q4_k'?12:0);
+  const qt=tm.ggml_type!=null?tm.ggml_type:(tm.dtype==='q4_k'?12:tm.dtype==='q6_k'?14:0);
   // GASV-G22: dequantize only this shard's value range. For a huge MoE expert
   // this avoids materializing ~1 GB of f32 in the browser.
   const vStart=r0*cols,vEnd=(r0+per)*cols;
   let W;
-  if(qt===12){
-    const BLK=256,BB=144,b0=Math.floor(vStart/BLK),b1=Math.ceil(vEnd/BLK);
-    const full=dequantQ4K(flat.subarray(b0*BB,b1*BB));
+  if(qt===12||qt===14){
+    const BLK=256,BB=qt===14?210:144,b0=Math.floor(vStart/BLK),b1=Math.ceil(vEnd/BLK);
+    const full=qt===14?dequantQ6K(flat.subarray(b0*BB,b1*BB)):dequantQ4K(flat.subarray(b0*BB,b1*BB));
     const lo=vStart-b0*BLK,hi=vEnd-b0*BLK;
     W=full.subarray(lo,hi);
   }else{
@@ -3807,6 +3838,7 @@ mod tests {
             "flat.subarray",
             "downloadWeightsFlat(tensor,shardId,shards)",
             "taskX",
+            "dequantQ6K",
         ] {
             assert!(p.contains(marker), "missing G22 streaming marker: {marker}");
         }
@@ -5384,7 +5416,7 @@ mod tests {
                 "blk.5.ffn_gate_exps.weight",
                 0,
                 256 * 131072,
-                true,
+                (144, 256),
             );
             println!("diag raw={:?}", raw.as_ref().map(|r| r.len()));
         }
