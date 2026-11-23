@@ -34,6 +34,8 @@
 
 All registered products clean, no ahead/behind drift. Host = GSV; others = portable plugins (own `target/`, no kit copy).
 
+**Wiring check (2026-11-23, `cargo xtask products --wiring`):** 14 registered rows — GSV `na` (host) + 13 plugins all `wiring=ok` (including **mesh-node `ok`**). 2 unregistered (`freebeat.ai`, `platinoff-profile`) `na`. The old P6.5 note "wiring ok ×14 + mesh-node missing — owner exception" is **stale**: mesh-node wiring is now `ok`; only its git **remote** is still absent (owner gate), which is a separate matter from kit wiring. HANDOFF P6.5 row updated accordingly.
+
 ## 3. GSV capability delta since FM snapshot (FM was at `28753cf`, now `42b74c6`)
 
 G15–G24 (GASV track) added/advanced:
@@ -48,7 +50,7 @@ G15–G24 (GASV track) added/advanced:
 
 ## 4. Automation gap (SLI, 2026-11-23)
 
-`gsv_sli`: **40 unused**, 4 used (`inventory`, `record-rust`, `record-speed`, `sync`). Existing automation that is declared but not wired into a single gate:
+`gsv_sli` (2026-11-23): **40 unused**, **7 used** (`inventory`, `record-rust`, `record-speed`, `sync`, `eco-check` [new], plus 2 adopted during the 1.100 slice). Existing automation that is declared but not wired into a single gate:
 - `cargo xtask adopt` — portable auto-wire, digest sibling git tree, write registration artifacts (dry-first).
 - `cargo xtask mirrors --check` — skills/kits drift audit (non-zero on drift).
 - `cargo xtask rules-check` — git/fingerprint/vision/registry/ratio drift (hard gates fail).
