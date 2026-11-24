@@ -41,6 +41,10 @@ pub struct ForwardOpts<'a> {
     pub wait_secs: u64,
     /// Optional path for the full vision vector (LE f32) + `<path>.json` manifest.
     pub out: Option<&'a Path>,
+    /// Resume token state from this checkpoint (written after every block).
+    pub resume: Option<&'a Path>,
+    /// Where to write the per-block token checkpoint.
+    pub checkpoint: Option<&'a Path>,
 }
 
 #[derive(Debug, Clone)]
@@ -540,7 +544,25 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
         .map(|t| layer_norm(t, &pre_w, &pre_b, 1e-5))
         .collect();
 
-    for block in 0..blocks {
+    // Checkpoint resume: skip recomputing earlier blocks after a hub restart.
+    let mut start_block = 0usize;
+    if let Some(rp) = opts.resume {
+        let (next, saved) = load_checkpoint(rp)?;
+        if saved.len() != tokens.len() || saved.iter().any(|t| t.len() != d) {
+            return Err(format!(
+                "checkpoint geometry mismatch: {} tokens vs {} / width {d}",
+                saved.len(),
+                tokens.len()
+            ));
+        }
+        if next > blocks {
+            return Err(format!("checkpoint next_block {next} > blocks {blocks}"));
+        }
+        tokens = saved;
+        start_block = next;
+    }
+
+    for block in start_block..blocks {
         let prefix = format!("v.blk.{block}");
         let ln1w = dump_f32(
             opts.rusty,
@@ -770,6 +792,9 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
                     ls2.first().copied().unwrap_or(1.0) as f64 * (down[i] + dn_b[i] as f64);
             }
         }
+        if let Some(cp) = opts.checkpoint {
+            save_checkpoint(cp, block + 1, &tokens)?;
+        }
     }
 
     // Projector (geometry-specific names, both Q4_K on the cluster).
@@ -878,6 +903,8 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
             "projector": [g.proj_up.clone(), g.proj_down.clone()],
         },
         "shards": opts.shards,
+        "resumed_from": opts.resume.map(|p| p.to_string_lossy().to_string()),
+        "checkpoint_next_block": if opts.checkpoint.is_some() { blocks } else { 0 },
         "vision_dim": proj_out.len(),
         "finite": finite, "max_abs": max_abs,
         "head": proj_out.iter().take(8).copied().collect::<Vec<_>>(),
@@ -897,6 +924,45 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
         let _ = writeln!(f, "{}", serde_json::to_string(&evidence).unwrap());
     }
     Ok(evidence)
+}
+
+/// Checkpoint wire: token hidden states after block `block` (next to run).
+pub fn save_checkpoint(path: &Path, block: usize, tokens: &[Vec<f64>]) -> Result<(), String> {
+    let v = json!({
+        "schema": "gsv.vision-checkpoint.v1",
+        "next_block": block,
+        "tokens": tokens,
+        "no_quality_claim": true,
+    });
+    let tmp = path.with_extension("tmp");
+    std::fs::write(&tmp, serde_json::to_string(&v).unwrap())
+        .map_err(|e| format!("checkpoint write: {e}"))?;
+    std::fs::rename(&tmp, path).map_err(|e| format!("checkpoint rename: {e}"))?;
+    Ok(())
+}
+
+pub fn load_checkpoint(path: &Path) -> Result<(usize, Vec<Vec<f64>>), String> {
+    let v: Value = serde_json::from_str(
+        &std::fs::read_to_string(path).map_err(|e| format!("checkpoint read: {e}"))?,
+    )
+    .map_err(|e| format!("checkpoint json: {e}"))?;
+    let block = v["next_block"].as_u64().ok_or("no next_block")? as usize;
+    let tokens: Vec<Vec<f64>> = v["tokens"]
+        .as_array()
+        .ok_or("no tokens")?
+        .iter()
+        .map(|t| -> Result<Vec<f64>, String> {
+            Ok(t.as_array()
+                .ok_or("token is not an array")?
+                .iter()
+                .filter_map(Value::as_f64)
+                .collect())
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    if tokens.is_empty() {
+        return Err("checkpoint has no tokens".to_string());
+    }
+    Ok((block, tokens))
 }
 
 /// Re-evaluate a saved forward result against the hub's authoritative gate
@@ -961,5 +1027,21 @@ mod tests {
         assert_eq!(g.tokens, 4);
         assert_eq!(g.proj_out, 2048);
         assert_eq!(linear_dims(&g, "mm.down.weight").unwrap(), [2048, 4608]);
+    }
+
+    #[test]
+    fn checkpoint_roundtrip() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join(format!(
+                "vision_checkpoint_test_{}.json",
+                std::process::id()
+            ));
+        let tokens = vec![vec![1.0f64, 2.0], vec![3.0, 4.0]];
+        save_checkpoint(&path, 7, &tokens).unwrap();
+        let (block, back) = load_checkpoint(&path).unwrap();
+        assert_eq!(block, 7);
+        assert_eq!(back, tokens);
+        let _ = std::fs::remove_file(&path);
     }
 }
