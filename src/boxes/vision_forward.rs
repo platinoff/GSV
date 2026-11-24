@@ -39,6 +39,8 @@ pub struct ForwardOpts<'a> {
     pub blocks: usize,
     pub shards: usize,
     pub wait_secs: u64,
+    /// Optional path for the full vision vector (LE f32) + `<path>.json` manifest.
+    pub out: Option<&'a Path>,
 }
 
 #[derive(Debug, Clone)]
@@ -826,6 +828,31 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
         } else {
             y
         };
+    }
+
+    // Optional full-vector export for the vision->text bridge. Gitignored mirror/data only.
+    if let Some(out) = opts.out {
+        let bytes: Vec<u8> = proj_out
+            .iter()
+            .flat_map(|v| (*v as f32).to_le_bytes())
+            .collect();
+        std::fs::write(out, &bytes).map_err(|e| format!("vision vector write: {e}"))?;
+        let manifest = json!({
+            "schema": "gsv.vision-prefix.v1",
+            "artifact": opts.artifact.to_string_lossy(),
+            "image": opts.image.map(|p| p.to_string_lossy().to_string()),
+            "family": g.family.clone(),
+            "blocks_run": blocks,
+            "dim": proj_out.len(),
+            "dtype": "f32-le",
+            "bytes": bytes.len(),
+            "sha256": super::weight_store::sha256_hex(&bytes),
+            "no_quality_claim": true,
+            "created_ts": chrono::Utc::now().to_rfc3339(),
+        });
+        let mp = out.with_extension("json");
+        std::fs::write(&mp, serde_json::to_string_pretty(&manifest).unwrap())
+            .map_err(|e| format!("vision manifest write: {e}"))?;
     }
 
     let finite = proj_out.iter().all(|v| v.is_finite());

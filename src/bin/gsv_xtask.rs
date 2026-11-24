@@ -659,7 +659,7 @@ fn main() -> ExitCode {
             let artifact = match flag_value(&args, "--artifact").map(PathBuf::from) {
                 Some(p) => p,
                 None => {
-                    eprintln!("usage: cargo xtask vision-forward --artifact <gguf> [--image <png>] [--blocks N] [--shards N] [--hub URL]");
+                    eprintln!("usage: cargo xtask vision-forward --artifact <gguf> [--image <png>] [--out <f32>] [--blocks N] [--shards N] [--hub URL]");
                     return ExitCode::FAILURE;
                 }
             };
@@ -682,6 +682,7 @@ fn main() -> ExitCode {
                 .and_then(|s| s.parse::<u64>().ok())
                 .unwrap_or(180);
             let image = flag_value(&args, "--image").map(PathBuf::from);
+            let out = flag_value(&args, "--out").map(PathBuf::from);
             let opts = gsv::boxes::vision_forward::ForwardOpts {
                 artifact: &artifact,
                 image: image.as_deref(),
@@ -692,6 +693,7 @@ fn main() -> ExitCode {
                 blocks,
                 shards,
                 wait_secs,
+                out: out.as_deref(),
             };
             let rt = match tokio::runtime::Runtime::new() {
                 Ok(rt) => rt,
