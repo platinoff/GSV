@@ -1,5 +1,7 @@
 # Ecosystem steady state + Rust 1.100 standardization research (2026-11-23)
 
+> **2026-11-24 sync:** this is a dated 2026-11-23 snapshot. Current GSV HEAD `cc7158a` (FM rows 43–49, cargo test 52 suites/0, loc-audit 99.66%, rules-check 5/5, MCP 61 tools), rusty-engine `61bb0ba` (PH-1204 `--vision-prefix`). GASV G25–G42 done — see `GASV_G34_VISION_4BIT_BINDING_2026-11-23.md` and the 2026-11-24 addendum in `GSV_TECH_ROADMAP.md`.
+
 **Scope:** read-only research across the registered GSV environment. Sources: `gsv_products`, `cargo xtask products --state`, `gsv_sli`, `gsv_health`, `rustc +stable --version`, product `rust-toolchain.toml`, GSV docs (`FUNCTION_MANAGEMENT.md`, `GSV_TECH_ROADMAP.md`, `PRODUCTS.md`), `docs/vision/`, GASV G15–G24 evidence.
 
 ## 1. Toolchain (fact)

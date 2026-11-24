@@ -2361,6 +2361,25 @@ Not a versioned band (crate stayed **0.244.0**; PH-S queue не змінювал
 | G22 | Huge Q4_K `g-730` 8/8 shards, `3.47e-18` on #37 | G22 MCP evidence |
 | G23 | Huge Q6_K `g-736` 8/8 shards, `1.73e-18` on [39,37] | G23 MCP evidence |
 | G24 | Durable device_key→peer_id map, stable IDs/metrics across reconnect | `wgpu_peer_ids.json`, `peer_rejoin_after_prune_keeps_durable_id` |
-| Kit gates | rust 1.100.0 · record-rust 0/0 · sync rev 516 next **PH-S3129** · FM rows 43–46 | `FUNCTION_MANAGEMENT.md` §2 |
+| Kit gates | rust 1.100.0 · record-rust 0/0 · **cargo test 52 suites/0** · loc-audit **99.66%** · rules-check **5/5** · sync rev 516 next **PH-S3129** · FM rows 43–49 · HEAD `cc7158a` | `FUNCTION_MANAGEMENT.md` §2 |
 
 **Next:** PH-S3129 (1.100 standardization + eco-check automation, plan above). **Blocked:** G13 (runnable full LLM — owner runtime/RAM + infer/quality). **Not started:** G19 (no safe patch candidate per G17). Canonical artifact remains F32 `25fadfbb…`; 4-bit MoE is a versioned companion.
+
+## Addendum 2026-11-24 — GASV G25–G42: Q4_K vision on cluster
+
+| Ticket | Evidence |
+|---|---|
+| G31 | `gsv_gasv_status` live publish-set state (tool_count 61) |
+| G32 | real Q4_K vision weights on Min: `g-739 1.39e-17`, `g-740 6.94e-18` |
+| G33 | result bus `GET /api/wgpu/task/result?group=<id>` + `vision-forward` (1/3 blocks) |
+| G34 | versioned binding of 4-bit text core + 2048/2304 Q4_K vision companions |
+| G35 | full 23/23 Inkling-2 Q4_K forward: 557 cluster ops, 2304-dim, 7583 s |
+| G36 | 2048-dim vision forward on single peer `#37` |
+| G37 | real PNG patch input (`--image`), 29 ops, 2304-dim, 252 s |
+| G38 | cross-artifact tensor-label collision fix (`partial length mismatch`) |
+| G39 | full 27/27 geometry-matched 2048 forward with real PNG: 653 ops, 6559 s |
+| G40 | 1B geometry match 1024 + rusty-engine PH-1204 `--vision-prefix` plumbing (`61bb0ba`) |
+| G41 | `--checkpoint/--resume`; checkpoint reached 18/27 before RAM block |
+| G42 | dropped-partial retry + automation `aut_20e65ced2001Kt1aKXZ0aZaSpk` |
+
+Vision companions: `gsv-versus-ai-vision-q4k.gguf` (2048), `inkling2-vision-q4k.gguf` (2304), `minicpm1b-vision-q4k.gguf` (1024) in `L:/gsv_mirror/models/gsv-versus-ai/`. No image→answer/quality claim (PH-1204/1205, G13 open). Owner note: `docs/gsv/research/OWNER_NOTE_2026-11-23_4BIT_VISION_CLUSTER.md`.

@@ -224,7 +224,7 @@ Cursor (this kit folder only):
 ```
 
 OpenCode / Grok: stdio `target/live/gsv-mcp.exe` (copied by `cargo xtask live`).
-`GET /mcp` → `tool_count` 59, `gsv://` resources include **`gsv://docs/agi-path`**.
+`GET /mcp` → `tool_count` 61, `gsv://` resources include **`gsv://docs/agi-path`**.
 If `version_lag` or `catalog_stale`: owner `POST /api/update/apply` / restart Cursor.
 
 Keep-live (`gsv_keep_live`): GSV + Telenetis + llama-rs **up**; OmniRoute **down**

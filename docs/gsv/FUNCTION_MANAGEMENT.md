@@ -1,6 +1,6 @@
 # FUNCTION_MANAGEMENT.md — GSV (мама, хаб)
 
-**Status:** Canon, adapted 2026-11-23 @ HEAD `42b74c6` (toolchain rust 1.100.0; owner ratified 2026-11-17, steady-state sync 2026-11-23) · **Owner:** platinoff
+**Status:** Canon, adapted 2026-11-24 @ HEAD `cc7158a` (toolchain rust 1.100.0; owner ratified 2026-11-17, GASV G32–G42 vision slice synced 2026-11-24) · **Owner:** platinoff
 **Компаньйони:** [`GSV_FUNCTION_MANAGEMENT.md`](./GSV_FUNCTION_MANAGEMENT.md) (майстер-матриця) · [`GSV_ECOSYSTEM_SYMBIOSIS.md`](./GSV_ECOSYSTEM_SYMBIOSIS.md) (мама/тато) · [`PRODUCTS.md`](./PRODUCTS.md)
 **Шар:** мама — операційний план екосистеми (хаб). poolAI (тато-план, FM) очолює управління; цей файл — функційний реєстр GSV.
 
@@ -13,12 +13,12 @@
 
 Статуси: **І** Implemented (тест/гейт) · **P** Partial (є API, wire неповний) · **S** Declared (реалізовано, немає виділеного контрактного тесту) · **G** Concept-only.
 
-## 1. Функції GSV (звірено з деревом @ 2026-11-17, HEAD `28753cf`)
+## 1. Функції GSV (звірено з деревом @ 2026-11-24, HEAD `cc7158a`)
 
 | # | Функція | Модуль | Статус | Звірка |
 |---|---------|--------|--------|--------|
 | 1 | HTTP router / AppState / hardened headers (CSP, nosniff, 256 KiB body cap, LAN gate `--allow-lan`) | `server/mod.rs`, `server/serve.rs`, `lib.rs` | І | `tests/gsv_server_contracts.rs`, `tests/gsv_security_contracts.rs` |
-| 2 | MCP server (stdio `gsv-mcp` + `/mcp` HTTP/SSE sessions), 60 tools, resources/prompts, `catalog_stale` lockstep | `mcp.rs` | І | `tests/gsv_mcp_contracts.rs` |
+| 2 | MCP server (stdio `gsv-mcp` + `/mcp` HTTP/SSE sessions), 61 tools (from `GET /mcp`), resources/prompts, `catalog_stale` lockstep | `mcp.rs` | І | `tests/gsv_mcp_contracts.rs` |
 | 3 | Galaxy UI — SPA + Rust-rendered cards (`/api/ui/card/<n>`), theme vars, dock/fullscreen, ERROR ring (`ui_errors`) | `ui.rs`, `ui/index.html`, `boxes/ui_errors.rs` | І | `tests/gsv_ui_contracts.rs` |
 | 4 | Tickets board (claim/done/error/reclaim, lease 300s, federated presence/claim/done/reclaim) | `boxes/tickets.rs` | І | `tests/gsv_tickets_contracts.rs` |
 | 5 | Ranks / Godfather merit ladder (L0–L15, peak, decay, grace-held) | `boxes/ranks.rs` | І | `tests/gsv_ranks_contracts.rs` |
@@ -62,20 +62,25 @@
 | 43 | Artifact-backed WGPU weight lane: 122/122 huge MoE tensors range-read from the 21 GB 4-bit artifact, no weight duplication (4698 artifact-source keys) | `boxes/wgpu.rs`, `boxes/wgpu_dequant.rs`, `boxes/weight_store.rs` | І | `tests/gsv_wgpu_contracts.rs` + `boxes::wgpu_dequant` unit tests; canaries g-721/g-730/g-736 |
 | 44 | Q4_K + Q6_K streaming dequant with golden parity vs rusty-engine oracle (0.0072112083 / 0.017808557); compact `x_spec` tasks + `MAX_TASKS=32` + `spawn_blocking`/`Semaphore(2)` | `boxes/wgpu_dequant.rs` (7 unit tests), `boxes/wgpu.rs` | І | `boxes::wgpu_dequant` 7 tests + 65 wgpu tests, clippy `-D warnings` green |
 | 45 | Durable peer identity `wgpu_peer_ids.json` (device_key→peer_id, never pruned; stable IDs/logging/metrics across reconnect) | `boxes/wgpu.rs` (`peer_join`), `data/wgpu_peer_ids.json` | І | `tests/gsv_wgpu_contracts.rs::peer_rejoin_after_prune_keeps_durable_id` + reuse test |
-| 46 | Versioned 4-bit MoE companion in mirror `publish.json` (`gsv-versus-ai-full-q4k.gguf` 733 tensors, sha256 `2f37d609…`), canonical F32 unchanged | `docs/gsv/research/GASV_G20_ARTIFACT_WEIGHT_LANE_2026-11-22.md`, mirror publish-set | І (docs/evidence) | `docs/gsv/research/GASV_G15_FITNESS_SCORECARD_2026-11-22.md` + G20–G23 MCP evidence |
+| 46 | Versioned 4-bit MoE companion in mirror `publish.json` (`gsv-versus-ai-full-q4k.gguf` 733 tensors, sha256 `2f37d609…`), canonical F32 unchanged; three Q4_K vision companions (2048/2304/1024) bound as versioned set | `docs/gsv/research/GASV_G20_ARTIFACT_WEIGHT_LANE_2026-11-22.md`, mirror publish-set | І (docs/evidence) | `docs/gsv/research/GASV_G15_FITNESS_SCORECARD_2026-11-22.md` + G20–G23, G34/G39 evidence |
+| 47 | Vision-block forward orchestrator: result bus `GET /api/wgpu/task/result?group=<id>` + `cargo xtask vision-forward` (all linear layers via `weights_matvec`, hub keeps norms/softmax/GELU) | `boxes/wgpu.rs`, `boxes/vision_forward.rs`, `server/mod.rs`, `bin/gsv_xtask.rs` | І | `tests/gsv_wgpu_contracts.rs::group_results_returns_ordered_verified_partials`; full 23/23 (557 ops, 2304-dim) + 27/27 (653 ops, 2048-dim) forwards |
+| 48 | Real PNG image input (`flate2` decoder, patchify per manifest) + full-vector export `--out` with `gsv.vision-prefix.v1` manifest | `boxes/image_input.rs`, `boxes/vision_forward.rs` | І | unit `decodes_rgb_png_and_patchifies`; live 1-block PNG forward 29 ops / 2304-dim, 252 s |
+| 49 | Checkpoint/resume `gsv.vision-checkpoint.v1` (`--checkpoint/--resume`) + dropped-partial retry + scheduled resume automation | `boxes/vision_forward.rs` (`save_checkpoint`/`load_checkpoint`/`matvec_inner`), `aut_20e65ced2001Kt1aKXZ0aZaSpk` | І | unit checkpoint roundtrip; live stages 4/8/12/15/18, checkpoint `next_block=18/27` |
 
-## 2. Гейти (2026-11-23 steady state)
+## 2. Гейти (2026-11-24 steady state)
 
 - Toolchain: rustc/cargo **1.100.0** stable (`stable-x86_64-pc-windows-gnu` pin on 11 products; host-agnostic `stable` on adoreble_wifi/mesh-node; omniroute no pin, policy-down). `RUSTUP_TOOLCHAIN` unset.
-- `cargo xtask record-rust` — **warnings=0 errors=0** @ HEAD `42b74c6`.
+- `cargo xtask record-rust` — **warnings=0 errors=0** @ HEAD `cc7158a`.
 - `cargo clippy --all-targets -- -D warnings` — green (65 wgpu + 7 dequant tests green after GASV track).
 - `cargo xtask record-speed --skip-run` — ok (останній повний `cargo test` 518s, exit 0).
 - `cargo fmt --all -- --check` — ok.
-- `gsv-loc-audit --stretch-96` → **99.65%** (rust 71158 / product 71408, виміряно 2026-11-23; Rust-first ≥ 95% ✅).
+- `gsv-loc-audit --stretch-96` → **99.66%** (виміряно 2026-11-24; rust 73150 / product 73400; Rust-first ≥ 95% ✅).
+- `cargo test -q` → **52 suites / 0 failed**; `cargo xtask rules-check` → **5/5**; `cargo xtask sync` rev **516**, next **PH-S3129**.
 - `cargo xtask mirrors --check` → **ok** (canon `.agents/skills` == `.cursor/skills` + `.opencode/skills`).
 - `cargo xtask fingerprint-recheck` → advisory: historical `unknown_model`/`missing_band` rows 148–150 (2026-11-15), `missing_band` on `eae0003` (fingerprint без `--band`), 1 duplicate line 89 (0.232.0). Не hard gate; не чіпаємо без owner/drain-кроку.
 - Vision rev (canonical) — **516**, next **PH-S3129**; `sync` green.
-- 4-bit MoE canaries: g-721 `6.94e-18`, g-730 `3.47e-18`, g-736 `1.73e-18` (all < 1e-4); 122/122 huge experts addressable; no runnable-full-LLM/quality claim (G13 blocked).
+- 4-bit MoE canaries: g-721 `6.94e-18`, g-730 `3.47e-18`, g-736 `1.73e-18` (all < 1e-4); 122/122 huge experts addressable.
+- Q4_K vision canaries g-739 `1.39e-17`, g-740 `6.94e-18`; full vision forwards 23/23 (557 cluster ops, 2304-dim) and 27/27 (653 ops, 2048-dim, real PNG). No runnable-full-LLM/quality claim (G13 blocked).
 
 ## 3. Дублі / межі
 
@@ -94,6 +99,7 @@
 7. Поверхня host-ага (куплена одиниця): раскачування backup/sync кодексу — не в GSV.
 8. PoolAI CI runner — поза цим репо; коли з'явиться — GSV не блокується.
 9. **G19** (Astra-style weight patch) — не стартувати: G17 не знайшов безпечного кандидата (ability-gap, не obstacle-gap).
+10. **Vision→text resume (2026-11-24)**: automation `aut_20e65ced2001Kt1aKXZ0aZaSpk` продовжує 1B Q4_K проектор із checkpoint `next_block=18/27`; блокує RAM хоста (perіодичні падіння хаба, watchdog відновлює). Після повного 1024-вектора — PH-1205 multimodal serve + G13. Жодного image→answer/quality-claim.
 
 ## 5. Як агенти користуються
 
