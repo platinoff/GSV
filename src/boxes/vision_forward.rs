@@ -315,6 +315,21 @@ async fn matvec(
     shards: usize,
     wait_secs: u64,
 ) -> Result<(Vec<f64>, Value), String> {
+    matvec_inner(client, base, label, x, shards, wait_secs, 0).await
+}
+
+/// Peer pages occasionally drop a partial (empty `partial` / failed shard).
+/// Re-enqueue a fresh group instead of waiting out the full timeout; the
+/// checkpoint makes each attempt cheap to redo.
+async fn matvec_inner(
+    client: &reqwest::Client,
+    base: &str,
+    label: &str,
+    x: &[f64],
+    shards: usize,
+    wait_secs: u64,
+    attempt: usize,
+) -> Result<(Vec<f64>, Value), String> {
     let enq = post(
         client,
         &format!("{base}/api/wgpu/task/enqueue"),
@@ -344,9 +359,37 @@ async fn matvec(
                 break;
             }
         }
+        // A failed shard never completes — retry now instead of waiting out
+        // the full window on a group that is already dead.
+        let failed = mesh["tasks"]
+            .as_array()
+            .map(|ts| {
+                ts.iter()
+                    .any(|t| t["group_id"] == group_id && t["status"].as_str() == Some("failed"))
+            })
+            .unwrap_or(false);
+        if failed {
+            break;
+        }
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
+    let retry = |attempt: usize| async move {
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        Box::pin(matvec_inner(
+            client,
+            base,
+            label,
+            x,
+            shards,
+            wait_secs,
+            attempt + 1,
+        ))
+        .await
+    };
     if evidence.is_null() {
+        if attempt < 2 {
+            return retry(attempt).await;
+        }
         return Err(format!("group {group_id} did not complete in {wait_secs}s"));
     }
     let resp = client
@@ -356,7 +399,10 @@ async fn matvec(
         .map_err(|e| format!("result read: {e}"))?;
     let results: Value = resp.json().await.map_err(|e| format!("result json: {e}"))?;
     let rows = results["results"].as_array().ok_or("no results")?;
-    if rows.len() != shards {
+    if rows.len() != shards || rows.iter().any(|r| r["partial"].is_null()) {
+        if attempt < 2 {
+            return retry(attempt).await;
+        }
         return Err(format!(
             "group {group_id}: {} rows, expected {shards}",
             rows.len()
