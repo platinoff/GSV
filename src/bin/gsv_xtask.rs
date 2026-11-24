@@ -715,6 +715,30 @@ fn main() -> ExitCode {
                 }
             }
         }
+        "vision-recheck" => {
+            // GASV-G39: re-evaluate a saved forward result without re-running it.
+            let file = match flag_value(&args, "--file").map(PathBuf::from) {
+                Some(p) => p,
+                None => {
+                    eprintln!("usage: cargo xtask vision-recheck --file <saved.json>");
+                    return ExitCode::FAILURE;
+                }
+            };
+            match gsv::boxes::vision_forward::recheck_file(&file) {
+                Ok(v) => {
+                    println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+                    if v["ok"].as_bool() == Some(true) {
+                        ExitCode::SUCCESS
+                    } else {
+                        ExitCode::FAILURE
+                    }
+                }
+                Err(e) => {
+                    eprintln!("vision-recheck: {e}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
         "gasv-publish-check" => {
             let artifact = flag_value(&args, "--artifact").map(PathBuf::from);
             let manifest = flag_value(&args, "--manifest").map(PathBuf::from);

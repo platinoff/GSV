@@ -134,6 +134,10 @@ pub const TASKS: &[(&str, &str)] = &[
         "GASV-G33/G37: Q4_K vision-block forward on the Min cluster, optional real PNG patch input (all linear layers via weights_matvec; hub keeps norms/attention/GELU); persists routing/benchmark in data/ (`--artifact`, `--image`, `--blocks`, `--shards`, `--hub`)",
     ),
     (
+        "vision-recheck",
+        "GASV-G39: re-evaluate a saved vision-forward result against the hub gate (1e-2) and the stricter proof gate (1e-4) without rerunning the cluster job (`--file <saved.json>`)",
+    ),
+    (
         "gasv-publish-check",
         "Read-only GASV D4 dry-run: validate artifact+manifest+sha256 and report planned mirror publish destination (no copy, no git weights)",
     ),

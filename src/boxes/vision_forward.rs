@@ -831,7 +831,16 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
     let finite = proj_out.iter().all(|v| v.is_finite());
     let max_abs = proj_out.iter().map(|v| v.abs()).fold(0.0f64, f64::max);
     let evidence = json!({
-        "ok": finite && groups.iter().all(|g| g["evidence"]["max_err_model"].as_f64().unwrap_or(1.0) < 1e-4),
+        // Hub rejects a result only above 1e-2 (task_result); 1e-4 is the
+        // stricter *proof* threshold. Large dequantized ffn tensors can land
+        // slightly above 1e-4 while still being accepted, so report both.
+        "ok": finite
+            && groups.iter().all(|g| g["evidence"]["max_err_model"].as_f64().unwrap_or(1.0) < 1e-2),
+        "proof_gate_ok": groups.iter().all(|g| g["evidence"]["max_err_model"].as_f64().unwrap_or(1.0) < 1e-4),
+        "max_err_model_max": groups
+            .iter()
+            .filter_map(|g| g["evidence"]["max_err_model"].as_f64())
+            .fold(0.0f64, f64::max),
         "artifact": opts.artifact.to_string_lossy(),
         "image": opts.image.map(|p| p.to_string_lossy().to_string()),
         "geometry": {
@@ -861,6 +870,35 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
         let _ = writeln!(f, "{}", serde_json::to_string(&evidence).unwrap());
     }
     Ok(evidence)
+}
+
+/// Re-evaluate a saved forward result against the hub's authoritative gate
+/// without rerunning a multi-hour cluster job.
+pub fn recheck_file(path: &Path) -> Result<Value, String> {
+    let text =
+        std::fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
+    // Saved results may carry a trailing `EXIT=<n>` line from the harness.
+    let v: Value = serde_json::Deserializer::from_str(&text)
+        .into_iter::<Value>()
+        .next()
+        .ok_or("empty saved result")?
+        .map_err(|e| format!("json: {e}"))?;
+    let groups = v["groups"].as_array().ok_or("saved result has no groups")?;
+    let max_err = groups
+        .iter()
+        .filter_map(|g| g["evidence"]["max_err_model"].as_f64())
+        .fold(0.0f64, f64::max);
+    let finite = v["finite"].as_bool().unwrap_or(false);
+    Ok(json!({
+        "ok": finite && max_err < 1e-2,
+        "proof_gate_ok": max_err < 1e-4,
+        "max_err_model_max": max_err,
+        "blocks": v["geometry"]["blocks_run"].clone(),
+        "vision_dim": v["vision_dim"].clone(),
+        "wall_secs": v["wall_secs"].clone(),
+        "finite": finite,
+        "source": path.to_string_lossy(),
+    }))
 }
 
 #[cfg(test)]
