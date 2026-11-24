@@ -485,6 +485,22 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
     let mut groups: Vec<Value> = Vec::new();
     let started = Instant::now();
 
+    // Resume BEFORE patch embeddings: the 588-col reshape patch tensor is the
+    // flakiest op on the peer, and a checkpoint already holds post-block state.
+    let mut start_block = 0usize;
+    let mut resumed_tokens: Option<Vec<Vec<f64>>> = None;
+    if let Some(rp) = opts.resume {
+        let (next, saved) = load_checkpoint(rp)?;
+        if saved.is_empty() || saved.iter().any(|t| t.len() != d) {
+            return Err(format!("checkpoint token width mismatch (want {d})"));
+        }
+        if next > blocks {
+            return Err(format!("checkpoint next_block {next} > blocks {blocks}"));
+        }
+        start_block = next;
+        resumed_tokens = Some(saved);
+    }
+
     let pre_w = dump_f32(
         opts.rusty,
         opts.artifact,
@@ -522,50 +538,53 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
         opts.scratch,
     )?;
 
-    // Patch embeddings: real PNG patches when provided, else a flat 0.5 probe.
-    let patch_name = "v.patch_embd.weight";
-    let patch_label = format!("{tag}_patch_embd");
-    register_weight(
-        &client,
-        base,
-        opts.rusty,
-        opts.artifact,
-        patch_name,
-        &patch_label,
-        [
-            d as u64,
-            (g.dims[patch_name].iter().product::<u64>()) / d as u64,
-        ],
-        opts.data_dir,
-    )
-    .await?;
-    registered.insert(patch_label.to_string());
-    let patch_in = (g.dims[patch_name].iter().product::<u64>()) / d as u64;
-    let patch_inputs: Vec<Vec<f64>> = if let Some(image) = opts.image {
-        let img = super::image_input::decode_png(image)?;
-        super::image_input::patch_tokens(&img, g.image_size, g.patch_size, g.tokens - 1)?
-    } else {
-        vec![vec![0.5f64; patch_in as usize]; g.tokens - 1]
-    };
+    // Patch embeddings only for a fresh run; a resumed checkpoint already
+    // carries the token state after its last completed block.
     let mut patch_embeds: Vec<Vec<f64>> = Vec::new();
-    for input in &patch_inputs {
-        let (patch, ev) = matvec(
+    if start_block == 0 {
+        let patch_name = "v.patch_embd.weight";
+        let patch_label = format!("{tag}_patch_embd");
+        register_weight(
             &client,
             base,
+            opts.rusty,
+            opts.artifact,
+            patch_name,
             &patch_label,
-            input,
-            opts.shards,
-            opts.wait_secs,
+            [
+                d as u64,
+                (g.dims[patch_name].iter().product::<u64>()) / d as u64,
+            ],
+            opts.data_dir,
         )
         .await?;
-        groups.push(json!({"op": "patch_embd", "label": patch_label, "evidence": ev}));
-        patch_embeds.push(
-            patch
-                .iter()
-                .enumerate()
-                .map(|(i, v)| *v + patch_bias_v[i] as f64)
-                .collect(),
-        );
+        registered.insert(patch_label.to_string());
+        let patch_in = (g.dims[patch_name].iter().product::<u64>()) / d as u64;
+        let patch_inputs: Vec<Vec<f64>> = if let Some(image) = opts.image {
+            let img = super::image_input::decode_png(image)?;
+            super::image_input::patch_tokens(&img, g.image_size, g.patch_size, g.tokens - 1)?
+        } else {
+            vec![vec![0.5f64; patch_in as usize]; g.tokens - 1]
+        };
+        for input in &patch_inputs {
+            let (patch, ev) = matvec(
+                &client,
+                base,
+                &patch_label,
+                input,
+                opts.shards,
+                opts.wait_secs,
+            )
+            .await?;
+            groups.push(json!({"op": "patch_embd", "label": patch_label, "evidence": ev}));
+            patch_embeds.push(
+                patch
+                    .iter()
+                    .enumerate()
+                    .map(|(i, v)| *v + patch_bias_v[i] as f64)
+                    .collect(),
+            );
+        }
     }
     let mut tokens: Vec<Vec<f64>> = Vec::with_capacity(g.tokens);
     tokens.push(
@@ -589,23 +608,8 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
         .iter()
         .map(|t| layer_norm(t, &pre_w, &pre_b, 1e-5))
         .collect();
-
-    // Checkpoint resume: skip recomputing earlier blocks after a hub restart.
-    let mut start_block = 0usize;
-    if let Some(rp) = opts.resume {
-        let (next, saved) = load_checkpoint(rp)?;
-        if saved.len() != tokens.len() || saved.iter().any(|t| t.len() != d) {
-            return Err(format!(
-                "checkpoint geometry mismatch: {} tokens vs {} / width {d}",
-                saved.len(),
-                tokens.len()
-            ));
-        }
-        if next > blocks {
-            return Err(format!("checkpoint next_block {next} > blocks {blocks}"));
-        }
+    if let Some(saved) = resumed_tokens {
         tokens = saved;
-        start_block = next;
     }
 
     for block in start_block..blocks {
