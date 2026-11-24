@@ -116,7 +116,7 @@ proof-поріг 1e-4, але **нижче за авторитетний пор�
   `matvec_inner` тепер робить до 3 спроб: бачить failed-шард у `mesh.tasks`
   одразу, переставляє нову групу, а також повторює при коротких partial.
   Щоб не чекати ручного запуску, створено automation
-  `aut_20e65ced2001Kt1aKXZ0aZaSpk` (кожні 20 хв, expires 8 год; замінила
+  `aut_20ed16930001BQfnRJtPimxtkS` (кожні 20 хв, expires 8 год, fast-fail 180 c; замінила
   shell-автоматизацію, яку зламав PowerShell quoting): вона читає
   `next_block` із checkpoint, відновлює по 3 блоки й пише повний 1024-вектор
   у `vision_prefix_1024_full.f32`, зупиняючись на блоці 27. Лог —
