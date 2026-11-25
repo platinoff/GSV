@@ -165,3 +165,4 @@
 {"ts":"2026-11-24T16:32:08Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"d1a9415","band":"248","summary":"GASV-G42_automation_prompt_fix","product":"gsv"}
 {"ts":"2026-11-24T16:55:12Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"cc7158a","band":"248","summary":"docs_sync_2026-11_24_ecosystem_state","product":"gsv"}
 {"ts":"2026-11-24T18:28:15Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"8848f1b","band":"248","summary":"GASV-G42_resume_skips_patch_embedding","product":"gsv"}
+{"ts":"2026-11-25T13:19:51Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"8f9f897","band":"248","summary":"GASV-G42_firefox_worker_gpu_wasm_oom_guard","product":"gsv"}

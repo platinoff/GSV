@@ -3414,24 +3414,42 @@ async function buildWeightsMatvec(device,tensor,shardId,shards){
   return CACHE[key];
 }
 const WASM_W_CACHE={};
+function clearWasmWeightCache(){
+  for(const k of Object.keys(WASM_W_CACHE)){
+    const e=WASM_W_CACHE[k];
+    try{if(e&&e.ptr&&e.bytes&&WASM.inst&&WASM.inst.mesh_free)WASM.inst.mesh_free(e.ptr,e.bytes);}catch(err){}
+    delete WASM_W_CACHE[k];
+  }
+}
 async function runWeightsMatvecWasm(tensor,shardId,shards,xArr){
+  // Firefox: a stale/full WASM linear memory makes Float32Array views throw
+  // "RangeError: invalid or out-of-range index". Drop cached shards before
+  // allocating, and retry once from a clean state.
+  for(let attempt=0;attempt<2;attempt++){
+    try{return await runWeightsMatvecWasmOnce(tensor,shardId,shards,xArr,attempt);}
+    catch(e){
+      log('wasm weights_matvec attempt '+attempt+' failed: '+String(e).slice(0,120));
+      clearWasmWeightCache();
+      if(attempt===1)throw e;
+    }
+  }
+  throw new Error('wasm weights_matvec unreachable');
+}
+async function runWeightsMatvecWasmOnce(tensor,shardId,shards,xArr,attempt){
   const t0=performance.now();
   if(!(await loadMeshWasm()))throw new Error('wasm mesh unavailable');
   const wkey=tensor+'#'+(shardId|0)+'#'+(shards|0);
   let entry=WASM_W_CACHE[wkey];
   const reused=!!entry;
   if(!entry){
-    // GASV-G22: free any other shard of this tensor before allocating — 8
-    // cached shards would hold ~1 GB in WASM memory and crash the page.
-    for(const k of Object.keys(WASM_W_CACHE)){
-      if(k.startsWith(tensor+'#')){
-        try{WASM.inst.mesh_free(WASM_W_CACHE[k].ptr,WASM_W_CACHE[k].bytes);}catch(e){}
-        delete WASM_W_CACHE[k];
-      }
-    }
+    // GASV-G22/G42: free cached shards before allocating — several cached
+    // shards can fill WASM linear memory and crash the Firefox worker.
+    clearWasmWeightCache();
     // GASV-G22: cache only this shard's dequantized rows, not the whole tensor.
     const flat=await downloadWeightsFlat(tensor,shardId,shards);
+    if(attempt>0)log('wasm retry: reduced cache for '+tensor+' '+flat.rows+'x'+flat.cols);
     const wptr=WASM.inst.mesh_alloc(flat.W.byteLength); if(!wptr)throw new Error('wasm alloc tensor failed');
+    if(wptr+flat.W.byteLength>WASM.inst.memory.buffer.byteLength){WASM.inst.mesh_free(wptr,flat.W.byteLength);throw new Error('wasm tensor exceeds linear memory');}
     new Float32Array(WASM.inst.memory.buffer,wptr,flat.W.length).set(flat.W);
     entry={ptr:wptr,rows:flat.rows,cols:flat.cols,bytes:flat.W.byteLength,r0:flat.r0};
     WASM_W_CACHE[wkey]=entry;
@@ -3440,9 +3458,11 @@ async function runWeightsMatvecWasm(tensor,shardId,shards,xArr){
   const per=entry.rows;
   const cols=entry.cols, xBytes=cols*4;
   const xptr=WASM.inst.mesh_alloc(xBytes); if(!xptr)throw new Error('wasm alloc x failed');
+  if(xptr+xBytes>WASM.inst.memory.buffer.byteLength){WASM.inst.mesh_free(xptr,xBytes);throw new Error('wasm x exceeds linear memory');}
   const xb=new Float32Array(WASM.inst.memory.buffer,xptr,cols);
   for(let i=0;i<cols;i++)xb[i]=xArr&&xArr[i]?xArr[i]:0;
   const yptr=WASM.inst.mesh_alloc(per*4); if(!yptr){WASM.inst.mesh_free(xptr,xBytes);throw new Error('wasm alloc y failed');}
+  if(yptr+per*4>WASM.inst.memory.buffer.byteLength){WASM.inst.mesh_free(xptr,xBytes);WASM.inst.mesh_free(yptr,per*4);throw new Error('wasm y exceeds linear memory');}
   WASM.inst.mesh_matvec_partial(entry.ptr,xptr,yptr,per,cols,0,cols);
   const y=wasmDownload(yptr,per);
   WASM.inst.mesh_free(xptr,xBytes); WASM.inst.mesh_free(yptr,per*4);
@@ -3453,10 +3473,23 @@ async function runWeightsMatvecWasm(tensor,shardId,shards,xArr){
   return {ok:true,adapter:'wasm-simd128',elapsed_ms:Math.round(total*100)/100,max_err:0,iters:1,mflops:Math.round(mflops*100)/100,ops_per_sec:Math.round(opsPerSec*100)/100,device_reused:reused,partial:Array.from(y),wasm:true};
 }
 function taskX(task){if(Array.isArray(task.x))return task.x;const s=task.x_spec||'';const p=s.split(':');if(p[0]!=='onehot')return[];const i=parseInt(p[1],10)||0,n=parseInt(p[2],10)||0;if(n<=0||i>=n)return[];const a=new Array(n).fill(0);a[i]=1;return a;}
+function clearGpuCache(){
+  for(const k of Object.keys(CACHE)){
+    const r=CACHE[k];
+    try{if(r.read)r.read.destroy();if(r.out)r.out.destroy();if(r.xBuf)r.xBuf.destroy();if(r.wBuf)r.wBuf.destroy();if(r.device&&r.device.destroy)r.device.destroy();}catch(e){}
+    delete CACHE[k];
+  }
+}
 async function runWeightsMatvec(tensor,shardId,shards,xArr){
   if(navigator.gpu){
-    try{ return await runWeightsMatvecGpu(tensor,shardId,shards,xArr); }
-    catch(e){ log('weights_matvec WebGPU failed: '+String(e).slice(0,90)+' — WASM SIMD fallback'); }
+    for(let attempt=0;attempt<2;attempt++){
+      try{return await runWeightsMatvecGpu(tensor,shardId,shards,xArr);}
+      catch(e){
+        log('weights_matvec WebGPU failed (attempt '+attempt+'): '+String(e).slice(0,90));
+        clearGpuCache();
+        if(attempt===1)log('WebGPU exhausted — WASM SIMD fallback');
+      }
+    }
   }
   return runWeightsMatvecWasm(tensor,shardId,shards,xArr);
 }
@@ -3464,7 +3497,12 @@ async function runWeightsMatvecGpu(tensor,shardId,shards,xArr){
   const key='weights_matvec#'+tensor+'#'+shardId+'#'+shards;
   const reused=!!CACHE[key];
   let r=CACHE[key];
-  if(!r){const adapter=await navigator.gpu.requestAdapter();const device=await adapter.requestDevice();r=await buildWeightsMatvec(device,tensor,shardId||0,shards||2);}
+  if(!r){
+    const adapter=await navigator.gpu.requestAdapter();
+    if(!adapter)throw new Error('no WebGPU adapter');
+    const device=await adapter.requestDevice();
+    r=await buildWeightsMatvec(device,tensor,shardId||0,shards||2);
+  }
   const xb=new Float32Array(xArr.length);for(let i=0;i<xArr.length;i++)xb[i]=xArr[i];
   r.device.queue.writeBuffer(r.xBuf,0,xb);
   const enc=r.device.createCommandEncoder();const pass=enc.beginComputePass();
@@ -3577,9 +3615,11 @@ setInterval(postTelemetry,5000);
 async function startWorker(){
   if(WORKER){log('worker already running');return;}
   minilmSteps=0;
-  if(!navigator.gpu){setCap('no navigator.gpu — worker cannot start',false);return;}
+  if(!navigator.gpu){setCap('no navigator.gpu — worker cannot start',false);log('worker start error: navigator.gpu missing');return;}
   try{
-    const ad=await navigator.gpu.requestAdapter();let name='adapter';try{const i=ad&&ad.info||{};name=[i.vendor,i.architecture,i.device].filter(Boolean).join('/')||'adapter';}catch(e){}
+    const ad=await navigator.gpu.requestAdapter();
+    if(!ad){setCap('WebGPU adapter unavailable — worker cannot start',false);log('worker start error: requestAdapter returned null');return;}
+    let name='adapter';try{const i=ad.info||{};name=[i.vendor,i.architecture,i.device].filter(Boolean).join('/')||'adapter';}catch(e){}
     const j=await(await fetch('api/wgpu/peer/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({adapter:name,ua:navigator.userAgent.slice(0,120),device_class:(/Android|iPhone|iPad/i.test(navigator.userAgent||'')?'phone':'pc-wgpu'),cores:navigator.hardwareConcurrency||null,device_memory:(typeof navigator.deviceMemory==='number'?navigator.deviceMemory:null),device_status:await browserDeviceStatus()})})).json();
     if(!j.ok){log('join failed: '+(j.error||'?'));return;}
     WORKER={peer:j.peer_id,poll:j.poll_secs||2,lease:j.lease_secs||60,running:true,adapter:name};
