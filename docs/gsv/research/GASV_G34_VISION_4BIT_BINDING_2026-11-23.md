@@ -226,3 +226,16 @@ Rust + MSYS2 + GSV MCP; ніякого Python/Perl; ваги тільки в `L:
 (PH-1204/1205); це не помилка кластера й не quality-результат. Automation
 видалено (ціль досягнута), тимчасові target-директорії `xtask_alt`/`wgpu_alt`
 прибрано (~5,8 ГБ), на S: 46 ГБ вільно.
+
+### G43 — end-to-end `vision-chat` (2026-11-25)
+
+`cargo xtask vision-chat` поєднує обидві половинки в одну команду:
+зображення → Q4_K vision forward на кластері (`--image-tokens N`) → експорт
+1024-векторів → `rusty run --vision-prefix <f32> --vision-at N` → текстова
+відповідь. `--prompt-file` уникає обрізання промпта шеллом; префікс `[N]` rusty
+прибирається з відповіді.
+
+Живий smoke: `gsv-hero.png`, 1 блок, 4 токени, **119 cluster ops**, 1018 c,
+`ok=true`; відповідь *"In the image, there is a man wearing a black shirt…"*.
+Це не доведення image-grounding — скоріше за все галюцинація; жодного
+quality-claim. Повний 27-блоковий multi-token прогон (~8 год) не робився.

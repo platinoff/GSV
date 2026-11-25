@@ -6,7 +6,9 @@
 
 use std::env;
 use std::path::PathBuf;
-use std::process::ExitCode;
+use std::process::{Command, ExitCode};
+
+use serde_json::json;
 
 use gsv::boxes::fingerprint;
 use gsv::boxes::inventory;
@@ -724,6 +726,147 @@ fn main() -> ExitCode {
                     ExitCode::FAILURE
                 }
             }
+        }
+        "vision-chat" => {
+            // GASV-G43: one command image -> Q4_K vision on the WGPU cluster ->
+            // qwen35 text core via rusty-engine `--vision-prefix`.
+            let image = match flag_value(&args, "--image").map(PathBuf::from) {
+                Some(p) => p,
+                None => {
+                    eprintln!("usage: cargo xtask vision-chat --image <png> (--prompt <text> | --prompt-file <path>) [--artifact <q4k>] [--text-model <gguf>] [--image-tokens N] [--vision-at N] [--blocks N]");
+                    return ExitCode::FAILURE;
+                }
+            };
+            let mut prompt =
+                flag_value(&args, "--prompt").unwrap_or_else(|| "Describe the image".into());
+            if let Some(pf) = flag_value(&args, "--prompt-file").map(PathBuf::from) {
+                prompt = std::fs::read_to_string(&pf)
+                    .unwrap_or_else(|e| panic!("prompt file {}: {e}", pf.display()))
+                    .trim()
+                    .to_string();
+            }
+            let artifact = flag_value(&args, "--artifact")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| {
+                    PathBuf::from("L:/gsv_mirror/models/gsv-versus-ai/minicpm1b-vision-q4k.gguf")
+                });
+            let text_model = flag_value(&args, "--text-model")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| {
+                    PathBuf::from("S:/rust/rusty-engine/data/models/MiniCPM-V-4_7-1B-Q4_K_M.gguf")
+                });
+            let rusty = flag_value(&args, "--rusty")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("S:/rust/rusty-engine/target/debug/rusty.exe"));
+            let hub = flag_value(&args, "--hub").unwrap_or_else(|| "http://127.0.0.1:9999".into());
+            let data_dir = flag_value(&args, "--data-dir")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| root.join("data"));
+            let scratch = root.join("target").join("vision_chat");
+            let image_tokens = flag_value(&args, "--image-tokens")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(4);
+            let vision_at = flag_value(&args, "--vision-at")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(3);
+            let blocks = flag_value(&args, "--blocks")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(1);
+            let shards = flag_value(&args, "--shards")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(2);
+            let wait_secs = flag_value(&args, "--wait-secs")
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(600);
+            let max_tokens = flag_value(&args, "--max-tokens")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(16);
+            let prefix = data_dir.join("vision_chat_prefix.f32");
+            let fwd = gsv::boxes::vision_forward::ForwardOpts {
+                artifact: &artifact,
+                image: Some(image.as_path()),
+                image_tokens,
+                hub: &hub,
+                data_dir: &data_dir,
+                rusty: &rusty,
+                scratch: &scratch,
+                blocks,
+                shards,
+                wait_secs,
+                out: Some(prefix.as_path()),
+                resume: None,
+                checkpoint: None,
+            };
+            let rt = match tokio::runtime::Runtime::new() {
+                Ok(rt) => rt,
+                Err(e) => {
+                    eprintln!("vision-chat: runtime: {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            let vision = match rt.block_on(gsv::boxes::vision_forward::report(&fwd)) {
+                Ok(v) => v,
+                Err(e) => {
+                    eprintln!("vision-chat: vision forward: {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            let run = Command::new(&rusty)
+                .args([
+                    "run",
+                    "-m",
+                    &text_model.to_string_lossy(),
+                    "--vision-prefix",
+                    &prefix.to_string_lossy(),
+                    "--vision-at",
+                    &vision_at.to_string(),
+                    "-p",
+                    &prompt,
+                    "--max-tokens",
+                    &max_tokens.to_string(),
+                ])
+                .output();
+            let answer = match run {
+                Ok(o) => {
+                    let raw = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                    let out = raw
+                        .split_once("] ")
+                        .map(|(_, s)| s.trim().to_string())
+                        .unwrap_or(raw);
+                    if !o.status.success() {
+                        eprintln!(
+                            "vision-chat: rusty run failed: {}",
+                            String::from_utf8_lossy(&o.stderr).trim()
+                        );
+                        return ExitCode::FAILURE;
+                    }
+                    out
+                }
+                Err(e) => {
+                    eprintln!("vision-chat: rusty spawn: {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            let result = json!({
+                "ok": vision["ok"].as_bool().unwrap_or(false),
+                "image": image.to_string_lossy(),
+                "prompt": prompt,
+                "vision": {
+                    "blocks": vision["geometry"]["blocks_run"].clone(),
+                    "prefix_tokens": vision["prefix_tokens"].clone(),
+                    "cluster_ops": vision["cluster_ops"].clone(),
+                    "max_abs": vision["max_abs"].clone(),
+                    "wall_secs": vision["wall_secs"].clone(),
+                },
+                "vision_at": vision_at,
+                "answer": answer,
+                "no_quality_claim": true,
+            });
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&result).unwrap_or_default()
+            );
+            ExitCode::SUCCESS
         }
         "vision-recheck" => {
             // GASV-G39: re-evaluate a saved forward result without re-running it.
