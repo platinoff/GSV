@@ -198,3 +198,21 @@ vision-вектор для versus-ядра (2048) обчислюється на 
 
 Rust + MSYS2 + GSV MCP; ніякого Python/Perl; ваги тільки в `L:/gsv_mirror`
 і gitignored `data/`; канон F32 не чіпати; маршрути й бенчмарки зберігати.
+
+### 2026-11-25 — повний 1024-вимірний вектор отримано
+
+Після перезапуску Firefox `/wgpu` (новий пір `#43`) і probe `mt-3798`
+(`matmul64`, `max_err=0`) resume-етапи **21 / 24 / 27** завершились `EXIT=0`;
+контрольна точка дійшла до **27/27**. Повний вектор:
+`L:/gsv_mirror/models/gsv-versus-ai/vision_prefix_1024_full.f32` (4096 B LE f32,
+`vision_prefix_1024_full.json`, sha256 `6ea5d5e6…`, 27/27 блоків, 74 кластерні
+операції в останньому етапі, `finite=true`, `ok=true` за хаб-гейтом 1e-2,
+`max_err_model_max=1.103e-4`).
+
+`rusty run -m MiniCPM-V-4_7-1B-Q4_K_M.gguf --vision-prefix <full.f32>` споживає
+вектор механічно (вивід змінюється), але текст вироджується (`....`,
+`DescribeDescribe...`) — нульовий baseline дає зв'язний текст. Тобто бракує
+багатотокенного image-prefix + вирівнювання до embedding-простору 1B
+(PH-1204/1205); це не помилка кластера й не quality-результат. Automation
+видалено (ціль досягнута), тимчасові target-директорії `xtask_alt`/`wgpu_alt`
+прибрано (~5,8 ГБ), на S: 46 ГБ вільно.
