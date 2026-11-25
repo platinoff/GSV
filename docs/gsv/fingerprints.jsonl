@@ -167,3 +167,4 @@
 {"ts":"2026-11-24T18:28:15Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"8848f1b","band":"248","summary":"GASV-G42_resume_skips_patch_embedding","product":"gsv"}
 {"ts":"2026-11-25T13:19:51Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"8f9f897","band":"248","summary":"GASV-G42_firefox_worker_gpu_wasm_oom_guard","product":"gsv"}
 {"ts":"2026-11-25T14:10:00Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"ee72ae0","band":"248","summary":"GASV-G42_full_1024_vision_vector_cluster_27of27","product":"gsv"}
+{"ts":"2026-11-25T15:41:40Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"4e19c7d","band":"248","summary":"GASV-G42_multi_token_vision_prefix","product":"gsv"}

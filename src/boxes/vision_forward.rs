@@ -31,6 +31,8 @@ pub struct ForwardOpts<'a> {
     pub artifact: &'a Path,
     /// Optional PNG; when set, patch tokens come from a real image.
     pub image: Option<&'a Path>,
+    /// Number of 1024-dim image-prefix tokens to project (1 = legacy single vector).
+    pub image_tokens: usize,
     pub hub: &'a str,
     pub data_dir: &'a Path,
     pub rusty: &'a Path,
@@ -455,7 +457,11 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
     }
     std::fs::create_dir_all(opts.scratch).map_err(|e| format!("scratch: {e}"))?;
     let mf = manifest(opts.rusty, opts.artifact)?;
-    let g = geometry(&mf)?;
+    let mut g = geometry(&mf)?;
+    // Each image-prefix token consumes `proj_in / embed` ViT tokens; the
+    // legacy single-token path keeps the original 4-token geometry.
+    let n_prefix = opts.image_tokens.max(1);
+    g.tokens = n_prefix * (g.proj_in / g.embed);
     let blocks = if opts.blocks == 0 {
         g.blocks
     } else {
@@ -848,68 +854,86 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
     }
 
     // Projector (geometry-specific names, both Q4_K on the cluster).
-    let mut proj_out: Vec<f64> = tokens.iter().flat_map(|t| t.iter().copied()).collect();
-    if g.input_norm {
-        let nw = dump_f32(
-            opts.rusty,
-            opts.artifact,
-            "mm.input_norm.weight",
-            opts.scratch,
-        )?;
-        let nb = dump_f32(
-            opts.rusty,
-            opts.artifact,
-            "mm.input_norm.bias",
-            opts.scratch,
-        )?;
-        proj_out = layer_norm(&proj_out, &nw, &nb, 1e-5);
+    if n_prefix > 1 {
+        let needed = n_prefix * (g.proj_in / g.embed + 1);
+        let available = (g.image_size / g.patch_size).pow(2);
+        if needed > available {
+            return Err(format!(
+                "image_tokens {n_prefix} needs {needed} patches, image has {available}"
+            ));
+        }
     }
-    if proj_out.len() != g.proj_in {
-        return Err(format!(
-            "pooled {} floats but projector expects {}",
-            proj_out.len(),
-            g.proj_in
-        ));
-    }
-    for (name, activate) in [(&g.proj_up, true), (&g.proj_down, false)] {
-        let label = format!("{tag}_{}", name.replace('.', "_"));
-        if !registered.contains(&label) {
-            let dims = linear_dims(&g, name)?;
-            register_weight(
-                &client,
-                base,
+    let mut prefix_vectors: Vec<Vec<f64>> = Vec::new();
+    for group in 0..n_prefix {
+        let mut proj_out: Vec<f64> = tokens
+            .iter()
+            .skip(group * (g.proj_in / g.embed))
+            .take(g.proj_in / g.embed)
+            .flat_map(|t| t.iter().copied())
+            .collect();
+        if g.input_norm {
+            let nw = dump_f32(
                 opts.rusty,
                 opts.artifact,
-                name,
+                "mm.input_norm.weight",
+                opts.scratch,
+            )?;
+            let nb = dump_f32(
+                opts.rusty,
+                opts.artifact,
+                "mm.input_norm.bias",
+                opts.scratch,
+            )?;
+            proj_out = layer_norm(&proj_out, &nw, &nb, 1e-5);
+        }
+        if proj_out.len() != g.proj_in {
+            return Err(format!(
+                "pooled {} floats but projector expects {}",
+                proj_out.len(),
+                g.proj_in
+            ));
+        }
+        for (name, activate) in [(&g.proj_up, true), (&g.proj_down, false)] {
+            let label = format!("{tag}_{}", name.replace('.', "_"));
+            if !registered.contains(&label) {
+                let dims = linear_dims(&g, name)?;
+                register_weight(
+                    &client,
+                    base,
+                    opts.rusty,
+                    opts.artifact,
+                    name,
+                    &label,
+                    dims,
+                    opts.data_dir,
+                )
+                .await?;
+                registered.insert(label.clone());
+            }
+            let (y, ev) = matvec(
+                &client,
+                base,
                 &label,
-                dims,
-                opts.data_dir,
+                &proj_out,
+                opts.shards,
+                opts.wait_secs,
             )
             .await?;
-            registered.insert(label.clone());
+            groups.push(json!({"op": name.clone(), "label": label, "evidence": ev}));
+            proj_out = if activate {
+                y.into_iter().map(gelu).collect()
+            } else {
+                y
+            };
         }
-        let (y, ev) = matvec(
-            &client,
-            base,
-            &label,
-            &proj_out,
-            opts.shards,
-            opts.wait_secs,
-        )
-        .await?;
-        groups.push(json!({"op": name.clone(), "label": label, "evidence": ev}));
-        proj_out = if activate {
-            y.into_iter().map(gelu).collect()
-        } else {
-            y
-        };
+        prefix_vectors.push(proj_out);
     }
 
     // Optional full-vector export for the vision->text bridge. Gitignored mirror/data only.
     if let Some(out) = opts.out {
-        let bytes: Vec<u8> = proj_out
+        let bytes: Vec<u8> = prefix_vectors
             .iter()
-            .flat_map(|v| (*v as f32).to_le_bytes())
+            .flat_map(|v| v.iter().flat_map(|x| (*x as f32).to_le_bytes()))
             .collect();
         std::fs::write(out, &bytes).map_err(|e| format!("vision vector write: {e}"))?;
         let manifest = json!({
@@ -918,7 +942,8 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
             "image": opts.image.map(|p| p.to_string_lossy().to_string()),
             "family": g.family.clone(),
             "blocks_run": blocks,
-            "dim": proj_out.len(),
+            "dim": prefix_vectors.first().map(|v| v.len()).unwrap_or(0),
+            "prefix_tokens": prefix_vectors.len(),
             "dtype": "f32-le",
             "bytes": bytes.len(),
             "sha256": super::weight_store::sha256_hex(&bytes),
@@ -930,8 +955,12 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
             .map_err(|e| format!("vision manifest write: {e}"))?;
     }
 
-    let finite = proj_out.iter().all(|v| v.is_finite());
-    let max_abs = proj_out.iter().map(|v| v.abs()).fold(0.0f64, f64::max);
+    let flat_prefix: Vec<f64> = prefix_vectors
+        .iter()
+        .flat_map(|v| v.iter().copied())
+        .collect();
+    let finite = flat_prefix.iter().all(|v| v.is_finite());
+    let max_abs = flat_prefix.iter().map(|v| v.abs()).fold(0.0f64, f64::max);
     let evidence = json!({
         // Hub rejects a result only above 1e-2 (task_result); 1e-4 is the
         // stricter *proof* threshold. Large dequantized ffn tensors can land
@@ -955,9 +984,10 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
         "shards": opts.shards,
         "resumed_from": opts.resume.map(|p| p.to_string_lossy().to_string()),
         "checkpoint_next_block": if opts.checkpoint.is_some() { blocks } else { 0 },
-        "vision_dim": proj_out.len(),
+        "prefix_tokens": prefix_vectors.len(),
+        "vision_dim": prefix_vectors.first().map(|v| v.len()).unwrap_or(0),
         "finite": finite, "max_abs": max_abs,
-        "head": proj_out.iter().take(8).copied().collect::<Vec<_>>(),
+        "head": flat_prefix.iter().take(8).copied().collect::<Vec<_>>(),
         "cluster_ops": groups.len(),
         "route": groups.iter().flat_map(|g| g["evidence"]["route"].as_array().cloned().unwrap_or_default()).collect::<Vec<_>>(),
         "groups": groups,

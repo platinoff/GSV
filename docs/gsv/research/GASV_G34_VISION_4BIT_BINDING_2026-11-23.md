@@ -209,6 +209,16 @@ Rust + MSYS2 + GSV MCP; ніякого Python/Perl; ваги тільки в `L:
 операції в останньому етапі, `finite=true`, `ok=true` за хаб-гейтом 1e-2,
 `max_err_model_max=1.103e-4`).
 
+**Багатотокенний префікс (2026-11-25):** `vision-forward --image-tokens N`
+групує ViT-токени по `proj_in/embed` і проганяє проєктор окремо для кожної
+групи, експортуючи **N × 1024-dim** векторів у `gsv.vision-prefix.v1`
+ (`prefix_tokens` у маніфесті/доказі). Smoke: `--image-tokens 4 --blocks 1` —
+119 cluster ops, 4 вектори (16 384 B), `finite=true`, `ok=true`, `max_abs 2.32`,
+971 c. `rusty run --vision-prefix <mt4.f32>` дає помітно зв'язніший текст
+(`This is a gift of a gift`), але досі **не ground-by-image**; повний 27-блоковий
+4-токенний прогон оцінюється ~8 год і не запускався. Бракує навченого
+вирівнювання багатотокенного image-prefix до 1B embedding space (PH-1204/1205).
+
 `rusty run -m MiniCPM-V-4_7-1B-Q4_K_M.gguf --vision-prefix <full.f32>` споживає
 вектор механічно (вивід змінюється), але текст вироджується (`....`,
 `DescribeDescribe...`) — нульовий baseline дає зв'язний текст. Тобто бракує

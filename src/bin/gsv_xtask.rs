@@ -659,7 +659,7 @@ fn main() -> ExitCode {
             let artifact = match flag_value(&args, "--artifact").map(PathBuf::from) {
                 Some(p) => p,
                 None => {
-                    eprintln!("usage: cargo xtask vision-forward --artifact <gguf> [--image <png>] [--out <f32>] [--checkpoint <json>] [--resume <json>] [--blocks N] [--shards N] [--hub URL]");
+                    eprintln!("usage: cargo xtask vision-forward --artifact <gguf> [--image <png>] [--image-tokens N] [--out <f32>] [--checkpoint <json>] [--resume <json>] [--blocks N] [--shards N] [--hub URL]");
                     return ExitCode::FAILURE;
                 }
             };
@@ -682,12 +682,16 @@ fn main() -> ExitCode {
                 .and_then(|s| s.parse::<u64>().ok())
                 .unwrap_or(180);
             let image = flag_value(&args, "--image").map(PathBuf::from);
+            let image_tokens = flag_value(&args, "--image-tokens")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(1);
             let out = flag_value(&args, "--out").map(PathBuf::from);
             let resume = flag_value(&args, "--resume").map(PathBuf::from);
             let checkpoint = flag_value(&args, "--checkpoint").map(PathBuf::from);
             let opts = gsv::boxes::vision_forward::ForwardOpts {
                 artifact: &artifact,
                 image: image.as_deref(),
+                image_tokens,
                 hub: &hub,
                 data_dir: &data_dir,
                 rusty: &rusty,
