@@ -238,4 +238,9 @@ Rust + MSYS2 + GSV MCP; ніякого Python/Perl; ваги тільки в `L:
 Живий smoke: `gsv-hero.png`, 1 блок, 4 токени, **119 cluster ops**, 1018 c,
 `ok=true`; відповідь *"In the image, there is a man wearing a black shirt…"*.
 Це не доведення image-grounding — скоріше за все галюцинація; жодного
-quality-claim. Повний 27-блоковий multi-token прогон (~8 год) не робився.
+quality-claim. Повний 27-блоковий 4-токенний прогон (~6 год) запущено
+2026-11-25 поетапно з окремим checkpoint `data/vision_prefix_1b_mt4_cp.json`:
+етап 3 завершився `EXIT=0` (2591 c, `next_block=3`), етапи 6…27 ідуть у фоні;
+результат пишеться у `vision_prefix_1024_mt4_full.f32`. Тикет G44
+`in_progress`. Після завершення — порівняння з 1-блоковим mt4 і нульовим
+baseline через `rusty --vision-prefix --vision-at 3`.
