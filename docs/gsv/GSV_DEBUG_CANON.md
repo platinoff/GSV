@@ -73,7 +73,7 @@ f16 у WASM `mesh_dequant_q4_k`: починав `e = exp = 0` замість к�
 - Головний блокер — **не RAM і не bandwidth, а відсутній expert-aware forward
   orchestrator** (router → top-8 → per-expert range → shard dispatch → combine),
   плюс тимчасовий числовий баг із §6 (виправлено, чекає reload пірів).
-- План/оцінки: [`research/GASV_STREAMING_MOE_PLAN_2026-11-26.md`](research/GASV_STREAMING_MOE_PLAN_2026-11-26.md); огляд moving-engine ландшафту (incl. PolyStrata/Strata, WebGPU P2P, k8s, Rust/WASM) + архітектурний скетч `moe_forward.rs`: [`research/GASV_ENGINE_LANDSCAPE_MOE_ADAPTATION_2026-11-26.md`](research/GASV_ENGINE_LANDSCAPE_MOE_ADAPTATION_2026-11-26.md).
+- План/оцінки: [`research/GASV_STREAMING_MOE_PLAN_2026-11-26.md`](research/GASV_STREAMING_MOE_PLAN_2026-11-26.md); огляд двигунів + скетч `moe_forward.rs`: [`research/GASV_ENGINE_LANDSCAPE_MOE_ADAPTATION_2026-11-26.md`](research/GASV_ENGINE_LANDSCAPE_MOE_ADAPTATION_2026-11-26.md); data-plane/SSD-mirror + WiFi/WGPU hardware + autonomy ladder research: [`research/GSV_STREAMING_OFFLOAD_RESEARCH_2026-11-26.md`](research/GSV_STREAMING_OFFLOAD_RESEARCH_2026-11-26.md).
 - Харнес: `cargo xtask moe-bench` (BENCH-1, unit green) → `data/moe_bench.jsonl`;
   BENCH-2 (sweep 2/4/8 × gate/up/down) і BENCH-3 (чесний smoke: partial pack
   `g2b-q4_0` не запускний — `missing required key 'gsv.attention.head_count'`).
