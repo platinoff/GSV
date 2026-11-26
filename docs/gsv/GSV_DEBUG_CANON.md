@@ -47,7 +47,15 @@ IndexedDB cache) були **спростовані** одна за одною �
 - **G13 / G19** — runtime/quality gate (blocked) і Astra-style patch (open, без безпечного кандидата).
 - **Розсилка планів** — historical `- [ ]` у `2026-08-17-always-on-galaxy.md`, `2026-08-18-mcp-always-on-catchup.md` (tool_count 31 → 61), `2026-11-08-poolai-wsp-feasibility.md`; фактично виконані, чекають закриття окремими docs-тікетами.
 
-## 5. Дисципліна
+## 5. WASM-прискорення (канон 2026-11-26)
+
+- **Пріоритет:** важкі числові шляхи → `crates/mesh-wasm` (Rust → wasm32-SIMD), JS — лише glue/fallback.
+- Наявні ядра: `mesh_matmul64`, `mesh_matvec[_partial]`, `mesh_softmax`, `mesh_layernorm`, `mesh_mlpblock`, нове **`mesh_dequant_q4_k`** (144 B → 256 f32 на блок).
+- Artifact-backed `weights_matvec` у `/wgpu` тепер викликає `mesh_dequant_q4_k` нативним кодом; JS `dequantQ4K` лишається fallback-ом. Phone-піри тимчасово йдуть через golden-tested JS-маtvек (див. G47/G48) і підхоплять новий `.wasm` після reload сторінки.
+- Build/disploy: `cargo build --release -p mesh-wasm --target wasm32-unknown-unknown` → `cp target/wasm32-unknown-unknown/release/mesh_wasm.wasm ui/assets/mesh-wasm.wasm`; далі `cargo build --bin gsv-server` + `POST /api/update/apply`.
+- Верифікація: `cargo test -p mesh-wasm` (native, scalar kernel), контракт сторінки (`mesh_dequant_q4_k` marker), живий canary `weights_matvec` (`g-7353` PASS `1.39e-17`) і `/assets/mesh-wasm.wasm` розмір/наявність.
+
+## 6. Дисципліна
 
 Один commit на репо + push + самарі; не `git add -A`; MSYS2 bash; Rust-first; ваги/секрети
 не в git; перед комітом `git diff --check`, fmt, clippy, test, fingerprint з `Gsv-*` trailers.

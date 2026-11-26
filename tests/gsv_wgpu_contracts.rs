@@ -527,6 +527,10 @@ fn page_forces_wasm_for_phone_weights_matvec() {
         "phone must use golden-tested JS dequant fallback"
     );
     assert!(
+        page.contains("mesh_dequant_q4_k"),
+        "WASM Q4_K dequant kernel must be used by the artifact-backed weight lane"
+    );
+    assert!(
         page.contains("const cached=phone?null:await idbGet(c)"),
         "phone peers must bypass unverifiable IndexedDB chunk cache"
     );

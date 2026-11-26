@@ -21,7 +21,43 @@
 #![allow(clippy::missing_safety_doc)]
 
 use std::alloc::{alloc, dealloc, Layout};
+#[cfg(target_arch = "wasm32")]
 use std::arch::wasm32::{f32x4, f32x4_add, f32x4_mul, f32x4_splat, f32x4_sub, v128};
+// Native builds (unit tests) only compile the scalar Q4_K kernel; SIMD math is
+// wasm32-only by design. These stubs keep native `cargo test` compiling.
+#[cfg(not(target_arch = "wasm32"))]
+#[allow(non_camel_case_types, dead_code)]
+type v128 = u128;
+#[cfg(not(target_arch = "wasm32"))]
+#[allow(non_snake_case, dead_code)]
+fn f32x4(_v: f32) -> v128 {
+    0
+}
+#[cfg(target_arch = "wasm32")]
+#[inline(always)]
+fn make4(a: f32, b: f32, c: f32, d: f32) -> v128 {
+    f32x4(a, b, c, d)
+}
+#[cfg(not(target_arch = "wasm32"))]
+fn make4(_a: f32, _b: f32, _c: f32, _d: f32) -> v128 {
+    0
+}
+#[cfg(not(target_arch = "wasm32"))]
+fn f32x4_add(a: v128, _b: v128) -> v128 {
+    a
+}
+#[cfg(not(target_arch = "wasm32"))]
+fn f32x4_mul(a: v128, _b: v128) -> v128 {
+    a
+}
+#[cfg(not(target_arch = "wasm32"))]
+fn f32x4_splat(_v: f32) -> v128 {
+    0
+}
+#[cfg(not(target_arch = "wasm32"))]
+fn f32x4_sub(a: v128, _b: v128) -> v128 {
+    a
+}
 
 const ALIGN: usize = 4;
 
@@ -64,7 +100,7 @@ unsafe fn sumx4(v: v128) -> f32 {
 
 /// y[r] = Σ_k W[r*kK + k] * X[k] for r in [0, rows).
 #[no_mangle]
-#[target_feature(enable = "simd128")]
+#[cfg_attr(target_arch = "wasm32", target_feature(enable = "simd128"))]
 pub unsafe extern "C" fn mesh_matvec(
     w: *const f32,
     x: *const f32,
@@ -79,7 +115,7 @@ pub unsafe extern "C" fn mesh_matvec(
 /// the `matvec_shard` op (row-major W with arbitrary row stride; X is indexed
 /// with an absolute base at k0). Enables sharded reductions on mesh peers.
 #[no_mangle]
-#[target_feature(enable = "simd128")]
+#[cfg_attr(target_arch = "wasm32", target_feature(enable = "simd128"))]
 pub unsafe extern "C" fn mesh_matvec_partial(
     w: *const f32,
     x: *const f32,
@@ -114,6 +150,83 @@ pub unsafe extern "C" fn mesh_matvec_partial(
     }
 }
 
+/// f16 -> f32 widening (same field math as GSV `wgpu_dequant::f16_to_f32`).
+#[inline(always)]
+fn f16_to_f32(h: u16) -> f32 {
+    let sign = ((h >> 15) as u32) << 31;
+    let exp = ((h >> 10) & 0x1F) as u32;
+    let frac = (h & 0x3FF) as u32;
+    let bits = match exp {
+        0 => {
+            if frac == 0 {
+                sign
+            } else {
+                let mut e = exp as i32;
+                let mut f = frac as i32;
+                while f & 0x400 == 0 {
+                    f <<= 1;
+                    e -= 1;
+                }
+                sign | (((e + 127) as u32) << 23) | (((f as u32) & 0x3FF) << 13)
+            }
+        }
+        0x1F => sign | 0x7F80_0000 | (frac << 13),
+        _ => sign | ((exp + 112) << 23) | (frac << 13),
+    };
+    f32::from_bits(bits)
+}
+
+#[inline(always)]
+fn scale_min_k4(j: usize, q: &[u8]) -> (u8, u8) {
+    if j < 4 {
+        (q[j] & 63, q[j + 4] & 63)
+    } else {
+        (
+            (q[j + 4] & 0xF) | ((q[j - 4] >> 6) << 4),
+            (q[j + 4] >> 4) | ((q[j] >> 6) << 4),
+        )
+    }
+}
+
+/// GASV WASM lane: dequantize `blocks` Q4_K super-blocks (144 B -> 256 f32)
+/// natively instead of in the JS interpreter. Same math as
+/// `gsv::boxes::wgpu_dequant::dequant_q4_k`.
+///
+/// # Safety
+/// `src` must point to `blocks * 144` readable bytes and `dst` to
+/// `blocks * 256` writable f32 slots, both from `mesh_alloc`.
+#[no_mangle]
+pub unsafe extern "C" fn mesh_dequant_q4_k(src: *const u8, dst: *mut f32, blocks: usize) {
+    for b in 0..blocks {
+        let base = b * 144;
+        let block = std::slice::from_raw_parts(src.add(base), 144);
+        let d = f16_to_f32(u16::from_le_bytes([block[0], block[1]]));
+        let dmin = f16_to_f32(u16::from_le_bytes([block[2], block[3]]));
+        let scales = &block[4..16];
+        let qs = &block[16..144];
+        let mut o = b * 256;
+        for grp in 0..4 {
+            let (sc0, m0) = scale_min_k4(grp * 2, scales);
+            let (sc1, m1) = scale_min_k4(grp * 2 + 1, scales);
+            let d1 = d * sc0 as f32;
+            let dm1 = dmin * m0 as f32;
+            let d2 = d * sc1 as f32;
+            let dm2 = dmin * m1 as f32;
+            let qb = grp * 32;
+            for l in 0..32 {
+                let q = qs[qb + l];
+                *dst.add(o) = d1 * (q & 0xF) as f32 - dm1;
+                o += 1;
+            }
+            for l in 0..32 {
+                let q = qs[qb + l];
+                *dst.add(o) = d2 * (q >> 4) as f32 - dm2;
+                o += 1;
+            }
+        }
+    }
+}
+
 /// ABI marker for the JS side (bump on breaking kernel signature changes).
 #[no_mangle]
 pub extern "C" fn mesh_version() -> u32 {
@@ -122,7 +235,7 @@ pub extern "C" fn mesh_version() -> u32 {
 
 /// C[y*64 + x] = Σ_k A[y*64+k] * B[k*64+x] — classic 64×64 f32 matmul.
 #[no_mangle]
-#[target_feature(enable = "simd128")]
+#[cfg_attr(target_arch = "wasm32", target_feature(enable = "simd128"))]
 pub unsafe extern "C" fn mesh_matmul64(a: *const f32, b: *const f32, c: *mut f32) {
     const N: usize = 64;
     for y in 0..N {
@@ -131,7 +244,7 @@ pub unsafe extern "C" fn mesh_matmul64(a: *const f32, b: *const f32, c: *mut f32
             let mut k = 0usize;
             while k < N {
                 let av = loadx4(a.add(y * N + k));
-                let bv = f32x4(
+                let bv = make4(
                     *b.add(k * N + x),
                     *b.add((k + 1) * N + x),
                     *b.add((k + 2) * N + x),
@@ -172,7 +285,7 @@ pub unsafe extern "C" fn mesh_softmax(x: *mut f32, len: usize) {
 
 /// y[i] = (x[i] - mean) / sqrt(var + 1e-5) over `len` elements.
 #[no_mangle]
-#[target_feature(enable = "simd128")]
+#[cfg_attr(target_arch = "wasm32", target_feature(enable = "simd128"))]
 pub unsafe extern "C" fn mesh_layernorm(x: *const f32, y: *mut f32, len: usize) {
     if len == 0 {
         return;
@@ -213,7 +326,8 @@ pub unsafe extern "C" fn mesh_layernorm(x: *const f32, y: *mut f32, len: usize) 
 /// hid[h] = s / (1 + exp(-s)) with s = dot(w1[h*k + :], x)
 /// y[o]   = Σ_h w2[o*hidden + h] * hid[h]
 #[no_mangle]
-#[target_feature(enable = "simd128")]
+#[allow(clippy::needless_range_loop)]
+#[cfg_attr(target_arch = "wasm32", target_feature(enable = "simd128"))]
 pub unsafe extern "C" fn mesh_mlpblock(
     w1: *const f32,
     x: *const f32,
@@ -257,5 +371,27 @@ pub unsafe extern "C" fn mesh_mlpblock(
             base += 1;
         }
         *y.add(o) = sum;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn q4_k_dequant_kernel_matches_scalar_expectation() {
+        // d=1.0, dmin=0, all scales=1 => y = q nibble (low half first).
+        let mut block = [0u8; 144];
+        block[0..2].copy_from_slice(&0x3c00u16.to_le_bytes());
+        for s in block.iter_mut().take(16).skip(4) {
+            *s = 1;
+        }
+        block[16] = 5;
+        block[17] = 7;
+        let mut out = [0f32; 256];
+        unsafe { mesh_dequant_q4_k(block.as_ptr(), out.as_mut_ptr(), 1) };
+        assert_eq!(out[0], 5.0);
+        assert_eq!(out[1], 7.0);
+        assert_eq!(out[32], 0.0); // high nibble of qs[0]
     }
 }

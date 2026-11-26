@@ -3372,7 +3372,24 @@ async function downloadWeightsFlat(tensor,shardId,shards){
   let W;
   if(qt===12||qt===14){
     const BLK=256,BB=qt===14?210:144,b0=Math.floor(vStart/BLK),b1=Math.ceil(vEnd/BLK);
-    const full=qt===14?dequantQ6K(flat.subarray(b0*BB,b1*BB)):dequantQ4K(flat.subarray(b0*BB,b1*BB));
+    const raw=flat.subarray(b0*BB,b1*BB);
+    let full=null;
+    // GASV-WASM: native Q4_K dequant kernel instead of the JS interpreter.
+    if(qt===12&&WASM.loaded&&WASM.inst.mesh_dequant_q4_k){
+      const blocks=Math.floor(raw.length/BB);
+      const src=WASM.inst.mesh_alloc(raw.length);
+      const dst=WASM.inst.mesh_alloc(blocks*BLK*4);
+      if(src&&dst){
+        new Uint8Array(WASM.inst.memory.buffer,src,raw.length).set(raw);
+        const t0=performance.now();
+        WASM.inst.mesh_dequant_q4_k(src,dst,blocks);
+        const dt=performance.now()-t0;
+        full=wasmDownload(dst,blocks*BLK);
+        WASM.inst.mesh_free(src,raw.length);WASM.inst.mesh_free(dst,blocks*BLK*4);
+        log('q4_k dequant WASM: '+blocks+' blocks '+dt.toFixed(2)+'ms');
+      }
+    }
+    if(!full)full=qt===14?dequantQ6K(raw):dequantQ4K(raw);
     const lo=vStart-b0*BLK,hi=vEnd-b0*BLK;
     W=full.subarray(lo,hi);
   }else{
