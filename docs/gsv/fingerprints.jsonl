@@ -185,3 +185,4 @@
 {"ts":"2026-11-26T17:28:25Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"3721f12","band":"248","summary":"FWD1_moe_forward_skeleton","product":"gsv"}
 {"ts":"2026-11-26T18:27:39Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"071d081","band":"248","summary":"FWD2_per_expert_canary","product":"gsv"}
 {"ts":"2026-11-26T19:10:44Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"1740023","band":"248","summary":"FWD3_p0_webgpu_adaptations","product":"gsv"}
+{"ts":"2026-11-26T20:41:08Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"757dfd2","band":"248","summary":"FWD4_one_layer_forward","product":"gsv"}

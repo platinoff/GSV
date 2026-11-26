@@ -386,7 +386,11 @@ pub fn tensor_f32(data_dir: &std::path::Path, name: &str) -> Option<Vec<f32>> {
     });
     match qtype {
         Some(12) => Some(dequant_q4_k(&raw)),
-        None if entry.get("dtype").and_then(Value::as_str) == Some("f32") || qtype == Some(0) => {
+        // F32 tensors may carry explicit ggml_type 0 OR only dtype "f32"
+        // (then qtype is None). Both mean raw little-endian f32 words.
+        Some(0) | None
+            if qtype == Some(0) || entry.get("dtype").and_then(Value::as_str) == Some("f32") =>
+        {
             Some(
                 raw.as_chunks::<4>()
                     .0
@@ -402,6 +406,7 @@ pub fn tensor_f32(data_dir: &std::path::Path, name: &str) -> Option<Vec<f32>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn dequant_q4_k_zero_block_is_all_zero() {
@@ -543,6 +548,28 @@ mod tests {
         // fixture -> value 0.0 (still validates scale extraction + nibble split).
         assert!(out[..128].iter().all(|v| (*v - 1.0).abs() < 1e-6));
         assert!(out[128..].iter().all(|v| *v == 0.0));
+    }
+
+    #[test]
+    fn f32_tensor_with_explicit_ggml_type_zero_reads_back() {
+        // Regression: tensor_f32's match arm only handled dtype=="f32" when
+        // qtype was None; an explicit `"ggml_type":0` fell through to None.
+        let dir = std::env::temp_dir().join("gsv_f32_explicit_zero");
+        let _ = std::fs::create_dir_all(&dir);
+        let vals: Vec<f32> = (0..8).map(|i| i as f32 * 0.5).collect();
+        let raw: Vec<u8> = vals.iter().flat_map(|v| v.to_le_bytes()).collect();
+        let s = crate::boxes::weight_store::store_chunk(&dir, &raw).expect("store");
+        let key = s["key"].as_str().expect("key").to_string();
+        crate::boxes::weight_store::register_tensor(
+            &dir,
+            &json!({"tensor":"f32z","dims":[2,4],"chunks":[key],
+                    "dtype":"f32","ggml_type":0,"bytes":raw.len()}),
+        )
+        .expect("register");
+        let got = tensor_f32(&dir, "f32z").expect("f32 with explicit type 0");
+        assert_eq!(got.len(), 8);
+        assert!((got[5] - 2.5).abs() < 1e-6);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

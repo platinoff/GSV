@@ -358,9 +358,333 @@ pub fn state_budget(
     }
 }
 
+/// SwiGLU activation `silu(gate) * up`, elementwise (port of rusty-engine moe.rs:280).
+pub fn swiglu(gate: &[f64], up: &[f64]) -> Result<Vec<f64>, String> {
+    if gate.len() != up.len() {
+        return Err(format!(
+            "swiglu: {} vs {} shape mismatch",
+            gate.len(),
+            up.len()
+        ));
+    }
+    Ok(gate
+        .iter()
+        .zip(up)
+        .map(|(g, u)| (g / (1.0 + (-g).exp())) * u)
+        .collect())
+}
+
+/// Weighted combine of routed expert outputs + optional shared expert
+/// (port of rusty-engine moe.rs:306). `routed[k]` is `hidden`-dim output.
+pub fn combine(
+    routed: &[Vec<f64>],
+    weights: &[f64],
+    shared: Option<&[f64]>,
+) -> Result<Vec<f64>, String> {
+    if routed.len() != weights.len() {
+        return Err(format!(
+            "combine: {} outputs vs {} weights",
+            routed.len(),
+            weights.len()
+        ));
+    }
+    let hidden = routed.first().map(Vec::len).unwrap_or(0);
+    if hidden == 0 {
+        return Err("combine: empty routed outputs".into());
+    }
+    if routed.iter().any(|v| v.len() != hidden) {
+        return Err("combine: routed width mismatch".into());
+    }
+    let mut out = vec![0.0f64; hidden];
+    for (v, w) in routed.iter().zip(weights) {
+        for (o, x) in out.iter_mut().zip(v) {
+            *o += w * x;
+        }
+    }
+    if let Some(s) = shared {
+        if s.len() != hidden {
+            return Err(format!("combine: shared width {} vs {hidden}", s.len()));
+        }
+        for (o, x) in out.iter_mut().zip(s) {
+            *o += x;
+        }
+    }
+    Ok(out)
+}
+
+/// One-layer coherent forward report. NUMERICS ONLY — this orchestrates the
+/// real router/expert matvecs and verifies every partial against the hub golden,
+/// but it is NOT a semantically-correct model forward: expert gate/up/down
+/// geometry here is the flattened artifact layout, and no oracle alignment or
+/// quality eval exists (G13 blocked). Do not read the output as an answer.
+#[allow(clippy::too_many_arguments)]
+pub async fn report_one_layer(
+    client: &reqwest::Client,
+    base: &str,
+    data_dir: &Path,
+    artifact: &Path,
+    rusty: &Path,
+    layer: usize,
+    shards: usize,
+    wait_secs: u64,
+    hidden_seed: f64,
+) -> Result<Value, String> {
+    let offsets = manifest_offsets(rusty, artifact)?;
+    let router_addr = ExpertAddr {
+        layer,
+        expert: 0,
+        role: ExpertRole::Router,
+    };
+    let (router_start, router_gt) = offsets
+        .get(&router_addr.tensor_name())
+        .ok_or("router tensor not in manifest")?;
+    let (r_end, r_start) = (
+        router_start + D_MODEL as u64 * N_EXPERTS as u64 * 4,
+        *router_start,
+    );
+    register_expert_range(
+        data_dir,
+        artifact,
+        &router_addr.alias(),
+        r_start,
+        (r_end - r_start) as usize,
+        *router_gt,
+    )?;
+    // Register + POST the router tensor with the hub so its f32 values can be read.
+    let base_s = base.trim_end_matches('/');
+    let rk = expert_key(data_dir, r_start);
+    let reg = client
+        .post(format!("{base_s}/api/wgpu/weights/register_tensor"))
+        .json(&json!({
+            "tensor": router_addr.alias(), "dims": [D_MODEL, N_EXPERTS],
+            "chunks": [rk], "source": "artifact", "dtype": "f32",
+            "ggml_type": 0, "bytes": r_end - r_start,
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("router register post: {e}"))?
+        .json::<Value>()
+        .await
+        .map_err(|e| format!("router register json: {e}"))?;
+    if reg.get("ok").and_then(Value::as_bool) == Some(false) {
+        return Err(format!(
+            "router register: {}",
+            reg.get("error").and_then(Value::as_str).unwrap_or("?")
+        ));
+    }
+    // Deterministic hidden vector (seed) — no real model input exists yet.
+    let hidden: Vec<f64> = (0..D_MODEL)
+        .map(|i| hidden_seed * ((i % 7) as f64 - 3.0) / 3.0)
+        .collect();
+    let router_f32 = super::wgpu_dequant::tensor_f32(data_dir, &router_addr.alias())
+        .ok_or("router f32 read failed")?;
+    let logits = router_logits(&router_f32, &hidden)?;
+    let chosen = top8_experts(&logits);
+    let mut max_err = 0.0f64;
+    let mut routed_out: Vec<Vec<f64>> = Vec::new();
+    // For each chosen expert run gate, up (each 2048 rows x 512 cols, x = 512-dim),
+    // SwiGLU on hub, then down (512 rows x 2048 cols, x = 2048-dim) -> 512-dim.
+    // This is a coherent numeric chain over the real artifact bytes, not a
+    // model-semantic forward (G13).
+    for (eid, _w) in &chosen {
+        let mut role_outputs = std::collections::HashMap::new();
+        for role in [ExpertRole::Gate, ExpertRole::Up] {
+            let addr = ExpertAddr {
+                layer,
+                expert: *eid,
+                role,
+            };
+            let (ts, gt) = offsets
+                .get(&addr.tensor_name())
+                .ok_or("expert tensor missing")?;
+            let (start, end) = addr.byte_range(*ts, 0).ok_or("expert byte range")?;
+            register_expert_range(
+                data_dir,
+                artifact,
+                &addr.alias(),
+                start,
+                (end - start) as usize,
+                *gt,
+            )?;
+            let dims = addr.dims();
+            client
+                .post(format!("{base_s}/api/wgpu/weights/register_tensor"))
+                .json(&json!({
+                    "tensor": addr.alias(), "dims": [dims[0], dims[1]],
+                    "chunks": [expert_key(data_dir, start)], "source": "artifact",
+                    "dtype": if *gt == 14 { "q6_k" } else { "q4_k" }, "ggml_type": gt,
+                    "bytes": end - start,
+                }))
+                .send()
+                .await
+                .ok();
+            let enq =
+                enqueue_expert_canary(client, base_s, &addr.alias(), dims[1] as usize, shards)
+                    .await?;
+            let gid = enq["group_id"].as_str().ok_or("no group")?;
+            let res = collect_canary(client, base_s, gid, wait_secs).await?;
+            max_err = max_err.max(res["max_err_model"].as_f64().unwrap_or(0.0));
+            // Read the verified partial vector from the result bus to feed SwiGLU.
+            let raw: Value = client
+                .get(format!("{base_s}/api/wgpu/task/result?group={gid}"))
+                .send()
+                .await
+                .map_err(|e| format!("result get: {e}"))?
+                .json()
+                .await
+                .map_err(|e| format!("result json: {e}"))?;
+            let partial: Vec<f64> = raw["results"][0]["partial"]
+                .as_array()
+                .ok_or("no partial")?
+                .iter()
+                .map(|v| v.as_f64().unwrap_or(0.0))
+                .collect();
+            role_outputs.insert(role, partial);
+        }
+        let gate = role_outputs.get(&ExpertRole::Gate).ok_or("no gate")?;
+        let up = role_outputs.get(&ExpertRole::Up).ok_or("no up")?;
+        let act = swiglu(gate, up)?;
+        let down_addr = ExpertAddr {
+            layer,
+            expert: *eid,
+            role: ExpertRole::Down,
+        };
+        let (ts, gt) = offsets
+            .get(&down_addr.tensor_name())
+            .ok_or("down tensor missing")?;
+        let (start, end) = down_addr.byte_range(*ts, 0).ok_or("down byte range")?;
+        register_expert_range(
+            data_dir,
+            artifact,
+            &down_addr.alias(),
+            start,
+            (end - start) as usize,
+            *gt,
+        )?;
+        let dims = down_addr.dims();
+        client
+            .post(format!("{base_s}/api/wgpu/weights/register_tensor"))
+            .json(&json!({
+                "tensor": down_addr.alias(), "dims": [dims[0], dims[1]],
+                "chunks": [expert_key(data_dir, start)], "source": "artifact",
+                "dtype": if *gt == 14 { "q6_k" } else { "q4_k" }, "ggml_type": gt,
+                "bytes": end - start,
+            }))
+            .send()
+            .await
+            .ok();
+        // down expects x length = cols (2048); swiglu output is 2048-dim. Good.
+        let enq =
+            enqueue_expert_canary(client, base_s, &down_addr.alias(), act.len(), shards).await?;
+        let gid = enq["group_id"].as_str().ok_or("no down group")?;
+        let res = collect_canary(client, base_s, gid, wait_secs).await?;
+        max_err = max_err.max(res["max_err_model"].as_f64().unwrap_or(0.0));
+        let raw: Value = client
+            .get(format!("{base_s}/api/wgpu/task/result?group={gid}"))
+            .send()
+            .await
+            .map_err(|e| format!("result get: {e}"))?
+            .json()
+            .await
+            .map_err(|e| format!("result json: {e}"))?;
+        let partial: Vec<f64> = raw["results"][0]["partial"]
+            .as_array()
+            .ok_or("no down partial")?
+            .iter()
+            .map(|v| v.as_f64().unwrap_or(0.0))
+            .collect();
+        routed_out.push(partial);
+    }
+    let weights: Vec<f64> = chosen.iter().map(|(_, w)| *w).collect();
+    let out = combine(&routed_out, &weights, None)?;
+    let finite = out.iter().all(|v| v.is_finite());
+    let evidence = json!({
+        "ok": finite && max_err < 1e-4,
+        "layer": layer,
+        "numerics_only": true,
+        "no_quality_claim": true,
+        "chosen_experts": chosen.iter().map(|(i,_)| i).collect::<Vec<_>>(),
+        "max_err_model": max_err,
+        "out_len": out.len(),
+        "out_head": &out[..out.len().min(8)],
+        "all_finite": finite,
+    });
+    // Checkpoint (numerics only): next layer + aggregate error, no KV state.
+    let cp = data_dir.join("moe_forward_checkpoint.json");
+    std::fs::write(
+        &cp,
+        serde_json::to_string_pretty(&json!({
+            "next_layer": layer + 1, "max_err_model": max_err, "evidence": evidence,
+        }))
+        .unwrap(),
+    )
+    .map_err(|e| format!("checkpoint write: {e}"))?;
+    Ok(evidence)
+}
+
+/// Look up the sha256 key of the byte range just registered by `register_expert_range`.
+fn expert_key(data_dir: &Path, offset: u64) -> String {
+    let sources: Value = serde_json::from_str(
+        &std::fs::read_to_string(data_dir.join(super::weight_store::ARTIFACT_SOURCES_FILE))
+            .unwrap_or_default(),
+    )
+    .unwrap_or(json!([]));
+    sources
+        .as_array()
+        .and_then(|a| {
+            a.iter()
+                .find(|r| r.get("offset").and_then(Value::as_u64) == Some(offset))
+        })
+        .and_then(|r| r.get("key").and_then(Value::as_str))
+        .unwrap_or("")
+        .to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[ignore = "diagnostic: read the live registered router tensor"]
+    fn diag_read_live_router() {
+        let dir = std::path::Path::new("S:/rust/GSV/data");
+        let alias = ExpertAddr {
+            layer: 0,
+            expert: 0,
+            role: ExpertRole::Router,
+        }
+        .alias();
+        println!("alias={alias}");
+        let entry = crate::boxes::weight_store::tensor_entry(dir, &alias);
+        println!("entry={:?}", entry.is_some());
+        let bytes = crate::boxes::weight_store::tensor_bytes(dir, &alias);
+        println!("bytes={:?}", bytes.as_ref().map(|b| b.len()));
+        let f = crate::boxes::wgpu_dequant::tensor_f32(dir, &alias);
+        println!("f32={:?}", f.as_ref().map(|v| v.len()));
+    }
+
+    #[test]
+    fn fwd4_swiglu_matches_rusty_engine_semantics() {
+        let gate = vec![0.0, 1.0, -1.0];
+        let up = vec![2.0, 3.0, 4.0];
+        let out = swiglu(&gate, &up).unwrap();
+        assert_eq!(out.len(), 3);
+        assert!((out[0] - 0.0).abs() < 1e-12); // silu(0)=0
+        assert!((out[1] - 0.7310585786300049 * 3.0).abs() < 1e-9); // silu(1)*3
+        assert!(out[2] < 0.0); // silu(-1) negative, up positive
+        assert!(swiglu(&gate, &[1.0]).is_err(), "shape mismatch must fail");
+    }
+
+    #[test]
+    fn fwd4_combine_weights_and_shared() {
+        let routed = vec![vec![1.0, 2.0], vec![3.0, 4.0]];
+        let out = combine(&routed, &[0.25, 0.75], None).unwrap();
+        assert!((out[0] - 2.5).abs() < 1e-12); // 0.25*1 + 0.75*3
+        assert!((out[1] - 3.5).abs() < 1e-12);
+        let with_shared = combine(&routed, &[0.25, 0.75], Some(&[1.0, 1.0])).unwrap();
+        assert!((with_shared[0] - 3.5).abs() < 1e-12);
+        assert!(combine(&routed, &[0.5], None).is_err());
+    }
 
     #[test]
     fn expert_byte_range_matches_artifact_dims() {
