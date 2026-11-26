@@ -1,10 +1,10 @@
 //! Per-expert addressing + routing primitives for a streaming qwen35moe forward.
 //!
 //! The 21 GB `gsv-versus-ai-full-q4k.gguf` cannot be resident on the 7.7 GB hub.
-//! This module implements ONLY the cheap control-plane math (no dispatch, no
-//! HTTP): map a `(layer, expert, role)` to one contiguous byte range in the
-//! artifact, and select top-8 experts from a router logits vector. The heavy
-//! matvec stays on the existing `weights_matvec` lane (see `moe_bench.rs`).
+//! This module maps a `(layer, expert, role)` to one contiguous byte range in the
+//! artifact, selects top-8 experts from a router logits vector, registers a
+//! single expert as an artifact-backed WGPU tensor, and runs one verification
+//! canary. The heavy matvec stays on the existing `weights_matvec` lane.
 //!
 //! Math canon (rusty-engine `gguf.rs:157-164`, GSV `wgpu_dequant.rs:290-329`):
 //!   data_start = align_up(manifest.data_offset, alignment)
@@ -16,7 +16,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use serde_json::Value;
+use serde_json::{json, Value};
 
 pub const N_EXPERTS: usize = 256;
 pub const TOP_K: usize = 8;
@@ -223,6 +223,121 @@ pub struct StateBudget {
     pub max_kv_tokens: usize,
     pub max_hot_experts: usize,
     pub max_inflight_groups: usize,
+}
+
+/// Register one expert's byte range as an artifact-backed WGPU tensor.
+/// The chunk key is the sha256 of the raw slice (fail-closed on byte mismatch).
+pub fn register_expert_range(
+    data_dir: &Path,
+    artifact: &Path,
+    alias: &str,
+    start: u64,
+    len: usize,
+    ggml_type: u32,
+) -> Result<Value, String> {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut f = std::fs::File::open(artifact).map_err(|e| format!("open artifact: {e}"))?;
+    f.seek(SeekFrom::Start(start))
+        .map_err(|e| format!("seek: {e}"))?;
+    let mut buf = vec![0u8; len];
+    f.read_exact(&mut buf)
+        .map_err(|e| format!("read_exact: {e}"))?;
+    let key = super::weight_store::sha256_hex(&buf);
+    let sources_path = data_dir.join(super::weight_store::ARTIFACT_SOURCES_FILE);
+    let existing: Vec<Value> = std::fs::read_to_string(&sources_path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
+    let fresh = vec![json!({
+        "key": key, "artifact": artifact.to_string_lossy(),
+        "offset": start, "len": len as u64,
+    })];
+    let merged = super::vision_canary::merge_sources(&existing, &fresh);
+    std::fs::write(&sources_path, serde_json::to_string(&merged).unwrap())
+        .map_err(|e| format!("artifact sources write: {e}"))?;
+    Ok(json!({
+        "tensor": alias,
+        "source": "artifact",
+        "ggml_type": ggml_type,
+        "bytes": len,
+        "key": key,
+        "offset": start,
+    }))
+}
+
+/// Enqueue a one-shot `weights_matvec` canary for a registered expert and
+/// return the result group id + route. Verification is done by the hub.
+pub async fn enqueue_expert_canary(
+    client: &reqwest::Client,
+    base: &str,
+    alias: &str,
+    cols: usize,
+    shards: usize,
+) -> Result<Value, String> {
+    let r = client
+        .post(format!("{base}/api/wgpu/task/enqueue"))
+        .json(&json!({
+            "op": "weights_matvec", "tensor": alias,
+            "x_spec": format!("onehot:0:{cols}"), "shards": shards,
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("enqueue: {e}"))?;
+    let v: Value = r.json().await.map_err(|e| format!("enqueue json: {e}"))?;
+    if v.get("ok").and_then(Value::as_bool) == Some(false) {
+        return Err(format!(
+            "enqueue: {}",
+            v.get("error").and_then(Value::as_str).unwrap_or("?")
+        ));
+    }
+    // shards=1 responses carry only task_id (`mt-N`), but the task row stores
+    // group `g-N`; shards>1 responses carry group_id directly.
+    if v.get("group_id").is_none() {
+        if let Some(task) = v.get("task_id").and_then(Value::as_str) {
+            let seq = task.strip_prefix("mt-").unwrap_or(task);
+            let mut out = v.clone();
+            out["group_id"] = json!(format!("g-{seq}"));
+            return Ok(out);
+        }
+    }
+    Ok(v)
+}
+
+/// Poll a result group until complete, then return the max `max_err_model`.
+pub async fn collect_canary(
+    client: &reqwest::Client,
+    base: &str,
+    group: &str,
+    wait_secs: u64,
+) -> Result<Value, String> {
+    let started = std::time::Instant::now();
+    while started.elapsed() < std::time::Duration::from_secs(wait_secs) {
+        let v: Value = client
+            .get(format!("{base}/api/wgpu/task/result?group={group}"))
+            .send()
+            .await
+            .map_err(|e| format!("result get: {e}"))?
+            .json()
+            .await
+            .map_err(|e| format!("result json: {e}"))?;
+        if v.get("shards_done").and_then(Value::as_u64).unwrap_or(0) as usize
+            >= v.get("shards").and_then(Value::as_u64).unwrap_or(1) as usize
+            && v.get("ok").and_then(Value::as_bool) == Some(true)
+        {
+            let max_err = v["results"]
+                .as_array()
+                .ok_or("no results")?
+                .iter()
+                .filter_map(|r| r["max_err_model"].as_f64())
+                .fold(0.0f64, f64::max);
+            return Ok(json!({
+                "group_id": group, "ok": true, "max_err_model": max_err,
+                "results": v["results"].as_array().unwrap().len(),
+            }));
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    }
+    Err(format!("group {group} did not complete in {wait_secs}s"))
 }
 
 pub fn state_budget(

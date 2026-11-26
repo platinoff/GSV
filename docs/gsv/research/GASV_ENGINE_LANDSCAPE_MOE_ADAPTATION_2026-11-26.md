@@ -142,8 +142,8 @@ pub fn state_budget(n_full:usize, n_recur:usize, kv_dim:usize, gdn_bytes:usize, 
 
 ## 6. Тикетізація (наступні кроки)
 
-1. **FWD-1** — `moe_forward.rs` скелет: `ExpertAddr`/`manifest_offsets`/`register_expert_range`/`router_logits`/`top8_experts`, unit-тести на реальних dims artifact.
-2. **FWD-2** — per-expert registration + 1-shot canary: один expert `blk.0.ffn_gate_exps.weight` expert 17, 1 shard, `max_err < 1e-4`.
+1. **FWD-1** ✅ `071d081` — `moe_forward.rs` скелет: `ExpertAddr`/`manifest_offsets`/`register_expert_range`/`router_logits`/`top8_experts`, 5 unit-тестів + ignored-діагностика (gate e17 = `963314560..963904384`, 589 824 B).
+2. **FWD-2** — per-expert registration + 1-shot canary: `register_expert_range()` + `cargo xtask moe-expert-canary --expert 17 --role gate --shards 1` (реєструє 589 824 B зріз як artifact-backed tensor `[2048,512]`, ставить `weights_matvec onehot:0:512`, відхиляє `max_err >= 1e-4`). Сингл-шард enqueue повертає `task_id` без `group_id` — grou зводиться з `mt-N → g-N`.застряглі claimed-задачі попередніх діагностик (`g-7367`) очищуються в operational даних (gitignored); valhall `#44` owner забрав із флоту — працюємо `#43` + `#39`.
 3. **FWD-3** — P0/WebGPU адаптації (x_spec у block, segment reference, device cap) + TDD.
 4. **FWD-4** — 1-layer coherent forward (router → top8 → gate/up/down → combine) з checkpoint; numerics only.
 5. **FWD-5** — EPLB/hot-set + lookahead prefetch після вимірювання Gini; concurrency tuning.

@@ -802,6 +802,170 @@ fn main() -> ExitCode {
                 }
             }
         }
+        "moe-expert-canary" => {
+            // FWD-2: register one Q4_K expert byte range + one-shot weights_matvec
+            // canary on the live cluster; verify max_err_model < 1e-4.
+            let artifact = flag_value(&args, "--artifact")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| {
+                    PathBuf::from("L:/gsv_mirror/models/gsv-versus-ai/gsv-versus-ai-full-q4k.gguf")
+                });
+            let rusty = flag_value(&args, "--rusty")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("S:/rust/rusty-engine/target/debug/rusty.exe"));
+            let data_dir = flag_value(&args, "--data-dir")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| root.join("data"));
+            let hub = flag_value(&args, "--hub").unwrap_or_else(|| "http://127.0.0.1:9999".into());
+            let layer = flag_value(&args, "--layer")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(0);
+            let expert = flag_value(&args, "--expert")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(17);
+            let role = match flag_value(&args, "--role").as_deref().unwrap_or("gate") {
+                "gate" => gsv::boxes::moe_forward::ExpertRole::Gate,
+                "up" => gsv::boxes::moe_forward::ExpertRole::Up,
+                "down" => gsv::boxes::moe_forward::ExpertRole::Down,
+                other => {
+                    eprintln!("moe-expert-canary: unknown role {other}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            let shards = flag_value(&args, "--shards")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(1);
+            let wait_secs = flag_value(&args, "--wait-secs")
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(300);
+            let addr = gsv::boxes::moe_forward::ExpertAddr {
+                layer,
+                expert,
+                role,
+            };
+            let offsets = match gsv::boxes::moe_forward::manifest_offsets(&rusty, &artifact) {
+                Ok(o) => o,
+                Err(e) => {
+                    eprintln!("moe-expert-canary: manifest: {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            let (tensor_start, gt) = match offsets.get(&addr.tensor_name()) {
+                Some(v) => *v,
+                None => {
+                    eprintln!("moe-expert-canary: no tensor {}", addr.tensor_name());
+                    return ExitCode::FAILURE;
+                }
+            };
+            let (start, end) = match addr.byte_range(tensor_start, 0) {
+                Some(v) => v,
+                None => {
+                    eprintln!("moe-expert-canary: no byte range for {}", addr.alias());
+                    return ExitCode::FAILURE;
+                }
+            };
+            let reg = match gsv::boxes::moe_forward::register_expert_range(
+                &data_dir,
+                &artifact,
+                &addr.alias(),
+                start,
+                (end - start) as usize,
+                gt,
+            ) {
+                Ok(v) => v,
+                Err(e) => {
+                    eprintln!("moe-expert-canary: register: {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            // Register with the hub under artifact alias, dims [rows, cols].
+            let dims = addr.dims();
+            let client = match reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(120))
+                .build()
+            {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("moe-expert-canary: client: {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            let base = hub.trim_end_matches('/');
+            let rt = match tokio::runtime::Runtime::new() {
+                Ok(rt) => rt,
+                Err(e) => {
+                    eprintln!("moe-expert-canary: runtime: {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            if let Err(e) = rt.block_on(async {
+                let r = client
+                    .post(format!("{base}/api/wgpu/weights/register_tensor"))
+                    .json(&serde_json::json!({
+                        "tensor": addr.alias(), "dims": [dims[0], dims[1]],
+                        "chunks": [reg["key"]], "source": "artifact",
+                        "dtype": if gt == 14 { "q6_k" } else { "q4_k" }, "ggml_type": gt,
+                        "bytes": end - start,
+                    }))
+                    .send()
+                    .await
+                    .map_err(|e| format!("register post: {e}"))?;
+                let v: serde_json::Value =
+                    r.json().await.map_err(|e| format!("register json: {e}"))?;
+                if v.get("ok").and_then(serde_json::Value::as_bool) == Some(false) {
+                    return Err(format!(
+                        "register: {}",
+                        v.get("error")
+                            .and_then(serde_json::Value::as_str)
+                            .unwrap_or("?")
+                    ));
+                }
+                Ok::<(), String>(())
+            }) {
+                eprintln!("moe-expert-canary: {e}");
+                return ExitCode::FAILURE;
+            }
+            let cols = dims[1] as usize;
+            let enq = match rt.block_on(gsv::boxes::moe_forward::enqueue_expert_canary(
+                &client,
+                base,
+                &addr.alias(),
+                cols,
+                shards,
+            )) {
+                Ok(v) => v,
+                Err(e) => {
+                    eprintln!("moe-expert-canary: enqueue: {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            let gid = enq["group_id"].as_str().unwrap_or("?").to_string();
+            println!(
+                "FWD-2 canary {} e{} group={} route={}",
+                addr.tensor_name(),
+                expert,
+                gid,
+                enq["route_peers"]
+            );
+            match rt.block_on(gsv::boxes::moe_forward::collect_canary(
+                &client, base, &gid, wait_secs,
+            )) {
+                Ok(v) => {
+                    println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+                    let err = v["max_err_model"].as_f64().unwrap_or(f64::MAX);
+                    if v["ok"].as_bool() == Some(true) && err < 1e-4 {
+                        ExitCode::SUCCESS
+                    } else {
+                        eprintln!("moe-expert-canary: max_err {err} >= 1e-4");
+                        ExitCode::FAILURE
+                    }
+                }
+                Err(e) => {
+                    eprintln!("moe-expert-canary: {e}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
         "vision-chat" => {
             // GASV-G43: one command image -> Q4_K vision on the WGPU cluster ->
             // qwen35 text core via rusty-engine `--vision-prefix`.

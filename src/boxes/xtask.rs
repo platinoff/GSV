@@ -138,6 +138,10 @@ pub const TASKS: &[(&str, &str)] = &[
         "GASV benchmark lane: artifact-backed Q4_K MoE tensor weights_matvec on the live cluster; records max_err/routes/MFLOPS to data/moe_bench.jsonl (--tensor, --dims, --shards, --iters, --wait-secs, --group to resume an existing group)",
     ),
     (
+        "moe-expert-canary",
+        "FWD-2: register one Q4_K expert byte range from the 21 GB artifact + one-shot weights_matvec canary on the live cluster; fails if max_err_model >= 1e-4 (--layer, --expert, --role gate|up|down, --shards, --wait-secs)",
+    ),
+    (
         "vision-chat",
         "GASV-G43: image -> Q4_K vision on WGPU cluster -> qwen35 text core via rusty --vision-prefix (--image, --prompt, --image-tokens, --vision-at)",
     ),

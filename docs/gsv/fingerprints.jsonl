@@ -183,3 +183,4 @@
 {"ts":"2026-11-26T14:25:26Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"4396bd6","band":"248","summary":"BENCH_STREAM_wasm_q4k_parity","product":"gsv"}
 {"ts":"2026-11-26T16:40:37Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"33d1892","band":"248","summary":"ENGINE_LANDSCAPE_MOE_ADAPTATION","product":"gsv"}
 {"ts":"2026-11-26T17:28:25Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"3721f12","band":"248","summary":"FWD1_moe_forward_skeleton","product":"gsv"}
+{"ts":"2026-11-26T18:27:39Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"071d081","band":"248","summary":"FWD2_per_expert_canary","product":"gsv"}
