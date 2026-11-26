@@ -519,6 +519,14 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
         &format!("{}.bias", g.norm),
         opts.scratch,
     )?;
+    // MiniCPM-V 4.7 ships learned separator embeddings (`v.tok_embd_sep`,
+    // [d_model, 4] = exactly our four pooled positions) instead of a single
+    // class token. Inkling-2 uses class_embd + class_position_embd.
+    let sep = if g.dims.contains_key("v.tok_embd_sep") {
+        dump_f32(opts.rusty, opts.artifact, "v.tok_embd_sep", opts.scratch)?
+    } else {
+        Vec::new()
+    };
     let (class, class_pos) = if g.family == "inkling2v" {
         (
             dump_f32(opts.rusty, opts.artifact, "v.class_embd", opts.scratch)?,
@@ -529,6 +537,8 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
                 opts.scratch,
             )?,
         )
+    } else if sep.len() >= d {
+        (sep[..d].to_vec(), vec![0.0f32; d])
     } else {
         (vec![0.0f32; d], vec![0.0f32; d])
     };
@@ -604,16 +614,24 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
     for (t, token) in tokens.iter_mut().enumerate().skip(1) {
         let off = t * d;
         let base = token.clone();
+        let sep_bias = !sep.is_empty() && sep.len() >= (t + 1) * d;
         *token = base
             .iter()
             .enumerate()
-            .map(|(i, v)| *v + pos[off + i] as f64)
+            .map(|(i, v)| {
+                let s = if sep_bias { sep[off + i] as f64 } else { 0.0 };
+                *v + pos[off + i] as f64 + s
+            })
             .collect();
     }
-    tokens = tokens
-        .iter()
-        .map(|t| layer_norm(t, &pre_w, &pre_b, 1e-5))
-        .collect();
+    // MiniCPM-V 4.7 applies `v.post_ln` AFTER the ViT stack; Inkling-2 applies
+    // its pre-norm before every block. Keep both paths correct.
+    if g.family == "inkling2v" {
+        tokens = tokens
+            .iter()
+            .map(|t| layer_norm(t, &pre_w, &pre_b, 1e-5))
+            .collect();
+    }
     if let Some(saved) = resumed_tokens {
         tokens = saved;
     }
@@ -851,6 +869,15 @@ pub async fn report(opts: &ForwardOpts<'_>) -> Result<Value, String> {
         if let Some(cp) = opts.checkpoint {
             save_checkpoint(cp, block + 1, &tokens)?;
         }
+    }
+
+    // `v.post_ln` for MiniCPM-V 4.7 belongs after the ViT stack, before the
+    // projector; Inkling-2's pre-norm was already applied before the blocks.
+    if g.family != "inkling2v" {
+        tokens = tokens
+            .iter()
+            .map(|t| layer_norm(t, &pre_w, &pre_b, 1e-5))
+            .collect();
     }
 
     // Projector (geometry-specific names, both Q4_K on the cluster).

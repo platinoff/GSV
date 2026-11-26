@@ -251,3 +251,15 @@ quality-claim. Повний 27-блоковий 4-токенний прогон 
 mt4 раніше давав `This is a photo of a game`. Тобто **повна глибина сама по
 собі не дає image-grounding** — потрібне навчене вирівнювання vision-токенів
 до embedding-простору MiniCPM 1B (PH-1204) і G13. Жодного quality-claim.
+
+**G45 — архітектурні виправлення (2026-11-26):** знайдено дві реальні
+невідповідності нашого forward'у MiniCPM-V 4.7: class-токен був нульовим,
+хоча mmproj має `v.tok_embd_sep [1024,4]` (навчені вектори для чотирьох
+positions), і `v.post_ln` застосовувався до ViT-стека замість після нього.
+Виправлено (`vision_forward.rs`), Inkling-2 `pre_ln` шлях не змінено.
+Smoke 1 блок × 4 токени: 119 cluster ops, 1131 c, `ok=true`,
+**`proof_gate_ok=true`** (вперше під strict 1e-4), `max_abs 1.919`.
+Вектор `vision_prefix_1024_mt4_fixed.f32`; `rusty --vision-at 3` дає
+`The group is a group of` (було `1. 1. 1`), `--vision-at 0` —
+`In the picture, the picture,`. Тобто обчислення тепер коректніші, але
+відповідь досі не image-grounded — вирівнювання лишається відкритим.
