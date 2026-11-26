@@ -298,7 +298,12 @@ pub(crate) fn tensor_raw_range(
     let entry = tensor_entry(data_dir, name)?;
     let chunks = entry.get("chunks")?.as_array()?;
     let (bytes_per_value_num, bytes_per_value_den) = bpv;
-    let lo = value_start * bytes_per_value_num / bytes_per_value_den;
+    // BUG t-1795680000000000000: `value_start * 144 / 256` truncates to a
+    // BYTE offset in the middle of a K-quant block when `value_start` is not
+    // a multiple of 256 (e.g. row 288 of a 588-col tensor). Both
+    // `dequant_q4_k_matvec` and `tensor_f32_range` assume the returned slice
+    // starts at `floor(value_start/256)` blocks, so align DOWN to that block.
+    let lo = (value_start / bytes_per_value_den) * bytes_per_value_num;
     let hi = value_end.div_ceil(bytes_per_value_den) * bytes_per_value_num;
     let mut out = Vec::new();
     let mut off = 0usize;

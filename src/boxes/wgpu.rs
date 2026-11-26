@@ -5602,6 +5602,68 @@ mod tests {
     }
 
     #[test]
+    fn q4k_segment_588_cols_matches_full_reference() {
+        // BUG candidate t-1795680000000000000: the hub segment reference for
+        // Q4_K rows 288..576 / 864..1152 of a 1152x588 tensor disagrees with
+        // peer partials. Build a synthetic Q4_K tensor and compare segment vs
+        // full reference directly — they must be bit-identical.
+        let dir = temp_dir("q4k_segment_588");
+        let _ = std::fs::create_dir_all(&dir);
+        let blocks = (1152usize * 588) / 256;
+        let mut raw = Vec::with_capacity(blocks * 144);
+        for b in 0..blocks {
+            let mut blk = [0u8; 144];
+            blk[0..2].copy_from_slice(&0x3c00u16.to_le_bytes()); // d = 1.0
+            blk[2..4].copy_from_slice(&0x3f00u16.to_le_bytes()); // min = 0.5
+            for s in 0..16 {
+                blk[4 + s] = 0x21u8.wrapping_add((b + s) as u8); // sc=1+, m=2+
+            }
+            for q in 0..128 {
+                blk[16 + q] = (b + q) as u8 % 16 + 1;
+            }
+            raw.extend_from_slice(&blk);
+        }
+        let s = crate::boxes::weight_store::store_chunk(&dir, &raw).expect("store q4k bytes");
+        let key = s["key"].as_str().expect("key").to_string();
+        let blob = dir.join("q4k588.bin");
+        std::fs::write(&blob, &raw).expect("blob");
+        let sources = json!([{
+            "key": key, "artifact": blob.to_string_lossy(), "offset": 0u64, "len": raw.len() as u64,
+        }]);
+        std::fs::write(
+            dir.join(crate::boxes::weight_store::ARTIFACT_SOURCES_FILE),
+            serde_json::to_string(&sources).expect("sources json"),
+        )
+        .expect("sources write");
+        crate::boxes::weight_store::register_tensor(
+            &dir,
+            &json!({
+                "tensor":"q4k588", "dims":[1152,588], "chunks":[key],
+                "source":"artifact", "dtype":"q4_k", "ggml_type":12, "bytes":raw.len(),
+            }),
+        )
+        .expect("register q4k");
+        let mut x = vec![0.0f64; 588];
+        x[0] = 1.0;
+        x[7] = -0.5;
+        let full = weights_matvec_reference(&dir, "q4k588", &x).expect("full q4k ref");
+        for (a, b) in [(288usize, 576usize), (864usize, 1152usize)] {
+            let seg = weights_matvec_reference_segment(&dir, "q4k588", &x, a, b)
+                .expect("segment q4k ref");
+            assert_eq!(seg.len(), b - a);
+            for i in 0..seg.len() {
+                assert!(
+                    (seg[i] - full[a + i]).abs() < 1e-6,
+                    "segment rows {a}..{b} idx {i}: seg={} full={}",
+                    seg[i],
+                    full[a + i]
+                );
+            }
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn matvec_reference_segment_matches_full() {
         // GASV-G22: verify the row-segment reference (used at task_result) is
         // identical to the historical full reference for an F32 tensor.

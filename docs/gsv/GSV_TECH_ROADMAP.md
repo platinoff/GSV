@@ -2383,5 +2383,8 @@ Not a versioned band (crate stayed **0.244.0**; PH-S queue не змінювал
 | G42 | dropped-partial retry + automation `aut_20e65ced2001Kt1aKXZ0aZaSpk` |
 | G43 | `cargo xtask vision-chat`: image → cluster Q4_K vision → rusty `--vision-prefix` answer (live 119 ops / 1018 c) |
 | G44 | full 27/27 4-token Q4_K vision prefix `vision_prefix_1024_mt4_full.f32` (296 ops final stage, sha `bbdcf2f9…`); full depth alone degenerate — trained alignment needed |
+| G45 | MiniCPM-V 4.7 forward corrections: `v.tok_embd_sep` + `v.post_ln` after ViT stack; `proof_gate_ok=true` first time |
+| G46–G49 | two phones joined (#39/#44); three-peer routing investigated; phone WebGPU/WASM/cache hypotheses disproven; root cause = hub `tensor_raw_range` byte misalignment of Q4_K blocks (row 288 of 588-col tensor), fixed by block-aligned `lo` + TDD test |
+| DOC | `docs/gsv/GSV_DEBUG_CANON.md` — canonical debug plan + steady states + root-cause method |
 
 Vision companions: `gsv-versus-ai-vision-q4k.gguf` (2048), `inkling2-vision-q4k.gguf` (2304), `minicpm1b-vision-q4k.gguf` (1024) in `L:/gsv_mirror/models/gsv-versus-ai/`. No image→answer/quality claim (PH-1204/1205, G13 open). Owner note: `docs/gsv/research/OWNER_NOTE_2026-11-23_4BIT_VISION_CLUSTER.md`.

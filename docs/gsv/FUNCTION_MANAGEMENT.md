@@ -1,6 +1,6 @@
 # FUNCTION_MANAGEMENT.md — GSV (мама, хаб)
 
-**Status:** Canon, adapted 2026-11-26 @ HEAD `904eda9` (toolchain rust 1.100.0; owner ratified 2026-11-17, GASV G32–G44 vision slice synced 2026-11-26; rusty-engine `62550df`) · **Owner:** platinoff
+**Status:** Canon, adapted 2026-11-26 @ HEAD `12bc953` (GASV G32–G49; Q4_K 588-col reference fix; debug canon `GSV_DEBUG_CANON.md`) (toolchain rust 1.100.0; owner ratified 2026-11-17, GASV G32–G44 vision slice synced 2026-11-26; rusty-engine `62550df`) · **Owner:** platinoff
 **Компаньйони:** [`GSV_FUNCTION_MANAGEMENT.md`](./GSV_FUNCTION_MANAGEMENT.md) (майстер-матриця) · [`GSV_ECOSYSTEM_SYMBIOSIS.md`](./GSV_ECOSYSTEM_SYMBIOSIS.md) (мама/тато) · [`PRODUCTS.md`](./PRODUCTS.md)
 **Шар:** мама — операційний план екосистеми (хаб). poolAI (тато-план, FM) очолює управління; цей файл — функційний реєстр GSV.
 
@@ -73,7 +73,7 @@
 ## 2. Гейти (2026-11-26 steady state)
 
 - Toolchain: rustc/cargo **1.100.0** stable (`stable-x86_64-pc-windows-gnu` pin on 11 products; host-agnostic `stable` on adoreble_wifi/mesh-node; omniroute no pin, policy-down). `RUSTUP_TOOLCHAIN` unset.
-- `cargo xtask record-rust` — **warnings=0 errors=0** @ HEAD `904eda9`.
+- `cargo xtask record-rust` — **warnings=0 errors=0** @ HEAD `12bc953`.
 - `cargo clippy --all-targets -- -D warnings` — green (65 wgpu + 7 dequant tests green after GASV track).
 - `cargo xtask record-speed --skip-run` — ok (останній повний `cargo test` 518s, exit 0).
 - `cargo fmt --all -- --check` — ok.

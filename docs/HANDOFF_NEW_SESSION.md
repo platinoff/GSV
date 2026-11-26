@@ -1,6 +1,6 @@
 # Передача контексту новій сесії (GSV)
 
-## Сталий стан (2026-11-26 — GSV `904eda9` / rusty-engine `62550df`; GASV G32–G44 done; G13 blocked, G19 open; vision rev 516, next PH-S3129)
+## Сталий стан (2026-11-26 — GSV `12bc953` / rusty-engine `34b3363`; GASV G32–G49 done; Q4_K 588-col bug fixed; G13 blocked, G19 open; vision rev 516, next PH-S3129)
 
 | Що | Значення |
 |----|----------|

@@ -97,7 +97,7 @@
 ## 4. Оп-план (по задачах, без даних owner-гейтів)
 
 - [ ] PH-A6.0 doc-ред рецензія/затвердження формату розширених рядків піра (цей документ).
-- [ ] PH-A6.1 mesh-node агент: розширити `peer_join`/`poll` телеметрією (Фаза 0) — малі пatchи, `MSRV 1.85`.
+- [ ] PH-A6.1 mesh-node агент: розширити `peer_join`/`poll` телеметрією (Фаза 0) — малі пatchи, `MSRV 1.100.0` (екосистемний стандарт, факточний stable).
 - [ ] PH-A6.2 GSV `/api/sys/metrics`: рахунок delta rx/tx, похідні, JSONL compact (Фаза 2).
 - [ ] PH-A6.3 `/wgpu` сторінка: підібрати `connection`/`battery`/UA-CH/WebGPU limits (Фаза 1).
 - [ ] PH-A6.4 `/sys` панель: блок «Radio & net» + кольорове маркування `ready/warn/crit` (Фаза 3).
