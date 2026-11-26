@@ -493,6 +493,107 @@ pub fn should_prefetch(
     free_bytes > reserve_bytes && in_flight < max_in_flight
 }
 
+/// Bytes one routed expert occupies across gate/up (Q4_K) + down (Q6_K).
+pub const EXPERT_BYTES: u64 = 589_824 * 2 + 860_160;
+
+/// Profile-derived, byte-budgeted hot-expert cache with LRU eviction. Shared
+/// experts are pinned (they fire every token); routed experts are admitted from
+/// the routing profile's hot set. Pure in-memory state — TDD-testable without
+/// the cluster. Only admit while the RAM watermark allows (see should_prefetch).
+#[derive(Debug, Clone)]
+pub struct HotExpertSet {
+    pub budget_bytes: u64,
+    pub used_bytes: u64,
+    /// (expert id, last-touch tick); front = least-recently-used.
+    pub lru: Vec<(usize, u64)>,
+    pub pinned: Vec<usize>,
+    pub tick: u64,
+}
+
+impl HotExpertSet {
+    pub fn new(budget_bytes: u64) -> Self {
+        Self {
+            budget_bytes,
+            used_bytes: 0,
+            lru: Vec::new(),
+            pinned: Vec::new(),
+            tick: 0,
+        }
+    }
+
+    pub fn contains(&self, expert: usize) -> bool {
+        self.lru.iter().any(|(e, _)| *e == expert) || self.pinned.contains(&expert)
+    }
+
+    fn evict_to_fit(&mut self, need: u64) {
+        while self.used_bytes.saturating_add(need) > self.budget_bytes && !self.lru.is_empty() {
+            let (e, _) = self.lru.remove(0); // oldest touch first
+            self.used_bytes = self.used_bytes.saturating_sub(EXPERT_BYTES);
+            let _ = e;
+        }
+    }
+
+    /// Admit a hot expert (from profile). Returns true if it is resident after
+    /// the call. A single expert larger than the whole budget is not cached.
+    pub fn admit(&mut self, expert: usize, allow: bool) -> bool {
+        self.tick += 1;
+        if self.contains(expert) {
+            if let Some(row) = self.lru.iter_mut().find(|(e, _)| *e == expert) {
+                row.1 = self.tick;
+            }
+            return true;
+        }
+        if !allow || EXPERT_BYTES > self.budget_bytes {
+            return false;
+        }
+        self.evict_to_fit(EXPERT_BYTES);
+        if self.used_bytes.saturating_add(EXPERT_BYTES) > self.budget_bytes {
+            return false;
+        }
+        self.lru.push((expert, self.tick));
+        self.used_bytes += EXPERT_BYTES;
+        true
+    }
+
+    /// Pin an expert (shared experts fire every token, never evicted).
+    pub fn pin(&mut self, expert: usize) {
+        if !self.pinned.contains(&expert) {
+            self.pinned.push(expert);
+        }
+    }
+
+    /// Derived plan from a routing profile: pin shared, admit the profile's hot
+    /// set under budget with watermark gate. Returns the JSON evidence.
+    pub fn from_profile(
+        profile: &Value,
+        budget_bytes: u64,
+        free_bytes: u64,
+        reserve_bytes: u64,
+    ) -> Self {
+        let mut set = Self::new(budget_bytes);
+        set.pin(N_EXPERTS); // sentinel id for shared expert bucket
+        let allow = should_prefetch(free_bytes, reserve_bytes, 0, 2);
+        if let Some(hot) = profile.get("hot_experts").and_then(Value::as_array) {
+            for v in hot {
+                if let Some(e) = v.as_u64() {
+                    set.admit(e as usize, allow);
+                }
+            }
+        }
+        set
+    }
+
+    pub fn to_value(&self) -> Value {
+        json!({
+            "budget_bytes": self.budget_bytes,
+            "used_bytes": self.used_bytes,
+            "resident": self.lru.len(),
+            "pinned": self.pinned,
+            "lru_least_recent_first": self.lru.iter().map(|(e, t)| json!({"expert": e, "touch": t})).collect::<Vec<_>>(),
+        })
+    }
+}
+
 /// Concurrency decision from measured wall vs compute time. If compute is a
 /// small fraction of wall, the bottleneck is queue/claim, not the SIMD kernel —
 /// raise the per-peer concurrent limit (keeping the proof gate). Returns the
@@ -843,6 +944,38 @@ mod tests {
         );
         // Empty input is safe.
         assert_eq!(routing_stats(&[])["total"], 0);
+    }
+
+    #[test]
+    fn fwd7_hotset_budget_and_lru_eviction() {
+        // Budget for exactly 2 experts: admitting a 3rd evicts the oldest.
+        let budget = EXPERT_BYTES * 2;
+        let mut set = HotExpertSet::new(budget);
+        assert!(set.admit(10, true));
+        assert!(set.admit(11, true));
+        assert_eq!(set.used_bytes, budget);
+        assert!(set.admit(12, true)); // evicts 10 (oldest)
+        assert!(!set.contains(10));
+        assert!(set.contains(11));
+        assert!(set.contains(12));
+        assert_eq!(set.used_bytes, budget);
+        // Watermark gate closed -> no new admission, existing stays resident.
+        assert!(!set.admit(13, false));
+        assert!(!set.contains(13));
+        // Pinned expert never evicted even under pressure.
+        set.pin(99);
+        assert!(set.contains(99));
+    }
+
+    #[test]
+    fn fwd7_hotset_from_profile_respects_watermark() {
+        let profile = json!({"hot_experts": [1, 2, 3, 4, 5, 6, 7, 8]});
+        let budget = EXPERT_BYTES * 4;
+        let open = HotExpertSet::from_profile(&profile, budget, 1_000_000_000, 500_000_000);
+        assert_eq!(open.lru.len(), 4, "budget caps hot set at 4 experts");
+        let closed = HotExpertSet::from_profile(&profile, budget, 400_000_000, 500_000_000);
+        assert_eq!(closed.lru.len(), 0, "watermark closed -> no admission");
+        assert_eq!(open.to_value()["resident"], 4);
     }
 
     #[test]

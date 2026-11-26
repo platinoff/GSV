@@ -966,6 +966,71 @@ fn main() -> ExitCode {
                 }
             }
         }
+        "moe-hotset" => {
+            // FWD-7: profile-derived dynamic hot-expert cache plan (no cluster).
+            let artifact = flag_value(&args, "--artifact")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| {
+                    PathBuf::from("L:/gsv_mirror/models/gsv-versus-ai/gsv-versus-ai-full-q4k.gguf")
+                });
+            let rusty = flag_value(&args, "--rusty")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("S:/rust/rusty-engine/target/debug/rusty.exe"));
+            let data_dir = flag_value(&args, "--data-dir")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| root.join("data"));
+            let layer = flag_value(&args, "--layer")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(0);
+            let tokens = flag_value(&args, "--tokens")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(64);
+            let seed = flag_value(&args, "--seed")
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(1);
+            let budget_mb = flag_value(&args, "--budget-mb")
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(256);
+            let free_mb = flag_value(&args, "--free-mb")
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(1700); // hub free RAM (~1.7 GB)
+            let reserve_mb = flag_value(&args, "--reserve-mb")
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(512);
+            let router =
+                match gsv::boxes::moe_forward::load_router_f32(&data_dir, &artifact, &rusty, layer)
+                {
+                    Ok(v) => v,
+                    Err(e) => {
+                        eprintln!("moe-hotset: router: {e}");
+                        return ExitCode::FAILURE;
+                    }
+                };
+            let profile = match gsv::boxes::moe_forward::routing_profile(&router, tokens, seed) {
+                Ok(v) => v,
+                Err(e) => {
+                    eprintln!("moe-hotset: profile: {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            let set = gsv::boxes::moe_forward::HotExpertSet::from_profile(
+                &profile,
+                budget_mb * 1024 * 1024,
+                free_mb * 1024 * 1024,
+                reserve_mb * 1024 * 1024,
+            );
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "layer": layer, "tokens": tokens, "seed": seed,
+                    "routing": profile,
+                    "hotset": set.to_value(),
+                    "no_quality_claim": true,
+                }))
+                .unwrap_or_default()
+            );
+            ExitCode::SUCCESS
+        }
         "moe-routing-profile" => {
             // FWD-6: multi-token routing Gini/entropy profile on the hub,
             // using truly varying hidden vectors (no cluster, no quality claim).
