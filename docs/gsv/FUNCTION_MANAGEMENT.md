@@ -1,6 +1,6 @@
 # FUNCTION_MANAGEMENT.md — GSV (мама, хаб)
 
-**Status:** Canon, adapted 2026-11-24 @ HEAD `cc7158a` (toolchain rust 1.100.0; owner ratified 2026-11-17, GASV G32–G42 vision slice synced 2026-11-24) · **Owner:** platinoff
+**Status:** Canon, adapted 2026-11-26 @ HEAD `904eda9` (toolchain rust 1.100.0; owner ratified 2026-11-17, GASV G32–G44 vision slice synced 2026-11-26; rusty-engine `62550df`) · **Owner:** platinoff
 **Компаньйони:** [`GSV_FUNCTION_MANAGEMENT.md`](./GSV_FUNCTION_MANAGEMENT.md) (майстер-матриця) · [`GSV_ECOSYSTEM_SYMBIOSIS.md`](./GSV_ECOSYSTEM_SYMBIOSIS.md) (мама/тато) · [`PRODUCTS.md`](./PRODUCTS.md)
 **Шар:** мама — операційний план екосистеми (хаб). poolAI (тато-план, FM) очолює управління; цей файл — функційний реєстр GSV.
 
@@ -66,11 +66,14 @@
 | 47 | Vision-block forward orchestrator: result bus `GET /api/wgpu/task/result?group=<id>` + `cargo xtask vision-forward` (all linear layers via `weights_matvec`, hub keeps norms/softmax/GELU) | `boxes/wgpu.rs`, `boxes/vision_forward.rs`, `server/mod.rs`, `bin/gsv_xtask.rs` | І | `tests/gsv_wgpu_contracts.rs::group_results_returns_ordered_verified_partials`; full 23/23 (557 ops, 2304-dim) + 27/27 (653 ops, 2048-dim) forwards |
 | 48 | Real PNG image input (`flate2` decoder, patchify per manifest) + full-vector export `--out` with `gsv.vision-prefix.v1` manifest | `boxes/image_input.rs`, `boxes/vision_forward.rs` | І | unit `decodes_rgb_png_and_patchifies`; live 1-block PNG forward 29 ops / 2304-dim, 252 s |
 | 49 | Checkpoint/resume `gsv.vision-checkpoint.v1` (`--checkpoint/--resume`) + dropped-partial retry + scheduled resume automation | `boxes/vision_forward.rs` (`save_checkpoint`/`load_checkpoint`/`matvec_inner`), `aut_20e65ced2001Kt1aKXZ0aZaSpk` | І | unit checkpoint roundtrip; live stages 4/8/12/15/18, checkpoint `next_block=18/27` |
+| 50 | Multi-token image prefix (`--image-tokens N`) — K × 1024-dim projector outputs in `gsv.vision-prefix.v1` | `boxes/vision_forward.rs`, `bin/gsv_xtask.rs` | І | 4-token smoke 119 cluster ops / 1018 c; full 27/27 4-token vector `vision_prefix_1024_mt4_full.f32` (sha `bbdcf2f9…`) |
+| 51 | `cargo xtask vision-chat` image→cluster→text orchestration + `--prompt-file` | `bin/gsv_xtask.rs`, `boxes/vision_forward.rs` | І | live: 119 ops, 1018 c, answer "In the image, there is a man wearing a black shirt…" (not grounded) |
+| 52 | Firefox mesh-worker OOM guards (GPU cache destroy before retry, WASM linear-memory bounds + cache clear, null-adapter diagnostic) | `boxes/wgpu.rs` PAGE string | І | `gsv_wgpu_contracts` 11/11, `gsv_ui_contracts` 33/33; page deployed via `/api/update/apply` |
 
-## 2. Гейти (2026-11-24 steady state)
+## 2. Гейти (2026-11-26 steady state)
 
 - Toolchain: rustc/cargo **1.100.0** stable (`stable-x86_64-pc-windows-gnu` pin on 11 products; host-agnostic `stable` on adoreble_wifi/mesh-node; omniroute no pin, policy-down). `RUSTUP_TOOLCHAIN` unset.
-- `cargo xtask record-rust` — **warnings=0 errors=0** @ HEAD `cc7158a`.
+- `cargo xtask record-rust` — **warnings=0 errors=0** @ HEAD `904eda9`.
 - `cargo clippy --all-targets -- -D warnings` — green (65 wgpu + 7 dequant tests green after GASV track).
 - `cargo xtask record-speed --skip-run` — ok (останній повний `cargo test` 518s, exit 0).
 - `cargo fmt --all -- --check` — ok.
@@ -99,7 +102,7 @@
 7. Поверхня host-ага (куплена одиниця): раскачування backup/sync кодексу — не в GSV.
 8. PoolAI CI runner — поза цим репо; коли з'явиться — GSV не блокується.
 9. **G19** (Astra-style weight patch) — не стартувати: G17 не знайшов безпечного кандидата (ability-gap, не obstacle-gap).
-10. **Vision→text resume (2026-11-24)**: automation `aut_20e65ced2001Kt1aKXZ0aZaSpk` продовжує 1B Q4_K проектор із checkpoint `next_block=18/27`; блокує RAM хоста (perіодичні падіння хаба, watchdog відновлює). Після повного 1024-вектора — PH-1205 multimodal serve + G13. Жодного image→answer/quality-claim.
+10. **Image grounding (2026-11-26)**: всі кластерні смуги завершені (23/23, 27/27, 27/27 × 4 токени), automation видалено. Повний 4-токенний вектор дає вироджений текст — потрібне **навчене вирівнювання vision-токенів до embedding-простору MiniCPM 1B** (PH-1204) + G13; PH-1205 multimodal wire готовий, реальні image bytes ще не інтегровані. G19 — не стартувати. Жодного image→answer/quality-claim.
 
 ## 5. Як агенти користуються
 
