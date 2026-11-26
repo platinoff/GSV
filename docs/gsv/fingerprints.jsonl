@@ -189,3 +189,4 @@
 {"ts":"2026-11-26T21:19:15Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"042f7b5","band":"248","summary":"FWD5_routing_prefetch_concurrency","product":"gsv"}
 {"ts":"2026-11-26T22:35:53Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"6efc3bd","band":"248","summary":"FWD6_multitoken_routing_profile","product":"gsv"}
 {"ts":"2026-11-26T23:05:51Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"414d317","band":"248","summary":"FWD7_dynamic_hotset","product":"gsv"}
+{"ts":"2026-11-26T23:09:12Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"308b8a5","band":"248","summary":"steady_state_fwd1_7","product":"gsv"}
