@@ -527,6 +527,10 @@ fn page_forces_wasm_for_phone_weights_matvec() {
         "phone must use golden-tested JS dequant fallback"
     );
     assert!(
+        page.contains("const cached=phone?null:await idbGet(c)"),
+        "phone peers must bypass unverifiable IndexedDB chunk cache"
+    );
+    assert!(
         page.contains("clearWasmWeightCache"),
         "WASM cache guard must stay present"
     );

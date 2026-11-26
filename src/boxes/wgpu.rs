@@ -3345,8 +3345,12 @@ async function downloadWeightsFlat(tensor,shardId,shards){
   const r0=(shardId|0)*per;
   const pieces=[];
   const canVerify = typeof crypto !== 'undefined' && crypto.subtle && crypto.subtle.digest;
+  // Phones on the insecure LAN origin have no crypto.subtle, so a corrupted
+  // IndexedDB entry can never be detected and is reused forever (identical
+  // max_err on every run). Always re-fetch authoritative bytes on phones.
+  const phone=!!(WORKER&&WORKER.phone);
   for(const c of tm.chunks){
-    const cached=await idbGet(c);
+    const cached=phone?null:await idbGet(c);
     if(cached){pieces.push(new Uint8Array(cached));continue;}
     const r=await(await fetch('api/wgpu/weights/chunk?key='+encodeURIComponent(c))).json();
     if(!r.ok)throw new Error('chunk fetch failed: '+c);
@@ -3356,7 +3360,7 @@ async function downloadWeightsFlat(tensor,shardId,shards){
       const hex=[...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,'0')).join('');
       if(hex!==c)throw new Error('chunk hash mismatch: '+c);
     } // insecure LAN origin: no crypto.subtle — hub verifies the partial numerically (max_err_model) — the authoritative gate
-    idbPut(c,bytes.buffer); // fire & forget — persist for the next session
+    if(!phone)idbPut(c,bytes.buffer); // phone: never trust a local copy without sha256
     pieces.push(bytes);
   }
   const totalBytes=pieces.reduce((a,p)=>a+p.byteLength,0);
