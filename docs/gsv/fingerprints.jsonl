@@ -181,3 +181,4 @@
 {"ts":"2026-11-26T12:44:21Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"12bc953","band":"248","summary":"DOC_DBG_canonical_debug_plan_Q4K_root_cause","product":"gsv"}
 {"ts":"2026-11-26T13:23:02Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"666bfb0","band":"248","summary":"WASM-1_native_q4k_dequant_kernel","product":"gsv"}
 {"ts":"2026-11-26T14:25:26Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"4396bd6","band":"248","summary":"BENCH_STREAM_wasm_q4k_parity","product":"gsv"}
+{"ts":"2026-11-26T16:40:37Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"33d1892","band":"248","summary":"ENGINE_LANDSCAPE_MOE_ADAPTATION","product":"gsv"}

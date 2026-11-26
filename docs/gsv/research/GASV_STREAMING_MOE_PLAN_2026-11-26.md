@@ -24,12 +24,15 @@
 
 ## 3. Що бракує (за пріоритетом)
 
-1. **Huge-expert числова коректність.** Живий канар `g-7360` на `blk.0.ffn_gate_exps.weight`
-   дав `max_err 795.8` на 8/8 шарів — peer-обчислення для одногоhot-вектора хибне.
-   Знайдена причина: WASM Q4_K kernel мав субнормальний f16 шлях з е=−10 замість bias-1
-   (GSV `f16_to_f32` починає e=113), через що `d`/`min` scaling роздувався ~2^14.
-   Виправлено в `crates/mesh-wasm`, додано golden-тест проти GSV `dequant_q4_k`;
-   **потрібен reload `/wgpu` на пірах**, щоб підхопили новий `.wasm`.
+1. **Huge-expert числова коректність — ВИПРАВЛЕНО Й ПІДТВЕРДЖЕНО LIVE.** Канар `g-7360`
+   на `blk.0.ffn_gate_exps.weight` дав `max_err 795.8` на 8/8 — не зсув блоку (як у §3),
+   а субнормальний f16 у WASM `mesh_dequant_q4_k`: `e = exp = 0` замість канонічного
+   `e = 113` (bias-1), через що `d`/`min` scaling роздувався ~2^14. Виправлено з
+   golden-тестом проти GSV `dequant_q4_k`. Повторний канар **`g-7362`: 8/8 shard,
+   `ok:true`, `max_err_model 1.73e-18 … 3.47e-18`**; compute-time throughput
+   **131.75 MFLOPS**, усі шарди на `#43`, wall ~282 c через послідовний
+   `concurrent_limit=1` і очікування claim. `.wasm` 27 462 B задеплоєно з `no-store`
+   (md5 `c6bb36f1…`), піри підхопили новий код після reload `/wgpu`.
 2. **Per-expert адресація.** `rusty artifact-chunks` вміє лише цілий тензор; треба
    `--expert N` / byte-range, інакше range-read читає 4 МБ chunkи замість 0.6–0.9 МБ експерта.
 3. **Compact x у `weights_matvec_block`** (зараз повні x-масиви, 256 КБ body cap).
@@ -49,11 +52,36 @@
 ## 5. План за тікетами
 
 - **BENCH-1** (harness `cargo xtask moe-bench`) — зроблено, unit/contract green.
-- **BENCH-2** — після reload пірів: sweep shards 2/4/8 × gate/up/down expert, записати
-  `max_err`, MFLOPS, роутинг, `/proc` RSS у `data/moe_bench.jsonl`; вибрати конфіг.
+- **BENCH-2** — sweep **gate/up/down при `shards=8`** (не 2/4: хабний квотний ліміт
+  67 108 864 FLOP/шард відхиляє 2/4 для тензора 2048×131072; перевірено unit-тестом
+  `huge_expert_needs_eight_shards_under_hub_quota`). Харнес має `--group <id>` для
+  resume завершених груп без повторного enqueue; `mflops` рахується з compute-time
+  (`elapsed_ms` шардів), а не з wall/queue часу. Результати → `data/moe_bench.jsonl`.
 - **BENCH-3** — чесний факт: partial pack `gsv-versus-ai-g2b-q4_0.gguf` не запускний
   (`missing required key 'gsv.attention.head_count'`); повний 4-квант треба stream-ити.
 - **STREAM-1** — цей документ + перший可行ний slice після стабілізації numbers.
+
+### Результати BENCH-2 (2026-11-26, `data/moe_bench.jsonl`)
+
+| Конфіг | Група | Результат | compute MFLOPS | wall (claim+queue) | max_err_model |
+|---|---|---|---|---|---|
+| `gate` `blk.0.ffn_gate_exps.weight` 2048×131072, 8 shard | `g-7363` | PASS 8/8 | **130.98** (4.099 c) | 279 c | 3.47e-18 |
+| `up` `blk.0.ffn_up_exps.weight` 2048×131072, 8 shard | `g-7364` | PASS 8/8 | **187.06** (2.87 c) | 270 c | 3.47e-18 |
+| `down` `blk.0.ffn_down_exps.weight` 512×524288 (Q6_K), 8 shard | `g-7365`/`g-7366` | FAIL → root cause знайдено | — | — | пір `max_err=0`, але `task result post FAILED after 3 attempts`; задача лишалась `claimed` і повторювалась рівно через **301 c** |
+
+**Root cause down-петлі:** `TASK_CLAIM_REQUEUE_SECS = 300` у `src/boxes/wgpu.rs`. Шард Q6_K
+down — ~220 МБ; пір стрімить його з дзеркала довше, ніж 300 c, хаб перечерговує
+задачу (`stuck-claim`), і пізній POST результату приходить уже не до власника
+→ HTTP 400 → 3 ретраї → вічний цикл. Виправлено: для широких тензорів
+(`cols > 200_000`) TTL = **1200 c**; TDD-тест `huge_expert_shard_gets_a_longer_claim_lease`
+(600-c claim лишається активним для wide і requeue-иться для narrow). Додано логування
+HTTP-статусу й тіла відмови в `postResultWithRetry` (`task result POST rejected: HTTP …`).
+
+Висновок по продуктивності: чистий compute на `#43` — **131–187 MFLOPS** (тобто ~0.5–0.7 с на
+один expert gate/up matvec), але **wall ~270–280 c** через послідовний `concurrent_limit=1`
+і повільний claim/queue цикл. Отже головний резерв тюнінгу — не SIMD-ядро, а **оркестрація
+черги та конфігурація concurrent limit**, а також надійність POST результату (для `down`).
+Жодного quality-claim.
 
 **Висновок:** головний блокер — **не RAM і не bandwidth, а відсутній expert-aware forward
 оркестратор** + тимчасова числова помилка на huge-expert шарді. Range-read із дзеркала вже
