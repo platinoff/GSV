@@ -186,3 +186,4 @@
 {"ts":"2026-11-26T18:27:39Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"071d081","band":"248","summary":"FWD2_per_expert_canary","product":"gsv"}
 {"ts":"2026-11-26T19:10:44Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"1740023","band":"248","summary":"FWD3_p0_webgpu_adaptations","product":"gsv"}
 {"ts":"2026-11-26T20:41:08Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"757dfd2","band":"248","summary":"FWD4_one_layer_forward","product":"gsv"}
+{"ts":"2026-11-26T21:19:15Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"042f7b5","band":"248","summary":"FWD5_routing_prefetch_concurrency","product":"gsv"}

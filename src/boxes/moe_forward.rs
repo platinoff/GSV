@@ -358,6 +358,95 @@ pub fn state_budget(
     }
 }
 
+/// Per-expert hit histogram + concentration metrics from a sequence of
+/// top-k selections (one Vec of expert ids per layer/token). Used to decide
+/// whether a hot-expert cache pays off: concentrated routing (high Gini)
+/// benefits, flat routing does not (engine-survey law). Pure, no I/O.
+pub fn routing_stats(selections: &[Vec<usize>]) -> Value {
+    let mut hist = vec![0u64; N_EXPERTS];
+    let mut total = 0u64;
+    for s in selections {
+        for &e in s {
+            if e < N_EXPERTS {
+                hist[e] += 1;
+                total += 1;
+            }
+        }
+    }
+    if total == 0 {
+        return json!({ "total": 0, "gini": 0.0, "entropy_bits": 0.0, "hot": [] });
+    }
+    // Gini coefficient over sorted hit counts (0 = uniform, ->1 = concentrated).
+    let mut sorted = hist.clone();
+    sorted.sort_unstable();
+    let n = sorted.len() as f64;
+    let sum: f64 = sorted.iter().sum::<u64>() as f64;
+    let weighted: f64 = sorted
+        .iter()
+        .enumerate()
+        .map(|(i, v)| (i as f64 + 1.0) * *v as f64)
+        .sum();
+    let gini = (2.0 * weighted) / (n * sum) - (n + 1.0) / n;
+    // Shannon entropy in bits, normalised by log2(N_EXPERTS).
+    let entropy: f64 = hist
+        .iter()
+        .filter(|&&v| v > 0)
+        .map(|&v| {
+            let p = v as f64 / total as f64;
+            -p * p.log2()
+        })
+        .sum();
+    let entropy_bits = entropy / (N_EXPERTS as f64).log2();
+    // Hot set = experts above mean hits, capped at max_hot_experts.
+    let mean = total as f64 / N_EXPERTS as f64;
+    let mut hot: Vec<(usize, u64)> = hist
+        .iter()
+        .enumerate()
+        .filter(|(_, v)| **v as f64 > mean)
+        .map(|(i, v)| (i, *v))
+        .collect();
+    hot.sort_by_key(|a| std::cmp::Reverse(a.1));
+    hot.truncate(512);
+    json!({
+        "total": total,
+        "gini": (gini * 1000.0).round() / 1000.0,
+        "entropy_bits": (entropy_bits * 1000.0).round() / 1000.0,
+        "hot_experts": hot.iter().map(|(i, _)| i).collect::<Vec<_>>(),
+        "hot_count": hot.len(),
+    })
+}
+
+/// Watermark gate for lookahead prefetch: only prefetch next-layer expert
+/// ranges while free RAM stays above the reserve (hub has ~1.7 GB free).
+pub fn should_prefetch(
+    free_bytes: u64,
+    reserve_bytes: u64,
+    in_flight: usize,
+    max_in_flight: usize,
+) -> bool {
+    free_bytes > reserve_bytes && in_flight < max_in_flight
+}
+
+/// Concurrency decision from measured wall vs compute time. If compute is a
+/// small fraction of wall, the bottleneck is queue/claim, not the SIMD kernel —
+/// raise the per-peer concurrent limit (keeping the proof gate). Returns the
+/// recommended limit (1 or 2) and the compute/wall ratio.
+pub fn concurrency_decision(wall_secs: f64, compute_secs: f64) -> Value {
+    let ratio = if wall_secs > 0.0 {
+        compute_secs / wall_secs
+    } else {
+        1.0
+    };
+    let recommend = if ratio < 0.25 { 2u64 } else { 1u64 };
+    json!({
+        "wall_secs": wall_secs,
+        "compute_secs": compute_secs,
+        "compute_wall_ratio": (ratio * 1000.0).round() / 1000.0,
+        "recommended_concurrent_per_peer": recommend,
+        "bottleneck": if ratio < 0.25 { "queue_claim" } else { "compute" },
+    })
+}
+
 /// SwiGLU activation `silu(gate) * up`, elementwise (port of rusty-engine moe.rs:280).
 pub fn swiglu(gate: &[f64], up: &[f64]) -> Result<Vec<f64>, String> {
     if gate.len() != up.len() {
@@ -604,6 +693,7 @@ pub async fn report_one_layer(
         "numerics_only": true,
         "no_quality_claim": true,
         "chosen_experts": chosen.iter().map(|(i,_)| i).collect::<Vec<_>>(),
+        "routing": routing_stats(&[chosen.iter().map(|(i, _)| *i).collect()]),
         "max_err_model": max_err,
         "out_len": out.len(),
         "out_head": &out[..out.len().min(8)],
@@ -661,6 +751,57 @@ mod tests {
         println!("bytes={:?}", bytes.as_ref().map(|b| b.len()));
         let f = crate::boxes::wgpu_dequant::tensor_f32(dir, &alias);
         println!("f32={:?}", f.as_ref().map(|v| v.len()));
+    }
+
+    #[test]
+    fn fwd5_routing_stats_gini_and_hot_set() {
+        // Concentrated routing: expert 0 selected everywhere -> gini near 1.
+        let concentrated = routing_stats(&[vec![0, 0, 0, 0], vec![0, 0, 0, 0]]);
+        let gini_c = concentrated["gini"].as_f64().unwrap();
+        assert!(gini_c > 0.9, "concentrated gini should be near 1: {gini_c}");
+        assert_eq!(concentrated["hot_experts"].as_array().unwrap().len(), 1);
+        // Broader routing over 32 experts -> lower Gini + higher entropy than
+        // the single-expert case. (8 of 256 is itself concentrated, so Gini
+        // stays high; normalised entropy is the cleaner discriminator.)
+        let broad: Vec<usize> = (0..32).collect();
+        let broad_stats = routing_stats(&[broad]);
+        assert_eq!(broad_stats["total"], 32);
+        assert!(
+            broad_stats["entropy_bits"].as_f64().unwrap()
+                > concentrated["entropy_bits"].as_f64().unwrap(),
+            "broader routing must have higher entropy"
+        );
+        assert!(
+            broad_stats["gini"].as_f64().unwrap() < gini_c,
+            "broader routing must have lower gini than single-expert"
+        );
+        // Empty input is safe.
+        assert_eq!(routing_stats(&[])["total"], 0);
+    }
+
+    #[test]
+    fn fwd5_prefetch_watermark_gate() {
+        assert!(should_prefetch(1_000_000_000, 500_000_000, 0, 2));
+        assert!(
+            !should_prefetch(400_000_000, 500_000_000, 0, 2),
+            "below reserve"
+        );
+        assert!(
+            !should_prefetch(1_000_000_000, 500_000_000, 2, 2),
+            "at inflight cap"
+        );
+    }
+
+    #[test]
+    fn fwd5_concurrency_decision_queue_bound() {
+        // compute 4s of 280s wall -> ratio ~0.014 -> recommend raising limit.
+        let d = concurrency_decision(280.0, 4.0);
+        assert_eq!(d["recommended_concurrent_per_peer"], 2);
+        assert_eq!(d["bottleneck"], "queue_claim");
+        // compute dominates -> keep 1.
+        let d2 = concurrency_decision(5.0, 4.0);
+        assert_eq!(d2["recommended_concurrent_per_peer"], 1);
+        assert_eq!(d2["bottleneck"], "compute");
     }
 
     #[test]
