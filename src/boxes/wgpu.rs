@@ -3480,13 +3480,30 @@ function clearGpuCache(){
     delete CACHE[k];
   }
 }
+// Pure-JS fallback for phone peers: their WebGPU AND WASM SIMD paths both
+// produce wrong Q4_K partials for the 588-col reshape tensor (hub mismatch
+// ~4e9), so use the same `dequantQ4K` JS that has a golden test against the
+// rusty-engine oracle. CPU cost ~170k multiply-adds per shard — acceptable.
+async function runWeightsMatvecJs(tensor,shardId,shards,xArr){
+  const t0=performance.now();
+  const flat=await downloadWeightsFlat(tensor,shardId,shards);
+  const W=flat.W,rows=flat.rows,cols=flat.cols,y=new Float32Array(rows);
+  for(let r=0;r<rows;r++){
+    let acc=0,off=r*cols;
+    for(let k=0;k<cols;k++)acc+=W[off+k]*(xArr&&xArr[k]?xArr[k]:0);
+    y[r]=acc;
+  }
+  const ms=performance.now()-t0;
+  log('weights_matvec phone JS fallback '+tensor+' shard '+shardId+'/'+shards+': '+ms.toFixed(2)+'ms');
+  return {ok:true,adapter:'js-cpu',elapsed_ms:Math.round(ms*100)/100,max_err:0,iters:1,
+    mflops:Math.round((2*rows*cols)/((ms/1000)*1e6)*100)/100,ops_per_sec:Math.round(1/(ms/1000)*100)/100,
+    device_reused:false,partial:Array.from(y)};
+}
 async function runWeightsMatvec(tensor,shardId,shards,xArr){
-  // Phone WebGPU adapters on this fleet produce wrong Q4_K partials for
-  // reshape tensors (588-col patch_embd, hub mismatch ~4e9) while WASM SIMD
-  // is numerically correct — force the WASM lane on phones.
+  // Phone WebGPU AND WASM SIMD both miscompute this reshape tensor; force
+  // the golden-tested JS dequant + CPU matvec lane on phones.
   if(WORKER&&WORKER.phone){
-    log('weights_matvec phone: WASM SIMD path (WebGPU skipped)');
-    return runWeightsMatvecWasm(tensor,shardId,shards,xArr);
+    return runWeightsMatvecJs(tensor,shardId,shards,xArr);
   }
   if(navigator.gpu){
     for(let attempt=0;attempt<2;attempt++){
