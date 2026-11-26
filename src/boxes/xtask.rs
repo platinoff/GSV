@@ -134,6 +134,10 @@ pub const TASKS: &[(&str, &str)] = &[
         "GASV-G33/G37/G41: Q4_K vision-block forward on the Min cluster, real PNG patch input and per-block checkpoint/resume for hub restarts; persists routing/benchmark in data/ (`--artifact`, `--image`, `--out`, `--checkpoint`, `--resume`, `--blocks`, `--shards`, `--hub`)",
     ),
     (
+        "moe-bench",
+        "GASV benchmark lane: artifact-backed Q4_K MoE tensor weights_matvec on the live cluster; records max_err/routes/MFLOPS to data/moe_bench.jsonl (--tensor, --dims, --shards, --iters, --wait-secs)",
+    ),
+    (
         "vision-chat",
         "GASV-G43: image -> Q4_K vision on WGPU cluster -> qwen35 text core via rusty --vision-prefix (--image, --prompt, --image-tokens, --vision-at)",
     ),

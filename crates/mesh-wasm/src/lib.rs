@@ -161,13 +161,16 @@ fn f16_to_f32(h: u16) -> f32 {
             if frac == 0 {
                 sign
             } else {
-                let mut e = exp as i32;
-                let mut f = frac as i32;
+                // Match GSV wgpu_dequant::f16_to_f32 exactly: start the
+                // subnormal exponent at 113 (bias-1), not at `exp` (0),
+                // otherwise `d`/`min` scales blow up by ~2^14.
+                let mut e = 113u32;
+                let mut f = frac;
                 while f & 0x400 == 0 {
                     f <<= 1;
                     e -= 1;
                 }
-                sign | (((e + 127) as u32) << 23) | (((f as u32) & 0x3FF) << 13)
+                sign | (e << 23) | ((f & 0x3FF) << 13)
             }
         }
         0x1F => sign | 0x7F80_0000 | (frac << 13),
@@ -393,5 +396,46 @@ mod tests {
         assert_eq!(out[0], 5.0);
         assert_eq!(out[1], 7.0);
         assert_eq!(out[32], 0.0); // high nibble of qs[0]
+
+        // Subnormal f16 scale must match GSV's bias-1 path, not blow up.
+        let mut sub = [0u8; 144];
+        sub[0..2].copy_from_slice(&0x0001u16.to_le_bytes()); // d = 2^-24
+        for s in sub.iter_mut().take(16).skip(4) {
+            *s = 1;
+        }
+        sub[16] = 5;
+        let mut sub_out = [0f32; 256];
+        unsafe { mesh_dequant_q4_k(sub.as_ptr(), sub_out.as_mut_ptr(), 1) };
+        assert!(
+            (sub_out[0] - 5.0 * 2f32.powi(-24)).abs() < 1e-12,
+            "subnormal d must be 2^-24, got {}",
+            sub_out[0]
+        );
+
+        // Byte-for-byte golden from GSV `dequant_q4_k` (diag_wasm_q4k_golden):
+        // subnormal d, min=0.5, packed scales 0x21, q nibbles 1..16.
+        let mut golden_block = [0u8; 144];
+        golden_block[0..2].copy_from_slice(&0x0001u16.to_le_bytes());
+        golden_block[2..4].copy_from_slice(&0x3800u16.to_le_bytes());
+        for s in 4..16 {
+            golden_block[s] = 0x21;
+        }
+        for q in 16..144 {
+            golden_block[q] = ((q - 16) % 16) as u8 + 1;
+        }
+        let mut golden_out = [0f32; 256];
+        unsafe { mesh_dequant_q4_k(golden_block.as_ptr(), golden_out.as_mut_ptr(), 1) };
+        let expected = [
+            -16.499998, -16.499996, -16.499994, -16.499992, -16.49999, -16.499989, -16.499987,
+            -16.499985, -16.499983, -16.49998, -16.499979, -16.499977, -16.499975, -16.499973,
+            -16.499971, -16.5,
+        ];
+        for (i, want) in expected.iter().enumerate() {
+            assert!(
+                (golden_out[i] - want).abs() < 1e-5,
+                "golden idx {i}: got {} want {want}",
+                golden_out[i]
+            );
+        }
     }
 }

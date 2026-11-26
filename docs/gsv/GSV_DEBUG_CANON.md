@@ -8,7 +8,7 @@
 
 | Що | Значення |
 |---|---|
-| GSV | HEAD `12bc953` (GASV G32–G49), `origin/main` синхронний, рабоче дерево чисте |
+| GSV | HEAD `4396bd6` (WASM-1 native Q4_K dequant), `origin/main` синхронний; робоче дерево — незакомічений BENCH/STREAM slice (див. §7) |
 | rusty-engine | HEAD `34b3363` (PH-1204 `--vision-at`, PH-1205 `vision_prefix_b64`), чистий |
 | Екосистема | 14 registered Rust products + 2 unregistered git; усі мають `rust-toolchain.toml` (11 × `stable-x86_64-pc-windows-gnu`, 2 × `stable` host-agnostic); факточний rustc **1.100.0** всюди |
 | Кластер | pіри `#43` PC + `#39` bifrost + `#44` valhall `alive/ready`; `#43` authoritative для Q4_K reshape matvec |
@@ -55,7 +55,31 @@ IndexedDB cache) були **спростовані** одна за одною �
 - Build/disploy: `cargo build --release -p mesh-wasm --target wasm32-unknown-unknown` → `cp target/wasm32-unknown-unknown/release/mesh_wasm.wasm ui/assets/mesh-wasm.wasm`; далі `cargo build --bin gsv-server` + `POST /api/update/apply`.
 - Верифікація: `cargo test -p mesh-wasm` (native, scalar kernel), контракт сторінки (`mesh_dequant_q4_k` marker), живий canary `weights_matvec` (`g-7353` PASS `1.39e-17`) і `/assets/mesh-wasm.wasm` розмір/наявність.
 
-## 6. Дисципліна
+## 6. Huge-expert Q4_K — другий root cause (2026-11-26)
+
+Канар `g-7360` на `blk.0.ffn_gate_exps.weight` (2048×131072, 8 shard) дав
+`max_err_model ≈ 622–796` на 8/8 — **не** зсув блоку (як у §3), а субнормальний
+f16 у WASM `mesh_dequant_q4_k`: починав `e = exp = 0` замість канонічного
+`e = 113` (bias-1) з GSV `wgpu_dequant::f16_to_f32`, через що `d`/`min`
+масштаби роздувались ~2^14. Виправлено, додано golden-тест проти GSV
+`dequant_q4_k` (subnormal `d=2^-24`, `min=0.5`, scales `0x21`, nibble 1..16 →
+`-16.499998…`), `.wasm` перезібрано (27 462 B). **Не workaround, а parity-фікс.**
+
+## 7. Streaming MoE (канон 2026-11-26)
+
+- Повний 21 ГБ 4-квант **не вантажиться цілком** у 7.7 ГБ RAM (реально ~1.7 ГБ
+  вільно); `weight_store::read_chunk_artifact` уже читає range з дзеркала з
+  sha256 — як і передбачав owner, «підкачується не все».
+- Головний блокер — **не RAM і не bandwidth, а відсутній expert-aware forward
+  orchestrator** (router → top-8 → per-expert range → shard dispatch → combine),
+  плюс тимчасовий числовий баг із §6 (виправлено, чекає reload пірів).
+- План/оцінки: [`research/GASV_STREAMING_MOE_PLAN_2026-11-26.md`](research/GASV_STREAMING_MOE_PLAN_2026-11-26.md).
+- Харнес: `cargo xtask moe-bench` (BENCH-1, unit green) → `data/moe_bench.jsonl`;
+  BENCH-2 (sweep 2/4/8 × gate/up/down) і BENCH-3 (чесний smoke: partial pack
+  `g2b-q4_0` не запускний — `missing required key 'gsv.attention.head_count'`).
+- Реалістична межа ~<1 tok/s на 2 пірах; жодного quality/full-LLM-claim без G13.
+
+## 8. Дисципліна
 
 Один commit на репо + push + самарі; не `git add -A`; MSYS2 bash; Rust-first; ваги/секрети
 не в git; перед комітом `git diff --check`, fmt, clippy, test, fingerprint з `Gsv-*` trailers.

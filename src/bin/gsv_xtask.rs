@@ -727,6 +727,79 @@ fn main() -> ExitCode {
                 }
             }
         }
+        "moe-bench" => {
+            // GASV benchmark lane: Q4_K MoE tensor throughput/routing on the
+            // live three-device cluster, recorded as JSONL for tuning.
+            let artifact = flag_value(&args, "--artifact")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| {
+                    PathBuf::from("L:/gsv_mirror/models/gsv-versus-ai/gsv-versus-ai-full-q4k.gguf")
+                });
+            let rusty = flag_value(&args, "--rusty")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("S:/rust/rusty-engine/target/debug/rusty.exe"));
+            let data_dir = flag_value(&args, "--data-dir")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| root.join("data"));
+            let hub = flag_value(&args, "--hub").unwrap_or_else(|| "http://127.0.0.1:9999".into());
+            let tensor = flag_value(&args, "--tensor")
+                .unwrap_or_else(|| "blk.0.ffn_gate_exps.weight".into());
+            let dims: Vec<u64> = flag_value(&args, "--dims")
+                .unwrap_or_else(|| "2048,512,256".into())
+                .split(',')
+                .filter_map(|s| s.trim().parse::<u64>().ok())
+                .collect();
+            let dims = if dims.len() == 3 {
+                [dims[0], dims[1], dims[2]]
+            } else {
+                [2048, 512, 256]
+            };
+            let shards = flag_value(&args, "--shards")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(8);
+            let iters = flag_value(&args, "--iters")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(3);
+            let wait_secs = flag_value(&args, "--wait-secs")
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(600);
+            let out = flag_value(&args, "--out")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| data_dir.join("moe_bench.jsonl"));
+            let opts = gsv::boxes::moe_bench::BenchOpts {
+                artifact: &artifact,
+                rusty: &rusty,
+                data_dir: &data_dir,
+                hub: &hub,
+                tensor: &tensor,
+                dims,
+                shards,
+                iters,
+                wait_secs,
+                out: &out,
+            };
+            let rt = match tokio::runtime::Runtime::new() {
+                Ok(rt) => rt,
+                Err(e) => {
+                    eprintln!("moe-bench: runtime: {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            match rt.block_on(gsv::boxes::moe_bench::report(&opts)) {
+                Ok(v) => {
+                    println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+                    if v["ok"].as_bool() == Some(true) {
+                        ExitCode::SUCCESS
+                    } else {
+                        ExitCode::FAILURE
+                    }
+                }
+                Err(e) => {
+                    eprintln!("moe-bench: {e}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
         "vision-chat" => {
             // GASV-G43: one command image -> Q4_K vision on the WGPU cluster ->
             // qwen35 text core via rusty-engine `--vision-prefix`.

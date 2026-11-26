@@ -544,4 +544,21 @@ mod tests {
         assert!(out[..128].iter().all(|v| (*v - 1.0).abs() < 1e-6));
         assert!(out[128..].iter().all(|v| *v == 0.0));
     }
+
+    #[test]
+    #[ignore = "diagnostic: golden values for mesh-wasm Q4_K kernel parity"]
+    fn diag_wasm_q4k_golden() {
+        let mut b = [0u8; 144];
+        b[0..2].copy_from_slice(&0x0001u16.to_le_bytes()); // subnormal d
+        b[2..4].copy_from_slice(&0x3800u16.to_le_bytes()); // min = 2^-7
+        for s in b.iter_mut().take(16).skip(4) {
+            *s = 0x21;
+        }
+        for (i, q) in b.iter_mut().enumerate().skip(16) {
+            *q = ((i - 16) % 16) as u8 + 1;
+        }
+        let out = dequant_q4_k(&b);
+        println!("GOLDEN {:?}", &out[..16]);
+        assert_eq!(out.len(), 256);
+    }
 }
