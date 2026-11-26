@@ -514,3 +514,20 @@ fn group_results_returns_ordered_verified_partials() {
     assert!(gsv::boxes::wgpu::group_results(&dir, "bad../id").is_err());
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn page_forces_wasm_for_phone_weights_matvec() {
+    let page = gsv::boxes::wgpu::page();
+    assert!(
+        page.contains("WORKER&&WORKER.phone"),
+        "phone WebGPU path must bypass to WASM SIMD"
+    );
+    assert!(
+        page.contains("weights_matvec phone: WASM SIMD path"),
+        "phone fallback must be visible in hub console"
+    );
+    assert!(
+        page.contains("clearWasmWeightCache"),
+        "WASM cache guard must stay present"
+    );
+}
