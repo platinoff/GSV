@@ -363,7 +363,22 @@ pub const DEFAULT_MAX_CONCURRENT_PER_PEER: u64 = 1;
 /// How long a routed task sticks to its recommended peer before any alive peer
 /// may take it — routing without starvation.
 pub const DEFAULT_ROUTE_STICKY_SECS: u64 = 5;
+/// Smallest WebGPU `maxStorageBufferBindingSize` we target: phone peers expose
+/// ~256 MiB (PC RDNA2 ~2048 MiB). A shard must fit this many bytes as f32.
+pub const MIN_PEER_STORAGE_BYTES: u64 = 256 * 1024 * 1024;
 const QUOTA_AUDIT_FILE: &str = "wgpu_quota_audit.jsonl";
+
+/// Largest rows-per-shard that keeps one dequantized row range under a peer's
+/// storage binding budget (`rows * cols * 4 <= budget`). Returns the original
+/// `per` when it already fits. Pure helper — TDD-testable without a cluster.
+pub fn shard_rows_within_storage(rows: usize, cols: usize, shards: usize, budget: u64) -> usize {
+    let per = rows / shards.max(1);
+    if per == 0 || cols == 0 {
+        return per;
+    }
+    let max_rows = (budget / (cols as u64 * 4)).min(rows as u64) as usize;
+    per.min(max_rows).max(1)
+}
 
 fn env_u64(name: &str, default: u64) -> u64 {
     std::env::var(name)
@@ -1669,6 +1684,7 @@ pub fn task_result(data_dir: &Path, body: &Value) -> Result<Value, String> {
                             .get("x")
                             .and_then(Value::as_array)
                             .map(|a| a.iter().map(|v| v.as_f64().unwrap_or(0.0)).collect())
+                            .or_else(|| expand_task_x(item))
                             .unwrap_or_default();
                         let row_start =
                             item.get("row_start").and_then(Value::as_u64).unwrap_or(0) as usize;
@@ -1684,17 +1700,18 @@ pub fn task_result(data_dir: &Path, body: &Value) -> Result<Value, String> {
                             failures.push(format!("items[{i}] ({tensor}): no partial"));
                             continue;
                         }
-                        let Some(full) = weights_matvec_reference(data_dir, &tensor, &x) else {
-                            failures
-                                .push(format!("items[{i}] ({tensor}): unknown tensor in registry"));
+                        // FWD-3: stream only this shard's row range. The old
+                        // `weights_matvec_reference` memoized the whole tensor
+                        // (~1 GB f32 for a huge expert); the segment path reads
+                        // only the overlapping Q4_K/Q6_K blocks, golden-identical.
+                        let Some(seg) = weights_matvec_reference_segment(
+                            data_dir, &tensor, &x, row_start, row_end,
+                        ) else {
+                            failures.push(format!(
+                                "items[{i}] ({tensor}): unknown tensor or bad row range"
+                            ));
                             continue;
                         };
-                        if row_end > full.len() {
-                            failures
-                                .push(format!("items[{i}] ({tensor}): row range out of bounds"));
-                            continue;
-                        }
-                        let seg = &full[row_start..row_end];
                         if partial.len() != seg.len() {
                             failures.push(format!(
                                 "items[{i}] ({tensor}): partial length mismatch: got {} vs seg {}",
@@ -1794,6 +1811,7 @@ fn enqueue_weights_matvec_block(data_dir: &Path, body: &Value) -> Result<Value, 
         rows: usize,
         cols: usize,
         x: Vec<f64>,
+        x_spec: Option<String>,
     }
     let mut out: Vec<Item> = Vec::with_capacity(items.len());
     for (i, item) in items.iter().enumerate() {
@@ -1834,21 +1852,30 @@ fn enqueue_weights_matvec_block(data_dir: &Path, body: &Value) -> Result<Value, 
                 "items[{i}] rows {rows} must divide evenly into {shards} shards"
             ));
         }
-        let x = item
-            .get("x")
-            .and_then(Value::as_array)
-            .ok_or_else(|| format!("items[{i}].x must be an array"))?
-            .iter()
-            .map(|v| {
-                let f = v
-                    .as_f64()
-                    .ok_or_else(|| format!("items[{i}].x entries must be numbers"))?;
-                if !f.is_finite() {
-                    return Err(format!("items[{i}].x entries must be finite"));
-                }
-                Ok(f)
-            })
-            .collect::<Result<Vec<f64>, String>>()?;
+        // FWD-3: accept compact `x_spec` ("onehot:i:n") instead of a full x
+        // array — a huge-expert item with 131072 floats (~256 KiB) x 8 blew
+        // the 256 KiB body cap. Explicit `x` still wins when both are present.
+        let x_spec = item
+            .get("x_spec")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let x = if let Some(arr) = item.get("x").and_then(Value::as_array) {
+            arr.iter()
+                .map(|v| {
+                    let f = v
+                        .as_f64()
+                        .ok_or_else(|| format!("items[{i}].x entries must be numbers"))?;
+                    if !f.is_finite() {
+                        return Err(format!("items[{i}].x entries must be finite"));
+                    }
+                    Ok(f)
+                })
+                .collect::<Result<Vec<f64>, String>>()?
+        } else if x_spec.is_some() {
+            expand_task_x(item).ok_or_else(|| format!("items[{i}].x_spec is malformed"))?
+        } else {
+            return Err(format!("items[{i}] needs `x` or `x_spec`"));
+        };
         if x.len() != cols {
             return Err(format!(
                 "items[{i}].x must have exactly {cols} floats (got {})",
@@ -1860,6 +1887,7 @@ fn enqueue_weights_matvec_block(data_dir: &Path, body: &Value) -> Result<Value, 
             rows,
             cols,
             x,
+            x_spec,
         });
     }
     let flops_per_shard = out
@@ -1876,6 +1904,22 @@ fn enqueue_weights_matvec_block(data_dir: &Path, body: &Value) -> Result<Value, 
         return Err(format!(
             "block shard work {flops_per_shard} FLOP exceeds the quota {flops_limit} FLOP"
         ));
+    }
+    // FWD-3: a phone peer exposes ~256 MiB storage binding. Reject a block
+    // whose per-shard f32 weights would exceed that budget — the caller must
+    // split into more shards, not silently OOM the browser.
+    for it in &out {
+        let rows_per_shard = it.rows / shards;
+        let bytes = (rows_per_shard as u64)
+            .checked_mul(it.cols as u64)
+            .and_then(|n| n.checked_mul(4))
+            .unwrap_or(u64::MAX);
+        if bytes > MIN_PEER_STORAGE_BYTES {
+            return Err(format!(
+                "block item `{}` shard needs {bytes} B > {} B peer storage; increase --shards",
+                it.tensor, MIN_PEER_STORAGE_BYTES
+            ));
+        }
     }
     let now = now_secs();
     let _g = mesh_lock();
@@ -1926,14 +1970,19 @@ fn enqueue_weights_matvec_block(data_dir: &Path, body: &Value) -> Result<Value, 
                 .iter()
                 .map(|it| {
                     let per = it.rows / shards;
-                    json!({
+                    let mut row = json!({
                         "tensor": it.tensor,
                         "rows": it.rows,
                         "cols": it.cols,
-                        "x": it.x,
                         "row_start": shard_id * per,
                         "row_end": (shard_id + 1) * per,
-                    })
+                    });
+                    if let Some(spec) = &it.x_spec {
+                        row["x_spec"] = json!(spec);
+                    } else {
+                        row["x"] = json!(it.x);
+                    }
+                    row
                 })
                 .collect();
             json!({
@@ -5774,5 +5823,83 @@ mod tests {
         let seg = weights_matvec_reference_segment(&dir, "seg_test", &x, 1, 3).expect("seg ref");
         assert_eq!(seg.len(), 2);
         assert_eq!(seg, full[1..3]);
+    }
+
+    #[test]
+    fn fwd3_shard_rows_within_phone_storage_budget() {
+        // 2048x131072 gate, 8 shards -> 256 rows/shard = 128 MiB < 256 MiB.
+        assert_eq!(
+            shard_rows_within_storage(2048, 131_072, 8, MIN_PEER_STORAGE_BYTES),
+            256
+        );
+        // 4096 rows at 8 shards = 512 rows/shard = 256 MiB — exactly at cap.
+        assert_eq!(
+            shard_rows_within_storage(4096, 131_072, 8, MIN_PEER_STORAGE_BYTES),
+            512
+        );
+        // 8192 rows at 8 shards = 1024 rows/shard > cap -> clamped to 512.
+        assert_eq!(
+            shard_rows_within_storage(8192, 131_072, 8, MIN_PEER_STORAGE_BYTES),
+            512
+        );
+        // 16384 rows at 8 shards = 2048 rows/shard > cap -> clamped to 512.
+        assert_eq!(
+            shard_rows_within_storage(16384, 131_072, 8, MIN_PEER_STORAGE_BYTES),
+            512
+        );
+    }
+
+    #[test]
+    fn fwd3_block_accepts_compact_x_spec_item() {
+        // A block enqueue with x_spec instead of a 131072-float x array must be
+        // accepted; the hub expands it for verification and the peer task row
+        // carries the compact spec. Use a small registered f32 tensor.
+        let dir = temp_dir("fwd3_block_xspec");
+        let pixels: Vec<u8> = [1.0f32, 2.0, 3.0, 4.0]
+            .iter()
+            .flat_map(|v| v.to_le_bytes())
+            .collect();
+        let s = crate::boxes::weight_store::store_chunk(&dir, &pixels).expect("store");
+        let key = s["key"].as_str().expect("key").to_string();
+        crate::boxes::weight_store::register_tensor(
+            &dir,
+            &json!({"tensor":"blk_tiny","dims":[2,2],"chunks":[key]}),
+        )
+        .expect("register");
+        // Block enqueue is ready-gated: seed a proven peer (same pattern as
+        // weights_matvec_block_group_reduces_from_max_err_model).
+        let proof = peer_join(&dir, &json!({"adapter":"proof","ua":"u"})).expect("join");
+        {
+            let path = dir.join(TASKS_FILE);
+            let mut tasks = read_jsonl(&path);
+            tasks.push(json!({
+                "task_id":"mt-proof-1","status":"done",
+                "peer_id": proof["peer_id"].as_u64().unwrap(),
+                "op":"weights_matvec","done_ts":now_secs(),
+                "max_err_model":5e-7,"elapsed_ms":10.0,"mflops":10.0,
+            }));
+            write_jsonl(&path, &tasks).unwrap();
+        }
+        let res = enqueue_weights_matvec_block(
+            &dir,
+            &json!({
+                "shards": 1,
+                "items": [{"tensor":"blk_tiny","x_spec":"onehot:0:2"}],
+            }),
+        )
+        .expect("x_spec block enqueue");
+        assert_eq!(res["ok"], true);
+        let tasks = read_jsonl(&dir.join(TASKS_FILE));
+        let t = tasks
+            .iter()
+            .find(|t| t.get("op").and_then(Value::as_str) == Some("weights_matvec_block"))
+            .expect("task");
+        let item = &t["items"][0];
+        assert_eq!(item["x_spec"], "onehot:0:2");
+        assert!(
+            item.get("x").is_none(),
+            "wire must stay compact, no full x array"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
