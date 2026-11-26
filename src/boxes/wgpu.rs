@@ -1357,6 +1357,23 @@ pub fn peer_poll(data_dir: &Path, body: &Value) -> Result<Value, String> {
     /// Small enough that a truly-hung peer loses the task instead of stalling
     /// the fleet; large enough that slow phone chunks are not yanked mid-flight.
     const TASK_CLAIM_REQUEUE_SECS: u64 = 300;
+    // Huge MoE experts (down: 512x524288 Q6_K ~220 MB) need minutes just to
+    // stream the shard from the mirror; the default 300 s window yanked the
+    // claim mid-download, so the peer's late result POST was rejected as
+    // "not claimed" and the task looped forever. Give those a longer lease.
+    /// Per-task claim TTL: long for wide (huge-expert) matvec shards.
+    fn claim_ttl(t: &Value) -> u64 {
+        let wide = t
+            .get("cols")
+            .and_then(Value::as_u64)
+            .map(|c| c > 200_000)
+            .unwrap_or(false);
+        if wide {
+            TASK_CLAIM_REQUEUE_SECS * 4
+        } else {
+            TASK_CLAIM_REQUEUE_SECS
+        }
+    }
     // Requeue claims held by dead peers AND claims whose lease on the work
     // expired (holder alive but claim older than the stuck window).
     for t in tasks.iter_mut() {
@@ -1369,7 +1386,7 @@ pub fn peer_poll(data_dir: &Path, body: &Value) -> Result<Value, String> {
             let stuck = t
                 .get("claimed_ts")
                 .and_then(Value::as_u64)
-                .map(|ts| now.saturating_sub(ts) > TASK_CLAIM_REQUEUE_SECS)
+                .map(|ts| now.saturating_sub(ts) > claim_ttl(t))
                 .unwrap_or(false);
             if !holder_alive || stuck {
                 t["status"] = json!("queued");
@@ -3684,6 +3701,9 @@ async function postResultWithRetry(payload){
     try{
       const r=await fetch('api/wgpu/task/result',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
       if(r.ok)return true;
+      // OPS: surface the hub's rejection reason instead of a silent retry loop.
+      let why='';try{why=(await r.text()).slice(0,200);}catch(e){}
+      log('task result POST rejected: HTTP '+r.status+' '+why);
     }catch(e){}
     if(i<2)await new Promise(res=>setTimeout(res,(i+1)*2000));
   }
@@ -3847,6 +3867,10 @@ mod tests {
         assert!(p.contains("api/wgpu/peer/join"));
         assert!(p.contains("api/wgpu/task/poll"));
         assert!(p.contains("api/wgpu/task/result"));
+        assert!(
+            p.contains("task result POST rejected: HTTP"),
+            "result POST must log the hub's rejection reason for ops diagnosis"
+        );
         assert!(p.contains("Start mesh worker"));
         assert!(p.contains("api/wgpu/mesh"));
     }
@@ -3946,6 +3970,54 @@ mod tests {
             .expect("task present");
         assert_eq!(t["status"], "claimed");
         assert_eq!(t["peer_id"], json!(pid_b));
+        assert_eq!(t["requeued_reason"], "stuck-claim");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn huge_expert_shard_gets_a_longer_claim_lease() {
+        // A 512x524288 Q6_K down-expert shard streams ~220 MB before compute;
+        // the default 300 s TTL yanked it mid-download (result POST then 400).
+        let dir = temp_dir("mesh_huge_expert_lease");
+        let a = peer_join(&dir, &json!({"adapter":"a","ua":"u1"})).expect("join a");
+        let pid_a = a["peer_id"].as_u64().unwrap();
+        let e = task_enqueue(&dir, &json!({"op":"matvec"})).expect("enqueue");
+        let task_id = e["task_id"].as_str().unwrap().to_string();
+        let _ = peer_poll(&dir, &json!({"peer_id": pid_a})).expect("claim");
+        let backdate = |cols: u64| {
+            let _g = mesh_lock();
+            let path = dir.join(TASKS_FILE);
+            let mut tasks = read_jsonl(&path);
+            for t in tasks.iter_mut() {
+                if t.get("task_id").and_then(Value::as_str) == Some(task_id.as_str()) {
+                    t["cols"] = json!(cols);
+                    // 600 s old: inside the 1200 s huge-expert lease, but
+                    // beyond the normal 300 s lease.
+                    let old = now_secs().saturating_sub(600);
+                    t["claimed_ts"] = json!(old);
+                    t["route_ts"] = json!(old);
+                }
+            }
+            write_jsonl(&path, &tasks).expect("backdate");
+        };
+        // Wide expert: 600 s old but inside the 1200 s lease -> still claimed.
+        backdate(524_288);
+        let _ = peer_poll(&dir, &json!({"peer_id": pid_a})).expect("poll wide");
+        let tasks = read_jsonl(&dir.join(TASKS_FILE));
+        let t = tasks
+            .iter()
+            .find(|t| t.get("task_id").and_then(Value::as_str) == Some(task_id.as_str()))
+            .expect("task present");
+        assert_eq!(t["status"], "claimed");
+        assert!(t.get("requeued_reason").is_none());
+        // Narrow expert: same age exceeds the 300 s lease -> requeued.
+        backdate(131_072);
+        let _ = peer_poll(&dir, &json!({"peer_id": pid_a})).expect("poll narrow");
+        let tasks = read_jsonl(&dir.join(TASKS_FILE));
+        let t = tasks
+            .iter()
+            .find(|t| t.get("task_id").and_then(Value::as_str) == Some(task_id.as_str()))
+            .expect("task present");
         assert_eq!(t["requeued_reason"], "stuck-claim");
         let _ = std::fs::remove_dir_all(&dir);
     }

@@ -22,6 +22,9 @@ pub struct BenchOpts<'a> {
     pub iters: usize,
     pub wait_secs: u64,
     pub out: &'a Path,
+    /// Resume polling an already-enqueued group (no re-registration/enqueue).
+    /// Useful when the hub finished slowly and the earlier wait timed out.
+    pub resume_group: Option<String>,
 }
 
 /// Flattened geometry: rows x (d * e) for a 3D MoE expert tensor.
@@ -29,6 +32,15 @@ pub fn geometry(dims: [u64; 3]) -> (usize, usize) {
     let rows = dims[0] as usize;
     let cols = (dims[1].saturating_mul(dims[2])) as usize;
     (rows, cols)
+}
+
+/// Hub per-shard FLOP quota (`max_flops_per_task` in the WGPU box).
+pub const MAX_FLOPS_PER_SHARD: f64 = 67_108_864.0;
+
+/// Minimum shard count that keeps one shard inside the hub FLOP quota.
+pub fn min_shards_for_quota(rows: usize, cols: usize) -> usize {
+    let total = 2.0 * rows as f64 * cols as f64;
+    (total / MAX_FLOPS_PER_SHARD).ceil() as usize
 }
 
 /// Throughput in MFLOPS from a measured wall time and the matvec FLOP count.
@@ -145,24 +157,45 @@ pub async fn report(opts: &BenchOpts<'_>) -> Result<Value, String> {
     if rows == 0 || cols == 0 || !rows.is_multiple_of(opts.shards) {
         return Err(format!("bad geometry rows={rows} cols={cols}"));
     }
-    let reg = register_artifact_tensor(opts)?;
+    let reg = if opts.resume_group.is_none() {
+        register_artifact_tensor(opts)?
+    } else {
+        json!({ "chunks": "resumed" })
+    };
     let base = opts.hub.trim_end_matches('/');
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(120))
         .build()
         .map_err(|e| format!("http client: {e}"))?;
     let mut runs = Vec::new();
-    for _ in 0..opts.iters {
-        let enq = post(
-            &client,
-            &format!("{base}/api/wgpu/task/enqueue"),
-            &json!({
-                "op": "weights_matvec", "tensor": opts.tensor,
-                "x_spec": format!("onehot:0:{cols}"), "shards": opts.shards,
-            }),
-        )
-        .await?;
-        let gid = enq["group_id"].as_str().ok_or("no group_id")?.to_string();
+    for iter in 0..opts.iters {
+        let gid = if iter == 0 {
+            if let Some(existing) = &opts.resume_group {
+                existing.clone()
+            } else {
+                let enq = post(
+                    &client,
+                    &format!("{base}/api/wgpu/task/enqueue"),
+                    &json!({
+                        "op": "weights_matvec", "tensor": opts.tensor,
+                        "x_spec": format!("onehot:0:{cols}"), "shards": opts.shards,
+                    }),
+                )
+                .await?;
+                enq["group_id"].as_str().ok_or("no group_id")?.to_string()
+            }
+        } else {
+            let enq = post(
+                &client,
+                &format!("{base}/api/wgpu/task/enqueue"),
+                &json!({
+                    "op": "weights_matvec", "tensor": opts.tensor,
+                    "x_spec": format!("onehot:0:{cols}"), "shards": opts.shards,
+                }),
+            )
+            .await?;
+            enq["group_id"].as_str().ok_or("no group_id")?.to_string()
+        };
         let started = Instant::now();
         let mut done = None;
         while started.elapsed() < Duration::from_secs(opts.wait_secs) {
@@ -189,13 +222,27 @@ pub async fn report(opts: &BenchOpts<'_>) -> Result<Value, String> {
             .iter()
             .filter_map(|r| r["max_err_model"].as_f64())
             .fold(0.0f64, f64::max);
+        // Throughput must use peer compute time, not wall/queue time: in resume
+        // mode the group is already complete when polling starts, and a cold
+        // cluster can spend minutes claiming/queueing before compute begins.
+        let compute_secs: f64 = results
+            .iter()
+            .filter_map(|r| r["elapsed_ms"].as_f64())
+            .sum::<f64>()
+            / 1000.0;
+        let throughput_secs = if compute_secs > 0.0 {
+            compute_secs
+        } else {
+            elapsed
+        };
         runs.push(json!({
             "group_id": gid,
             "ok": done["ok"].as_bool().unwrap_or(false),
             "max_err_model": max_err,
             "route": done["peers"].clone(),
-            "elapsed_secs": (elapsed * 100.0).round() / 100.0,
-            "mflops": (mflops(rows, cols, elapsed) * 100.0).round() / 100.0,
+            "wall_secs": (elapsed * 100.0).round() / 100.0,
+            "compute_secs": (compute_secs * 1000.0).round() / 1000.0,
+            "mflops": (mflops(rows, cols, throughput_secs) * 100.0).round() / 100.0,
             "results": results.len(),
         }));
     }
@@ -236,5 +283,13 @@ mod tests {
     fn rejects_unaligned_shards() {
         assert!(!2048usize.is_multiple_of(3));
         assert!(2048usize.is_multiple_of(8));
+    }
+
+    #[test]
+    fn huge_expert_needs_eight_shards_under_hub_quota() {
+        // One routed expert gate/up: 2048 x (512*256) = 2048x131072.
+        assert_eq!(min_shards_for_quota(2048, 131072), 8);
+        // A small vision patch embedding fits in a single shard.
+        assert_eq!(min_shards_for_quota(1152, 588), 1);
     }
 }

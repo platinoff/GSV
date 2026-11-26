@@ -135,7 +135,7 @@ pub const TASKS: &[(&str, &str)] = &[
     ),
     (
         "moe-bench",
-        "GASV benchmark lane: artifact-backed Q4_K MoE tensor weights_matvec on the live cluster; records max_err/routes/MFLOPS to data/moe_bench.jsonl (--tensor, --dims, --shards, --iters, --wait-secs)",
+        "GASV benchmark lane: artifact-backed Q4_K MoE tensor weights_matvec on the live cluster; records max_err/routes/MFLOPS to data/moe_bench.jsonl (--tensor, --dims, --shards, --iters, --wait-secs, --group to resume an existing group)",
     ),
     (
         "vision-chat",

@@ -766,6 +766,7 @@ fn main() -> ExitCode {
             let out = flag_value(&args, "--out")
                 .map(PathBuf::from)
                 .unwrap_or_else(|| data_dir.join("moe_bench.jsonl"));
+            let resume_group = flag_value(&args, "--group");
             let opts = gsv::boxes::moe_bench::BenchOpts {
                 artifact: &artifact,
                 rusty: &rusty,
@@ -777,6 +778,7 @@ fn main() -> ExitCode {
                 iters,
                 wait_secs,
                 out: &out,
+                resume_group,
             };
             let rt = match tokio::runtime::Runtime::new() {
                 Ok(rt) => rt,
