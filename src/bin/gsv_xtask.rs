@@ -966,6 +966,49 @@ fn main() -> ExitCode {
                 }
             }
         }
+        "moe-routing-profile" => {
+            // FWD-6: multi-token routing Gini/entropy profile on the hub,
+            // using truly varying hidden vectors (no cluster, no quality claim).
+            let artifact = flag_value(&args, "--artifact")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| {
+                    PathBuf::from("L:/gsv_mirror/models/gsv-versus-ai/gsv-versus-ai-full-q4k.gguf")
+                });
+            let rusty = flag_value(&args, "--rusty")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("S:/rust/rusty-engine/target/debug/rusty.exe"));
+            let data_dir = flag_value(&args, "--data-dir")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| root.join("data"));
+            let layer = flag_value(&args, "--layer")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(0);
+            let tokens = flag_value(&args, "--tokens")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(64);
+            let seed = flag_value(&args, "--seed")
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(1);
+            let router =
+                match gsv::boxes::moe_forward::load_router_f32(&data_dir, &artifact, &rusty, layer)
+                {
+                    Ok(v) => v,
+                    Err(e) => {
+                        eprintln!("moe-routing-profile: router: {e}");
+                        return ExitCode::FAILURE;
+                    }
+                };
+            match gsv::boxes::moe_forward::routing_profile(&router, tokens, seed) {
+                Ok(v) => {
+                    println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("moe-routing-profile: {e}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
         "moe-forward" => {
             // FWD-4: one-layer coherent MoE forward (router -> top-8 ->
             // gate/up/down -> combine), numerics only. Not a model answer.

@@ -142,6 +142,10 @@ pub const TASKS: &[(&str, &str)] = &[
         "FWD-2: register one Q4_K expert byte range from the 21 GB artifact + one-shot weights_matvec canary on the live cluster; fails if max_err_model >= 1e-4 (--layer, --expert, --role gate|up|down, --shards, --wait-secs)",
     ),
     (
+        "moe-routing-profile",
+        "FWD-6: multi-token routing Gini/entropy/hot-set from the real router tensor on the hub; truly varying hidden vectors (--layer, --tokens, --seed). NUMERICS ONLY, not a model answer.",
+    ),
+    (
         "moe-forward",
         "FWD-4: one-layer coherent MoE forward (router -> top8 -> gate/up/down -> combine) on real artifact bytes; NUMERICS ONLY, not a model answer (--layer, --shards, --wait-secs, --seed)",
     ),

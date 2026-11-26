@@ -179,6 +179,42 @@ pub fn manifest_offsets(
 
 /// Router logits for one token: `logits[e] = dot(router_row_e, hidden)`.
 /// The router tensor is `[D_MODEL, N_EXPERTS]` F32; `hidden` has D_MODEL f64.
+/// Deterministic hidden vector that actually VARIES with token and seed.
+/// FWD-5's scalar seed only scaled the vector, so top-8 never changed — this
+/// mixes index/token/seed through a wrapping hash so routing differs per token.
+pub fn deterministic_hidden(seed: u64, token: usize) -> Vec<f64> {
+    (0..D_MODEL)
+        .map(|i| {
+            let h = (i as u64 + 1)
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add((token as u64 + 1).wrapping_mul(1442695040888963407))
+                .wrapping_add(seed.wrapping_mul(2862933555777941757));
+            let u = (h >> 33) as f64 / u32::MAX as f64; // 0..1
+            u * 2.0 - 1.0
+        })
+        .collect()
+}
+
+/// Multi-token routing profile: run the router + top-8 for `tokens` distinct
+/// deterministic hidden vectors, then aggregate selections via `routing_stats`.
+/// Pure hub-side math (router is 2 MB), no peer dispatch. Returns the same
+/// histogram/Gini/entropy shape as `routing_stats` plus the top expert ids.
+pub fn routing_profile(router_f32: &[f32], tokens: usize, seed: u64) -> Result<Value, String> {
+    if tokens == 0 {
+        return Err("routing_profile: tokens must be > 0".into());
+    }
+    let mut selections: Vec<Vec<usize>> = Vec::with_capacity(tokens);
+    for t in 0..tokens {
+        let hidden = deterministic_hidden(seed, t);
+        let logits = router_logits(router_f32, &hidden)?;
+        selections.push(top8_experts(&logits).into_iter().map(|(i, _)| i).collect());
+    }
+    let mut stats = routing_stats(&selections);
+    stats["tokens"] = json!(tokens);
+    stats["seed"] = json!(seed);
+    Ok(stats)
+}
+
 pub fn router_logits(router_f32: &[f32], hidden: &[f64]) -> Result<Vec<f64>, String> {
     if hidden.len() != D_MODEL {
         return Err(format!("hidden len {} != {D_MODEL}", hidden.len()));
@@ -263,6 +299,36 @@ pub fn register_expert_range(
         "key": key,
         "offset": start,
     }))
+}
+
+/// Read the router tensor as f32 from local data dir; register its byte range
+/// from the artifact on first use. Pure local I/O — no hub/cluster needed.
+pub fn load_router_f32(
+    data_dir: &Path,
+    artifact: &Path,
+    rusty: &Path,
+    layer: usize,
+) -> Result<Vec<f32>, String> {
+    let alias = ExpertAddr {
+        layer,
+        expert: 0,
+        role: ExpertRole::Router,
+    }
+    .alias();
+    if let Some(v) = super::wgpu_dequant::tensor_f32(data_dir, &alias) {
+        return Ok(v);
+    }
+    let offsets = manifest_offsets(rusty, artifact)?;
+    let name = ExpertAddr {
+        layer,
+        expert: 0,
+        role: ExpertRole::Router,
+    }
+    .tensor_name();
+    let (start, gt) = *offsets.get(&name).ok_or("router tensor not in manifest")?;
+    let len = D_MODEL * N_EXPERTS * 4;
+    register_expert_range(data_dir, artifact, &alias, start, len, gt)?;
+    super::wgpu_dequant::tensor_f32(data_dir, &alias).ok_or("router read failed".into())
 }
 
 /// Enqueue a one-shot `weights_matvec` canary for a registered expert and
@@ -777,6 +843,47 @@ mod tests {
         );
         // Empty input is safe.
         assert_eq!(routing_stats(&[])["total"], 0);
+    }
+
+    #[test]
+    fn fwd6_hidden_varies_per_token_and_seed() {
+        let h0 = deterministic_hidden(1, 0);
+        let h1 = deterministic_hidden(1, 1);
+        let h2 = deterministic_hidden(2, 0);
+        assert_eq!(h0.len(), D_MODEL);
+        assert!(h0.iter().all(|v| (-1.0..=1.0).contains(v)));
+        assert_ne!(
+            h0, h1,
+            "different token must yield a different hidden vector"
+        );
+        assert_ne!(
+            h0, h2,
+            "different seed must yield a different hidden vector"
+        );
+    }
+
+    #[test]
+    fn fwd6_routing_profile_uses_more_experts_than_one_token() {
+        // Synthetic router: F32 [D_MODEL, N_EXPERTS] with a mild diagonal bias
+        // so different hidden directions select different experts.
+        let mut router = vec![0.0f32; D_MODEL * N_EXPERTS];
+        for e in 0..N_EXPERTS.min(D_MODEL) {
+            router[e * N_EXPERTS + e] = 1.0;
+        }
+        let one = routing_profile(&router, 1, 1).unwrap();
+        let many = routing_profile(&router, 64, 1).unwrap();
+        assert_eq!(one["total"], 8);
+        assert_eq!(many["total"], 64 * 8);
+        assert!(
+            many["hot_experts"].as_array().unwrap().len()
+                > one["hot_experts"].as_array().unwrap().len(),
+            "multi-token profile should exercise more hot experts"
+        );
+        assert!(
+            many["entropy_bits"].as_f64().unwrap() >= one["entropy_bits"].as_f64().unwrap(),
+            "multi-token entropy should not be lower"
+        );
+        assert!(routing_profile(&router, 0, 1).is_err());
     }
 
     #[test]
