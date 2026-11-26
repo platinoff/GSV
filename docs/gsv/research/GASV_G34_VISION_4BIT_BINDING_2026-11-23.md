@@ -242,5 +242,12 @@ quality-claim. Повний 27-блоковий 4-токенний прогон 
 2026-11-25 поетапно з окремим checkpoint `data/vision_prefix_1b_mt4_cp.json`:
 етап 3 завершився `EXIT=0` (2591 c, `next_block=3`), етапи 6…27 ідуть у фоні;
 результат пишеться у `vision_prefix_1024_mt4_full.f32`. Тикет G44
-`in_progress`. Після завершення — порівняння з 1-блоковим mt4 і нульовим
-baseline через `rusty --vision-prefix --vision-at 3`.
+`done`. Етапи 6…27 завершились `EXIT=0`, `next_block=27`; повний файл
+`vision_prefix_1024_mt4_full.f32` (16 384 B, sha `bbdcf2f9…`, 4 × 1024-dim,
+296 cluster ops в останньому етапі, `finite=true`, `ok=true`, `max_abs 1.79`).
+
+**Порівняння honest:** `rusty --vision-at 3` із повним 4-токенним вектором дає
+вироджений вивід (`1. 1. 1`), нульовий baseline — `是 的 的 的`, а 1-блоковий
+mt4 раніше давав `This is a photo of a game`. Тобто **повна глибина сама по
+собі не дає image-grounding** — потрібне навчене вирівнювання vision-токенів
+до embedding-простору MiniCPM 1B (PH-1204) і G13. Жодного quality-claim.
