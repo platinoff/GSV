@@ -134,6 +134,11 @@ rayon = "1.10"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
+# Rust 1.100 stable: cargo's unused-dependency lint enforces the GSV rule
+# "no new heavy deps" at build time (warn-only; clippy -D warnings is separate).
+[lints.cargo]
+unused_dependencies = "warn"
+
 [dev-dependencies]
 # Integration tests only (contracts + update flow)
 tokio = { version = "1.49", features = ["rt-multi-thread", "io-util", "io-std", "net", "time", "fs", "macros", "sync"] }
