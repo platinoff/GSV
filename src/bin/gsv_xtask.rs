@@ -966,6 +966,59 @@ fn main() -> ExitCode {
                 }
             }
         }
+        "moe-pack" => {
+            // LOAD-1: build one expert-major pack layer on the mirror.
+            let artifact = flag_value(&args, "--artifact")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| {
+                    PathBuf::from("L:/gsv_mirror/models/gsv-versus-ai/gsv-versus-ai-full-q4k.gguf")
+                });
+            let rusty = flag_value(&args, "--rusty")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("S:/rust/rusty-engine/target/debug/rusty.exe"));
+            let out = flag_value(&args, "--out")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("L:/gsv_mirror/models/gsv-versus-ai/expert-pack"));
+            let layer = flag_value(&args, "--layer")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(0);
+            let offsets = match gsv::boxes::moe_forward::manifest_offsets(&rusty, &artifact) {
+                Ok(o) => o,
+                Err(e) => {
+                    eprintln!("moe-pack: manifest: {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            match gsv::boxes::moe_pack::pack_layer(
+                &artifact,
+                &out,
+                layer,
+                &offsets,
+                gsv::boxes::moe_forward::N_EXPERTS,
+            ) {
+                Ok(manifest) => {
+                    let manifest_path = out.join(format!("manifest-L{layer:02}.json"));
+                    if let Err(e) = std::fs::write(
+                        &manifest_path,
+                        serde_json::to_string_pretty(&manifest).unwrap_or_default(),
+                    ) {
+                        eprintln!("moe-pack: manifest write: {e}");
+                        return ExitCode::FAILURE;
+                    }
+                    println!(
+                        "moe-pack layer {layer}: {} experts, {} bytes -> {}",
+                        manifest["experts"],
+                        manifest["bytes"],
+                        manifest_path.display()
+                    );
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("moe-pack: {e}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
         "moe-hotset" => {
             // FWD-7: profile-derived dynamic hot-expert cache plan (no cluster).
             let artifact = flag_value(&args, "--artifact")

@@ -55,6 +55,7 @@ pub mod keep_live;
 pub mod mds;
 pub mod moe_bench;
 pub mod moe_forward;
+pub mod moe_pack;
 pub mod omni;
 pub mod preview;
 pub mod products;

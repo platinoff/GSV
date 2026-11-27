@@ -142,6 +142,10 @@ pub const TASKS: &[(&str, &str)] = &[
         "FWD-2: register one Q4_K expert byte range from the 21 GB artifact + one-shot weights_matvec canary on the live cluster; fails if max_err_model >= 1e-4 (--layer, --expert, --role gate|up|down, --shards, --wait-secs)",
     ),
     (
+        "moe-pack",
+        "LOAD-1: build one expert-major pack layer on the mirror (4096-aligned gate/up/down per expert + sidecar manifest, sha256 verified once at build); --artifact --out --layer --rusty. Source 21 GB GGUF stays immutable.",
+    ),
+    (
         "moe-hotset",
         "FWD-7: profile-derived dynamic hot-expert cache plan (byte-budget LRU + watermark gate) from the real router; prints resident set + eviction plan (--layer, --tokens, --seed, --budget-mb, --free-mb, --reserve-mb). NUMERICS ONLY.",
     ),
