@@ -26,7 +26,7 @@ use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 pub const STORE_DIR: &str = "wgpu_weights";
 pub const CHUNKS_DIR: &str = "chunks";
@@ -173,21 +173,125 @@ pub(crate) fn artifact_source_key_for_offset(data_dir: &Path, offset: u64) -> Op
         .and_then(|r| r.get("key").and_then(Value::as_str).map(str::to_string))
 }
 
+/// LOAD-2: bounded in-memory cache of raw artifact chunk bytes. The hub used
+/// to rely entirely on the OS page cache with no explicit budget or admission —
+/// the largest behavioural gap vs ServerlessLLM/HF/SGLang. Content-addressed
+/// keys make a hit inherently stale-safe; the SHA-256 is checked on every
+/// MISS before insertion, so a tampered source still fails closed.
+struct ChunkCache {
+    entries: HashMap<String, (Arc<Vec<u8>>, u64)>, // key -> (bytes, last-use tick)
+    bytes: u64,
+    budget: u64,
+    tick: u64,
+    hits: u64,
+    misses: u64,
+    evictions: u64,
+    read_ms: f64,
+}
+
+static CHUNK_CACHE: OnceLock<Mutex<ChunkCache>> = OnceLock::new();
+
+fn chunk_cache() -> &'static Mutex<ChunkCache> {
+    CHUNK_CACHE.get_or_init(|| {
+        let mb = std::env::var("GSV_WGPU_CHUNK_CACHE_MB")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(256);
+        Mutex::new(ChunkCache {
+            entries: HashMap::new(),
+            bytes: 0,
+            budget: mb.saturating_mul(1024 * 1024),
+            tick: 0,
+            hits: 0,
+            misses: 0,
+            evictions: 0,
+            read_ms: 0.0,
+        })
+    })
+}
+
+/// LOAD-2: test-only cache reset with an explicit byte budget.
+#[cfg(test)]
+fn reset_chunk_cache(budget: u64) {
+    let mut c = chunk_cache().lock().unwrap_or_else(|e| e.into_inner());
+    c.entries.clear();
+    c.bytes = 0;
+    c.budget = budget;
+    c.tick = 0;
+    c.hits = 0;
+    c.misses = 0;
+    c.evictions = 0;
+    c.read_ms = 0.0;
+}
+
+/// LOAD-2: snapshot of cache counters for `manifest()` telemetry.
+pub(crate) fn chunk_cache_stats() -> Value {
+    let c = chunk_cache().lock().unwrap_or_else(|e| e.into_inner());
+    json!({
+        "entries": c.entries.len(), "bytes": c.bytes, "budget_bytes": c.budget,
+        "hits": c.hits, "misses": c.misses, "evictions": c.evictions,
+        "read_ms_total": (c.read_ms * 1000.0).round() / 1000.0,
+    })
+}
+
 /// Range-read a chunk directly from a large artifact GGUF. The key is the
 /// SHA-256 of the original bytes, so we verify the slice before returning it;
 /// a mismatch is treated as "not found" (fail-closed, no silent corruption).
-fn read_chunk_artifact(data_dir: &Path, key: &str) -> Option<Vec<u8>> {
+/// LOAD-2: served from a bounded LRU cache on hits; misses still verify SHA-256.
+pub(crate) fn read_chunk_artifact(data_dir: &Path, key: &str) -> Option<Vec<u8>> {
+    {
+        let mut c = chunk_cache().lock().unwrap_or_else(|e| e.into_inner());
+        c.tick += 1;
+        let tick_now = c.tick;
+        let hit = c.entries.get(key).map(|(bytes, _)| bytes.clone());
+        if let Some(bytes) = hit {
+            if let Some(entry) = c.entries.get_mut(key) {
+                entry.1 = tick_now;
+            }
+            c.hits += 1;
+            return Some((*bytes).clone());
+        }
+        c.misses += 1;
+    }
     let row = find_artifact_source(data_dir, key)?;
     let artifact = row.get("artifact").and_then(Value::as_str)?;
     let offset = row.get("offset").and_then(Value::as_u64)?;
     let len = row.get("len").and_then(Value::as_u64)? as usize;
     use std::io::{Read, Seek, SeekFrom};
+    let started = std::time::Instant::now();
     let mut f = std::fs::File::open(artifact).ok()?;
     f.seek(SeekFrom::Start(offset)).ok()?;
     let mut buf = vec![0u8; len];
     f.read_exact(&mut buf).ok()?;
     if sha256_hex(&buf) != key {
-        return None;
+        return None; // fail-closed: never cache unverified bytes
+    }
+    let elapsed = started.elapsed().as_secs_f64() * 1000.0;
+    {
+        let mut c = chunk_cache().lock().unwrap_or_else(|e| e.into_inner());
+        c.read_ms += elapsed;
+        c.tick += 1;
+        let cost = len as u64;
+        // Evict least-recently-used until the new entry fits the byte budget.
+        while c.bytes.saturating_add(cost) > c.budget && !c.entries.is_empty() {
+            let oldest = c
+                .entries
+                .iter()
+                .min_by_key(|(_, (_, tick))| *tick)
+                .map(|(k, _)| k.clone());
+            if let Some(old) = oldest {
+                if let Some((v, _)) = c.entries.remove(&old) {
+                    c.bytes = c.bytes.saturating_sub(v.len() as u64);
+                    c.evictions += 1;
+                }
+            }
+        }
+        if cost <= c.budget {
+            let tick = c.tick;
+            let entry = (Arc::new(buf.clone()), tick);
+            c.entries.insert(key.to_string(), entry);
+            c.bytes += cost;
+        }
     }
     Some(buf)
 }
@@ -676,6 +780,7 @@ pub fn manifest(data_dir: &Path) -> Value {
             "hits": r.get("hits").cloned().unwrap_or(Value::Null),
         })).collect::<Vec<_>>(),
         "tensors": tensors,
+        "chunk_cache": chunk_cache_stats(), // LOAD-2 telemetry
     })
 }
 
@@ -811,6 +916,45 @@ mod tests {
     use super::*;
 
     #[test]
+    fn load2_cache_hit_and_lru_budget_eviction() {
+        let dir = temp_dir("load2_chunk_cache");
+        let _ = std::fs::create_dir_all(&dir);
+        let artifact = dir.join("blob.bin");
+        // Two 1024-byte sources with content-addressed keys.
+        let a = vec![1u8; 1024];
+        let b = vec![2u8; 1024];
+        let ka = sha256_hex(&a);
+        let kb = sha256_hex(&b);
+        std::fs::write(&artifact, [a.clone(), b.clone()].concat()).unwrap();
+        let sources = json!([
+            {"key": ka, "artifact": artifact.to_string_lossy(), "offset": 0u64, "len": 1024u64},
+            {"key": kb, "artifact": artifact.to_string_lossy(), "offset": 1024u64, "len": 1024u64},
+        ]);
+        std::fs::write(
+            artifact_sources_path(&dir),
+            serde_json::to_string(&sources).unwrap(),
+        )
+        .unwrap();
+        invalidate_artifact_sources(&dir);
+        // Budget fits one entry -> second read evicts the first (LRU).
+        reset_chunk_cache(1024);
+        assert_eq!(read_chunk_artifact(&dir, &ka).unwrap(), a);
+        assert_eq!(read_chunk_artifact(&dir, &ka).unwrap(), a); // hit
+        let s = chunk_cache_stats();
+        assert_eq!(s["hits"], 1);
+        assert_eq!(s["misses"], 1);
+        assert_eq!(read_chunk_artifact(&dir, &kb).unwrap(), b); // evicts ka
+        let s = chunk_cache_stats();
+        assert_eq!(s["evictions"], 1);
+        assert_eq!(s["bytes"], 1024);
+        // Tampering with the artifact bytes must still fail closed on a miss.
+        reset_chunk_cache(4096);
+        std::fs::write(&artifact, vec![9u8; 2048]).unwrap();
+        assert!(read_chunk_artifact(&dir, &ka).is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn load0_artifact_sources_memo_invalidates_on_write() {
         let dir = temp_dir("load0_sources_memo");
         let _ = std::fs::create_dir_all(&dir);
@@ -921,12 +1065,16 @@ mod tests {
         let got = read_chunk(&dir, &key).expect("artifact-backed read");
         assert_eq!(got, payload);
         // Tampered manifest (wrong len) -> sha256 mismatch -> fail closed.
+        // LOAD-2: a cached hit is inherently safe (the key IS the content hash),
+        // so force a MISS to verify a tampered source still fails closed.
         let bad = serde_json::json!([{"key": key, "artifact": artifact.to_string_lossy(), "offset": 7u64, "len": 3u64}]);
         std::fs::write(
             artifact_sources_path(&dir),
             serde_json::to_string(&bad).unwrap(),
         )
         .unwrap();
+        invalidate_artifact_sources(&dir);
+        reset_chunk_cache(256 * 1024 * 1024); // force a fresh read of the tampered source
         assert!(
             read_chunk(&dir, &key).is_err(),
             "tampered artifact source must fail closed"
