@@ -1,6 +1,6 @@
 # GSV_FUNCTION_MANAGEMENT.md — функційний реєстр екосистеми (симбіоз)
 
-**Status:** Canon, owner-ratified 2026-11-17 (агент-драфт, owner підтвердив ключові розподіли); matrix snapshot 2026-11-27, **current heads: GSV `git log -1` (snapshot `6adec96`, MCP 61 tool), rusty-engine `6ed0cc0`, LinFS `5666918`, adoreble_wifi `141ede0`** · **Owner:** platinoff
+**Status:** Canon, owner-ratified 2026-11-17 (агент-драфт, owner підтвердив ключові розподіли); matrix snapshot 2026-11-27, **current heads: GSV `git log -1` (snapshot `6adec96`, MCP 61 tool), rusty-engine `git log -1` (snapshot `82a0f4b`), LinFS `5666918`, adoreble_wifi `141ede0`** · **Owner:** platinoff
 **Companions:** [`GSV_ECOSYSTEM_SYMBIOSIS.md`](./GSV_ECOSYSTEM_SYMBIOSIS.md) (мама/тато) · [`PRODUCTS.md`](./PRODUCTS.md) (реєстр) · [`GSV_AGI_PATH.md`](./GSV_AGI_PATH.md)
 **Rule:** poolAI FM (`poolAI/docs/catalog/FUNCTION_MANAGEMENT.md`) очолює цю матрицю в категорії «тато»; цей документ — екосистемна зводка, не заміна per-project FM.
 

@@ -2,7 +2,7 @@
 
 **Статус:** execution complete for every non-owner-gated item in the inventory. Кожен пункт — окремий тікет, TDD + gates + один commit + push. **Межа:** G13 blocked, жодного image→answer/quality-claim; усе MoE — numerics/orchestration.
 
-Джерела: 3 паралельні агенти (ticket board + code markers у 16 репо; Rust 1.100/WASM/framework research; FM/roadmap/ratio drift scan). Поточні HEAD'и після виконання: GSV `git log -1` (snapshot `6adec96`), rusty-engine `6ed0cc0`, LinFS `5666918`, adoreble_wifi `141ede0`, omniroute `a2e1e9f` (W25–W28 були вже done — інвентар був stale). Ratio GSV: **99.68%** (76888/77138, wasm 0%, ui_html 250).
+Джерела: 3 паралельні агенти (ticket board + code markers у 16 репо; Rust 1.100/WASM/framework research; FM/roadmap/ratio drift scan). Поточні HEAD'и після виконання: GSV `git log -1` (snapshot `6adec96`), rusty-engine `git log -1` (snapshot `82a0f4b`), LinFS `5666918`, adoreble_wifi `141ede0`, omniroute `a2e1e9f` (W25–W28 були вже done — інвентар був stale). Ratio GSV: **99.68%** (76888/77138, wasm 0%, ui_html 250).
 
 **Тікетна звірка 2026-11-27:** FWD-5 (`t-1795725845907114700`) закрито як покрите `fwd5_*` тестами + MOD-1/MOD-4/LOAD-4; GASV-F1/F2 закрито як stale (реалізовані ще `ebb7b79`, Q8_0/Q4_0 опубліковані F4 2026-11-21); PH-405/PH-407 **закрито як superseded** (власник 2026-11-27: «пійшли іншим шляхом далеко, можна прибрати»): живий oracle не запускався; покриття — PH-405b + numeric golden + PH-405c `6ed0cc0` + synthetic bench `4082a98`. Нові quality-тікети — лише за окремим go з наданою моделлю.
 

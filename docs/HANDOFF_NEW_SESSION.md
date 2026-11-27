@@ -1,6 +1,6 @@
 # Передача контексту новій сесії (GSV)
 
-## Сталий стан (2026-11-27 — GSV `git log -1` (snapshot `6adec96`) / rusty-engine `6ed0cc0` / LinFS `5666918` / adoreble_wifi `141ede0`; GASV G32–G49 done; **streaming 4-bit MoE FWD-1…8 + LOAD-0…6 + SCALE-1a + PEER-1 завершено**; **ecosystem repair 22/22 items закрито**; G13 blocked, G19 open; vision rev 516, next PH-S3129)
+## Сталий стан (2026-11-27 — GSV `git log -1` (snapshot `6adec96`) / rusty-engine `git log -1` (snapshot `82a0f4b`) / LinFS `5666918` / adoreble_wifi `141ede0`; GASV G32–G49 done; **streaming 4-bit MoE FWD-1…8 + LOAD-0…6 + SCALE-1a + PEER-1 завершено**; **ecosystem repair 22/22 items закрито**; G13 blocked, G19 open; vision rev 516, next PH-S3129)
 
 | Що | Значення |
 |---|---|
