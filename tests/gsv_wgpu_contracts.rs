@@ -332,6 +332,46 @@ async fn capability_and_mesh_carry_device_class() {
 }
 
 #[tokio::test]
+async fn load5_raw_chunk_get_returns_bytes_and_digest_header() {
+    let (app, _dir) = app("load5_raw_chunk");
+    let payload = b"load5 octet-stream chunk payload";
+    let b64 = base64::engine::general_purpose::STANDARD.encode(payload);
+    let (status, stored) = post(
+        &app,
+        "/api/wgpu/weights/chunk",
+        serde_json::json!({"data_b64": b64}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let key = stored["key"].as_str().unwrap().to_string();
+
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/api/wgpu/weights/chunk/raw?key={key}"))
+                .method(Method::GET)
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(
+        res.headers().get("content-type").unwrap(),
+        "application/octet-stream"
+    );
+    assert_eq!(res.headers().get("x-gsv-key").unwrap(), key.as_str());
+    let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .expect("body");
+    assert_eq!(&bytes[..], payload);
+
+    let (bad_status, _) = get(&app, "/api/wgpu/weights/chunk/raw?key=junk").await;
+    assert_eq!(bad_status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
 async fn weights_store_manifest_roundtrip_and_rejection() {
     let (app, dir) = app("weights");
     let (status, m0) = get(&app, "/api/wgpu/weights/manifest").await;
@@ -378,6 +418,8 @@ async fn weights_store_manifest_roundtrip_and_rejection() {
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_eq!(bad_key["ok"], false);
 
+    // LOAD-0: read audit rows are buffered; a manifest read flushes them.
+    let _ = get(&app, "/api/wgpu/weights/manifest").await;
     let audit = std::fs::read_to_string(dir.join("wgpu_weights_audit.jsonl")).unwrap();
     assert!(audit.contains("\"event\":\"store\""));
     assert!(audit.contains("\"event\":\"read\""));
@@ -531,8 +573,12 @@ fn page_forces_wasm_for_phone_weights_matvec() {
         "WASM Q4_K dequant kernel must be used by the artifact-backed weight lane"
     );
     assert!(
-        page.contains("const cached=phone?null:await idbGet(c)"),
-        "phone peers must bypass unverifiable IndexedDB chunk cache"
+        page.contains("const cached=await idbGet(c)"),
+        "LOAD-5: all peers (incl. phones) may reuse content-addressed IDB entries"
+    );
+    assert!(
+        page.contains("x-gsv-key"),
+        "LOAD-5: digest binding replaces the phone crypto.subtle requirement"
     );
     assert!(
         page.contains("clearWasmWeightCache"),

@@ -149,6 +149,7 @@ async fn write_length(stream: &mut TcpStream, res: Response) -> std::io::Result<
         "cross-origin-resource-policy",
         "mcp-session-id",
         "content-encoding",
+        "x-gsv-key", // LOAD-5: digest binding for raw chunk bytes on phones
     ] {
         if let Ok(name) = HeaderName::from_bytes(key.as_bytes()) {
             push_copied(&mut head, &parts.headers, name, key);

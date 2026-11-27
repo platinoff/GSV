@@ -191,6 +191,10 @@ pub fn router(state: AppState) -> Router {
         .route("/api/wgpu/weights/manifest", get(api_wgpu_weights_manifest))
         .route("/api/wgpu/weights/chunk", get(api_wgpu_weights_chunk_get))
         .route(
+            "/api/wgpu/weights/chunk/raw",
+            get(api_wgpu_weights_chunk_get_raw),
+        )
+        .route(
             "/api/wgpu/weights/register_tensor",
             post(api_wgpu_weights_register_tensor),
         )
@@ -1031,6 +1035,40 @@ async fn api_wgpu_weights_chunk_get(
             "data_b64": base64::engine::general_purpose::STANDARD.encode(bytes),
         }))
         .into_response(),
+        Err(e) => err_json(StatusCode::BAD_REQUEST, e),
+    }
+}
+
+/// LOAD-5: raw bytes variant of the chunk GET — avoids ~33% base64 inflation
+/// and the peer-side atob/Uint8Array.from copies. The digest is returned as a
+/// header so a phone without `crypto.subtle` can still bind bytes to the
+/// content-addressed IDB key (hub golden-x remains the authoritative gate).
+async fn api_wgpu_weights_chunk_get_raw(
+    State(state): State<AppState>,
+    Query(q): Query<KeyQuery>,
+) -> Response {
+    let key = q.key.unwrap_or_default();
+    match crate::boxes::weight_store::read_chunk(&state.data_dir, &key) {
+        Ok(bytes) => {
+            let digest = match HeaderValue::from_str(&key) {
+                Ok(v) => v,
+                Err(_) => {
+                    return err_json(StatusCode::BAD_REQUEST, String::from("bad digest header"))
+                }
+            };
+            (
+                [
+                    (
+                        header::CONTENT_TYPE,
+                        HeaderValue::from_static("application/octet-stream"),
+                    ),
+                    (HeaderName::from_static("x-gsv-key"), digest),
+                    (header::CACHE_CONTROL, HeaderValue::from_static("no-store")),
+                ],
+                Bytes::from(bytes),
+            )
+                .into_response()
+        }
         Err(e) => err_json(StatusCode::BAD_REQUEST, e),
     }
 }

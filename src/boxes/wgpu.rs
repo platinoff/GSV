@@ -3411,22 +3411,24 @@ async function downloadWeightsFlat(tensor,shardId,shards){
   const r0=(shardId|0)*per;
   const pieces=[];
   const canVerify = typeof crypto !== 'undefined' && crypto.subtle && crypto.subtle.digest;
-  // Phones on the insecure LAN origin have no crypto.subtle, so a corrupted
-  // IndexedDB entry can never be detected and is reused forever (identical
-  // max_err on every run). Always re-fetch authoritative bytes on phones.
+  // LOAD-5: phones can reuse a content-addressed IndexedDB entry because the
+  // hub echoes the sha256 digest in x-gsv-key on the raw path — no crypto.subtle
+  // needed. Any corruption is still caught by the hub's golden-x max_err gate.
   const phone=!!(WORKER&&WORKER.phone);
   for(const c of tm.chunks){
-    const cached=phone?null:await idbGet(c);
+    const cached=await idbGet(c);
     if(cached){pieces.push(new Uint8Array(cached));continue;}
-    const r=await(await fetch('api/wgpu/weights/chunk?key='+encodeURIComponent(c))).json();
+    const r=await fetch('api/wgpu/weights/chunk/raw?key='+encodeURIComponent(c));
     if(!r.ok)throw new Error('chunk fetch failed: '+c);
-    const bytes=Uint8Array.from(atob(r.data_b64),ch=>ch.charCodeAt(0));
+    const served=r.headers.get('x-gsv-key');
+    if(served&&served!==c)throw new Error('chunk digest mismatch: '+c);
+    const bytes=new Uint8Array(await r.arrayBuffer()); // no base64 inflation / atob copy
     if(canVerify){
       const digest=await crypto.subtle.digest('SHA-256',bytes);
       const hex=[...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,'0')).join('');
       if(hex!==c)throw new Error('chunk hash mismatch: '+c);
-    } // insecure LAN origin: no crypto.subtle — hub verifies the partial numerically (max_err_model) — the authoritative gate
-    if(!phone)idbPut(c,bytes.buffer); // phone: never trust a local copy without sha256
+    }
+    idbPut(c,bytes.buffer);
     pieces.push(bytes);
   }
   const totalBytes=pieces.reduce((a,p)=>a+p.byteLength,0);
@@ -3920,6 +3922,14 @@ mod tests {
             p.contains("task result POST rejected: HTTP"),
             "result POST must log the hub's rejection reason for ops diagnosis"
         );
+        assert!(
+            p.contains("api/wgpu/weights/chunk/raw?key="),
+            "LOAD-5: page must use the octet-stream chunk path (no base64 inflation)"
+        );
+        assert!(
+            p.contains("x-gsv-key"),
+            "LOAD-5: page must bind bytes to the hub-supplied digest header"
+        );
         assert!(p.contains("Start mesh worker"));
         assert!(p.contains("api/wgpu/mesh"));
     }
@@ -4206,9 +4216,11 @@ mod tests {
         assert!(p.contains("const CACHE={}"));
         // Persistent cache is consulted before the network fetch.
         let cached = p.find("idbGet(c)").expect("idb read before fetch");
+        // LOAD-5: the page now prefers the octet-stream path; the base64
+        // endpoint is kept server-side for compatibility only.
         let net = p
-            .find("api/wgpu/weights/chunk?key=")
-            .expect("chunk fetch path");
+            .find("api/wgpu/weights/chunk/raw?key=")
+            .expect("raw chunk fetch path");
         assert!(cached < net, "idb read must precede chunk fetch");
     }
 
