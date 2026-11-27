@@ -689,26 +689,28 @@ fn register_expert_if_absent(
     Ok(expert_key(data_dir, start))
 }
 
-/// LOAD-4: run one expert's gate -> up -> SwiGLU -> down chain. Kept as a
-/// separate future so `report_one_layer` can run several experts concurrently
-/// under a semaphore while preserving each expert's internal order.
-#[allow(clippy::too_many_arguments)]
-async fn run_expert(
-    client: &reqwest::Client,
-    base: &str,
+/// LOAD-6: resolve one expert's three tensor slices from either the packed
+/// record (one verified read) or the source GGUF byte ranges. Returns
+/// (gate, up, down) each as (sha256 key, byte offset, length, ggml_type).
+fn resolve_expert_slices(
     data_dir: &Path,
     artifact: &Path,
     offsets: &HashMap<String, (u64, u32)>,
-    registered: &std::collections::HashSet<String>,
     layer: usize,
     eid: usize,
-    shards: usize,
-    wait_secs: u64,
-) -> Result<(Vec<f64>, f64), String> {
-    let base_s = base.trim_end_matches('/');
-    let mut max_err = 0.0f64;
-    let mut role_outputs = std::collections::HashMap::new();
-    for role in [ExpertRole::Gate, ExpertRole::Up] {
+    pack_dir: Option<&Path>,
+    registered: &std::collections::HashSet<String>,
+) -> Result<[(String, u64, u64, u32); 3], String> {
+    if let Some(dir) = pack_dir {
+        let p = super::moe_pack::pack_expert_ranges(dir, data_dir, layer, eid)?;
+        return Ok([
+            (p.gate_key, p.gate_start, p.gate_len, 12),
+            (p.up_key, p.up_start, p.up_len, 12),
+            (p.down_key, p.down_start, p.down_len, 14),
+        ]);
+    }
+    let mut out = Vec::with_capacity(3);
+    for role in [ExpertRole::Gate, ExpertRole::Up, ExpertRole::Down] {
         let addr = ExpertAddr {
             layer,
             expert: eid,
@@ -727,25 +729,96 @@ async fn run_expert(
             gt,
             registered,
         )?;
+        out.push((key, start, end - start, gt));
+    }
+    Ok([out[0].clone(), out[1].clone(), out[2].clone()])
+}
+
+/// LOAD-4: run one expert's gate -> up -> SwiGLU -> down chain. Kept as a
+/// separate future so `report_one_layer` can run several experts concurrently
+/// under a semaphore while preserving each expert's internal order.
+#[allow(clippy::too_many_arguments)]
+async fn run_expert(
+    client: &reqwest::Client,
+    base: &str,
+    data_dir: &Path,
+    artifact: &Path,
+    offsets: &HashMap<String, (u64, u32)>,
+    registered: &std::collections::HashSet<String>,
+    pack_dir: Option<&Path>,
+    layer: usize,
+    eid: usize,
+    shards: usize,
+    wait_secs: u64,
+) -> Result<(Vec<f64>, f64), String> {
+    let base_s = base.trim_end_matches('/');
+    // (key, offset, len, ggml_type) for gate / up / down, from pack or GGUF.
+    let slices = resolve_expert_slices(
+        data_dir, artifact, offsets, layer, eid, pack_dir, registered,
+    )?;
+    let mut max_err = 0.0f64;
+
+    // Helper: register one slice with the hub and run a matvec whose x is
+    // either a compact onehot spec (gate/up) or a real inline vector (down).
+    async fn run_slice(
+        client: &reqwest::Client,
+        base: &str,
+        addr: &ExpertAddr,
+        key: &str,
+        len: u64,
+        gt: u32,
+        x_spec: Option<String>,
+        inline_x: Option<Vec<f64>>,
+        shards: usize,
+        wait_secs: u64,
+    ) -> Result<(Vec<f64>, f64), String> {
         let dims = addr.dims();
         client
-            .post(format!("{base_s}/api/wgpu/weights/register_tensor"))
+            .post(format!("{base}/api/wgpu/weights/register_tensor"))
             .json(&json!({
                 "tensor": addr.alias(), "dims": [dims[0], dims[1]],
                 "chunks": [key], "source": "artifact",
                 "dtype": if gt == 14 { "q6_k" } else { "q4_k" }, "ggml_type": gt,
-                "bytes": end - start,
+                "bytes": len,
             }))
             .send()
             .await
             .ok();
-        let enq =
-            enqueue_expert_canary(client, base_s, &addr.alias(), dims[1] as usize, shards).await?;
-        let gid = enq["group_id"].as_str().ok_or("no group")?;
-        let res = collect_canary(client, base_s, gid, wait_secs).await?;
-        max_err = max_err.max(res["max_err_model"].as_f64().unwrap_or(0.0));
+        let mut body = json!({
+            "op": "weights_matvec", "tensor": addr.alias(), "shards": shards,
+        });
+        if let Some(spec) = x_spec {
+            body["x_spec"] = json!(spec);
+        } else if let Some(x) = inline_x {
+            body["x"] = json!(x);
+        }
+        let enq: Value = client
+            .post(format!("{base}/api/wgpu/task/enqueue"))
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| format!("enqueue: {e}"))?
+            .json()
+            .await
+            .map_err(|e| format!("enqueue json: {e}"))?;
+        if enq.get("ok").and_then(Value::as_bool) == Some(false) {
+            return Err(format!(
+                "enqueue: {}",
+                enq.get("error").and_then(Value::as_str).unwrap_or("?")
+            ));
+        }
+        let gid = enq["group_id"]
+            .as_str()
+            .map(str::to_string)
+            .or_else(|| {
+                enq["task_id"]
+                    .as_str()
+                    .map(|t| format!("g-{}", t.trim_start_matches("mt-")))
+            })
+            .ok_or("no group")?;
+        let res = collect_canary(client, base, &gid, wait_secs).await?;
         let raw: Value = client
-            .get(format!("{base_s}/api/wgpu/task/result?group={gid}"))
+            .get(format!("{base}/api/wgpu/task/result?group={gid}"))
             .send()
             .await
             .map_err(|e| format!("result get: {e}"))?
@@ -758,61 +831,58 @@ async fn run_expert(
             .iter()
             .map(|v| v.as_f64().unwrap_or(0.0))
             .collect();
-        role_outputs.insert(role, partial);
+        Ok((partial, res["max_err_model"].as_f64().unwrap_or(0.0)))
     }
-    let gate = role_outputs.get(&ExpertRole::Gate).ok_or("no gate")?;
-    let up = role_outputs.get(&ExpertRole::Up).ok_or("no up")?;
+
+    let mut outputs = std::collections::HashMap::new();
+    for (idx, role) in [ExpertRole::Gate, ExpertRole::Up].into_iter().enumerate() {
+        let (key, _, len, gt) = &slices[idx];
+        let addr = ExpertAddr {
+            layer,
+            expert: eid,
+            role,
+        };
+        let (v, err) = run_slice(
+            client,
+            base_s,
+            &addr,
+            key,
+            *len,
+            *gt,
+            Some(format!("onehot:0:{FFN}")),
+            None,
+            shards,
+            wait_secs,
+        )
+        .await?;
+        max_err = max_err.max(err);
+        outputs.insert(role, v);
+    }
+    let gate = outputs.get(&ExpertRole::Gate).ok_or("no gate")?;
+    let up = outputs.get(&ExpertRole::Up).ok_or("no up")?;
     let act = swiglu(gate, up)?;
-    // DOWN consumes the SwiGLU activation (2048-dim) -> 512-dim.
+
+    let (key, _, len, gt) = &slices[2];
     let down_addr = ExpertAddr {
         layer,
         expert: eid,
         role: ExpertRole::Down,
     };
-    let (ts, gt) = *offsets
-        .get(&down_addr.tensor_name())
-        .ok_or("down tensor missing")?;
-    let (start, end) = down_addr.byte_range(ts, 0).ok_or("down byte range")?;
-    let key = register_expert_if_absent(
-        data_dir,
-        artifact,
+    let (v, err) = run_slice(
+        client,
+        base_s,
         &down_addr,
-        start,
-        (end - start) as usize,
-        gt,
-        registered,
-    )?;
-    let dims = down_addr.dims();
-    client
-        .post(format!("{base_s}/api/wgpu/weights/register_tensor"))
-        .json(&json!({
-            "tensor": down_addr.alias(), "dims": [dims[0], dims[1]],
-            "chunks": [key], "source": "artifact",
-            "dtype": if gt == 14 { "q6_k" } else { "q4_k" }, "ggml_type": gt,
-            "bytes": end - start,
-        }))
-        .send()
-        .await
-        .ok();
-    let enq = enqueue_expert_canary(client, base_s, &down_addr.alias(), act.len(), shards).await?;
-    let gid = enq["group_id"].as_str().ok_or("no down group")?;
-    let res = collect_canary(client, base_s, gid, wait_secs).await?;
-    max_err = max_err.max(res["max_err_model"].as_f64().unwrap_or(0.0));
-    let raw: Value = client
-        .get(format!("{base_s}/api/wgpu/task/result?group={gid}"))
-        .send()
-        .await
-        .map_err(|e| format!("result get: {e}"))?
-        .json()
-        .await
-        .map_err(|e| format!("result json: {e}"))?;
-    let partial: Vec<f64> = raw["results"][0]["partial"]
-        .as_array()
-        .ok_or("no down partial")?
-        .iter()
-        .map(|v| v.as_f64().unwrap_or(0.0))
-        .collect();
-    Ok((partial, max_err))
+        key,
+        *len,
+        *gt,
+        None,
+        Some(act),
+        shards,
+        wait_secs,
+    )
+    .await?;
+    max_err = max_err.max(err);
+    Ok((v, max_err))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -826,6 +896,7 @@ pub async fn report_one_layer(
     shards: usize,
     wait_secs: u64,
     hidden_seed: f64,
+    pack_dir: Option<&Path>,
 ) -> Result<Value, String> {
     let offsets = manifest_offsets(rusty, artifact)?;
     let router_addr = ExpertAddr {
@@ -905,6 +976,7 @@ pub async fn report_one_layer(
                     artifact,
                     &offsets,
                     &registered,
+                    pack_dir,
                     layer,
                     eid,
                     shards,

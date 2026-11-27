@@ -1154,6 +1154,7 @@ fn main() -> ExitCode {
             let seed = flag_value(&args, "--seed")
                 .and_then(|s| s.parse::<f64>().ok())
                 .unwrap_or(1.0);
+            let pack_dir = flag_value(&args, "--pack").map(PathBuf::from);
             let client = match reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(120))
                 .build()
@@ -1172,7 +1173,16 @@ fn main() -> ExitCode {
                 }
             };
             match rt.block_on(gsv::boxes::moe_forward::report_one_layer(
-                &client, &hub, &data_dir, &artifact, &rusty, layer, shards, wait_secs, seed,
+                &client,
+                &hub,
+                &data_dir,
+                &artifact,
+                &rusty,
+                layer,
+                shards,
+                wait_secs,
+                seed,
+                pack_dir.as_deref(),
             )) {
                 Ok(v) => {
                     println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());

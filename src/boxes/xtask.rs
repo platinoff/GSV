@@ -155,7 +155,7 @@ pub const TASKS: &[(&str, &str)] = &[
     ),
     (
         "moe-forward",
-        "FWD-4: one-layer coherent MoE forward (router -> top8 -> gate/up/down -> combine) on real artifact bytes; NUMERICS ONLY, not a model answer (--layer, --shards, --wait-secs, --seed)",
+        "FWD-4/LOAD-6: one-layer coherent MoE forward (router -> top8 -> gate/up/down -> combine); --pack <dir> uses the expert-major pack instead of GGUF byte ranges; NUMERICS ONLY, not a model answer (--layer, --shards, --wait-secs, --seed)",
     ),
     (
         "vision-chat",

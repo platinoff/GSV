@@ -17,6 +17,7 @@ use std::path::Path;
 use serde_json::{json, Value};
 
 use super::moe_forward::{ExpertAddr, ExpertRole, D_MODEL, FFN};
+use super::weight_store;
 
 /// 4096 alignment required for unbuffered/positional reads on Windows.
 pub const PACK_ALIGN: u64 = 4096;
@@ -102,7 +103,7 @@ pub fn pack_layer(
             payload.extend_from_slice(&buf);
         }
         // Verify once at build time (fail-closed).
-        let digest = super::weight_store::sha256_hex(&payload);
+        let digest = weight_store::sha256_hex(&payload);
         let record_start = cursor;
         out.write_all(&payload)
             .map_err(|e| format!("pack write: {e}"))?;
@@ -150,7 +151,7 @@ pub fn read_pack_entry(data: &[u8], entry: &Value) -> Result<Vec<u8>, String> {
     let slice = data
         .get(offset..offset.saturating_add(payload_len).min(data.len()))
         .ok_or("pack record out of bounds")?;
-    let got = super::weight_store::sha256_hex(slice);
+    let got = weight_store::sha256_hex(slice);
     if got != want {
         return Err(format!(
             "pack record sha256 mismatch (want {want}, got {got})"
@@ -159,9 +160,98 @@ pub fn read_pack_entry(data: &[u8], entry: &Value) -> Result<Vec<u8>, String> {
     Ok(slice.to_vec())
 }
 
+/// One expert's three matvec tensors resolved from a packed record. The
+/// artifact-source rows point INTO the pack file; the record sha256 was
+/// verified once when the pack was built, and each slice is re-hashed here so
+/// the hub's fail-closed chunk reader still gets content-addressed keys.
+#[derive(Debug, Clone)]
+pub struct PackExpert {
+    pub gate_key: String,
+    pub up_key: String,
+    pub down_key: String,
+    pub pack_file: String,
+    pub gate_start: u64,
+    pub up_start: u64,
+    pub down_start: u64,
+    pub gate_len: u64,
+    pub up_len: u64,
+    pub down_len: u64,
+}
+
+/// Read one packed expert record, verify it, split into gate/up/down and
+/// register the three slices as artifact sources in `data_dir`.
+pub fn pack_expert_ranges(
+    pack_dir: &Path,
+    data_dir: &Path,
+    layer: usize,
+    expert: usize,
+) -> Result<PackExpert, String> {
+    let manifest_path = pack_dir.join(format!("manifest-L{layer:02}.json"));
+    let manifest: Value = serde_json::from_str(
+        &std::fs::read_to_string(&manifest_path).map_err(|e| format!("manifest read: {e}"))?,
+    )
+    .map_err(|e| format!("manifest json: {e}"))?;
+    let entry = manifest["entries"]
+        .as_array()
+        .ok_or("no entries")?
+        .iter()
+        .find(|e| e.get("expert").and_then(Value::as_u64) == Some(expert as u64))
+        .ok_or("expert not in pack manifest")?;
+    let file = entry.get("file").and_then(Value::as_str).ok_or("no file")?;
+    let record_start = entry
+        .get("offset")
+        .and_then(Value::as_u64)
+        .ok_or("no offset")?;
+    let pack_path = pack_dir.join(file);
+    let data = std::fs::read(&pack_path).map_err(|e| format!("pack read: {e}"))?;
+    let record = read_pack_entry(&data, entry)?; // whole-record sha256, fail-closed
+
+    let gate_len = role_len(ExpertRole::Gate);
+    let up_len = role_len(ExpertRole::Up);
+    let down_len = role_len(ExpertRole::Down);
+    if record.len() != (gate_len + up_len + down_len) as usize {
+        return Err(format!("pack record size {} unexpected", record.len()));
+    }
+    let gate = &record[..gate_len as usize];
+    let up = &record[gate_len as usize..(gate_len + up_len) as usize];
+    let down = &record[(gate_len + up_len) as usize..];
+    let gate_key = weight_store::sha256_hex(gate);
+    let up_key = weight_store::sha256_hex(up);
+    let down_key = weight_store::sha256_hex(down);
+
+    // Register three artifact sources pointing into the pack file. A blob is
+    // stored once on disk; the keys are its per-slice content hashes.
+    let sources_path = data_dir.join(weight_store::ARTIFACT_SOURCES_FILE);
+    let existing: Vec<Value> = weight_store::read_artifact_sources(data_dir);
+    let artifact = pack_path.to_string_lossy().to_string();
+    let fresh = vec![
+        json!({"key": gate_key, "artifact": artifact, "offset": record_start, "len": gate_len}),
+        json!({"key": up_key, "artifact": artifact, "offset": record_start + gate_len, "len": up_len}),
+        json!({"key": down_key, "artifact": artifact, "offset": record_start + gate_len + up_len, "len": down_len}),
+    ];
+    let merged = super::vision_canary::merge_sources(&existing, &fresh);
+    std::fs::write(&sources_path, serde_json::to_string(&merged).unwrap())
+        .map_err(|e| format!("artifact sources write: {e}"))?;
+    weight_store::invalidate_artifact_sources(data_dir);
+
+    Ok(PackExpert {
+        gate_key,
+        up_key,
+        down_key,
+        pack_file: file.to_string(),
+        gate_start: record_start,
+        up_start: record_start + gate_len,
+        down_start: record_start + gate_len + up_len,
+        gate_len,
+        up_len,
+        down_len,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::boxes::weight_store;
 
     #[test]
     fn load1_pack_record_roundtrip_and_tamper() {
@@ -196,6 +286,49 @@ mod tests {
         let mut bad = e0.clone();
         bad["sha256"] = json!("00".repeat(32));
         assert!(read_pack_entry(&packed, &bad).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn load6_pack_expert_ranges_split_and_register() {
+        let dir = std::env::temp_dir().join("gsv_load6_expert_ranges");
+        let _ = std::fs::create_dir_all(&dir);
+        let pack_dir = dir.join("pack");
+        let data_dir = dir.join("data");
+        let _ = std::fs::create_dir_all(&pack_dir);
+        let _ = std::fs::create_dir_all(&data_dir);
+        let gate = vec![1u8; role_len(ExpertRole::Gate) as usize];
+        let up = vec![2u8; role_len(ExpertRole::Up) as usize];
+        let down = vec![3u8; role_len(ExpertRole::Down) as usize];
+        let blob = [gate.as_slice(), up.as_slice(), down.as_slice()].concat();
+        std::fs::write(pack_dir.join("experts-L00.pack"), &blob).unwrap();
+        let manifest = json!({
+            "schema": "gasv.expert-pack.v1", "layer": 0,
+            "entries": [{"expert": 0, "file": "experts-L00.pack", "offset": 0u64,
+                "len": blob.len() as u64, "payload_bytes": blob.len(),
+                "quant_layout": "q4k_gate_up_q6k_down",
+                "sha256": weight_store::sha256_hex(&blob)}],
+        });
+        std::fs::write(
+            pack_dir.join("manifest-L00.json"),
+            serde_json::to_string(&manifest).unwrap(),
+        )
+        .unwrap();
+        let got = pack_expert_ranges(&pack_dir, &data_dir, 0, 0).expect("split");
+        assert_eq!(got.gate_start, 0);
+        assert_eq!(got.up_start, role_len(ExpertRole::Gate));
+        assert_eq!(
+            got.down_start,
+            role_len(ExpertRole::Gate) + role_len(ExpertRole::Up)
+        );
+        assert_eq!(got.gate_key, weight_store::sha256_hex(&gate));
+        assert_eq!(got.up_key, weight_store::sha256_hex(&up));
+        assert_eq!(got.down_key, weight_store::sha256_hex(&down));
+        // Artifact sources were registered and are readable by content hash.
+        assert_eq!(
+            weight_store::read_chunk(&data_dir, &got.gate_key).unwrap(),
+            gate
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
