@@ -2,7 +2,7 @@
 
 **Статус:** execution complete for every non-owner-gated item in the inventory. Кожен пункт — окремий тікет, TDD + gates + один commit + push. **Межа:** G13 blocked, жодного image→answer/quality-claim; усе MoE — numerics/orchestration.
 
-Джерела: 3 паралельні агенти (ticket board + code markers у 16 репо; Rust 1.100/WASM/framework research; FM/roadmap/ratio drift scan). Поточні HEAD'и після виконання: GSV `3e1daef`, rusty-engine `4082a98`, LinFS `9d75038`, adoreble_wifi `eb471e3`, omniroute `a2e1e9f` (W25–W28 були вже done — інвентар був stale). Ratio GSV: **99.68%** (76888/77138, wasm 0%, ui_html 250).
+Джерела: 3 паралельні агенти (ticket board + code markers у 16 репо; Rust 1.100/WASM/framework research; FM/roadmap/ratio drift scan). Поточні HEAD'и після виконання: GSV `51b1512`, rusty-engine `4082a98`, LinFS `9d75038`, adoreble_wifi `eb471e3`, omniroute `a2e1e9f` (W25–W28 були вже done — інвентар був stale). Ratio GSV: **99.68%** (76888/77138, wasm 0%, ui_html 250).
 
 **Не зроблено навмисно:** MOD-3 (`wasm-opt`, потребує `pacman -S binaryen` — системна зміна); owner-gated G13/G19/SCALE-1/remotes/`:8091`/rebook/token rotate; ADO-5 phase 2 (`nl80211`/`hostapd`) — системні зміни; poolAI VM process spawn — **deferred by design** (чесний noop `is_supported=false` + explicit error + тест; фейковий spawn був би шкідливим). MOD-5 coalescer **не wiring** через чесний A/B (9× slower).
 
@@ -28,7 +28,7 @@
 | 14–18 | rusty/poolAI/GSV | ignored parity/k8s tests, test-ci CI-only, LAN sign-off, BENCH-2 down | — | e | CI/wired node/stabilni peers — не локально |
 | 19–22 | GSV/plugins | G13, G19, SCALE-1, no remotes, `:8091`, rebook | — | d | Owner decisions only |
 
-**Doc-only drift (не код):** FM §1/§2 stop at HEAD `12bc953`/`cc7158a` — rows 43–52 без MoE/FWD/LOAD; roadmap stops 2026-11-26 (0 згадок FWD/LOAD/SCALE/PEER); HANDOFF/NEXT HEAD `d9e4730` (actual `e1903ad`), ticket counts 711/14/8 stale; `eco_check.rs:65` "46 rows" vs 52; `scripts/README.md` без moe-*/vision-* задач.
+**Doc-only drift (не код) — ВИПРАВЛЕНО DOC-1 (`f02d9ea`) + steady-state звірка 2026-11-27 (`51b1512`):** FM §1/§2 оновлено з `12bc953`/`cc7158a` → `51b1512` (rows 43–52 з MoE/FWD/LOAD); roadmap тепер має FWD/LOAD/SCALE/PEER addendum; HANDOFF/NEXT HEAD `51b1512`; `eco_check.rs` 46→52; `scripts/README.md` має moe-*/vision-* задачі. Поточні HEAD'и у FM/roadmap/HANDOFF/NEXT звірено з реальними `git log -1` — розсинхрону немає.
 
 ## 2. Research — найкращі сучасні практики (Rust 1.100 / WASM / blazing-fast)
 

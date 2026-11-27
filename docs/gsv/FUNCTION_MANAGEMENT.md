@@ -1,6 +1,6 @@
 # FUNCTION_MANAGEMENT.md — GSV (мама, хаб)
 
-**Status:** Canon, adapted 2026-11-27 @ HEAD `e1903ad` (GASV G32–G49 + streaming MoE FWD-1…8 / LOAD-0…6 / SCALE-1a / PEER-1; debug canon `GSV_DEBUG_CANON.md`) (toolchain rust 1.100.0; rusty-engine `9197a3e`) · **Owner:** platinoff
+**Status:** Canon, adapted 2026-11-27 @ HEAD `51b1512` (GASV G32–G49 + streaming MoE FWD-1…8 / LOAD-0…6 / SCALE-1a / PEER-1 + ecosystem repair 22/22; debug canon `GSV_DEBUG_CANON.md`) (toolchain rust 1.100.0; rusty-engine `4082a98`, LinFS `9d75038`, adoreble_wifi `eb471e3`) · **Owner:** platinoff
 **Компаньйони:** [`GSV_FUNCTION_MANAGEMENT.md`](./GSV_FUNCTION_MANAGEMENT.md) (майстер-матриця) · [`GSV_ECOSYSTEM_SYMBIOSIS.md`](./GSV_ECOSYSTEM_SYMBIOSIS.md) (мама/тато) · [`PRODUCTS.md`](./PRODUCTS.md)
 **Шар:** мама — операційний план екосистеми (хаб). poolAI (тато-план, FM) очолює управління; цей файл — функційний реєстр GSV.
 
@@ -13,7 +13,7 @@
 
 Статуси: **І** Implemented (тест/гейт) · **P** Partial (є API, wire неповний) · **S** Declared (реалізовано, немає виділеного контрактного тесту) · **G** Concept-only.
 
-## 1. Функції GSV (звірено з деревом @ 2026-11-27, HEAD `e1903ad`)
+## 1. Функції GSV (звірено з деревом @ 2026-11-27, HEAD `51b1512`)
 
 | # | Функція | Модуль | Статус | Звірка |
 |---|---------|--------|--------|--------|
@@ -76,7 +76,7 @@
 ## 2. Гейти (2026-11-27 steady state)
 
 - Toolchain: rustc/cargo **1.100.0** stable (`stable-x86_64-pc-windows-gnu` pin on 11 products; host-agnostic `stable` on adoreble_wifi/mesh-node; omniroute no pin, policy-down). `RUSTUP_TOOLCHAIN` unset.
-- `cargo xtask record-rust` — **warnings=0 errors=0** @ HEAD `e1903ad`.
+- `cargo xtask record-rust` — **warnings=0 errors=0** @ HEAD `51b1512`.
 - `cargo clippy --all-targets -- -D warnings` — green (65 wgpu + 7 dequant tests green after GASV track).
 - `cargo xtask record-speed --skip-run` — ok (останній повний `cargo test` 518s, exit 0).
 - `cargo fmt --all -- --check` — ok.

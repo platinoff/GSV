@@ -2413,5 +2413,5 @@ Vision companions: `gsv-versus-ai-vision-q4k.gguf` (2048), `inkling2-vision-q4k.
 | SCALE-1a | `wgpu.rs` — 30 s lease для <8 MiB expert slice (було 300 s, блокувало single slot); 3-tier test green. |
 | PEER-1 | `wgpu.rs` — sticky route знімається при `ok:false` / partial-less result; усуває «weights_matvec task returned no partial vector». |
 | BENCH-2 | частково: gate `g-7363` 130.98 MFLOPS, up `g-7364` 187.06 MFLOPS (3.47e-18); down environmental (телефони офлайн). |
-| Gates @ e1903ad | fmt/clippy, cargo test 0 failed, sync rev 516, loc-audit **99.68%** (76888/77138), Moe numerics only. |
+| Gates @ 51b1512 | fmt/clippy, cargo test 0 failed, sync rev 516, loc-audit **99.68%** (76888/77138), Moe numerics only. Ecosystem repair 22/22 closed — [`research/ECOSYSTEM_REPAIR_AND_MODERNIZATION_PLAN_2026-11-27.md`](research/ECOSYSTEM_REPAIR_AND_MODERNIZATION_PLAN_2026-11-27.md). |
 | Research | [`research/ECOSYSTEM_REPAIR_AND_MODERNIZATION_PLAN_2026-11-27.md`](research/ECOSYSTEM_REPAIR_AND_MODERNIZATION_PLAN_2026-11-27.md) — inventory 22 items + Rust 1.100/WASM shortlist. |
