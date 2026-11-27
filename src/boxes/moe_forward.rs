@@ -671,6 +671,150 @@ pub fn combine(
 /// but it is NOT a semantically-correct model forward: expert gate/up/down
 /// geometry here is the flattened artifact layout, and no oracle alignment or
 /// quality eval exists (G13 blocked). Do not read the output as an answer.
+/// LOAD-4: register an expert's byte range only if the alias is not already
+/// present in the hub's tensor registry. Returns the sha256 key for the chunk.
+fn register_expert_if_absent(
+    data_dir: &Path,
+    artifact: &Path,
+    addr: &ExpertAddr,
+    start: u64,
+    len: usize,
+    ggml_type: u32,
+    registered: &std::collections::HashSet<String>,
+) -> Result<String, String> {
+    let alias = addr.alias();
+    if !registered.contains(&alias) {
+        register_expert_range(data_dir, artifact, &alias, start, len, ggml_type)?;
+    }
+    Ok(expert_key(data_dir, start))
+}
+
+/// LOAD-4: run one expert's gate -> up -> SwiGLU -> down chain. Kept as a
+/// separate future so `report_one_layer` can run several experts concurrently
+/// under a semaphore while preserving each expert's internal order.
+#[allow(clippy::too_many_arguments)]
+async fn run_expert(
+    client: &reqwest::Client,
+    base: &str,
+    data_dir: &Path,
+    artifact: &Path,
+    offsets: &HashMap<String, (u64, u32)>,
+    registered: &std::collections::HashSet<String>,
+    layer: usize,
+    eid: usize,
+    shards: usize,
+    wait_secs: u64,
+) -> Result<(Vec<f64>, f64), String> {
+    let base_s = base.trim_end_matches('/');
+    let mut max_err = 0.0f64;
+    let mut role_outputs = std::collections::HashMap::new();
+    for role in [ExpertRole::Gate, ExpertRole::Up] {
+        let addr = ExpertAddr {
+            layer,
+            expert: eid,
+            role,
+        };
+        let (ts, gt) = *offsets
+            .get(&addr.tensor_name())
+            .ok_or("expert tensor missing")?;
+        let (start, end) = addr.byte_range(ts, 0).ok_or("expert byte range")?;
+        let key = register_expert_if_absent(
+            data_dir,
+            artifact,
+            &addr,
+            start,
+            (end - start) as usize,
+            gt,
+            registered,
+        )?;
+        let dims = addr.dims();
+        client
+            .post(format!("{base_s}/api/wgpu/weights/register_tensor"))
+            .json(&json!({
+                "tensor": addr.alias(), "dims": [dims[0], dims[1]],
+                "chunks": [key], "source": "artifact",
+                "dtype": if gt == 14 { "q6_k" } else { "q4_k" }, "ggml_type": gt,
+                "bytes": end - start,
+            }))
+            .send()
+            .await
+            .ok();
+        let enq =
+            enqueue_expert_canary(client, base_s, &addr.alias(), dims[1] as usize, shards).await?;
+        let gid = enq["group_id"].as_str().ok_or("no group")?;
+        let res = collect_canary(client, base_s, gid, wait_secs).await?;
+        max_err = max_err.max(res["max_err_model"].as_f64().unwrap_or(0.0));
+        let raw: Value = client
+            .get(format!("{base_s}/api/wgpu/task/result?group={gid}"))
+            .send()
+            .await
+            .map_err(|e| format!("result get: {e}"))?
+            .json()
+            .await
+            .map_err(|e| format!("result json: {e}"))?;
+        let partial: Vec<f64> = raw["results"][0]["partial"]
+            .as_array()
+            .ok_or("no partial")?
+            .iter()
+            .map(|v| v.as_f64().unwrap_or(0.0))
+            .collect();
+        role_outputs.insert(role, partial);
+    }
+    let gate = role_outputs.get(&ExpertRole::Gate).ok_or("no gate")?;
+    let up = role_outputs.get(&ExpertRole::Up).ok_or("no up")?;
+    let act = swiglu(gate, up)?;
+    // DOWN consumes the SwiGLU activation (2048-dim) -> 512-dim.
+    let down_addr = ExpertAddr {
+        layer,
+        expert: eid,
+        role: ExpertRole::Down,
+    };
+    let (ts, gt) = *offsets
+        .get(&down_addr.tensor_name())
+        .ok_or("down tensor missing")?;
+    let (start, end) = down_addr.byte_range(ts, 0).ok_or("down byte range")?;
+    let key = register_expert_if_absent(
+        data_dir,
+        artifact,
+        &down_addr,
+        start,
+        (end - start) as usize,
+        gt,
+        registered,
+    )?;
+    let dims = down_addr.dims();
+    client
+        .post(format!("{base_s}/api/wgpu/weights/register_tensor"))
+        .json(&json!({
+            "tensor": down_addr.alias(), "dims": [dims[0], dims[1]],
+            "chunks": [key], "source": "artifact",
+            "dtype": if gt == 14 { "q6_k" } else { "q4_k" }, "ggml_type": gt,
+            "bytes": end - start,
+        }))
+        .send()
+        .await
+        .ok();
+    let enq = enqueue_expert_canary(client, base_s, &down_addr.alias(), act.len(), shards).await?;
+    let gid = enq["group_id"].as_str().ok_or("no down group")?;
+    let res = collect_canary(client, base_s, gid, wait_secs).await?;
+    max_err = max_err.max(res["max_err_model"].as_f64().unwrap_or(0.0));
+    let raw: Value = client
+        .get(format!("{base_s}/api/wgpu/task/result?group={gid}"))
+        .send()
+        .await
+        .map_err(|e| format!("result get: {e}"))?
+        .json()
+        .await
+        .map_err(|e| format!("result json: {e}"))?;
+    let partial: Vec<f64> = raw["results"][0]["partial"]
+        .as_array()
+        .ok_or("no down partial")?
+        .iter()
+        .map(|v| v.as_f64().unwrap_or(0.0))
+        .collect();
+    Ok((partial, max_err))
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn report_one_layer(
     client: &reqwest::Client,
@@ -734,119 +878,47 @@ pub async fn report_one_layer(
         .ok_or("router f32 read failed")?;
     let logits = router_logits(&router_f32, &hidden)?;
     let chosen = top8_experts(&logits);
+    // LOAD-4: run experts concurrently under a bounded semaphore. Each expert
+    // keeps its own gate -> up -> SwiGLU -> down order (needed to build `act`),
+    // but different experts no longer wait for each other's enqueue/poll HTTP
+    // round trips. `try_join_all` preserves the order of `chosen` for combine.
+    // Proof gate + FLOP quota remain enforced by the hub on every task.
+    let registered = std::sync::Arc::new(super::weight_store::registered_aliases(data_dir));
+    let offsets = std::sync::Arc::new(offsets);
+    let budget = state_budget(2048, 2 * 256 * 4, 1 << 20, 64 << 20);
+    let sem = std::sync::Arc::new(tokio::sync::Semaphore::new(
+        budget.max_inflight_groups.max(1),
+    ));
+    let futures: Vec<_> = chosen
+        .iter()
+        .map(|(eid, _)| {
+            let sem = sem.clone();
+            let registered = registered.clone();
+            let offsets = offsets.clone();
+            let eid = *eid;
+            async move {
+                let _permit = sem.acquire().await.map_err(|e| e.to_string())?;
+                run_expert(
+                    client,
+                    base_s,
+                    data_dir,
+                    artifact,
+                    &offsets,
+                    &registered,
+                    layer,
+                    eid,
+                    shards,
+                    wait_secs,
+                )
+                .await
+            }
+        })
+        .collect();
+    let results = futures_util::future::try_join_all(futures).await?;
     let mut max_err = 0.0f64;
-    let mut routed_out: Vec<Vec<f64>> = Vec::new();
-    // For each chosen expert run gate, up (each 2048 rows x 512 cols, x = 512-dim),
-    // SwiGLU on hub, then down (512 rows x 2048 cols, x = 2048-dim) -> 512-dim.
-    // This is a coherent numeric chain over the real artifact bytes, not a
-    // model-semantic forward (G13).
-    for (eid, _w) in &chosen {
-        let mut role_outputs = std::collections::HashMap::new();
-        for role in [ExpertRole::Gate, ExpertRole::Up] {
-            let addr = ExpertAddr {
-                layer,
-                expert: *eid,
-                role,
-            };
-            let (ts, gt) = offsets
-                .get(&addr.tensor_name())
-                .ok_or("expert tensor missing")?;
-            let (start, end) = addr.byte_range(*ts, 0).ok_or("expert byte range")?;
-            register_expert_range(
-                data_dir,
-                artifact,
-                &addr.alias(),
-                start,
-                (end - start) as usize,
-                *gt,
-            )?;
-            let dims = addr.dims();
-            client
-                .post(format!("{base_s}/api/wgpu/weights/register_tensor"))
-                .json(&json!({
-                    "tensor": addr.alias(), "dims": [dims[0], dims[1]],
-                    "chunks": [expert_key(data_dir, start)], "source": "artifact",
-                    "dtype": if *gt == 14 { "q6_k" } else { "q4_k" }, "ggml_type": gt,
-                    "bytes": end - start,
-                }))
-                .send()
-                .await
-                .ok();
-            let enq =
-                enqueue_expert_canary(client, base_s, &addr.alias(), dims[1] as usize, shards)
-                    .await?;
-            let gid = enq["group_id"].as_str().ok_or("no group")?;
-            let res = collect_canary(client, base_s, gid, wait_secs).await?;
-            max_err = max_err.max(res["max_err_model"].as_f64().unwrap_or(0.0));
-            // Read the verified partial vector from the result bus to feed SwiGLU.
-            let raw: Value = client
-                .get(format!("{base_s}/api/wgpu/task/result?group={gid}"))
-                .send()
-                .await
-                .map_err(|e| format!("result get: {e}"))?
-                .json()
-                .await
-                .map_err(|e| format!("result json: {e}"))?;
-            let partial: Vec<f64> = raw["results"][0]["partial"]
-                .as_array()
-                .ok_or("no partial")?
-                .iter()
-                .map(|v| v.as_f64().unwrap_or(0.0))
-                .collect();
-            role_outputs.insert(role, partial);
-        }
-        let gate = role_outputs.get(&ExpertRole::Gate).ok_or("no gate")?;
-        let up = role_outputs.get(&ExpertRole::Up).ok_or("no up")?;
-        let act = swiglu(gate, up)?;
-        let down_addr = ExpertAddr {
-            layer,
-            expert: *eid,
-            role: ExpertRole::Down,
-        };
-        let (ts, gt) = offsets
-            .get(&down_addr.tensor_name())
-            .ok_or("down tensor missing")?;
-        let (start, end) = down_addr.byte_range(*ts, 0).ok_or("down byte range")?;
-        register_expert_range(
-            data_dir,
-            artifact,
-            &down_addr.alias(),
-            start,
-            (end - start) as usize,
-            *gt,
-        )?;
-        let dims = down_addr.dims();
-        client
-            .post(format!("{base_s}/api/wgpu/weights/register_tensor"))
-            .json(&json!({
-                "tensor": down_addr.alias(), "dims": [dims[0], dims[1]],
-                "chunks": [expert_key(data_dir, start)], "source": "artifact",
-                "dtype": if *gt == 14 { "q6_k" } else { "q4_k" }, "ggml_type": gt,
-                "bytes": end - start,
-            }))
-            .send()
-            .await
-            .ok();
-        // down expects x length = cols (2048); swiglu output is 2048-dim. Good.
-        let enq =
-            enqueue_expert_canary(client, base_s, &down_addr.alias(), act.len(), shards).await?;
-        let gid = enq["group_id"].as_str().ok_or("no down group")?;
-        let res = collect_canary(client, base_s, gid, wait_secs).await?;
-        max_err = max_err.max(res["max_err_model"].as_f64().unwrap_or(0.0));
-        let raw: Value = client
-            .get(format!("{base_s}/api/wgpu/task/result?group={gid}"))
-            .send()
-            .await
-            .map_err(|e| format!("result get: {e}"))?
-            .json()
-            .await
-            .map_err(|e| format!("result json: {e}"))?;
-        let partial: Vec<f64> = raw["results"][0]["partial"]
-            .as_array()
-            .ok_or("no down partial")?
-            .iter()
-            .map(|v| v.as_f64().unwrap_or(0.0))
-            .collect();
+    let mut routed_out: Vec<Vec<f64>> = Vec::with_capacity(results.len());
+    for (partial, err) in results {
+        max_err = max_err.max(err);
         routed_out.push(partial);
     }
     let weights: Vec<f64> = chosen.iter().map(|(_, w)| *w).collect();
@@ -932,6 +1004,29 @@ mod tests {
         );
         // Empty input is safe.
         assert_eq!(routing_stats(&[])["total"], 0);
+    }
+
+    #[test]
+    fn load4_register_if_absent_skips_resident_expert() {
+        // A resident alias must not trigger a second artifact-source write.
+        let dir = std::env::temp_dir().join("gsv_load4_register_skip");
+        let _ = std::fs::create_dir_all(&dir);
+        let artifact = dir.join("src.bin");
+        std::fs::write(&artifact, vec![0u8; 1024]).unwrap();
+        let addr = ExpertAddr {
+            layer: 0,
+            expert: 17,
+            role: ExpertRole::Gate,
+        };
+        let mut registered = std::collections::HashSet::new();
+        registered.insert(addr.alias());
+        let key = register_expert_if_absent(&dir, &artifact, &addr, 0, 1024, 0, &registered)
+            .expect("skip resident");
+        assert_eq!(
+            key, "",
+            "resident alias should not re-register (no new key)"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

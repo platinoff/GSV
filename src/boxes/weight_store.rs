@@ -390,6 +390,16 @@ pub(crate) fn chunk_len_any(data_dir: &Path, key: &str) -> Option<u64> {
     find_artifact_source(data_dir, key).and_then(|r| r.get("len").and_then(Value::as_u64))
 }
 
+/// LOAD-4: aliases already present in the tensor registry. Built once per
+/// forward so resident experts can skip the artifact re-registration + hub POST
+/// (the sources JSON is memoized by LOAD-0, but the POST is still a round trip).
+pub(crate) fn registered_aliases(data_dir: &Path) -> std::collections::HashSet<String> {
+    read_tensors(data_dir)
+        .into_iter()
+        .filter_map(|t| t.get("tensor").and_then(Value::as_str).map(str::to_string))
+        .collect()
+}
+
 /// Look up one registered tensor entry.
 pub fn tensor_entry(data_dir: &Path, name: &str) -> Option<Value> {
     read_tensors(data_dir)

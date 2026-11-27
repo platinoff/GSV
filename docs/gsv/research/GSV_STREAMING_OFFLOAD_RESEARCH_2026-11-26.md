@@ -105,4 +105,4 @@
 
 **Коректність пріоритету:** LOAD-0/4/2 — «оркестрація + hot-path», найдешевші й б'ють по виміряному 270 c wall. LOAD-1/3 — «data plane», потрібні для багатотокенного forward'у, але не виправляють чергу. LOAD-5 — transport для телефонів. SCALE-1 — окремий суттєвий шмат (не в цій серії).
 
-**Статус:** research завершено; owner дав go «продовжуємо тікетами» → LOAD-0 ✅ (memo + batched accounting, 2 TDD green), LOAD-4 → LOAD-2 → LOAD-1 → LOAD-3 → LOAD-5 → SCALE-1 далі окремими тікетами з TDD/гейтами/одним комітом. Жодного quality-claim (G13 blocked).
+**Статус:** research завершено; owner дав go «продовжуємо тікетами» → LOAD-0 ✅ (memo + batched accounting, 2 TDD green), LOAD-4 🟡 (parallel experts + skip-resident, TDD green, живий A/B у дорозі) → LOAD-2 → LOAD-1 → LOAD-3 → LOAD-5 → SCALE-1 далі окремими тікетами з TDD/гейтами/одним комітом. Жодного quality-claim (G13 blocked).
