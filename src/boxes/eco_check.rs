@@ -62,7 +62,7 @@ pub fn report(root: &Path) -> Value {
     let products = crate::boxes::products::discover(root);
     let registered = products.iter().filter(|p| p.registered).count();
     // Pin is the hard gate; FM row count is reported separately (fixtures may
-    // be smaller than the live canon's 46 rows).
+    // be smaller than the live canon's 52 rows).
     let ok = ok_pin;
     json!({
         "toolchain": {

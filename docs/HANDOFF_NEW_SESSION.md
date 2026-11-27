@@ -1,6 +1,6 @@
 # Передача контексту новій сесії (GSV)
 
-## Сталий стан (2026-11-27 — GSV `d9e4730` / rusty-engine `9197a3e`; GASV G32–G49 done; **streaming 4-bit MoE FWD-1…7 + LOAD-0…6 завершено**; G13 blocked, G19 open; vision rev 516, next PH-S3129)
+## Сталий стан (2026-11-27 — GSV `e1903ad` / rusty-engine `9197a3e`; GASV G32–G49 done; **streaming 4-bit MoE FWD-1…8 + LOAD-0…6 + SCALE-1a + PEER-1 завершено**; G13 blocked, G19 open; vision rev 516, next PH-S3129)
 
 | Що | Значення |
 |---|---|

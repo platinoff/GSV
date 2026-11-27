@@ -1,6 +1,6 @@
 # FUNCTION_MANAGEMENT.md — GSV (мама, хаб)
 
-**Status:** Canon, adapted 2026-11-26 @ HEAD `12bc953` (GASV G32–G49; Q4_K 588-col reference fix; debug canon `GSV_DEBUG_CANON.md`) (toolchain rust 1.100.0; owner ratified 2026-11-17, GASV G32–G44 vision slice synced 2026-11-26; rusty-engine `62550df`) · **Owner:** platinoff
+**Status:** Canon, adapted 2026-11-27 @ HEAD `e1903ad` (GASV G32–G49 + streaming MoE FWD-1…8 / LOAD-0…6 / SCALE-1a / PEER-1; debug canon `GSV_DEBUG_CANON.md`) (toolchain rust 1.100.0; rusty-engine `9197a3e`) · **Owner:** platinoff
 **Компаньйони:** [`GSV_FUNCTION_MANAGEMENT.md`](./GSV_FUNCTION_MANAGEMENT.md) (майстер-матриця) · [`GSV_ECOSYSTEM_SYMBIOSIS.md`](./GSV_ECOSYSTEM_SYMBIOSIS.md) (мама/тато) · [`PRODUCTS.md`](./PRODUCTS.md)
 **Шар:** мама — операційний план екосистеми (хаб). poolAI (тато-план, FM) очолює управління; цей файл — функційний реєстр GSV.
 
@@ -13,7 +13,7 @@
 
 Статуси: **І** Implemented (тест/гейт) · **P** Partial (є API, wire неповний) · **S** Declared (реалізовано, немає виділеного контрактного тесту) · **G** Concept-only.
 
-## 1. Функції GSV (звірено з деревом @ 2026-11-24, HEAD `cc7158a`)
+## 1. Функції GSV (звірено з деревом @ 2026-11-27, HEAD `e1903ad`)
 
 | # | Функція | Модуль | Статус | Звірка |
 |---|---------|--------|--------|--------|
@@ -68,20 +68,24 @@
 | 49 | Checkpoint/resume `gsv.vision-checkpoint.v1` (`--checkpoint/--resume`) + dropped-partial retry + scheduled resume automation | `boxes/vision_forward.rs` (`save_checkpoint`/`load_checkpoint`/`matvec_inner`), `aut_20e65ced2001Kt1aKXZ0aZaSpk` | І | unit checkpoint roundtrip; live stages 4/8/12/15/18, checkpoint `next_block=18/27` |
 | 50 | Multi-token image prefix (`--image-tokens N`) — K × 1024-dim projector outputs in `gsv.vision-prefix.v1` | `boxes/vision_forward.rs`, `bin/gsv_xtask.rs` | І | 4-token smoke 119 cluster ops / 1018 c; full 27/27 4-token vector `vision_prefix_1024_mt4_full.f32` (sha `bbdcf2f9…`) |
 | 51 | `cargo xtask vision-chat` image→cluster→text orchestration + `--prompt-file` | `bin/gsv_xtask.rs`, `boxes/vision_forward.rs` | І | live: 119 ops, 1018 c, answer "In the image, there is a man wearing a black shirt…" (not grounded) |
-| 52 | Firefox mesh-worker OOM guards (GPU cache destroy before retry, WASM linear-memory bounds + cache clear, null-adapter diagnostic) | `boxes/wgpu.rs` PAGE string | І | `gsv_wgpu_contracts` 11/11, `gsv_ui_contracts` 33/33; page deployed via `/api/update/apply` |
+| 52 | Firefox mesh-worker OOM guards (GPU cache destroy before retry, WASM linear-memory bounds + cache clear, null-adapter diagnostic) | `boxes/wgpu.rs` PAGE string | І | `gsv_wgpu_contracts` 13/13, `gsv_ui_contracts` 33/33; page deployed via `/api/update/apply` |
+| 53 | 4-bit MoE numerics forward FWD-1…8: router/top-8 → gate/up/SwiGLU/down → combine; layer-in-alias fix; concrete SwiGLU activation to down; multi-layer `moe-forward-all --layers N --start-layer --pack`, per-layer checkpoint, zero-padded 512→2048 handoff | `boxes/moe_forward.rs`, `bin/gsv_xtask.rs` | І | canary `3.47e-18` · 1-layer `6.94e-18` · 2-layer proof PASS (227 c); 40-layer environmental-blocked (2 flapping peers, concurrency=1). **NUMERICS ONLY, G13 blocked** |
+| 54 | Expert-major pack + raw chunk lane LOAD-0…6: 4096-aligned `gate Q4_K|up Q4_K|down Q6_K` + sidecar sha256 manifest; 40×522 190 848 B = 20 ГБ на L:; bounded 256 MiB chunk cache; coalescing helper; octet-stream GET + `x-gsv-key`; multi-layer path --pack | `boxes/moe_pack.rs`, `boxes/weight_store.rs`, `server/mod.rs:1042`, `server/serve.rs:152` | І | `moe-pack --layer N` · `moe-forward --pack`; A/B pack 101 c vs GGUF 103 c, обидва `max_err 5.35e-11`, біт-ідентичний output |
+| 55 | Adaptive claim lease SCALE-1a (30 s <8 MiB / 300 s mid / 1200 s wide) + PEER-1 sticky-route cleanup on partial-less / ok:false result | `boxes/wgpu.rs:371,1389,1609` | І | inline `scale1a_claim_ttl_three_tiers`; 13/13 wgpu contract; 40-layer stale-slot recovery 300→30 c |
 
-## 2. Гейти (2026-11-26 steady state)
+## 2. Гейти (2026-11-27 steady state)
 
 - Toolchain: rustc/cargo **1.100.0** stable (`stable-x86_64-pc-windows-gnu` pin on 11 products; host-agnostic `stable` on adoreble_wifi/mesh-node; omniroute no pin, policy-down). `RUSTUP_TOOLCHAIN` unset.
-- `cargo xtask record-rust` — **warnings=0 errors=0** @ HEAD `12bc953`.
+- `cargo xtask record-rust` — **warnings=0 errors=0** @ HEAD `e1903ad`.
 - `cargo clippy --all-targets -- -D warnings` — green (65 wgpu + 7 dequant tests green after GASV track).
 - `cargo xtask record-speed --skip-run` — ok (останній повний `cargo test` 518s, exit 0).
 - `cargo fmt --all -- --check` — ok.
-- `gsv-loc-audit --stretch-96` → **99.66%** (виміряно 2026-11-24; rust 73150 / product 73400; Rust-first ≥ 95% ✅).
+- `gsv-loc-audit --stretch-96` → **99.68%** (виміряно 2026-11-27; rust 76888 / product 77138; wasm 0%, ui_html 250; Rust-first ≥ 95% ✅).
 - `cargo test -q` → **52 suites / 0 failed**; `cargo xtask rules-check` → **5/5**; `cargo xtask sync` rev **516**, next **PH-S3129**.
 - `cargo xtask mirrors --check` → **ok** (canon `.agents/skills` == `.cursor/skills` + `.opencode/skills`).
 - `cargo xtask fingerprint-recheck` → advisory: historical `unknown_model`/`missing_band` rows 148–150 (2026-11-15), `missing_band` on `eae0003` (fingerprint без `--band`), 1 duplicate line 89 (0.232.0). Не hard gate; не чіпаємо без owner/drain-кроку.
 - Vision rev (canonical) — **516**, next **PH-S3129**; `sync` green.
+- FWD/LOAD canaries: per-expert `3.47e-18`, 1-layer `6.94e-18`, pack/GGUF A/B `5.35e-11` (біт-ідентичний output), 2-layer proof PASS; SCALE-1a 3-tier TTL; PEER-1 partial-less guard. NUMERICS ONLY — жодного quality-claim (G13 blocked).
 - 4-bit MoE canaries: g-721 `6.94e-18`, g-730 `3.47e-18`, g-736 `1.73e-18` (all < 1e-4); 122/122 huge experts addressable.
 - Q4_K vision canaries g-739 `1.39e-17`, g-740 `6.94e-18`; full vision forwards 23/23 (557 cluster ops, 2304-dim) and 27/27 (653 ops, 2048-dim, real PNG). No runnable-full-LLM/quality claim (G13 blocked).
 
@@ -91,7 +95,7 @@
 - Свідомо розділено: D1/D2/D5 (див. майстер §3).
 - 35B dispatch: GSV `weights_matvec` маршрутизація → engine виконує (rope recompute на практиці через hub probe).
 
-## 4. Owner-decision queue (GSV-side, 2026-11-23)
+## 4. Owner-decision queue (GSV-side, 2026-11-27)
 
 1. **G13 — runnable full LLM**: потрібен owner-approved runtime target/RAM node + infer/quality gate; 4-bit MoE artifact готовий, але quality/infer не заявляється.
 2. **RAM/EDR** — Defender exclusion `target/live/gsv-server.exe` або розвантаження box (historical hub падіння); зараз стабільно ~30–45 MB RSS після G22/G23 fix.
@@ -103,6 +107,8 @@
 8. PoolAI CI runner — поза цим репо; коли з'явиться — GSV не блокується.
 9. **G19** (Astra-style weight patch) — не стартувати: G17 не знайшов безпечного кандидата (ability-gap, не obstacle-gap).
 10. **Image grounding (2026-11-26)**: всі кластерні смуги завершені (23/23, 27/27, 27/27 × 4 токени), automation видалено. Повний 4-токенний вектор дає вироджений текст — потрібне **навчене вирівнювання vision-токенів до embedding-простору MiniCPM 1B** (PH-1204) + G13; PH-1205 multimodal wire готовий, реальні image bytes ще не інтегровані. G19 — не стартувати. Жодного image→answer/quality-claim.
+11. **SCALE-1 (in-memory expert registry)** — не стартувати без реального ≥10 active пірів; SCALE-1a (30 s TTL) вже зроблено.
+12. **FWD-8 межа** — 40-layer безперервно environmental (2 flapping peers, concurrency=1, single JSONL slot), не код; numerics only.
 
 ## 5. Як агенти користуються
 

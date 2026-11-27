@@ -1,6 +1,6 @@
 # GSV_FUNCTION_MANAGEMENT.md — функційний реєстр екосистеми (симбіоз)
 
-**Status:** Canon, owner-ratified 2026-11-17 (агент-драфт, owner підтвердив ключові розподіли); matrix snapshot 2026-11-17, **current heads 2026-11-24: GSV `cc7158a` (MCP 61 tool), rusty-engine `61bb0ba`** · **Owner:** platinoff
+**Status:** Canon, owner-ratified 2026-11-17 (агент-драфт, owner підтвердив ключові розподіли); matrix snapshot 2026-11-27, **current heads: GSV `e1903ad` (MCP 61 tool), rusty-engine `9197a3e`** · **Owner:** platinoff
 **Companions:** [`GSV_ECOSYSTEM_SYMBIOSIS.md`](./GSV_ECOSYSTEM_SYMBIOSIS.md) (мама/тато) · [`PRODUCTS.md`](./PRODUCTS.md) (реєстр) · [`GSV_AGI_PATH.md`](./GSV_AGI_PATH.md)
 **Rule:** poolAI FM (`poolAI/docs/catalog/FUNCTION_MANAGEMENT.md`) очолює цю матрицю в категорії «тато»; цей документ — екосистемна зводка, не заміна per-project FM.
 
@@ -18,7 +18,7 @@
 | Репо | Мова/стек | HEAD @ main (на момент зняття) | Ключові функції | Шар |
 |------|-----------|-------------|----------------|-----|
 | **poolAI** | Rust v0.2.2 (workspace) | e123ef05d | AI Mining Pool core + grid/orchestration · FM журнал (FUNCTION_MANAGEMENT.md) · WSP план (MiniCPM-35B) · enterprise/cloud HTTP API · ml/monitoring/memory/job engine · solana-adapter (Deferred) · FUNCTIONALITY_DIGEST · vision rev 499 (internal) | **тато** |
-| **GSV** | Rust (axum) v0.248.0 | 28753cf | vision server + boxes · MCP 60-тул · tickets board · keep-live/watchdog · mesh WASM dispatch · edge proxy · Galaxy UI · usage/fingerprints · loc-audit · hosts `cargo xtask` | **мама** |
+| **GSV** | Rust (axum) v0.248.0 | e1903ad | vision server + boxes · MCP 61 tool · tickets board · keep-live/watchdog · mesh WASM dispatch · edge proxy · Galaxy UI · usage/fingerprints · loc-audit · hosts `cargo xtask` · 4-bit MoE numerics forward / expert-major pack / LOAD lane | **мама** |
 | **telenetis** | Rust v0.2.0 (axum) | 21f7c9d | Telegram bot + Mini App · initData HMAC · snapshot/UI · ticket actions · **commutation plugin** | plugin |
 | **llama-rs** | Rust v0.1.0 (workspace) | 84ec9b2 | llama.cpp-backed serve · edge worker · `bunke-rock` provider · Pi 4 build | plugin (engine) |
 | **rusty-engine** | Rust v0.1.0 (workspace) | 06f8063 | Pure-Rust MoE inference (GGUF) · MiniCPM-V 4.7 target · OpenAI-compat serve · chatml · rollout logs | plugin (engine) |

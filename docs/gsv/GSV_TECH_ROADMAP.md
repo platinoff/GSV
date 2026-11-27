@@ -2400,4 +2400,18 @@ Vision companions: `gsv-versus-ai-vision-q4k.gguf` (2048), `inkling2-vision-q4k.
 | STREAM-1 | plan [`research/GASV_STREAMING_MOE_PLAN_2026-11-26.md`](research/GASV_STREAMING_MOE_PLAN_2026-11-26.md): range-read+sha256 already solve «21 GB > 7.7 GB»; blocker = missing expert-aware forward orchestrator. Realistic <1 tok/s on 2 peers, no quality claim without G13. |
 | Bug (huge expert) | `g-7360` `max_err ≈ 795` root-caused to WASM Q4_K subnormal-f16 path (`e=0` instead of bias-1 `113`); fixed + golden test; `.wasm` rebuilt. |
 
-**Обмеження:** жодного runnable-full-LLM / image→answer / quality-claim (G13 blocked, G19 open). Streaming forward — окремий багатосесійнийSlice (~1 500–2 200 LOC) тільки після стабілізації numbers.
+**Обмеження:** жодного runnable-full-LLM / image→answer / quality-claim (G13 blocked, G19 open). Streaming forward реалізовано — див. Addendum 2026-11-27 нижче.
+
+## Addendum 2026-11-27 — FWD-8 / LOAD-0…6 / SCALE-1a / PEER-1 (streaming MoE numerics)
+
+| Ряд | Стан / доказ |
+|---|---|
+| FWD-8 | `cargo xtask moe-forward-all --layers N --start-layer --pack` — `moe_forward.rs` `handoff_hidden` (zero-pad 512→2048), `report_all_layers`, checkpoint `data/moe_forward_all_checkpoint.json`; 2-layer proof PASS (227 c), 3 шари в resume; 40-layer environmental-blocked (2 flapping peers, concurrency=1). Layer-in-alias fix (`q4k/L{layer}/e{e}/{role}`) + real SwiGLU activation to down. NUMERICS ONLY. |
+| LOAD-0/2/3 | `weight_store.rs`: memo artifact-sources, bounded 256 MiB chunk cache (hits/misses/evictions/read_ms), `read_ranges_coalesced` (rayon, не wired — 1 expert ≈ 1 chunk). |
+| LOAD-1/6 | `moe_pack.rs` `pack_expert_ranges`; 40 шарів × 522 190 848 B = 20 ГБ на L:; `moe-forward --pack`, A/B біт-ідентичний, `max_err 5.35e-11`. |
+| LOAD-5 | `server/mod.rs` octet-stream chunk GET + `x-gsv-key`; phone IndexedDB reuse без crypto.subtle. |
+| SCALE-1a | `wgpu.rs` — 30 s lease для <8 MiB expert slice (було 300 s, блокувало single slot); 3-tier test green. |
+| PEER-1 | `wgpu.rs` — sticky route знімається при `ok:false` / partial-less result; усуває «weights_matvec task returned no partial vector». |
+| BENCH-2 | частково: gate `g-7363` 130.98 MFLOPS, up `g-7364` 187.06 MFLOPS (3.47e-18); down environmental (телефони офлайн). |
+| Gates @ e1903ad | fmt/clippy, cargo test 0 failed, sync rev 516, loc-audit **99.68%** (76888/77138), Moe numerics only. |
+| Research | [`research/ECOSYSTEM_REPAIR_AND_MODERNIZATION_PLAN_2026-11-27.md`](research/ECOSYSTEM_REPAIR_AND_MODERNIZATION_PLAN_2026-11-27.md) — inventory 22 items + Rust 1.100/WASM shortlist. |
