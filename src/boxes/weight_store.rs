@@ -180,7 +180,9 @@ pub(crate) fn artifact_source_key_for_offset(data_dir: &Path, offset: u64) -> Op
 /// keys make a hit inherently stale-safe; the SHA-256 is checked on every
 /// MISS before insertion, so a tampered source still fails closed.
 struct ChunkCache {
-    entries: HashMap<String, (Arc<Vec<u8>>, u64)>, // key -> (bytes, last-use tick)
+    // MOD-5: Arc<[u8]> — one allocation instead of Arc<Vec<u8>> (two words
+    // of length/capacity metadata per entry) for the bounded 256 MiB cache.
+    entries: HashMap<String, (Arc<[u8]>, u64)>, // key -> (bytes, last-use tick)
     bytes: u64,
     budget: u64,
     tick: u64,
@@ -250,7 +252,7 @@ pub(crate) fn read_chunk_artifact(data_dir: &Path, key: &str) -> Option<Vec<u8>>
                 entry.1 = tick_now;
             }
             c.hits += 1;
-            return Some((*bytes).clone());
+            return Some((*bytes).to_vec());
         }
         c.misses += 1;
     }
@@ -289,7 +291,7 @@ pub(crate) fn read_chunk_artifact(data_dir: &Path, key: &str) -> Option<Vec<u8>>
         }
         if cost <= c.budget {
             let tick = c.tick;
-            let entry = (Arc::new(buf.clone()), tick);
+            let entry = (Arc::from(buf.as_slice()), tick);
             c.entries.insert(key.to_string(), entry);
             c.bytes += cost;
         }

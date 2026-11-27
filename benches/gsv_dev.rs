@@ -2,6 +2,8 @@
 //!
 //! `cargo bench --bench gsv_dev`
 
+use std::hint::black_box;
+use std::io::Write;
 use std::time::Instant;
 
 use gsv::boxes::mds;
@@ -134,6 +136,7 @@ fn main() {
         ("tickets_next_action", 10_000usize),
         ("weights_matvec_reference", 8usize),
         ("mod1_hotset_belady_vs_lru", 1_000usize),
+        ("mod5_coalesced_vs_naive_ranges", 200usize),
     ] {
         let start = Instant::now();
         for i in 0..n {
@@ -228,6 +231,49 @@ fn main() {
                         "bench.ffn_gate_shexp.weight",
                         &wx,
                     );
+                }
+                "mod5_coalesced_vs_naive_ranges" => {
+                    // MOD-5 A/B: 8 nearby 64 KiB ranges in one file. Coalesced
+                    // path merges into 1 read; naive path issues 8 seeks.
+                    use gsv::boxes::weight_store::{read_ranges_coalesced, RangeRead};
+                    use std::io::{Read, Seek, SeekFrom};
+                    let path = std::env::temp_dir()
+                        .join(format!("gsv_mod5_ab_{}.bin", std::process::id()));
+                    if i == 0 {
+                        let mut f = std::fs::File::create(&path).expect("create");
+                        for b in 0..64usize {
+                            let chunk = vec![(b % 251) as u8; 64 * 1024];
+                            f.write_all(&chunk).expect("write");
+                        }
+                    }
+                    let ranges: Vec<RangeRead> =
+                        (0..8)
+                            .map(|k| RangeRead {
+                                start: (k * 64 * 1024) as u64,
+                                len: 64 * 1024,
+                                expected_sha256: gsv::boxes::weight_store::sha256_hex(
+                                    &vec![(k % 251) as u8; 64 * 1024],
+                                ),
+                            })
+                            .collect();
+                    let t0 = Instant::now();
+                    let _ = read_ranges_coalesced(&path, &ranges, 0).expect("coalesced");
+                    let coalesced_ns = t0.elapsed().as_nanos();
+                    let t1 = Instant::now();
+                    let mut f = std::fs::File::open(&path).expect("open");
+                    for r in &ranges {
+                        let mut buf = vec![0u8; r.len as usize];
+                        f.seek(SeekFrom::Start(r.start)).expect("seek");
+                        f.read_exact(&mut buf).expect("read");
+                        black_box(buf);
+                    }
+                    let naive_ns = t1.elapsed().as_nanos();
+                    if i == 0 {
+                        println!(
+                            "mod5 ranges: coalesced={coalesced_ns}ns naive={naive_ns}ns ratio={:.2}x",
+                            naive_ns as f64 / coalesced_ns.max(1) as f64
+                        );
+                    }
                 }
                 "mod1_hotset_belady_vs_lru" => {
                     // MOD-1 micro-bench: a 16-token lookahead over a skewed

@@ -19,7 +19,7 @@
 | 7 | LinFS | `cli/main.rs:53,56,333` | mount/ls/fsck stubs | b | Implement або прибрати з help |
 | 8 | LinFS | `block/win.rs:63,66` | Windows block ops not implemented | b | Win32 handles або mark unsupported |
 | 9 | poolAI | `vm/mod.rs:1507`, `noop.rs:4` | VM process spawn stub / noop isolation | b | Implement або deferred |
-| 10 | GSV | `weight_store.rs:511` | LOAD-3 coalescer не wired | b | Small perf ticket — A/B перед wiring |
+| 10 | GSV | `weight_store.rs` `read_ranges_coalesced` | LOAD-3 coalescer не wired | b | MOD-5 A/B зроблено: 9× slower (sha256 dominates) → чесний verdict: не wiring, лишати primitive |
 | 11 | GSV | `mesh-wasm/lib.rs:26-34` | Native tests scalar Q4_K; SIMD LUT не зроблено | b | P1 SIMD LUT + re-golden f16 `e=113` |
 | 12 | adoreble_wifi | `crates/adoreble-linux/src/lib.rs:1,9` | Linux/Pi backend — honest stub, no Wi-Fi probing yet (ADO-5); Windows backend (WinRT Tethering) працює | b | Land ADO-5 (`nl80211`/`hostapd`) або document as Windows-only |
 | 13 | omniroute | tickets CNV-1 W25 | reasoning_fields helpers no runtime wiring | b | Two pure opt-in helpers, one ticket |
@@ -55,7 +55,7 @@
 | P0 | **MOD-2** | Dependency currency: hyper 1.13.0, bytes 1.12.2 explicit, tower-http dedupe, `[lints.cargo]` | h2/chunked fixes для phone links; gate "no heavy deps" | same 1.x lines |
 | P1 | **MOD-3** | `wasm-opt` Binaryen version_133 post-build + size/ABI/golden gate | −15–40% WASM size | build tool only |
 | P1 | **MOD-4** | Async cache refresh (PolyStrata pattern) + phase-aware prefetch (PDScope), bit-identical verify | +4–5% decode, prefill headroom | tokio вже |
-| P1 | **MOD-5** | `Bytes`/`Arc<[u8]>` у LOAD-2 cache + `read_ranges_coalesced` A/B wiring (item 10) | zero-copy, +13–14% cold I/O [P] | bytes вже transitive |
+| P1 | **MOD-5 ✅** | `Arc<[u8]>` у LOAD-2 cache (one allocation) + Rust A/B bench coalesced vs naive ranges | **Honest verdict:** coalescer 2.74 ms vs naive 0.30 ms = **9× slower** on 8×64 KiB ranges — per-range sha256 re-hash dominates saved seeks. NOT wired into hot path; stays a primitive only for a future expert-major pack reader where ranges are large/contiguous. `Arc<[u8]>` kept (micro-win, std only) | no new deps |
 | P2 | **FIX-1** | rusty-engine PH-405/407 parity+bench one ticket (synthetic→oracle path) | чесний parity gate | — |
 | P2 | **FIX-2** | LinFS ext4 depth>0 / indirect + CLI stubs (items 6–7) | real filesystem path | — |
 | P2 | **FIX-3** | GSV mesh-wasm SIMD LUT dequant (item 11) + re-golden | ~4× less WASM memory | no deps |
