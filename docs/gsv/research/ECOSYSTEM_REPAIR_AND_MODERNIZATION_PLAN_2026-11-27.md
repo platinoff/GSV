@@ -1,10 +1,10 @@
 # Ecosystem repair & modernization plan — 2026-11-27
 
-**Статус:** execution complete for all non-owner-gated P0/P1/P2 items. Кожен пункт — окремий тікет, TDD + gates + один commit + push. **Межа:** G13 blocked, жодного image→answer/quality-claim; усе MoE — numerics/orchestration.
+**Статус:** execution complete for every non-owner-gated item in the inventory. Кожен пункт — окремий тікет, TDD + gates + один commit + push. **Межа:** G13 blocked, жодного image→answer/quality-claim; усе MoE — numerics/orchestration.
 
-Джерела: 3 паралельні агенти (ticket board + code markers у 16 репо; Rust 1.100/WASM/framework research; FM/roadmap/ratio drift scan). Поточні HEAD'и після виконання: GSV `a149130`, rusty-engine `4082a98`, LinFS `cb28eda`, omniroute `a2e1e9f` (W25–W28 були вже done — інвентар був stale). Ratio GSV: **99.68%** (76888/77138, wasm 0%, ui_html 250).
+Джерела: 3 паралельні агенти (ticket board + code markers у 16 репо; Rust 1.100/WASM/framework research; FM/roadmap/ratio drift scan). Поточні HEAD'и після виконання: GSV `3e1daef`, rusty-engine `4082a98`, LinFS `9d75038`, adoreble_wifi `eb471e3`, omniroute `a2e1e9f` (W25–W28 були вже done — інвентар був stale). Ratio GSV: **99.68%** (76888/77138, wasm 0%, ui_html 250).
 
-**Не зроблено навмисно:** MOD-3 (`wasm-opt`, потребує `pacman -S binaryen` — системна зміна); owner-gated G13/G19/SCALE-1/remotes/`:8091`/rebook/token rotate; інші репо (poolAI VM spawn, adoreble_wifi ADO-5, LinFS Windows block ops) — окремі тікети за потреби. MOD-5 coalescer **не wiring** через чесний A/B (9× slower).
+**Не зроблено навмисно:** MOD-3 (`wasm-opt`, потребує `pacman -S binaryen` — системна зміна); owner-gated G13/G19/SCALE-1/remotes/`:8091`/rebook/token rotate; ADO-5 phase 2 (`nl80211`/`hostapd`) — системні зміни; poolAI VM process spawn — **deferred by design** (чесний noop `is_supported=false` + explicit error + тест; фейковий spawn був би шкідливим). MOD-5 coalescer **не wiring** через чесний A/B (9× slower).
 
 ## 1. Інвентар зламаного (топ-22, скорочено)
 
@@ -19,11 +19,11 @@
 | 5 | rusty-engine | `roadmap.md:157,161` | PH-405/406/407 parity+real+bench open | b | PH-405/407 one ticket |
 | 6 | LinFS ✅ | `ext4/mod.rs` | extent depth>0 / indirect → "not yet implemented" | b | **LFS-1 done** (`cb28eda`): indirect pointers [12]/[13]/[14] implemented + fail-closed reader; depth>0 extent лишається явним Unsupported |
 | 7 | LinFS ✅ | `cli/main.rs` | mount/ls/fsck stubs | b | **LFS-1 done** (`cb28eda`): `anyhow::bail!` з `unsupported (band N)` замість success-looking print |
-| 8 | LinFS | `block/win.rs:63,66` | Windows block ops not implemented | b | Win32 handles або mark unsupported |
-| 9 | poolAI | `vm/mod.rs:1507`, `noop.rs:4` | VM process spawn stub / noop isolation | b | Implement або deferred |
+| 8 | LinFS ✅ | `block/win.rs` | Windows block ops not implemented | b | **LFS-2 done** (`9d75038`): real `seek_read`/`seek_write` + `IOCTL_DISK_GET_LENGTH_INFO` with file-metadata fallback; non-Windows explicit Unsupported; 2 Windows TDD tests |
+| 9 | poolAI ✅ | `vm/mod.rs:1507`, `noop.rs:4` | VM process spawn stub / noop isolation | b | **Deferred by design (перевірено, не баг):** noop-ізолятори чесно повертають `is_supported=false`, помилка spawn eksplicitна, є тест `test_get_instance_resource_usage_not_implemented`. Фейковий spawn був би шкідливим — лишаємо як є |
 | 10 | GSV | `weight_store.rs` `read_ranges_coalesced` | LOAD-3 coalescer не wired | b | MOD-5 A/B зроблено: 9× slower (sha256 dominates) → чесний verdict: не wiring, лишати primitive |
 | 11 | GSV | `mesh-wasm/lib.rs:26-34` | Native tests scalar Q4_K; SIMD LUT не зроблено | b | P1 SIMD LUT + re-golden f16 `e=113` |
-| 12 | adoreble_wifi | `crates/adoreble-linux/src/lib.rs:1,9` | Linux/Pi backend — honest stub, no Wi-Fi probing yet (ADO-5); Windows backend (WinRT Tethering) працює | b | Land ADO-5 (`nl80211`/`hostapd`) або document as Windows-only |
+| 12 | adoreble_wifi ✅ | `crates/adoreble-linux/src/lib.rs` | Linux/Pi backend — honest stub, no Wi-Fi probing yet (ADO-5) | b | **ADO-5 phase 1 done** (`eb471e3`): read-only sysfs probe (`wireless/`/`phy80211` + `operstate`), pure helper + synthetic-fixture TDD (3 tests). AP через `nl80211`/`hostapd` лишається owner-gated — жодних системних змін |
 | 13 | omniroute ✅ | tickets CNV-1 W25 | reasoning_fields helpers no runtime wiring | b | **Помилка інвентарю:** W25/W26/W27/W28 вже done (`a2e1e9f`); код у `omniroute-compression/src/reasoning_fields.rs` + napi/wasm exposure. Дубльований open-тікет закрито як noise |
 | 14–18 | rusty/poolAI/GSV | ignored parity/k8s tests, test-ci CI-only, LAN sign-off, BENCH-2 down | — | e | CI/wired node/stabilni peers — не локально |
 | 19–22 | GSV/plugins | G13, G19, SCALE-1, no remotes, `:8091`, rebook | — | d | Owner decisions only |
