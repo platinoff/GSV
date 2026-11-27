@@ -21,7 +21,7 @@
 | 9 | poolAI | `vm/mod.rs:1507`, `noop.rs:4` | VM process spawn stub / noop isolation | b | Implement або deferred |
 | 10 | GSV | `weight_store.rs:511` | LOAD-3 coalescer не wired | b | Small perf ticket — A/B перед wiring |
 | 11 | GSV | `mesh-wasm/lib.rs:26-34` | Native tests scalar Q4_K; SIMD LUT не зроблено | b | P1 SIMD LUT + re-golden f16 `e=113` |
-| 12 | adoreble_wifi | `linux/lib.rs:1,9` | Linux backend stub (ADO-5) | b | Land ADO-5 або Windows-only doc |
+| 12 | adoreble_wifi | `crates/adoreble-linux/src/lib.rs:1,9` | Linux/Pi backend — honest stub, no Wi-Fi probing yet (ADO-5); Windows backend (WinRT Tethering) працює | b | Land ADO-5 (`nl80211`/`hostapd`) або document as Windows-only |
 | 13 | omniroute | tickets CNV-1 W25 | reasoning_fields helpers no runtime wiring | b | Two pure opt-in helpers, one ticket |
 | 14–18 | rusty/poolAI/GSV | ignored parity/k8s tests, test-ci CI-only, LAN sign-off, BENCH-2 down | — | e | CI/wired node/stabilni peers — не локально |
 | 19–22 | GSV/plugins | G13, G19, SCALE-1, no remotes, `:8091`, rebook | — | d | Owner decisions only |
