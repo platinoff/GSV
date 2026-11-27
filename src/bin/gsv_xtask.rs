@@ -1140,16 +1140,18 @@ fn main() -> ExitCode {
                     return ExitCode::FAILURE;
                 }
             };
-            let set = gsv::boxes::moe_forward::HotExpertSet::from_profile(
+            let phase = flag_value(&args, "--phase").unwrap_or_else(|| "prefill".into());
+            let set = gsv::boxes::moe_forward::HotExpertSet::from_profile_phase(
                 &profile,
                 budget_mb * 1024 * 1024,
                 free_mb * 1024 * 1024,
                 reserve_mb * 1024 * 1024,
+                &phase,
             );
             println!(
                 "{}",
                 serde_json::to_string_pretty(&json!({
-                    "layer": layer, "tokens": tokens, "seed": seed,
+                    "layer": layer, "tokens": tokens, "seed": seed, "phase": phase,
                     "routing": profile,
                     "hotset": set.to_value(),
                     "no_quality_claim": true,

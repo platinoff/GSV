@@ -523,6 +523,26 @@ pub fn should_prefetch(
     free_bytes > reserve_bytes && in_flight < max_in_flight
 }
 
+/// MOD-4: phase-aware prefetch decision (PDScope / PolyStrata patterns).
+/// Prefill is aggressive (fill the cache from the next-use ranking while RAM
+/// allows); decode is conservative (only admit experts with an imminent
+/// next-use distance). Pure helper — no I/O, no new async task.
+pub fn prefetch_policy(
+    phase: &str,
+    free_bytes: u64,
+    reserve_bytes: u64,
+    next_use_dist: Option<u64>,
+) -> bool {
+    if !should_prefetch(free_bytes, reserve_bytes, 0, 2) {
+        return false;
+    }
+    match phase {
+        "prefill" => true, // aggressive: alternating-layer staging window
+        "decode" => next_use_dist.map(|d| d <= 3).unwrap_or(false), // imminent only
+        _ => false,        // unknown phase: conservative
+    }
+}
+
 /// Bytes one routed expert occupies across gate/up (Q4_K) + down (Q6_K).
 pub const EXPERT_BYTES: u64 = 589_824 * 2 + 860_160;
 
@@ -627,12 +647,28 @@ impl HotExpertSet {
         free_bytes: u64,
         reserve_bytes: u64,
     ) -> Self {
+        Self::from_profile_phase(profile, budget_bytes, free_bytes, reserve_bytes, "prefill")
+    }
+
+    /// MOD-4: phase-aware variant. `next_use` (if supplied) gates decode
+    /// admission to imminent experts; prefill fills from the profile hot set.
+    pub fn from_profile_phase(
+        profile: &Value,
+        budget_bytes: u64,
+        free_bytes: u64,
+        reserve_bytes: u64,
+        phase: &str,
+    ) -> Self {
         let mut set = Self::new(budget_bytes);
         set.pin(N_EXPERTS); // sentinel id for shared expert bucket
-        let allow = should_prefetch(free_bytes, reserve_bytes, 0, 2);
         if let Some(hot) = profile.get("hot_experts").and_then(Value::as_array) {
-            for v in hot {
+            for (i, v) in hot.iter().enumerate() {
                 if let Some(e) = v.as_u64() {
+                    // MOD-4: in decode, only the nearest few hot experts are
+                    // admitted (PDScope conservative decode policy); prefill
+                    // admits all under the RAM watermark.
+                    let dist = Some(i as u64);
+                    let allow = prefetch_policy(phase, free_bytes, reserve_bytes, dist);
                     set.admit(e as usize, allow);
                 }
             }
@@ -1251,6 +1287,30 @@ mod tests {
         );
         // Empty input is safe.
         assert_eq!(routing_stats(&[])["total"], 0);
+    }
+
+    #[test]
+    fn mod4_phase_aware_prefetch_policy() {
+        // Watermark closed -> deny regardless of phase.
+        assert!(!prefetch_policy("prefill", 100, 500, Some(0)));
+        // Prefill: aggressive — admit even far-future experts.
+        assert!(prefetch_policy("prefill", 1000, 500, Some(15)));
+        // Decode: conservative — only imminent next-use (<=3).
+        assert!(prefetch_policy("decode", 1000, 500, Some(2)));
+        assert!(!prefetch_policy("decode", 1000, 500, Some(5)));
+        assert!(!prefetch_policy("decode", 1000, 500, None));
+        assert!(!prefetch_policy("unknown", 1000, 500, Some(0)));
+    }
+
+    #[test]
+    fn mod4_from_profile_phase_differs() {
+        let profile = json!({"hot_experts": [1,2,3,4,5,6,7,8]});
+        let prefill =
+            HotExpertSet::from_profile_phase(&profile, 1024 * 1024 * 1024, 1000, 500, "prefill");
+        let decode =
+            HotExpertSet::from_profile_phase(&profile, 1024 * 1024 * 1024, 1000, 500, "decode");
+        assert_eq!(prefill.to_value()["resident"], 8);
+        assert!(decode.to_value()["resident"].as_u64().unwrap() <= 4);
     }
 
     #[test]
