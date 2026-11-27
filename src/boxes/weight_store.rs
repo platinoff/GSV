@@ -21,6 +21,7 @@
 //!   (default 4 GiB); every store/read/evict is audited (JSONL);
 //! - peers must not apply weights without verifying the hash (MC-2).
 
+use rayon::prelude::*;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -494,6 +495,86 @@ pub(crate) fn chunk_len_any(data_dir: &Path, key: &str) -> Option<u64> {
     find_artifact_source(data_dir, key).and_then(|r| r.get("len").and_then(Value::as_u64))
 }
 
+/// LOAD-3: a set of absolute byte ranges to coalesce, with the artifact file
+/// they belong to and an expected sha256 for each range (fail-closed).
+#[derive(Debug, Clone)]
+pub struct RangeRead {
+    pub start: u64,
+    pub len: u64,
+    pub expected_sha256: String,
+}
+
+/// LOAD-3: sort ranges by offset, merge gaps <= `max_gap`, read each merged
+/// span once with positional I/O, then split back to the exact requested
+/// slices and verify each sha256 (fail-closed). Pure helper — TDD-testable.
+/// Returns results in the same order as `ranges`.
+pub fn read_ranges_coalesced(
+    artifact: &Path,
+    ranges: &[RangeRead],
+    max_gap: u64,
+) -> Result<Vec<Vec<u8>>, String> {
+    if ranges.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut indexed: Vec<(usize, u64, u64)> = ranges
+        .iter()
+        .enumerate()
+        .map(|(i, r)| (i, r.start, r.len))
+        .collect();
+    indexed.sort_by_key(|(_, start, _)| *start);
+
+    // Merge adjacent/nearby ranges into spans.
+    let mut spans: Vec<(u64, u64, Vec<usize>)> = Vec::new(); // (start, end, indices)
+    for (idx, start, len) in indexed {
+        let end = start.saturating_add(len);
+        if let Some(last) = spans.last_mut() {
+            if start <= last.1.saturating_add(max_gap) {
+                last.1 = last.1.max(end);
+                last.2.push(idx);
+                continue;
+            }
+        }
+        spans.push((start, end, vec![idx]));
+    }
+
+    // Read each merged span once, in parallel across independent file handles.
+    let base = std::fs::File::open(artifact).map_err(|e| format!("open artifact: {e}"))?;
+    let buf_by_span: Result<Vec<Vec<u8>>, String> = spans
+        .par_iter()
+        .map(|(start, end, _)| {
+            use std::io::{Read, Seek, SeekFrom};
+            let mut f = base.try_clone().map_err(|e| format!("clone handle: {e}"))?;
+            f.seek(SeekFrom::Start(*start))
+                .map_err(|e| format!("seek: {e}"))?;
+            let mut buf = vec![0u8; (end - start) as usize];
+            f.read_exact(&mut buf)
+                .map_err(|e| format!("read_exact: {e}"))?;
+            Ok(buf)
+        })
+        .collect();
+    let buf_by_span = buf_by_span?;
+
+    let mut out: Vec<Option<Vec<u8>>> = (0..ranges.len()).map(|_| None).collect();
+    for ((span_start, _, indices), buf) in spans.iter().zip(buf_by_span) {
+        for &idx in indices {
+            let r = &ranges[idx];
+            let lo = r.start.saturating_sub(*span_start) as usize;
+            let hi = lo + r.len as usize;
+            if hi > buf.len() {
+                return Err(format!("range {} outside merged span", idx));
+            }
+            let slice = &buf[lo..hi];
+            if sha256_hex(slice) != r.expected_sha256 {
+                return Err(format!("range {} sha256 mismatch — fail closed", idx));
+            }
+            out[idx] = Some(slice.to_vec());
+        }
+    }
+    out.into_iter()
+        .map(|v| v.ok_or_else(|| "missing coalesced range".to_string()))
+        .collect()
+}
+
 /// LOAD-4: aliases already present in the tensor registry. Built once per
 /// forward so resident experts can skip the artifact re-registration + hub POST
 /// (the sources JSON is memoized by LOAD-0, but the POST is still a round trip).
@@ -914,6 +995,49 @@ pub fn mirror_inventory(data_dir: &Path, verify_sha256: bool) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn load3_coalesced_ranges_split_and_verify() {
+        let dir = temp_dir("load3_coalesce");
+        let _ = std::fs::create_dir_all(&dir);
+        let artifact = dir.join("blob.bin");
+        let a = vec![1u8; 512];
+        let b = vec![2u8; 512];
+        let c = vec![3u8; 512];
+        std::fs::write(&artifact, [a.clone(), b.clone(), c.clone()].concat()).unwrap();
+        let ranges = vec![
+            RangeRead {
+                start: 0,
+                len: 512,
+                expected_sha256: sha256_hex(&a),
+            },
+            RangeRead {
+                start: 1024,
+                len: 512,
+                expected_sha256: sha256_hex(&c),
+            },
+            RangeRead {
+                start: 512,
+                len: 512,
+                expected_sha256: sha256_hex(&b),
+            },
+        ];
+        // Unsorted input, small gap (0) should still merge into one span.
+        let got = read_ranges_coalesced(&artifact, &ranges, 0).unwrap();
+        assert_eq!(
+            got,
+            vec![a.clone(), c.clone(), b.clone()],
+            "original order preserved"
+        );
+        // Tampered expected hash fails closed.
+        let bad = vec![RangeRead {
+            start: 0,
+            len: 512,
+            expected_sha256: "00".repeat(32),
+        }];
+        assert!(read_ranges_coalesced(&artifact, &bad, 0).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn load2_cache_hit_and_lru_budget_eviction() {

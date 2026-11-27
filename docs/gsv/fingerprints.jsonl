@@ -194,3 +194,4 @@
 {"ts":"2026-11-27T00:14:31Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"de5aef7","band":"248","summary":"LOAD0_memo_batched_accounting","product":"gsv"}
 {"ts":"2026-11-27T00:42:15Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"c7679d4","band":"248","summary":"LOAD4_parallel_forward","product":"gsv"}
 {"ts":"2026-11-27T01:21:56Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"36e08d2","band":"248","summary":"LOAD2_bounded_cache","product":"gsv"}
+{"ts":"2026-11-27T01:51:46Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"4391757","band":"248","summary":"LOAD3_coalescing_reads","product":"gsv"}
