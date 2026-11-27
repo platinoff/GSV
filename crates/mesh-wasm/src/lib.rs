@@ -22,7 +22,11 @@
 
 use std::alloc::{alloc, dealloc, Layout};
 #[cfg(target_arch = "wasm32")]
-use std::arch::wasm32::{f32x4, f32x4_add, f32x4_mul, f32x4_splat, f32x4_sub, v128};
+use std::arch::wasm32::{
+    f32x4, f32x4_add, f32x4_convert_u32x4, f32x4_mul, f32x4_splat, f32x4_sub,
+    u16x8_extend_high_u8x16, u16x8_extend_low_u8x16, u32x4_extend_high_u16x8,
+    u32x4_extend_low_u16x8, u8x16_shr, u8x16_splat, v128, v128_and, v128_load, v128_store,
+};
 // Native builds (unit tests) only compile the scalar Q4_K kernel; SIMD math is
 // wasm32-only by design. These stubs keep native `cargo test` compiling.
 #[cfg(not(target_arch = "wasm32"))]
@@ -216,17 +220,55 @@ pub unsafe extern "C" fn mesh_dequant_q4_k(src: *const u8, dst: *mut f32, blocks
             let d2 = d * sc1 as f32;
             let dm2 = dmin * m1 as f32;
             let qb = grp * 32;
-            for l in 0..32 {
-                let q = qs[qb + l];
-                *dst.add(o) = d1 * (q & 0xF) as f32 - dm1;
-                o += 1;
+            #[cfg(target_arch = "wasm32")]
+            {
+                // FIX-3: 32 qs bytes -> 32 low values (d1) + 32 high values (d2)
+                // in four SIMD128 widen+store passes (16 lanes each).
+                for half in 0..2usize {
+                    let bytes = v128_load(qs.as_ptr().add(qb + half * 16).cast::<v128>());
+                    let lo = v128_and(bytes, u8x16_splat(0x0F));
+                    let hi = v128_and(u8x16_shr(bytes, 4), u8x16_splat(0x0F));
+                    dequant_widen_store(lo, d1, dm1, dst.add(o + half * 16));
+                    dequant_widen_store(hi, d2, dm2, dst.add(o + 32 + half * 16));
+                }
+                o += 64;
             }
-            for l in 0..32 {
-                let q = qs[qb + l];
-                *dst.add(o) = d2 * (q >> 4) as f32 - dm2;
-                o += 1;
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                for l in 0..32 {
+                    let q = qs[qb + l];
+                    *dst.add(o) = d1 * (q & 0xF) as f32 - dm1;
+                    o += 1;
+                }
+                for l in 0..32 {
+                    let q = qs[qb + l];
+                    *dst.add(o) = d2 * (q >> 4) as f32 - dm2;
+                    o += 1;
+                }
             }
         }
+    }
+}
+
+/// FIX-3 (wasm32 only): widen 16 u8 lane values to 16 f32 and write
+/// `scale * value - min` to `dst` (16 contiguous f32 slots).
+#[cfg(target_arch = "wasm32")]
+#[target_feature(enable = "simd128")]
+unsafe fn dequant_widen_store(bytes: v128, scale: f32, min: f32, dst: *mut f32) {
+    let lo8 = u16x8_extend_low_u8x16(bytes);
+    let hi8 = u16x8_extend_high_u8x16(bytes);
+    let pairs = [
+        (u32x4_extend_low_u16x8(lo8), 0usize),
+        (u32x4_extend_high_u16x8(lo8), 4),
+        (u32x4_extend_low_u16x8(hi8), 8),
+        (u32x4_extend_high_u16x8(hi8), 12),
+    ];
+    let vs = f32x4_splat(scale);
+    let vm = f32x4_splat(min);
+    for (u32s, off) in pairs {
+        let f = f32x4_convert_u32x4(u32s);
+        let y = f32x4_sub(f32x4_mul(f, vs), vm);
+        v128_store(dst.add(off).cast::<v128>(), y);
     }
 }
 
@@ -437,5 +479,51 @@ mod tests {
                 golden_out[i]
             );
         }
+    }
+
+    /// FIX-3: host-side emulation of the wasm SIMD nibble-widen path. The
+    /// wasm kernel uses v128_and / u8x16_shr + u8->u16->u32->f32 widening;
+    /// this checks the nibble/scale/min math is bit-identical to the scalar
+    /// kernel (which re-goldens against GSV dequant_q4_k).
+    #[test]
+    fn simd_nibble_widen_matches_scalar_q4_k() {
+        let mut block = [0u8; 144];
+        block[0..2].copy_from_slice(&0x3c00u16.to_le_bytes()); // d = 1.0
+        block[2..4].copy_from_slice(&0x3800u16.to_le_bytes()); // min = 0.5
+        for s in block.iter_mut().take(16).skip(4) {
+            *s = 0x21;
+        }
+        for (i, q) in block[16..144].iter_mut().enumerate() {
+            *q = (i % 16) as u8 + 1;
+        }
+        let mut scalar = [0f32; 256];
+        unsafe { mesh_dequant_q4_k(block.as_ptr(), scalar.as_mut_ptr(), 1) };
+        let mut simd = [0f32; 256];
+        for grp in 0..4 {
+            let (sc0, m0) = scale_min_k4(grp * 2, &block[4..16]);
+            let (sc1, m1) = scale_min_k4(grp * 2 + 1, &block[4..16]);
+            let d = f16_to_f32(u16::from_le_bytes([block[0], block[1]]));
+            let dmin = f16_to_f32(u16::from_le_bytes([block[2], block[3]]));
+            let (d1, dm1, d2, dm2) = (
+                d * sc0 as f32,
+                dmin * m0 as f32,
+                d * sc1 as f32,
+                dmin * m1 as f32,
+            );
+            let qb = grp * 32;
+            for half in 0..2 {
+                for l in 0..16 {
+                    let q = block[16 + qb + half * 16 + l];
+                    let lo = (q & 0x0F) as f32;
+                    let hi = (q >> 4) as f32;
+                    simd[grp * 64 + half * 16 + l] = d1 * lo - dm1;
+                    simd[grp * 64 + 32 + half * 16 + l] = d2 * hi - dm2;
+                }
+            }
+        }
+        assert_eq!(
+            simd, scalar,
+            "SIMD nibble-widen math must match scalar kernel"
+        );
     }
 }
