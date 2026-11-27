@@ -133,6 +133,7 @@ fn main() {
         ("session_walk_abrakadabra", 4usize),
         ("tickets_next_action", 10_000usize),
         ("weights_matvec_reference", 8usize),
+        ("mod1_hotset_belady_vs_lru", 1_000usize),
     ] {
         let start = Instant::now();
         for i in 0..n {
@@ -227,6 +228,43 @@ fn main() {
                         "bench.ffn_gate_shexp.weight",
                         &wx,
                     );
+                }
+                "mod1_hotset_belady_vs_lru" => {
+                    // MOD-1 micro-bench: a 16-token lookahead over a skewed
+                    // 8-expert stream, byte-budget for 4 resident experts.
+                    // Compare avoided expert transfers Belady vs pure LRU.
+                    use gsv::boxes::moe_forward::{next_use_ranking, HotExpertSet, EXPERT_BYTES};
+                    let selections: Vec<Vec<usize>> = (0..16)
+                        .map(|t| {
+                            let hot = (t % 4) * 2; // 0,2,4,6 repeating (skewed)
+                            vec![hot, (hot + 1) % 8]
+                        })
+                        .collect();
+                    let ranking = next_use_ranking(&selections);
+                    let mut belady = HotExpertSet::new(EXPERT_BYTES * 4);
+                    belady.set_next_use(ranking);
+                    let mut lru = HotExpertSet::new(EXPERT_BYTES * 4);
+                    lru.use_next_use = false;
+                    let mut misses_belady = 0u64;
+                    let mut misses_lru = 0u64;
+                    for picked in &selections {
+                        for &e in picked {
+                            if !belady.contains(e) {
+                                misses_belady += 1;
+                                belady.admit(e, true);
+                            }
+                            if !lru.contains(e) {
+                                misses_lru += 1;
+                                lru.admit(e, true);
+                            }
+                        }
+                    }
+                    if i == 0 {
+                        println!(
+                            "mod1_hotset transfers: belady={misses_belady} lru={misses_lru} avoided={}",
+                            misses_lru.saturating_sub(misses_belady)
+                        );
+                    }
                 }
                 _ => unreachable!("gsv_dev: no bench case named {name}"),
             }
