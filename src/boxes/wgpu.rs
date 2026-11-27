@@ -1606,7 +1606,17 @@ pub fn task_result(data_dir: &Path, body: &Value) -> Result<Value, String> {
                 // partial and must be marked failed, not silently done.
                 if body.get("partial").is_none() {
                     t["status"] = json!("failed");
-                    t["error"] = json!("weights_matvec task returned no partial vector");
+                    // PEER-1: a peer that failed to compute (ok:false) or that
+                    // posted a partial-less result must NOT keep the sticky
+                    // route — otherwise the same broken peer re-claims the
+                    // requeued task forever and the group never completes.
+                    t["route_peer"] = Value::Null;
+                    t["route_ts"] = json!(0);
+                    t["error"] = json!(if ok {
+                        "weights_matvec task returned no partial vector"
+                    } else {
+                        "weights_matvec computation failed on the routed peer"
+                    });
                     settled = Some((task_id.clone(), t["status"].clone()));
                     continue;
                 }
