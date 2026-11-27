@@ -4,7 +4,7 @@
 
 Джерела: 3 паралельні агенти (ticket board + code markers у 16 репо; Rust 1.100/WASM/framework research; FM/roadmap/ratio drift scan). Поточні HEAD'и після виконання: GSV `git log -1` (snapshot `6adec96`), rusty-engine `6ed0cc0`, LinFS `5666918`, adoreble_wifi `141ede0`, omniroute `a2e1e9f` (W25–W28 були вже done — інвентар був stale). Ratio GSV: **99.68%** (76888/77138, wasm 0%, ui_html 250).
 
-**Тікетна звірка 2026-11-27:** FWD-5 (`t-1795725845907114700`) закрито як покрите `fwd5_*` тестами + MOD-1/MOD-4/LOAD-4; GASV-F1/F2 закрито як stale (реалізовані ще `ebb7b79`, Q8_0/Q4_0 опубліковані F4 2026-11-21); PH-405/PH-407 лишаються **open** — повний обсяг (llama.cpp oracle + perplexity / tok-s baseline) не виконано, synthetic parity+bench `4082a98` є лише частковим покриттям.
+**Тікетна звірка 2026-11-27:** FWD-5 (`t-1795725845907114700`) закрито як покрите `fwd5_*` тестами + MOD-1/MOD-4/LOAD-4; GASV-F1/F2 закрито як stale (реалізовані ще `ebb7b79`, Q8_0/Q4_0 опубліковані F4 2026-11-21); PH-405/PH-407 **закрито як superseded** (власник 2026-11-27: «пійшли іншим шляхом далеко, можна прибрати»): живий oracle не запускався; покриття — PH-405b + numeric golden + PH-405c `6ed0cc0` + synthetic bench `4082a98`. Нові quality-тікети — лише за окремим go з наданою моделлю.
 
 **Не зроблено навмисно:** MOD-3 (`wasm-opt`, потребує `pacman -S binaryen` — системна зміна); owner-gated G13/G19/SCALE-1/remotes/`:8091`/rebook/token rotate; ADO-5 phase 2 (`nl80211`/`hostapd`) — системні зміни; poolAI VM process spawn — **deferred by design** (чесний noop `is_supported=false` + explicit error + тест; фейковий spawn був би шкідливим). MOD-5 coalescer **не wiring** через чесний A/B (9× slower).
 
@@ -18,7 +18,7 @@
 | 2 | rusty-engine | `runner35.rs:222-224` | `runner35` dense FFN; **немає qwen35moe runner** (`PH-1206`) | b | PH-1206 branch у runner35 (dedicated node) |
 | 3 | rusty-engine | `quant.rs:242` | Q5_K/Q6_K encoder "not implemented" | b | Implement або document parity-gated limit |
 | 4 | rusty-engine | tickets PH-1202…1205 | vision tower/compressor/multimodal open | b | One vision band, honesty gate зберегти |
-| 5 | rusty-engine | `roadmap.md:157,161` | PH-405/406/407 parity+real+bench open | b | PH-405/407 one ticket |
+| 5 | rusty-engine ✅ | `roadmap.md:157,161` | PH-405/406/407 parity+real+bench open | b | PH-405/407 закрито superseded (PH-405b + golden + PH-405c + synthetic bench); PH-406 реальний GGUF-біндинг лишається owner-gated |
 | 6 | LinFS ✅ | `ext4/mod.rs` | extent depth>0 / indirect → "not yet implemented" | b | **LFS-1 done** (`cb28eda`): indirect pointers [12]/[13]/[14] implemented + fail-closed reader; depth>0 extent лишається явним Unsupported |
 | 7 | LinFS ✅ | `cli/main.rs` | mount/ls/fsck stubs | b | **LFS-1 done** (`cb28eda`): `anyhow::bail!` з `unsupported (band N)` замість success-looking print |
 | 8 | LinFS ✅ | `block/win.rs` | Windows block ops not implemented | b | **LFS-2 done** (`9d75038`): real `seek_read`/`seek_write` + `IOCTL_DISK_GET_LENGTH_INFO` with file-metadata fallback; non-Windows explicit Unsupported; 2 Windows TDD tests |

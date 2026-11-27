@@ -26,7 +26,7 @@
 | GSV-WGPU mesh | смужньо: A–J закриті; 7 ops з verified op-echo + hub model check (`max_err_model`); `GET /api/wgpu/capability` — профілі/квоти/роутинг (sticky → fallback), audit `wgpu_quota_audit.jsonl`; live `:9999` rev 516 |
 | ECO-9.1 / ECO-9.2 | done: WSP feasibility вердикт 2026-11-09 — гібрид ~55% ≥ owner-порогу 55 → ECO-9.2 arch-sketch done; API Engine kinds (`ActivationAudit`/`WeightPatch`) схвалено гіпотетично |
 | WSP відкриті | WSP-G1 (GSV hub — task envelope bridge) · **WSP-G1-rusty ✅** (block-bitmap patch-at-dequant apply lane, rusty-engine `6e19d3b`, real-model Q6_K smoke ok) · WSP-3 (poolAI — cloud-oracle delta patch pack + grid ActivationAudit/WeightPatch eval gate) |
-| MiniCPM відкриті | PH-1202..1206 (vision tower / serve / 35B), PH-404 (ExpertCache LRU), PH-405 (greedy-parity), PH-407 (tok/s bench vs llama-rs), PH-1305/1306 done |
+| MiniCPM відкриті (звірено 2026-11-27) | PH-1202..1206 (vision tower / serve / 35B), PH-404 (ExpertCache LRU; **PH-404a next-use/Belady done**, `468a6f2`), PH-406 (реальний GGUF-біндинг — owner-gated); **PH-405/PH-407 закрито superseded** (власник: «пійшли іншим шляхом далеко»); PH-1305/1306 done |
 | Cloud lane | OpenCode free models: **Flint 40B → GLM 5.3 → DeepSeek 1017** (fallbacks Big Pickle · DeepSeek V4 Flash · Nemotron Ultra Free); 429 → switch; OmniRouter `/api/omni/route` вибір моделі |
 | Serve bugfixes 2026-11-15 | **UTF-8 extract_message_content** (`ae39cb5`, був Latin-1: укр. текст ніколи не досягав MiniCPM); **gpt2 contraction multibyte** (`7f7c1ad`, сервер падав на першому промпті з «я»). Без них Uk-golden gate неможливий |
 | ActivationAudit | `rusty audit` (`47f66ad`): per-(token,layer) `entry_rms`/`delta_rms` (prefill). fact-1 vs fact-2 — майже ідентично шар у шар; сплеск лише на full-шарі 23 (0.45 vs 0.33). **Фактичний фейл розподілений, не локалізований у шарі** — WSP-патч буде спекулятивним, вирішує Uk-golden gate |
@@ -81,7 +81,7 @@ Cloud models Flint 40B / GLM 5.3 / DeepSeek 1017, коли з'являться �
 | M5 | Hybrid prefill/decode split bench | M3 | **MC-5** (rusty-engine) |
 | M6 | WSP gate on MiniCPM path — **done: ROLLBACK** (evolution: Inkling-as-candidate) | M3, WSP-G1-rusty, audit, Uk-golden canon | **MC-6** ✅ |
 | B12 | MiniCPM-V full serve (vision) | PH-1306 | PH-1202/1203/1204/1205 → PH-1206 |
-| Perf | MoE core (LRU/offload/bench) | — | PH-404 / PH-405 / PH-407 |
+| Perf | MoE core (LRU/offload/bench) | — | PH-404 (PH-404a next-use done; NVMe = PH-406 owner-gated); PH-405/PH-407 закрито superseded 2026-11-27 — див. HANDOFF |
 
 ## 6. Тікети
 
