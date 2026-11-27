@@ -1,6 +1,6 @@
 # FUNCTION_MANAGEMENT.md — GSV (мама, хаб)
 
-**Status:** Canon, adapted 2026-11-27 @ HEAD `51b1512` (GASV G32–G49 + streaming MoE FWD-1…8 / LOAD-0…6 / SCALE-1a / PEER-1 + ecosystem repair 22/22; debug canon `GSV_DEBUG_CANON.md`) (toolchain rust 1.100.0; rusty-engine `468a6f2`, LinFS `5666918`, adoreble_wifi `141ede0`) · **Owner:** platinoff
+**Status:** Canon, adapted 2026-11-27 @ HEAD `51b1512` (GASV G32–G49 + streaming MoE FWD-1…8 / LOAD-0…6 / SCALE-1a / PEER-1 + ecosystem repair 22/22; debug canon `GSV_DEBUG_CANON.md`) (toolchain rust 1.100.0; rusty-engine `6ed0cc0`, LinFS `5666918`, adoreble_wifi `141ede0`) · **Owner:** platinoff
 **Компаньйони:** [`GSV_FUNCTION_MANAGEMENT.md`](./GSV_FUNCTION_MANAGEMENT.md) (майстер-матриця) · [`GSV_ECOSYSTEM_SYMBIOSIS.md`](./GSV_ECOSYSTEM_SYMBIOSIS.md) (мама/тато) · [`PRODUCTS.md`](./PRODUCTS.md)
 **Шар:** мама — операційний план екосистеми (хаб). poolAI (тато-план, FM) очолює управління; цей файл — функційний реєстр GSV.
 
