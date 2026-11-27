@@ -368,6 +368,20 @@ pub const DEFAULT_ROUTE_STICKY_SECS: u64 = 5;
 pub const MIN_PEER_STORAGE_BYTES: u64 = 256 * 1024 * 1024;
 const QUOTA_AUDIT_FILE: &str = "wgpu_quota_audit.jsonl";
 
+/// SCALE-1a: claim TTL by task size — 30 s for tiny per-expert slices,
+/// `base` for mid-size, 4x for wide huge-expert shards (220 MB Q6_K down).
+pub(crate) fn task_claim_ttl(t: &Value, base: u64) -> u64 {
+    let cols = t.get("cols").and_then(Value::as_u64).unwrap_or(0);
+    let rows = t.get("rows").and_then(Value::as_u64).unwrap_or(0);
+    if cols > 200_000 {
+        base * 4
+    } else if cols.saturating_mul(rows).saturating_mul(4) < 8 * 1024 * 1024 {
+        30
+    } else {
+        base
+    }
+}
+
 /// Largest rows-per-shard that keeps one dequantized row range under a peer's
 /// storage binding budget (`rows * cols * 4 <= budget`). Returns the original
 /// `per` when it already fits. Pure helper — TDD-testable without a cluster.
@@ -1372,22 +1386,11 @@ pub fn peer_poll(data_dir: &Path, body: &Value) -> Result<Value, String> {
     /// Small enough that a truly-hung peer loses the task instead of stalling
     /// the fleet; large enough that slow phone chunks are not yanked mid-flight.
     const TASK_CLAIM_REQUEUE_SECS: u64 = 300;
-    // Huge MoE experts (down: 512x524288 Q6_K ~220 MB) need minutes just to
-    // stream the shard from the mirror; the default 300 s window yanked the
-    // claim mid-download, so the peer's late result POST was rejected as
-    // "not claimed" and the task looped forever. Give those a longer lease.
-    /// Per-task claim TTL: long for wide (huge-expert) matvec shards.
+    // SCALE-1a: small per-expert slices recover in 30 s instead of 300 s —
+    // a dead claim on a 4 MiB tensor blocked the single concurrency slot for
+    // five minutes during the 40-layer forward. See `task_claim_ttl` above.
     fn claim_ttl(t: &Value) -> u64 {
-        let wide = t
-            .get("cols")
-            .and_then(Value::as_u64)
-            .map(|c| c > 200_000)
-            .unwrap_or(false);
-        if wide {
-            TASK_CLAIM_REQUEUE_SECS * 4
-        } else {
-            TASK_CLAIM_REQUEUE_SECS
-        }
+        task_claim_ttl(t, TASK_CLAIM_REQUEUE_SECS)
     }
     // Requeue claims held by dead peers AND claims whose lease on the work
     // expired (holder alive but claim older than the stuck window).
@@ -3991,6 +3994,21 @@ mod tests {
         let ranked = ranked_peers(&peers, &tasks, now);
         assert_eq!(ranked[0].0, 51);
         assert_eq!(ranked[1].0, 52);
+    }
+
+    #[test]
+    fn scale1a_claim_ttl_three_tiers() {
+        // Small per-expert slice (gate 2048x512, down 512x2048): ~4 MiB f32.
+        let small = json!({"cols": 512u64, "rows": 2048u64});
+        assert_eq!(task_claim_ttl(&small, 300), 30);
+        let small_down = json!({"cols": 2048u64, "rows": 512u64});
+        assert_eq!(task_claim_ttl(&small_down, 300), 30);
+        // Mid-size keeps the base TTL.
+        let mid = json!({"cols": 4096u64, "rows": 1024u64}); // 16 MiB f32
+        assert_eq!(task_claim_ttl(&mid, 300), 300);
+        // Wide huge-expert shard keeps 4x.
+        let wide = json!({"cols": 524_288u64, "rows": 512u64});
+        assert_eq!(task_claim_ttl(&wide, 300), 1200);
     }
 
     #[test]

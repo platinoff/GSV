@@ -202,3 +202,4 @@
 {"ts":"2026-11-27T06:40:52Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"f47d12b","band":"248","summary":"LOAD6_pack_forward","product":"gsv"}
 {"ts":"2026-11-27T06:49:45Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"d9e4730","band":"248","summary":"steady_state_2026_11_27","product":"gsv"}
 {"ts":"2026-11-27T08:54:57Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"9006f1d","band":"248","summary":"FWD8_multilayer_forward","product":"gsv"}
+{"ts":"2026-11-27T11:54:06Z","actor":"agent","ide":"opencode","model":"hy4-flash-free","agent":"orchestrator","version":"0.248.0","git_head":"44d6e50","band":"248","summary":"SCALE1a_adaptive_lease","product":"gsv"}
