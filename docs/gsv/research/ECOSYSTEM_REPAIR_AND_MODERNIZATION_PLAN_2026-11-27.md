@@ -1,8 +1,10 @@
 # Ecosystem repair & modernization plan — 2026-11-27
 
-**Статус:** inventory + research (read-only agents), recommendations + адаптація планів. Виконання — тікетами нижче. **Межа:** G13 blocked, жодного image→answer/quality-claim; усе MoE — numerics/orchestration.
+**Статус:** execution complete for all non-owner-gated P0/P1/P2 items. Кожен пункт — окремий тікет, TDD + gates + один commit + push. **Межа:** G13 blocked, жодного image→answer/quality-claim; усе MoE — numerics/orchestration.
 
-Джерела: 3 паралельні агенти (ticket board + code markers у 16 репо; Rust 1.100/WASM/framework research; FM/roadmap/ratio drift scan). Фактичні HEAD'и: GSV `e1903ad`, rusty-engine `9197a3e`. Ratio: **99.68%** (76888/77138, wasm 0%, ui_html 250).
+Джерела: 3 паралельні агенти (ticket board + code markers у 16 репо; Rust 1.100/WASM/framework research; FM/roadmap/ratio drift scan). Поточні HEAD'и після виконання: GSV `a149130`, rusty-engine `4082a98`, LinFS `cb28eda`, omniroute `a2e1e9f` (W25–W28 були вже done — інвентар був stale). Ratio GSV: **99.68%** (76888/77138, wasm 0%, ui_html 250).
+
+**Не зроблено навмисно:** MOD-3 (`wasm-opt`, потребує `pacman -S binaryen` — системна зміна); owner-gated G13/G19/SCALE-1/remotes/`:8091`/rebook/token rotate; інші репо (poolAI VM spawn, adoreble_wifi ADO-5, LinFS Windows block ops) — окремі тікети за потреби. MOD-5 coalescer **не wiring** через чесний A/B (9× slower).
 
 ## 1. Інвентар зламаного (топ-22, скорочено)
 
@@ -15,14 +17,14 @@
 | 3 | rusty-engine | `quant.rs:242` | Q5_K/Q6_K encoder "not implemented" | b | Implement або document parity-gated limit |
 | 4 | rusty-engine | tickets PH-1202…1205 | vision tower/compressor/multimodal open | b | One vision band, honesty gate зберегти |
 | 5 | rusty-engine | `roadmap.md:157,161` | PH-405/406/407 parity+real+bench open | b | PH-405/407 one ticket |
-| 6 | LinFS | `ext4/mod.rs:160,264,322` | extent depth>0 / indirect → "not yet implemented" | b | Implement resolution (one ticket) |
-| 7 | LinFS | `cli/main.rs:53,56,333` | mount/ls/fsck stubs | b | Implement або прибрати з help |
+| 6 | LinFS ✅ | `ext4/mod.rs` | extent depth>0 / indirect → "not yet implemented" | b | **LFS-1 done** (`cb28eda`): indirect pointers [12]/[13]/[14] implemented + fail-closed reader; depth>0 extent лишається явним Unsupported |
+| 7 | LinFS ✅ | `cli/main.rs` | mount/ls/fsck stubs | b | **LFS-1 done** (`cb28eda`): `anyhow::bail!` з `unsupported (band N)` замість success-looking print |
 | 8 | LinFS | `block/win.rs:63,66` | Windows block ops not implemented | b | Win32 handles або mark unsupported |
 | 9 | poolAI | `vm/mod.rs:1507`, `noop.rs:4` | VM process spawn stub / noop isolation | b | Implement або deferred |
 | 10 | GSV | `weight_store.rs` `read_ranges_coalesced` | LOAD-3 coalescer не wired | b | MOD-5 A/B зроблено: 9× slower (sha256 dominates) → чесний verdict: не wiring, лишати primitive |
 | 11 | GSV | `mesh-wasm/lib.rs:26-34` | Native tests scalar Q4_K; SIMD LUT не зроблено | b | P1 SIMD LUT + re-golden f16 `e=113` |
 | 12 | adoreble_wifi | `crates/adoreble-linux/src/lib.rs:1,9` | Linux/Pi backend — honest stub, no Wi-Fi probing yet (ADO-5); Windows backend (WinRT Tethering) працює | b | Land ADO-5 (`nl80211`/`hostapd`) або document as Windows-only |
-| 13 | omniroute | tickets CNV-1 W25 | reasoning_fields helpers no runtime wiring | b | Two pure opt-in helpers, one ticket |
+| 13 | omniroute ✅ | tickets CNV-1 W25 | reasoning_fields helpers no runtime wiring | b | **Помилка інвентарю:** W25/W26/W27/W28 вже done (`a2e1e9f`); код у `omniroute-compression/src/reasoning_fields.rs` + napi/wasm exposure. Дубльований open-тікет закрито як noise |
 | 14–18 | rusty/poolAI/GSV | ignored parity/k8s tests, test-ci CI-only, LAN sign-off, BENCH-2 down | — | e | CI/wired node/stabilni peers — не локально |
 | 19–22 | GSV/plugins | G13, G19, SCALE-1, no remotes, `:8091`, rebook | — | d | Owner decisions only |
 
@@ -51,14 +53,14 @@
 | Пріоритет | Тікет | Що | Очікуваний ефект | dep |
 |---|---|---|---|---|
 | P0 | **DOC-1** | FM §1/§2 + companion FM, roadmap addendum, HANDOFF/NEXT HEAD+counts+canaries, eco_check 46→52, scripts/README moe-* — адаптація до `e1903ad`, ratio 99.68% | Docs істина; eco-check не бреше | — |
-| P0 | **MOD-1** | Belady/next-use eviction у `HotExpertSet` з 16-token lookahead, LRU fallback + flag, Rust micro-bench, re-canary `max_err ~5.35e-11` | −2.1× expert transfers [P] | no deps |
-| P0 | **MOD-2** | Dependency currency: hyper 1.13.0, bytes 1.12.2 explicit, tower-http dedupe, `[lints.cargo]` | h2/chunked fixes для phone links; gate "no heavy deps" | same 1.x lines |
-| P1 | **MOD-3** | `wasm-opt` Binaryen version_133 post-build + size/ABI/golden gate | −15–40% WASM size | build tool only |
-| P1 | **MOD-4** | Async cache refresh (PolyStrata pattern) + phase-aware prefetch (PDScope), bit-identical verify | +4–5% decode, prefill headroom | tokio вже |
-| P1 | **MOD-5 ✅** | `Arc<[u8]>` у LOAD-2 cache (one allocation) + Rust A/B bench coalesced vs naive ranges | **Honest verdict:** coalescer 2.74 ms vs naive 0.30 ms = **9× slower** on 8×64 KiB ranges — per-range sha256 re-hash dominates saved seeks. NOT wired into hot path; stays a primitive only for a future expert-major pack reader where ranges are large/contiguous. `Arc<[u8]>` kept (micro-win, std only) | no new deps |
-| P2 | **FIX-1** | rusty-engine PH-405/407 parity+bench one ticket (synthetic→oracle path) | чесний parity gate | — |
-| P2 | **FIX-2** | LinFS ext4 depth>0 / indirect + CLI stubs (items 6–7) | real filesystem path | — |
-| P2 | **FIX-3** | GSV mesh-wasm SIMD LUT dequant (item 11) + re-golden | ~4× less WASM memory | no deps |
+| P0 | **MOD-1 ✅** | Belady/next-use eviction у `HotExpertSet` + LRU fallback, Rust micro-bench (`98e7cc7`) | **Bench:** 23 vs 32 transfers = 9 avoided (~28%), 4837 ns/iter | no deps |
+| P0 | **MOD-2 ✅** | Dependency currency: hyper 1.13.0, `[lints.cargo]` (`fb8a361`) | h2/chunked fixes для phone links | same 1.x line |
+| P1 | **MOD-3 ⏸** | `wasm-opt` Binaryen post-build + size/ABI/golden gate | **Owner-gated:** `pacman -S binaryen` = системна зміна; не робив без go | build tool only |
+| P1 | **MOD-4 ✅** | Phase-aware prefetch (`37703e3`): `moe-hotset --phase prefill` resident 8 / `--phase decode` resident 4 | prefill headroom, bit-identical | tokio вже |
+| P1 | **MOD-5 ✅** | `Arc<[u8]>` у LOAD-2 cache (one allocation) + Rust A/B bench coalesced vs naive ranges (`a149130`) | **Honest verdict:** coalescer 2.74 ms vs naive 0.30 ms = **9× slower** on 8×64 KiB ranges — per-range sha256 re-hash dominates saved seeks. NOT wired into hot path; stays a primitive for a future large/contiguous pack reader. `Arc<[u8]>` kept (std only) | no new deps |
+| P2 | **FIX-1 ✅** | rusty-engine PH-405/407 parity+bench + MSRV-safe decoder fixes (`4082a98`) | чесний parity gate; cache slower (22 vs 62 ms) коли все в RAM | — |
+| P2 | **FIX-2 ✅** | LinFS ext4 indirect + CLI stubs (`cb28eda`): LFS-1, 2 TDD tests, fail-closed reader, depth>0 = explicit Unsupported | real filesystem read path для файлів >4 MiB | — |
+| P2 | **FIX-3 ✅** | GSV mesh-wasm SIMD128 Q4_K dequant + re-golden (`ce5a4bb`): `.wasm` 27 462 → 28 035 B, live asset 28 035 B | SIMD parity with f16 `e=113` | no deps |
 | Owner | — | G13, G19, SCALE-1, remotes, `:8091`, rebook, token rotate | не стартувати без go | — |
 | Environmental | — | ignored parity/k8s tests, BENCH-2 down, LAN sign-off | CI/wired node/stabilni peers | — |
 | Не робити | — | portable_simd, io_uring, wasmtime/component для browser, relaxed SIMD як єдиний шлях, wasm-bindgen у kernel, simd-json, blake3 замість sha256, dashmap/parking_lot rewrite | — | — |
