@@ -280,10 +280,7 @@ pub fn register_expert_range(
         .map_err(|e| format!("read_exact: {e}"))?;
     let key = super::weight_store::sha256_hex(&buf);
     let sources_path = data_dir.join(super::weight_store::ARTIFACT_SOURCES_FILE);
-    let existing: Vec<Value> = std::fs::read_to_string(&sources_path)
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default();
+    let existing: Vec<Value> = super::weight_store::read_artifact_sources(data_dir);
     let fresh = vec![json!({
         "key": key, "artifact": artifact.to_string_lossy(),
         "offset": start, "len": len as u64,
@@ -291,6 +288,7 @@ pub fn register_expert_range(
     let merged = super::vision_canary::merge_sources(&existing, &fresh);
     std::fs::write(&sources_path, serde_json::to_string(&merged).unwrap())
         .map_err(|e| format!("artifact sources write: {e}"))?;
+    super::weight_store::invalidate_artifact_sources(data_dir);
     Ok(json!({
         "tensor": alias,
         "source": "artifact",
@@ -876,25 +874,15 @@ pub async fn report_one_layer(
         .unwrap(),
     )
     .map_err(|e| format!("checkpoint write: {e}"))?;
+    super::weight_store::flush_chunk_accounting(data_dir); // LOAD-0: persist buffered hits/audit
     Ok(evidence)
 }
 
 /// Look up the sha256 key of the byte range just registered by `register_expert_range`.
 fn expert_key(data_dir: &Path, offset: u64) -> String {
-    let sources: Value = serde_json::from_str(
-        &std::fs::read_to_string(data_dir.join(super::weight_store::ARTIFACT_SOURCES_FILE))
-            .unwrap_or_default(),
-    )
-    .unwrap_or(json!([]));
-    sources
-        .as_array()
-        .and_then(|a| {
-            a.iter()
-                .find(|r| r.get("offset").and_then(Value::as_u64) == Some(offset))
-        })
-        .and_then(|r| r.get("key").and_then(Value::as_str))
-        .unwrap_or("")
-        .to_string()
+    // LOAD-0: served from weight_store's memoized artifact-sources manifest —
+    // the old code re-read + re-parsed the whole JSON three times per expert.
+    super::weight_store::artifact_source_key_for_offset(data_dir, offset).unwrap_or_default()
 }
 
 #[cfg(test)]

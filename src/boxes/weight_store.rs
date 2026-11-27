@@ -23,8 +23,10 @@
 
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
 
 pub const STORE_DIR: &str = "wgpu_weights";
 pub const CHUNKS_DIR: &str = "chunks";
@@ -88,22 +90,94 @@ fn artifact_sources_path(data_dir: &Path) -> PathBuf {
     data_dir.join(ARTIFACT_SOURCES_FILE)
 }
 
-/// Read the artifact-source manifest (gitignored, lives beside the store).
-fn read_artifact_sources(data_dir: &Path) -> Vec<Value> {
-    let path = artifact_sources_path(data_dir);
-    match std::fs::read_to_string(&path) {
-        Ok(s) => serde_json::from_str::<Vec<Value>>(&s).unwrap_or_default(),
-        Err(_) => Vec::new(),
+/// LOAD-0: memoized artifact-source manifest. The old code re-read and
+/// re-parsed this JSON (thousands of keys) on every chunk lookup — three times
+/// per expert in the forward path. Keyed by (path, mtime, len); a write
+/// invalidates by changing the stamp, so fail-closed semantics are unchanged.
+#[derive(Clone)]
+struct ArtifactMemo {
+    stamp: (u64, u64),
+    rows: Vec<Value>,
+}
+
+static ARTIFACT_MEMO: OnceLock<Mutex<HashMap<PathBuf, ArtifactMemo>>> = OnceLock::new();
+
+fn file_stamp(path: &Path) -> (u64, u64) {
+    match std::fs::metadata(path) {
+        Ok(m) => {
+            let modified = m
+                .modified()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_nanos() as u64)
+                .unwrap_or(0);
+            (m.len(), modified)
+        }
+        Err(_) => (0, 0),
     }
+}
+
+/// Read the artifact-source manifest (gitignored, lives beside the store).
+pub(crate) fn read_artifact_sources(data_dir: &Path) -> Vec<Value> {
+    let path = artifact_sources_path(data_dir);
+    let stamp = file_stamp(&path);
+    let memo = ARTIFACT_MEMO.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Ok(cache) = memo.lock() {
+        if let Some(entry) = cache.get(&path) {
+            if entry.stamp == stamp {
+                return entry.rows.clone();
+            }
+        }
+    }
+    let rows: Vec<Value> = match std::fs::read_to_string(&path) {
+        Ok(s) => serde_json::from_str(&s).unwrap_or_default(),
+        Err(_) => Vec::new(),
+    };
+    if let Ok(mut cache) = memo.lock() {
+        cache.insert(
+            path,
+            ArtifactMemo {
+                stamp,
+                rows: rows.clone(),
+            },
+        );
+    }
+    rows
+}
+
+/// LOAD-0: invalidate the artifact-source memo after a writer changed the JSON.
+pub(crate) fn invalidate_artifact_sources(data_dir: &Path) {
+    let path = artifact_sources_path(data_dir);
+    if let Ok(mut cache) = ARTIFACT_MEMO
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+    {
+        cache.remove(&path);
+    }
+}
+
+/// LOAD-0: find one artifact source by key without the caller re-scanning a
+/// freshly parsed manifest. Used by `read_chunk_artifact`/`chunk_len_any`.
+fn find_artifact_source(data_dir: &Path, key: &str) -> Option<Value> {
+    read_artifact_sources(data_dir)
+        .into_iter()
+        .find(|r| r.get("key").and_then(Value::as_str) == Some(key))
+}
+
+/// LOAD-0: look up an artifact chunk key by its byte offset (used by the MoE
+/// expert forward). Serves from the memoized manifest.
+pub(crate) fn artifact_source_key_for_offset(data_dir: &Path, offset: u64) -> Option<String> {
+    read_artifact_sources(data_dir)
+        .into_iter()
+        .find(|r| r.get("offset").and_then(Value::as_u64) == Some(offset))
+        .and_then(|r| r.get("key").and_then(Value::as_str).map(str::to_string))
 }
 
 /// Range-read a chunk directly from a large artifact GGUF. The key is the
 /// SHA-256 of the original bytes, so we verify the slice before returning it;
 /// a mismatch is treated as "not found" (fail-closed, no silent corruption).
 fn read_chunk_artifact(data_dir: &Path, key: &str) -> Option<Vec<u8>> {
-    let row = read_artifact_sources(data_dir)
-        .into_iter()
-        .find(|r| r.get("key").and_then(Value::as_str) == Some(key))?;
+    let row = find_artifact_source(data_dir, key)?;
     let artifact = row.get("artifact").and_then(Value::as_str)?;
     let offset = row.get("offset").and_then(Value::as_u64)?;
     let len = row.get("len").and_then(Value::as_u64)? as usize;
@@ -313,10 +387,7 @@ pub(crate) fn chunk_len_any(data_dir: &Path, key: &str) -> Option<u64> {
     if let Some(n) = chunks_len(data_dir, key) {
         return Some(n);
     }
-    read_artifact_sources(data_dir)
-        .into_iter()
-        .find(|r| r.get("key").and_then(Value::as_str) == Some(key))
-        .and_then(|r| r.get("len").and_then(Value::as_u64))
+    find_artifact_source(data_dir, key).and_then(|r| r.get("len").and_then(Value::as_u64))
 }
 
 /// Look up one registered tensor entry.
@@ -340,6 +411,76 @@ pub fn tensor_bytes(data_dir: &Path, name: &str) -> Option<Vec<u8>> {
         out.extend_from_slice(&bytes);
     }
     Some(out)
+}
+
+/// LOAD-0: in-memory pending hit/audit accounting. The old `read_chunk`
+/// rewrote the whole `index.json` via tmp+rename AND appended a JSONL row on
+/// every single read — both synchronous syscalls in the hub's hot verification
+/// path. Hits are best-effort (documented on `read_chunk`), so batching them is
+/// safe; a flush is explicit (`flush_chunk_accounting`) and automatic at a
+/// threshold so long-lived workers still persist counters.
+struct PendingAccounting {
+    hits: HashMap<String, u64>,
+    audits: Vec<Value>,
+    reads: usize,
+}
+
+static PENDING_ACCOUNTING: OnceLock<Mutex<HashMap<PathBuf, PendingAccounting>>> = OnceLock::new();
+const ACCOUNTING_FLUSH_AT: usize = 64;
+
+fn pending_for() -> std::sync::MutexGuard<'static, HashMap<PathBuf, PendingAccounting>> {
+    PENDING_ACCOUNTING
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+}
+
+/// Flush buffered read hits + audit rows to disk in one index rewrite and one
+/// audit-file open. Call at phase boundaries (manifest, xtask end) and before
+/// operations that write the index themselves (`store_chunk`, `evict_lru`).
+pub fn flush_chunk_accounting(data_dir: &Path) {
+    let batch = {
+        let mut all = pending_for();
+        all.remove(data_dir).unwrap_or(PendingAccounting {
+            hits: HashMap::new(),
+            audits: Vec::new(),
+            reads: 0,
+        })
+    };
+    if batch.reads == 0 {
+        return;
+    }
+    if !batch.hits.is_empty() {
+        let mut rows = read_index(data_dir);
+        let mut changed = false;
+        for row in rows.iter_mut() {
+            if let Some(key) = row.get("key").and_then(Value::as_str) {
+                if let Some(delta) = batch.hits.get(key) {
+                    let prev = row.get("hits").and_then(Value::as_u64).unwrap_or(0);
+                    row["hits"] = json!(prev + delta);
+                    changed = true;
+                }
+            }
+        }
+        if changed {
+            let _ = write_index(data_dir, &rows);
+        }
+    }
+    if !batch.audits.is_empty() {
+        let path = audit_path(data_dir);
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+        {
+            for row in &batch.audits {
+                let _ = writeln!(f, "{row}");
+            }
+        }
+    }
 }
 
 fn audit(data_dir: &Path, event: &str, fields: Value) {
@@ -401,6 +542,8 @@ fn total_bytes(rows: &[Value]) -> u64 {
 /// Store one chunk. The key is derived from `payload` (sha256) — callers that
 /// pass a `key` argument get it ignored (content addressing is authoritative).
 pub fn store_chunk(data_dir: &Path, payload: &[u8]) -> Result<Value, String> {
+    // LOAD-0: pending read hits must land before we rewrite the index here.
+    flush_chunk_accounting(data_dir);
     if payload.is_empty() {
         return Err("field `data_b64` holds no bytes".to_string());
     }
@@ -478,29 +621,33 @@ pub fn read_chunk(data_dir: &Path, key: &str) -> Result<Vec<u8>, String> {
         Err(_) => read_chunk_artifact(data_dir, &key)
             .ok_or_else(|| format!("chunk `{key}` not stored in chunk dir or artifact source"))?,
     };
-    let mut rows = read_index(data_dir);
-    let mut bumped = false;
-    for row in rows.iter_mut() {
-        if row.get("key").and_then(Value::as_str) == Some(key.as_str()) {
-            row["hits"] = json!(row.get("hits").and_then(Value::as_u64).unwrap_or(0) + 1);
-            bumped = true;
-            break;
-        }
+    // LOAD-0: buffer instead of rewriting index.json + audit on every read.
+    let mut all = pending_for();
+    let entry = all
+        .entry(data_dir.to_path_buf())
+        .or_insert(PendingAccounting {
+            hits: HashMap::new(),
+            audits: Vec::new(),
+            reads: 0,
+        });
+    *entry.hits.entry(key.clone()).or_insert(0) += 1;
+    entry.audits.push(json!({
+        "ts": now_secs(), "event": "read",
+        "key": key, "bytes": bytes.len() as u64,
+    }));
+    entry.reads += 1;
+    let should_flush = entry.reads >= ACCOUNTING_FLUSH_AT;
+    drop(all);
+    if should_flush {
+        flush_chunk_accounting(data_dir);
     }
-    if bumped {
-        let _ = write_index(data_dir, &rows);
-    }
-    audit(
-        data_dir,
-        "read",
-        json!({"key": key, "bytes": bytes.len() as u64}),
-    );
     Ok(bytes)
 }
 
 /// The manifest a peer fetches to know which chunks it must pull: model
 /// identity plus every stored chunk with size and key.
 pub fn manifest(data_dir: &Path) -> Value {
+    flush_chunk_accounting(data_dir); // LOAD-0: expose buffered hits in the manifest
     let rows = read_index(data_dir);
     let total = total_bytes(&rows);
     let tensors = read_tensors(data_dir);
@@ -654,6 +801,51 @@ mod tests {
     use super::*;
 
     #[test]
+    fn load0_artifact_sources_memo_invalidates_on_write() {
+        let dir = temp_dir("load0_sources_memo");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = artifact_sources_path(&dir);
+        let row = json!([{"key": "abc", "artifact": "x.bin", "offset": 0u64, "len": 4u64}]);
+        std::fs::write(&path, serde_json::to_string(&row).unwrap()).unwrap();
+        invalidate_artifact_sources(&dir);
+        assert_eq!(read_artifact_sources(&dir).len(), 1);
+        // Mutate on disk: the (len, mtime) stamp changes so the memo
+        // auto-invalidates even without an explicit call.
+        std::fs::write(&path, "[]").unwrap();
+        assert!(
+            read_artifact_sources(&dir).is_empty(),
+            "stamp change must invalidate the memo"
+        );
+        invalidate_artifact_sources(&dir); // explicit invalidation is also safe
+        assert!(read_artifact_sources(&dir).is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn load0_read_hits_buffered_then_flushed_once() {
+        let dir = temp_dir("load0_read_accounting");
+        let _ = std::fs::create_dir_all(&dir);
+        let payload = b"hello world";
+        let key = store_chunk(&dir, payload).expect("store")["key"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        flush_chunk_accounting(&dir);
+        for _ in 0..3 {
+            assert_eq!(read_chunk(&dir, &key).unwrap(), payload);
+        }
+        // Index on disk still has 0 hits until flush (buffered in memory).
+        let before = read_index(&dir);
+        assert_eq!(before[0]["hits"], 0);
+        flush_chunk_accounting(&dir);
+        let after = read_index(&dir);
+        assert_eq!(after[0]["hits"], 3);
+        let audit_rows = std::fs::read_to_string(audit_path(&dir)).unwrap();
+        assert_eq!(audit_rows.matches("\"event\":\"read\"").count(), 3);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn register_artifact_backed_quantized_tensor() {
         let dir = temp_dir("artifact_register");
         let _ = std::fs::create_dir_all(&dir);
@@ -751,7 +943,8 @@ mod tests {
         assert_eq!(m["total_bytes"], payload.len() as u64);
         let bytes = read_chunk(&dir, &key).expect("read");
         assert_eq!(bytes, payload);
-        // Audit trail records store + read.
+        // LOAD-0: read audit rows are buffered; flush before inspecting them.
+        flush_chunk_accounting(&dir);
         let audit = std::fs::read_to_string(dir.join(AUDIT_FILE)).unwrap();
         assert!(audit.contains("\"event\":\"store\""));
         assert!(audit.contains("\"event\":\"read\""));

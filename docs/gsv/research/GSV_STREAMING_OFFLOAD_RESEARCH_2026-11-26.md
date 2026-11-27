@@ -23,7 +23,7 @@
 
 ## 2. Хто як вантажить з диска — порівняльна таблиця [P]
 
-| Техніка | Хто /数字 | Потреби | Portable на Windows Rust 1.100 + L: mirror? |
+| Техніка | Хто / цифри | Потреби | Portable на Windows Rust 1.100 + L: mirror? |
 |---|---|---|---|
 | mmap lazy paging | llama.cpp `-lm auto` ≈ mmap; ≥10× повільніші повторні завантаження з O_DIRECT на гарячих даних (community #18758); 112 K page faults cold (ServerlessLLM); ≥30% prefill regression (discussion #29347, unresolved) | OS VM, модель ≤ RAM | **Частково** — `memmap2` мапить, але немає willneed/sequential/mincore/large pages; з 1.7 ГБ вільно → refault storm. **Не покладатись** |
 | O_DIRECT / `FILE_FLAG_NO_BUFFERING` | ServerlessLLM 2.9 GB/s raw → 7.4–8.1 GB/s з pinned; ≥10× loss на гарячих даних; 4096-вирівнювання | aligned offset+len+buffer | **Умовно A/B** — наші 589 824 / 860 160 Б вже кратні 4096. Лише з власним bounded cache |
@@ -85,17 +85,24 @@
 ## 6. Чесна межа
 
 - Жоден measurement з цієї нотатки **не є GSV-виміром** крім позначених **[L]** (наші 130.98/187.06 MFLOPS, 270/279 c wall, `max_err 3.47e-18`, `6.94e-18`, hot-count 8, 15.6 МБ/256 МБ).
-- Pooled/Strata/WeInfer/LlamaWeb数字 — vendor/author-reported; latency emulation у Pooled **не реальний лінк** (page timer, один GPU); exo 1.8×/2, 3.2×/4 і «99% RDMA» — vendor; незалежні: Jeff Geerling 4× M3 Ultra 31.9/32.5, hellomatik 15.143 tok/s на 4× Pi, багаторазові RPC-регресії в discussion #9136.
+- Pooled/Strata/WeInfer/LlamaWeb — vendor/author-reported; latency emulation у Pooled **не реальний лінк** (page timer, один GPU); exo 1.8×/2, 3.2×/4 і «99% RDMA» — vendor; незалежні: Jeff Geerling 4× M3 Ultra 31.9/32.5, hellomatik 15.143 tok/s на 4× Pi, багаторазові RPC-регресії в discussion #9136.
 - Наш conjectured envelope лишається **<1 tok/s** на 2 пірах (llama-rs 0.497 tok/s на 7.4 ГБ RAM, IQ2_XXS). Усі 50–90 tok/s у огляді вимагають 8–32 ГБ VRAM + NVLink/RDMA.
 - G13 blocked — жодного image→answer/quality-claim. Цей документ про data plane і orchestration, не про якість.
 
-## 7. Тикетізація (поки research — не стартувати без окремого go)
+## 7. Адаптований план (єдина черга, owner go 2026-11-26)
 
-1. **LOAD-1** — expert-major pack builder на L: + sidecar manifest (Rust xtask, collide-free з 21 ГБ source).
-2. **LOAD-2** — bounded hub chunk cache + counters (std `HashMap`, no dep).
-3. **LOAD-3** — coalescing positional read scheduler (~8 потоків, rayon вже dep).
-4. **LOAD-4** — wire `should_prefetch`/`HotExpertSet`/`concurrency_decision` у `report_one_layer` + A/B wall 270 c → ~10 c.
-5. **LOAD-5** — octet-stream chunk GET + phone IDB hash-check.
-6. **SCALE-1** — in-memory registry/task state замість JSONL+mutex (передумка для >10 пірів).
+Рангований shortlist з §5 і локальний інвентар дали **дві різні першочерговості** — research радив pack спочатку, локальний вимір (`wall 270–282 c` vs `compute 2–4 c`, ratio ≈0.015 → `queue_claim`) каже спочатку прибрати hot-path накладні витрати й підключити вже написані helper'и. Поєднуємо чесно: **дешеві/memo-фікси → оркестрація → data-plane pack**.
 
-**Нічого з цього не імплементується в цій сесії** — тільки research, як просив owner.
+| # | Тікет | Що | Чому саме тут | Очікуваний ефект | dep |
+|---|---|---|---|---|---|
+| 1 | **LOAD-0** | Memo artifact-sources JSON (mtime-keyed `OnceLock`/map) + прибрати index rewrite на кожне `read_chunk`; `sha256_hex` через `format!` ×2 | `read_artifact_sources` речитається `read_chunk_artifact`/`chunk_len_any`/`expert_key` 3× на експерт; `read_chunk` переписує `index.json`+JSONL на кожен shard — це синхронні дискові записи в hot verification path | −3 перечитування/експерт, −1 rewrite/shard; знімає JSONL tax до SCALE-1 | std + serde_json (вже) |
+| 2 | **LOAD-4** | Wire `should_prefetch`/`HotExpertSet`/`concurrency_decision` у `report_one_layer`; env `GSV_WGPU_MAX_CONCURRENT_PER_PEER` уже є; overlap enqueue/collect; proof gate зберегти | Helpers описані в FWD-5…7, але **не викликаються**; forward серійний із 2 c poll sleep. Наш вимір: 270 c wall / 4 c compute | **Найвищий expected impact:** target 270 c → ~10 c; не вимагає нового формату | tokio Semaphore (вже) |
+| 3 | **LOAD-2** | Bounded hub raw-chunk cache `HashMap<key, Arc<Vec<u8>>>` (сотні МБ) + counters `cache_hits/misses/evictions, pack_read_bytes, read_ms`; promote `read_chunk_artifact` → `pub(crate)` | Найбільша поведінкова різниця між нашим стеком і кожним серйозним двигуном: ми покладаємося на OS page cache без явного admission/pin | repeated verification hot shard не читає знову; телеметрія дає A/B основу | std |
+| 4 | **LOAD-1** | Offline expert-major pack на L: (4096-aligned gate/up/down разом на `(layer,expert)`) + sidecar manifest; derived pack верифікується **один раз** | ServerlessLLM direct addressing + SGLang Expert Pack + mbolt layout; передумова для coalescing; 21 ГБ GGUF лишається immutable source | 1418→~370 reads/token [P, mbolt]; основа для LOAD-3 | std + sha2 (вже) |
+| 5 | **LOAD-3** | Coalescing positional read scheduler: sort offsets, gap-merge, ~8 потоків `seek_read` у preallocated aligned буфери, cap 64 reads/layer | +13–14% end-to-end [P, mbolt]; на Windows — `seek_read`, не io_uring | менше syscall, стабільний cold I/O | rayon (вже dep) |
+| 6 | **LOAD-5** | Chunk GET як `application/octet-stream` (axum `Bytes`) + phone IDB hash-check через hub digest | ~33% base64 inflation + `atob`/`flat` копії; телефони не мають `crypto.subtle`, тому bypass IDB | −33% wire, phone reuse без silent corruption | axum/bytes (вже) |
+| 7 | **SCALE-1** | In-memory registry/task state замість JSONL+`mesh_lock`; `MAX_PEERS=50`, `MAX_TASKS=32` переглянути | передумова для >10 пірів; 200-row/50 МБ stall уже в історії; Parallax: routing math дешева (8 мс @256 GPU), наше збереження — ні | відкриває tier 10 пірів; 255 — тільки admission pool | std + tokio |
+
+**Коректність пріоритету:** LOAD-0/4/2 — «оркестрація + hot-path», найдешевші й б'ють по виміряному 270 c wall. LOAD-1/3 — «data plane», потрібні для багатотокенного forward'у, але не виправляють чергу. LOAD-5 — transport для телефонів. SCALE-1 — окремий суттєвий шмат (не в цій серії).
+
+**Статус:** research завершено; owner дав go «продовжуємо тікетами» → LOAD-0 ✅ (memo + batched accounting, 2 TDD green), LOAD-4 → LOAD-2 → LOAD-1 → LOAD-3 → LOAD-5 → SCALE-1 далі окремими тікетами з TDD/гейтами/одним комітом. Жодного quality-claim (G13 blocked).
