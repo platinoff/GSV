@@ -90,7 +90,11 @@ impl ExpertAddr {
             ExpertRole::SharedUp => "shexp_up",
             ExpertRole::SharedDown => "shexp_down",
         };
-        format!("q4k/e{}/{}", self.expert, role)
+        // FWD-8: the layer MUST be part of the alias. The peer's WGPU/WASM
+        // weight cache is keyed by tensor name; without the layer, expert e17
+        // in layer 0 and the same id in layer 2 collide and the peer serves
+        // stale weights (max_err ~0.05 on multi-layer runs).
+        format!("q4k/L{}/e{}/{}", self.layer, self.expert, role)
     }
 
     /// Flattened dims used when registering the byte range as a tensor.
@@ -787,51 +791,63 @@ async fn run_expert(
         let mut body = json!({
             "op": "weights_matvec", "tensor": addr.alias(), "shards": shards,
         });
-        if let Some(spec) = x_spec {
+        if let Some(spec) = &x_spec {
             body["x_spec"] = json!(spec);
-        } else if let Some(x) = inline_x {
+        } else if let Some(x) = &inline_x {
             body["x"] = json!(x);
         }
-        let enq: Value = client
-            .post(format!("{base}/api/wgpu/task/enqueue"))
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| format!("enqueue: {e}"))?
-            .json()
-            .await
-            .map_err(|e| format!("enqueue json: {e}"))?;
-        if enq.get("ok").and_then(Value::as_bool) == Some(false) {
-            return Err(format!(
-                "enqueue: {}",
-                enq.get("error").and_then(Value::as_str).unwrap_or("?")
-            ));
+        // FWD-8: peers occasionally post a result with no partial (known FW-7
+        // reliability gap); the hub then fails that shard and the group never
+        // completes. Re-ENQUEUE a fresh task a bounded number of times.
+        let mut last_err = String::new();
+        for _attempt in 0..3u32 {
+            let enq: Value = client
+                .post(format!("{base}/api/wgpu/task/enqueue"))
+                .json(&body)
+                .send()
+                .await
+                .map_err(|e| format!("enqueue: {e}"))?
+                .json()
+                .await
+                .map_err(|e| format!("enqueue json: {e}"))?;
+            if enq.get("ok").and_then(Value::as_bool) == Some(false) {
+                last_err = format!(
+                    "enqueue: {}",
+                    enq.get("error").and_then(Value::as_str).unwrap_or("?")
+                );
+                continue;
+            }
+            let gid = enq["group_id"]
+                .as_str()
+                .map(str::to_string)
+                .or_else(|| {
+                    enq["task_id"]
+                        .as_str()
+                        .map(|t| format!("g-{}", t.trim_start_matches("mt-")))
+                })
+                .ok_or("no group")?;
+            let res = match collect_canary(client, base, &gid, wait_secs).await {
+                Ok(v) => v,
+                Err(e) => {
+                    last_err = e;
+                    continue;
+                }
+            };
+            let raw: Value = client
+                .get(format!("{base}/api/wgpu/task/result?group={gid}"))
+                .send()
+                .await
+                .map_err(|e| format!("result get: {e}"))?
+                .json()
+                .await
+                .map_err(|e| format!("result json: {e}"))?;
+            if let Some(arr) = raw["results"][0]["partial"].as_array() {
+                let partial: Vec<f64> = arr.iter().map(|v| v.as_f64().unwrap_or(0.0)).collect();
+                return Ok((partial, res["max_err_model"].as_f64().unwrap_or(0.0)));
+            }
+            last_err = "group completed without a partial vector".into();
         }
-        let gid = enq["group_id"]
-            .as_str()
-            .map(str::to_string)
-            .or_else(|| {
-                enq["task_id"]
-                    .as_str()
-                    .map(|t| format!("g-{}", t.trim_start_matches("mt-")))
-            })
-            .ok_or("no group")?;
-        let res = collect_canary(client, base, &gid, wait_secs).await?;
-        let raw: Value = client
-            .get(format!("{base}/api/wgpu/task/result?group={gid}"))
-            .send()
-            .await
-            .map_err(|e| format!("result get: {e}"))?
-            .json()
-            .await
-            .map_err(|e| format!("result json: {e}"))?;
-        let partial: Vec<f64> = raw["results"][0]["partial"]
-            .as_array()
-            .ok_or("no partial")?
-            .iter()
-            .map(|v| v.as_f64().unwrap_or(0.0))
-            .collect();
-        Ok((partial, res["max_err_model"].as_f64().unwrap_or(0.0)))
+        Err(format!("no partial after 3 attempts: {last_err}"))
     }
 
     let mut outputs = std::collections::HashMap::new();
@@ -897,6 +913,7 @@ pub async fn report_one_layer(
     wait_secs: u64,
     hidden_seed: f64,
     pack_dir: Option<&Path>,
+    hidden_override: Option<&[f64]>,
 ) -> Result<Value, String> {
     let offsets = manifest_offsets(rusty, artifact)?;
     let router_addr = ExpertAddr {
@@ -941,10 +958,14 @@ pub async fn report_one_layer(
             reg.get("error").and_then(Value::as_str).unwrap_or("?")
         ));
     }
-    // Deterministic hidden vector (seed) — no real model input exists yet.
-    let hidden: Vec<f64> = (0..D_MODEL)
-        .map(|i| hidden_seed * ((i % 7) as f64 - 3.0) / 3.0)
-        .collect();
+    // Deterministic hidden vector (seed) or a caller-supplied handoff — no
+    // real model input/state exists yet (FWD-8).
+    let hidden: Vec<f64> = match hidden_override {
+        Some(h) if h.len() == D_MODEL => h.to_vec(),
+        _ => (0..D_MODEL)
+            .map(|i| hidden_seed * ((i % 7) as f64 - 3.0) / 3.0)
+            .collect(),
+    };
     let router_f32 = super::wgpu_dequant::tensor_f32(data_dir, &router_addr.alias())
         .ok_or("router f32 read failed")?;
     let logits = router_logits(&router_f32, &hidden)?;
@@ -1022,6 +1043,104 @@ pub async fn report_one_layer(
     Ok(evidence)
 }
 
+/// FWD-8: pad/truncate a layer's output to D_MODEL so it can feed the next
+/// layer's router. HONEST: this is a numerics-only handoff — a real Qwen35moe
+/// layer would apply residual + RMSNorm + attention/GDN here, which we do NOT
+/// have. Zero-padding is a bookkeeping choice, not model semantics.
+pub fn handoff_hidden(output: &[f64]) -> Vec<f64> {
+    let mut h = vec![0.0f64; D_MODEL];
+    let n = output.len().min(D_MODEL);
+    h[..n].copy_from_slice(&output[..n]);
+    h
+}
+
+/// FWD-8: run N layers with a per-layer checkpoint, aggregating evidence.
+/// NUMERICS ONLY — see `handoff_hidden`: no attention/GDN/residual/norm, and
+/// no quality claim (G13 blocked). Checkpoint is resumable by layer index.
+#[allow(clippy::too_many_arguments)]
+pub async fn report_all_layers(
+    client: &reqwest::Client,
+    base: &str,
+    data_dir: &Path,
+    artifact: &Path,
+    rusty: &Path,
+    start_layer: usize,
+    layers: usize,
+    shards: usize,
+    wait_secs: u64,
+    seed: u64,
+    pack_dir: Option<&Path>,
+) -> Result<Value, String> {
+    if layers == 0 {
+        return Err("report_all_layers: layers must be > 0".into());
+    }
+    let cp = data_dir.join("moe_forward_all_checkpoint.json");
+    let mut hidden = deterministic_hidden(seed, 0);
+    let mut per_layer: Vec<Value> = Vec::with_capacity(layers);
+    let mut max_err = 0.0f64;
+    let mut ok = true;
+    let started = std::time::Instant::now();
+    for i in 0..layers {
+        let layer = start_layer + i;
+        let result = report_one_layer(
+            client,
+            base,
+            data_dir,
+            artifact,
+            rusty,
+            layer,
+            shards,
+            wait_secs,
+            seed as f64,
+            pack_dir,
+            if i == 0 { None } else { Some(&hidden) },
+        )
+        .await?;
+        let layer_err = result["max_err_model"].as_f64().unwrap_or(0.0);
+        max_err = max_err.max(layer_err);
+        ok &= result["ok"].as_bool().unwrap_or(false);
+        per_layer.push(json!({
+            "layer": layer,
+            "max_err_model": layer_err,
+            "ok": result["ok"],
+            "out_len": result["out_len"],
+            "chosen_experts": result["chosen_experts"],
+        }));
+        hidden = handoff_hidden(
+            &result["out_head"]
+                .as_array()
+                .map(|a| {
+                    a.iter()
+                        .map(|v| v.as_f64().unwrap_or(0.0))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default(),
+        );
+        std::fs::write(
+            &cp,
+            serde_json::to_string_pretty(&json!({
+                "next_layer": layer + 1, "completed": i + 1, "total": layers,
+                "max_err_model": max_err, "per_layer": per_layer,
+            }))
+            .unwrap(),
+        )
+        .map_err(|e| format!("checkpoint write: {e}"))?;
+    }
+    super::weight_store::flush_chunk_accounting(data_dir);
+    Ok(json!({
+        "ok": ok && max_err < 1e-4,
+        "layers": layers,
+        "start_layer": start_layer,
+        "wall_secs": (started.elapsed().as_secs_f64() * 100.0).round() / 100.0,
+        "max_err_model": max_err,
+        "numerics_only": true,
+        "no_quality_claim": true,
+        "handoff": "zero_padded_512_to_2048_no_attention_no_norm",
+        "per_layer": per_layer,
+        "hint_len": hidden.len(),
+    }))
+}
+
 /// Look up the sha256 key of the byte range just registered by `register_expert_range`.
 fn expert_key(data_dir: &Path, offset: u64) -> String {
     // LOAD-0: served from weight_store's memoized artifact-sources manifest —
@@ -1076,6 +1195,17 @@ mod tests {
         );
         // Empty input is safe.
         assert_eq!(routing_stats(&[])["total"], 0);
+    }
+
+    #[test]
+    fn fwd8_handoff_pads_512_to_dmodel() {
+        let out = vec![1.0, 2.0, 3.0];
+        let h = handoff_hidden(&out);
+        assert_eq!(h.len(), D_MODEL);
+        assert_eq!(&h[..3], &[1.0, 2.0, 3.0]);
+        assert!(h[3..].iter().all(|v| *v == 0.0));
+        let longer = vec![7.0; D_MODEL + 5];
+        assert_eq!(handoff_hidden(&longer).len(), D_MODEL);
     }
 
     #[test]

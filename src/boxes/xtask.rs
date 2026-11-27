@@ -146,6 +146,10 @@ pub const TASKS: &[(&str, &str)] = &[
         "LOAD-1: build one expert-major pack layer on the mirror (4096-aligned gate/up/down per expert + sidecar manifest, sha256 verified once at build); --artifact --out --layer --rusty. Source 21 GB GGUF stays immutable.",
     ),
     (
+        "moe-forward-all",
+        "FWD-8: multi-layer numerics-only FFN chain (--layers N --start-layer --pack); per-layer checkpoint/resume, aggregate max_err. NOT a model forward: no attention/GDN/norm, zero-padded handoff. No quality claim.",
+    ),
+    (
         "moe-hotset",
         "FWD-7: profile-derived dynamic hot-expert cache plan (byte-budget LRU + watermark gate) from the real router; prints resident set + eviction plan (--layer, --tokens, --seed, --budget-mb, --free-mb, --reserve-mb). NUMERICS ONLY.",
     ),

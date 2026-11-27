@@ -1019,6 +1019,80 @@ fn main() -> ExitCode {
                 }
             }
         }
+        "moe-forward-all" => {
+            // FWD-8: 40-layer numerics-only FFN chain with --pack.
+            let artifact = flag_value(&args, "--artifact")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| {
+                    PathBuf::from("L:/gsv_mirror/models/gsv-versus-ai/gsv-versus-ai-full-q4k.gguf")
+                });
+            let rusty = flag_value(&args, "--rusty")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("S:/rust/rusty-engine/target/debug/rusty.exe"));
+            let data_dir = flag_value(&args, "--data-dir")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| root.join("data"));
+            let hub = flag_value(&args, "--hub").unwrap_or_else(|| "http://127.0.0.1:9999".into());
+            let start = flag_value(&args, "--start-layer")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(0);
+            let layers = flag_value(&args, "--layers")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(40);
+            let shards = flag_value(&args, "--shards")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(1);
+            let wait_secs = flag_value(&args, "--wait-secs")
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(300);
+            let seed = flag_value(&args, "--seed")
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(1);
+            let pack_dir = flag_value(&args, "--pack").map(PathBuf::from);
+            let client = match reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(120))
+                .build()
+            {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("moe-forward-all: client: {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            let rt = match tokio::runtime::Runtime::new() {
+                Ok(rt) => rt,
+                Err(e) => {
+                    eprintln!("moe-forward-all: runtime: {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            match rt.block_on(gsv::boxes::moe_forward::report_all_layers(
+                &client,
+                &hub,
+                &data_dir,
+                &artifact,
+                &rusty,
+                start,
+                layers,
+                shards,
+                wait_secs,
+                seed,
+                pack_dir.as_deref(),
+            )) {
+                Ok(v) => {
+                    println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+                    if v["ok"].as_bool() == Some(true) {
+                        ExitCode::SUCCESS
+                    } else {
+                        ExitCode::FAILURE
+                    }
+                }
+                Err(e) => {
+                    eprintln!("moe-forward-all: {e}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
         "moe-hotset" => {
             // FWD-7: profile-derived dynamic hot-expert cache plan (no cluster).
             let artifact = flag_value(&args, "--artifact")
@@ -1183,6 +1257,7 @@ fn main() -> ExitCode {
                 wait_secs,
                 seed,
                 pack_dir.as_deref(),
+                None,
             )) {
                 Ok(v) => {
                     println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
