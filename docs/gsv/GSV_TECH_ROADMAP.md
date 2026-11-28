@@ -2395,7 +2395,7 @@ Vision companions: `gsv-versus-ai-vision-q4k.gguf` (2048), `inkling2-vision-q4k.
 |---|---|
 | WASM-1 | `crates/mesh-wasm`: native `mesh_dequant_q4_k` (144 B → 256 f32), wasm32-SIMD cfg, golden parity; `ui/assets/mesh-wasm.wasm` 27 462 B; `/wgpu` artifact lane uses kernel with JS fallback. GSV `4396bd6` pushed. |
 | BENCH-1 | `cargo xtask moe-bench` — artifact-backed Q4_K `weights_matvec` on live cluster → `data/moe_bench.jsonl` (max_err/route/MFLOPS); unit green. |
-| BENCH-2 | open — sweep shards 2/4/8 × gate/up/down experts on `#43/#39/#44` (requires peer `/wgpu` reload to pick up new kernel). |
+| BENCH-2 | rescoped 2026-11-27 — sweep shards 2/4/8 × gate/up/down on **#43 + #39 only** (#44 withdrawn by owner); partial result gate 130.98 / up 187.06 MFLOPS, max_err 3.47e-18; down pending stable peers. Old 3-device ticket t-1795700063552630000 closed with that evidence. |
 | BENCH-3 | done — partial pack `g2b-q4_0` not runnable (`missing required key 'gsv.attention.head_count'`); full 21 GB needs streaming, not resident load. |
 | STREAM-1 | plan [`research/GASV_STREAMING_MOE_PLAN_2026-11-26.md`](research/GASV_STREAMING_MOE_PLAN_2026-11-26.md): range-read+sha256 already solve «21 GB > 7.7 GB»; blocker = missing expert-aware forward orchestrator. Realistic <1 tok/s on 2 peers, no quality claim without G13. |
 | Bug (huge expert) | `g-7360` `max_err ≈ 795` root-caused to WASM Q4_K subnormal-f16 path (`e=0` instead of bias-1 `113`); fixed + golden test; `.wasm` rebuilt. |
