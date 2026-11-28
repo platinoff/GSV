@@ -444,7 +444,7 @@ Expected: PASS.
 
 ```bash
 export PATH="/c/Users/${USER:-${USERNAME}}/.cargo/bin:$HOME/.cargo/bin:/ucrt64/bin:/usr/bin:$PATH"
-export RUSTUP_TOOLCHAIN=stable-x86_64-pc-windows-gnu
+unset RUSTUP_TOOLCHAIN  # rust-toolchain.toml pins the channel; never export locally
 cd /s/rust/GSV
 unset CARGO_TARGET_DIR
 cargo fmt -- --check

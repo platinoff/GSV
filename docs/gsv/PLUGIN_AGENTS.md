@@ -31,4 +31,8 @@ not PoolAI product files.
 - Copy `.agents/skills/` or GSV globals into this tree.
 - Run a second `gsv-server` / User-scope MCP.
 - Call poolAI `:8091` off-box (clients use hub `/api/edge`).
-- Export `RUSTUP_TOOLCHAIN` inside this crate (let `rust-toolchain.toml` win).
+- Export `RUSTUP_TOOLCHAIN` in a local shell. The product's `rust-toolchain.toml`
+  must win; use `unset RUSTUP_TOOLCHAIN` before cargo/git commands (MSYS2 bash,
+  never PowerShell). A product's **CI workflow** may set `RUSTUP_TOOLCHAIN:
+  stable` to align hosted runners — that is a CI-only exception, never a local
+  shell setting.
