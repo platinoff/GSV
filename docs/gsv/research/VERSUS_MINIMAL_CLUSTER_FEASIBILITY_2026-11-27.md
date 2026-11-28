@@ -125,6 +125,43 @@ a successful minimal run requires a hub that stays up long enough and at
 least one peer with a fresh proof. Re-attempt after the hub/peer state is
 stable; do not work around it by faking results.
 
+### 6.1 Retry with bifrost — SUCCESS (VERS-GGUF-MIN2)
+
+After the hub came back with `#39` (arm/bifrost) alive but unproven, a probe
+op was used to bootstrap the proof gate (probe ops are not heavyweight, so
+they route to unproven peers):
+
+```bash
+curl -s -X POST -H Content-Type:application/json \
+  -d '{"op":"matmul64","iters":1}' \
+  http://127.0.0.1:9999/api/wgpu/task/enqueue
+# -> {"ok":true,"route_peer":39,"task_id":"mt-7732"}
+```
+
+After 2–3 peer polls the hub reported `#39`: `measured=3`,
+`within_quota=true`, `done=3`, `claimed=0`, `best_peer peer_id=39`. The same
+GGUF command was then re-run with **no `--pack`**:
+
+```
+RC=0 · ok=true · numerics_only=true · no_quality_claim=true
+max_err_model = 1.8168685143610944e-12
+chosen_experts = [26,102,135,97,39,248,131,53]
+routing: gini 0.969, entropy_bits 0.375, hot_count 8
+out_len = 512, all_finite = true
+```
+
+Hub console confirms **every shard executed on peer `#39`** (WASM SIMD128
+kernels loaded; some Q4_K shapes used the phone JS fallback), each
+`task … done … max_err=0.00e+0` at ~1.4–2.5 MFLOPS per shard. This is the
+definitive minimal-cluster answer: **hub + one bifrost phone, no pack, one
+layer, 1 shard — works**, provided the peer first has a fresh proof.
+
+**Repeatable recipe:** (1) enqueue one `matmul64` probe; (2) wait until the
+target peer shows `within_quota=true` and `measured>=1`; (3) run `moe-forward`
+with the GGUF and bounded `--wait-secs`; (4) gate on `max_err_model < 1e-4`.
+Do not escalate to a model answer — the handoff is still zero-padded and G13
+is blocked.
+
 ## 7. Bottom line
 
 **Yes for a minimal numerics-only cluster run; no for "running versus" as a
@@ -136,5 +173,6 @@ changed on the mirror, no weights were loaded, no token was generated.
 Evidence: GSV `dea01f4` (numerics lane), rusty-engine HEAD (qwen35moe gaps),
 `docs/gsv/GSV_TECH_ROADMAP.md` addenda, `L:/gsv_mirror/...` file listings and
 artifact reports, live `/api/wgpu/mesh` + `/api/wgpu/console`, `/proc/meminfo`,
-and the two failed live attempts in §6 (`g-7724`, `g-7731`). Tickets VER-MIN
-and VERS-GGUF-MIN done.
+the two failed attempts (`g-7724`, `g-7731`) and the successful bifrost run
+in §6.1 (`max_err 1.82e-12`). Tickets VER-MIN, VERS-GGUF-MIN and
+VERS-GGUF-MIN2 done.
