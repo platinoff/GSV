@@ -1,3 +1,8 @@
+> **SUPERSEDED 2026-11-27:** rows N12, N15 and O7 below are reconciled by
+> `docs/superpowers/plans/2026-11-27-ticket-board-logic-reconciliation.md`
+> and `docs/gsv/reports/TICKET_BOARD_LOGIC_RECONCILIATION_2026-11-27.md`.
+> The AGI scaffold rows `t-17931031167*` are procedural, not product backlog.
+
 # Ecosystem next tasks — logical execution order (2026-11-21)
 
 **Source review:** `docs/HANDOFF_NEW_SESSION.md`, `docs/NEXT_SESSION_PROMPT.md`, `docs/gsv/MESH_ROADMAP_TASKS_2026-11-19.md`, `docs/gsv/ECOSYSTEM_2026_11_18_PLAN.md`, `docs/gsv/FORMAT_INVENTORY_2026-11-20.md`, `docs/superpowers/plans/2026-11-20-format-hygiene-tickets.md`, `docs/superpowers/plans/2026-11-20-omniroute-cnv1-wave1.md`, `docs/gsv/tickets.jsonl` (open set), `docs/gsv/SESSION_PRESET.md`, `docs/gsv/ECOSYSTEM_CI_REGISTRY_2026-11-18.md`, `docs/superpowers/plans/2026-11-16-next-priority-queue.md` (historical, reconciled).
