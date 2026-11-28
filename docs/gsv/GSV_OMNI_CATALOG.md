@@ -40,6 +40,7 @@ Local models are cataloged for **offline-first / hybrid** routing across the GSV
 | `bunke-rock-fast` | local (llama-rs, fast) | `http://127.0.0.1:8082/v1` | `S:/rust/rusty-engine/data/models/MiniCPM-V-4_7-1B-Q4_K_M.gguf` | `lama-1.5`, `minicpm-v47-1b-local` |
 | `rusty-serve` | local (rusty-engine) | `http://127.0.0.1:8092/v1` | `S:/rust/rusty-engine/data/models/Inkling-2-Mini-UD-Q4_K_M.gguf` (+ mmproj-F16) + fresh `rusty_heartbeat.json` | `rusty-05`, `inkling-2-mini` |
 | `rusty-hybrid` | local (rusty-engine qwen35) | `http://127.0.0.1:8088/v1` | `S:/rust/rusty-engine/data/models/MiniCPM-V-4_7-1B-Q4_K_M.gguf` + fresh `rusty_heartbeat.json` | `rusty-mcp-v47` |
+| `rusty-vision` | local (rusty-engine multimodal) | `http://127.0.0.1:8092/v1` | `S:/rust/rusty-engine/data/models/MiniCPM-V-4_7-1B-Q4_K_M.gguf` (+ mmproj) + fresh `rusty_heartbeat.json` | `rusty-vision-v47` |
 | `rusty-minicpm-mesh` | local (mesh fanout) | `http://127.0.0.1:8099/v1` | `S:/rust/rusty-engine/data/models/MiniCPM-V-4_7-1B-Q4_K_M.gguf` + fresh `mesh_heartbeat.json` | `rusty-mesh-v47` |
 | `rusty-minicpm-35b` | local (rusty-engine) | `http://127.0.0.1:8091/v1` | `S:/rust/rusty-engine/data/models/MiniCPM-V-4_7-35B-A3B-Q4_K_M.gguf` (+ mmproj-35b) + fresh `rusty_heartbeat.json` | `minicpm-v47-35b` |
 

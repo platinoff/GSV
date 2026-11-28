@@ -304,6 +304,15 @@ pub fn providers() -> &'static [ProviderSpec] {
             quota: QUOTA_PAID,
         },
         ProviderSpec {
+            id: "rusty-vision",
+            name: "Rusty vision (rusty-engine multimodal wire)",
+            region: "Local",
+            free: true,
+            default_base_url: "http://127.0.0.1:8092/v1",
+            notes: "PH-1205 multimodal lane on `rusty serve` :8092 — messages[].images base64 (P6 PPM/BMP MVP) + vision_prefix_b64. Ready only with the MiniCPM-V GGUF + mmproj pair and a fresh rusty_heartbeat.json. Structural wire: raw pixel vectors, no trained image→text alignment, no quality claim (G13).",
+            quota: QUOTA_PAID,
+        },
+        ProviderSpec {
             id: "rusty-minicpm-mesh",
             name: "Rusty MiniCPM mesh (MiniCPM-V fanout on GSV-WGPU)",
             region: "Local",
@@ -618,6 +627,19 @@ pub fn models() -> &'static [ModelSpec] {
             "rusty-mcp-v47",
             "Rusty hybrid 1B (rusty-hybrid · rusty-engine qwen35 MiniCPM-V)",
             "rusty-hybrid",
+            Some(32_768),
+            Some(512),
+            true,
+            false,
+            "local",
+            true,
+            true,
+            C_ALL,
+        ),
+        m(
+            "rusty-vision-v47",
+            "Rusty vision 1B (rusty-vision · messages[].images wire, heartbeat-gated)",
+            "rusty-vision",
             Some(32_768),
             Some(512),
             true,
@@ -1224,6 +1246,7 @@ pub fn provider_kind(id: &str) -> &'static str {
             | "bunke-rock-fast"
             | "rusty-serve"
             | "rusty-hybrid"
+            | "rusty-vision"
             | "rusty-minicpm-mesh"
             | "rusty-minicpm-35b"
     ) {
@@ -1256,6 +1279,7 @@ pub fn local_model_file(id: &str) -> Option<&'static str> {
         "bunke-rock-fast" => Some(BUNKE_ROCK_FAST_MODEL_FILE),
         "rusty-serve" => Some(RUSTY_SERVE_MODEL_FILE),
         "rusty-hybrid" => Some(RUSTY_HYBRID_MODEL_FILE),
+        "rusty-vision" => Some(RUSTY_HYBRID_MODEL_FILE),
         "rusty-minicpm-mesh" => Some(RUSTY_MESH_MODEL_FILE),
         "rusty-minicpm-35b" => Some(RUSTY_MINICPM_35B_MODEL_FILE),
         _ => None,
@@ -1273,7 +1297,11 @@ pub fn host_ready(id: &str) -> bool {
             if !std::path::Path::new(file).exists() {
                 return false;
             }
-            if id == "rusty-serve" || id == "rusty-hybrid" || id == "rusty-minicpm-35b" {
+            if id == "rusty-serve"
+                || id == "rusty-hybrid"
+                || id == "rusty-vision"
+                || id == "rusty-minicpm-35b"
+            {
                 return heartbeat_mtime_fresh(
                     std::path::Path::new(RUSTY_SERVE_HEARTBEAT_FILE),
                     RUSTY_SERVE_FRESH_SECS,
@@ -1374,6 +1402,25 @@ mod tests {
         let inkling = find_models("inkling-2-mini");
         assert!(!inkling.is_empty(), "inkling-2-mini in catalog");
         assert_eq!(inkling[0].provider, "rusty-serve");
+    }
+
+    #[test]
+    fn rusty_vision_is_local_and_heartbeat_gated() {
+        let p = provider("rusty-vision").expect("rusty-vision provider");
+        assert!(p.free, "local rusty vision is free tier");
+        assert_eq!(p.default_base_url, "http://127.0.0.1:8092/v1");
+        assert_eq!(provider_kind("rusty-vision"), "local");
+        assert_eq!(
+            local_model_file("rusty-vision"),
+            Some(RUSTY_HYBRID_MODEL_FILE),
+            "vision lane gates on the same MiniCPM-V GGUF + mmproj pair"
+        );
+        let models = find_models("rusty-vision-v47");
+        assert!(!models.is_empty(), "rusty-vision-v47 in catalog");
+        for spec in &models {
+            assert_eq!(spec.provider, "rusty-vision");
+            assert!(spec.free && spec.rust, "{} free+rust lane", spec.id);
+        }
     }
 
     #[test]
