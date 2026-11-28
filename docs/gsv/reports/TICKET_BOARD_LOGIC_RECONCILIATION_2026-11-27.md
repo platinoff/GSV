@@ -19,9 +19,14 @@ PH-1206 (permanently owner-gated, PH-A5 closed), G19 (no G17 candidate), WSP-G1/
 | id | verdict | evidence |
 |---|---|---|
 | t-1789361515100705500 (ECO-8.2 0.1.156) | blocked (already) | Superseded by t-1794211220000000000 (single target 0.1.161). MCP cannot transition blocked → done; recorded here, status unchanged. |
+| t-1789331514784733600, t-1789331514816905400, t-1789331514847571700, t-1789331774800895100, t-1789334171870418600, t-1789411991572414400 | blocked (already) | ARCHITECTURALLY SUPERSEDED: ggml-rpc fan-out (Pi f5b9bd39 / A54 Termux / browser tensor peer) replaced by GSV WebGPU mesh at :9999 with peer proofs. Owner closed the node list 2026-11-17 (PH-A5 permanently deferred). Keep as blocked history; do not spend Pi/A54 on rpc. |
 
 ## Re-scoped in docs, left open
 PH-1202/PH-1203 (`[ ]` genuinely open), PH-1204/PH-1205 (`[~]`: plumbing landed, remaining = trained alignment + real image bytes + mtmd parity).
 
 ## Unchanged and consistent
 ECO-4, token rotate, group reply, P6.2, ECO-8.4, ECO-7.7, RB-63..66 cancelled, ECO-7.1/7.6 skipped, poolai dep queue.
+
+## Dead dependency chain (named, not hidden)
+PH-A5 closed → PH-406 and PH-1206 permanently owner-gated → MC-1 (needs 35B top-k=2) → MC-5 (needs MC-1).
+A1 expert-range loader (no node) is the only executable lane; GSV `moe-forward --pack` is the numerics baseline.
