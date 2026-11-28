@@ -3,8 +3,8 @@
 **Question:** given the actual repo state and the files on `L:/gsv_mirror`, can
 `gsv-versus-ai` be run in the cluster on a minimal setup?
 
-**Verdict (read-only):** **Numerics-only MoE FFN chain — YES on a minimal
-1-peer config, already partially proven. Real model forward — NO.** The
+**Verdict:** **Numerics-only MoE FFN chain — YES on a minimal 1-peer config,
+already partially proven. Real model forward — NO.** The
 bottlenecks are *missing semantics* (attention/GDN/norm, real GGUF expert
 binding) and *orchestration/RAM*, not the 4-bit kernels. No quality claim is
 possible while G13 is blocked. BENCH-2 (3-device sweep) was deliberately not
@@ -85,7 +85,47 @@ effectively already demonstrated (A/B pack proof, 2-layer chain).
 - Any second pack / re-quant on `L:`: only 7.3 GB free; the 21 GB source is
   immutable.
 
-## 6. Bottom line
+## 6. Live attempt on the exact GGUF (2026-11-27, VERS-GGUF-MIN)
+
+To remove any doubt about "just run that file", I invoked the GGUF path
+directly — **no `--pack`**:
+
+```bash
+./target/vers_alt/debug/gsv-xtask.exe moe-forward \
+  --artifact "L:/gsv_mirror/models/gsv-versus-ai/gsv-versus-ai-full-q4k.gguf" \
+  --layer 0 --shards 1 --wait-secs 180 --seed 1.0
+```
+
+(An isolated `target/vers_alt` build was needed: `target/debug/gsv-xtask.exe`
+is locked by the resident `cycle-watch` daemon and was too old to contain
+`moe-forward`. `target/live` was untouched.)
+
+**Result: two bounded attempts failed — `g-7724` (180 s) and `g-7731`
+(120 s) both ended with `no partial after 3 attempts`.** Causes visible in
+the live hub, none of them numerical:
+
+- The hub **restarted mid-run**: mesh `done`/`failed` counters reset to 0 and
+  all peer proofs (`iters_max`, `mflops_max`) dropped to zero; best_peer became
+  `null`.
+- Console shows a repeating loop of `task result post FAILED after 3 attempts
+  — shard will be re-verified by the next peer` for peer #43, even when the
+  peer logged `task mt-7691: done … max_err=0.00e+0`. The peer **computes**
+  the shard; the result never reaches the hub, so the group never completes.
+- Newly enqueued groups got `peers: []` / `done_shards: 0` — no proof-bearing
+  peer available for the heavyweight `weights_matvec` route.
+
+This is exactly the "2 flapping peers + `concurrent=1` + single JSONL claimed
+slot" orchestration blocker recorded above, now observed directly. It does
+**not** contradict the earlier proven A/B numerics (101 s vs 103 s,
+`max_err 5.35e-11`, bit-identical) — that run had a stable hub and fresh
+proofs. No wrong numbers were produced and no quality claim is made.
+
+**Practical conclusion:** the command is correct and the artifact is readable;
+a successful minimal run requires a hub that stays up long enough and at
+least one peer with a fresh proof. Re-attempt after the hub/peer state is
+stable; do not work around it by faking results.
+
+## 7. Bottom line
 
 **Yes for a minimal numerics-only cluster run; no for "running versus" as a
 model.** The useful next step is *not* to chase a bigger fleet but to keep
@@ -95,4 +135,6 @@ changed on the mirror, no weights were loaded, no token was generated.
 
 Evidence: GSV `dea01f4` (numerics lane), rusty-engine HEAD (qwen35moe gaps),
 `docs/gsv/GSV_TECH_ROADMAP.md` addenda, `L:/gsv_mirror/...` file listings and
-artifact reports, live `/api/wgpu/mesh`, `/proc/meminfo`. Ticket VER-MIN done.
+artifact reports, live `/api/wgpu/mesh` + `/api/wgpu/console`, `/proc/meminfo`,
+and the two failed live attempts in §6 (`g-7724`, `g-7731`). Tickets VER-MIN
+and VERS-GGUF-MIN done.
