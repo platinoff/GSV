@@ -30,3 +30,15 @@ ECO-4, token rotate, group reply, P6.2, ECO-8.4, ECO-7.7, RB-63..66 cancelled, E
 ## Dead dependency chain (named, not hidden)
 PH-A5 closed → PH-406 and PH-1206 permanently owner-gated → MC-1 (needs 35B top-k=2) → MC-5 (needs MC-1).
 A1 expert-range loader (no node) is the only executable lane; GSV `moe-forward --pack` is the numerics baseline.
+
+## Gate rule under keep-live (permanent for future sessions)
+The hub, watchdog and `cycle-watch` daemon are **hot-live by design**. Do not kill any of them to free `target/debug/gsv-xtask.exe` for a full multi-target `cargo test` rebuild — keeping the ecosystem alive outranks rebuilding a dev binary.
+
+Authoritative gate set in this steady state (all green on 2026-11-28, HEAD `4ca1d8f`):
+- `cargo fmt --all -- --check` → 0
+- `cargo clippy --all-targets -- -D warnings` → 0 warnings
+- `cargo test --lib` → 609 passed / 0 failed / 5 ignored, exit 0 (canonical `target/`; does not rebuild the locked bin)
+- `cargo run --bin gsv-loc-audit -- --stretch-96` → rust 99.68%
+- `cargo xtask sync` → exit 0 (also verified with an isolated `CARGO_TARGET_DIR`, rev 516, next PH-S3129)
+
+**Known environment caveat, not a regression:** the full `cargo test` that rebuilds all targets fails with `Access is denied (os error 5)` while the resident daemon holds the bin. An isolated `CARGO_TARGET_DIR` bypasses the lock for `xtask sync`, but two watchdog tests — `boxes::watchdog::tests::telenetis_debug_exe_prefers_workspace_target` and `boxes::watchdog::tests::debug_newer_telenetis_sees_workspace_debug` — hard-code the canonical workspace `target/` path and therefore fail there (607 passed, 2 failed). Never "fix" this by killing processes or by changing those tests just to make a number green. If a full all-target suite is genuinely required, the owner schedules a controlled keep-live pause; agents never improvise it.
