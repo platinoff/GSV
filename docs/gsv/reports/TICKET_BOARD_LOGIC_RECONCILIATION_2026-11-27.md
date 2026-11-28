@@ -32,13 +32,16 @@ PH-A5 closed → PH-406 and PH-1206 permanently owner-gated → MC-1 (needs 35B 
 A1 expert-range loader (no node) is the only executable lane; GSV `moe-forward --pack` is the numerics baseline.
 
 ## Gate rule under keep-live (permanent for future sessions)
-The hub, watchdog and `cycle-watch` daemon are **hot-live by design**. Do not kill any of them to free `target/debug/gsv-xtask.exe` for a full multi-target `cargo test` rebuild — keeping the ecosystem alive outranks rebuilding a dev binary.
+The hub, watchdog and `cycle-watch` daemon are **hot-live by design**. Agents never kill them on their own to free `target/debug/gsv-xtask.exe`. A full multi-target `cargo test` requires an **owner-authorized controlled pause** of the `cycle-watch` daemon only; the hub and watchdog must stay alive throughout, and the daemon must be restored immediately after the rebuild.
 
-Authoritative gate set in this steady state (all green on 2026-11-28, HEAD `4ca1d8f`):
+Authoritative gate set in this steady state (all green on 2026-11-28, verification HEAD `1dea5a4`):
 - `cargo fmt --all -- --check` → 0
 - `cargo clippy --all-targets -- -D warnings` → 0 warnings
-- `cargo test --lib` → 609 passed / 0 failed / 5 ignored, exit 0 (canonical `target/`; does not rebuild the locked bin)
+- `cargo test --lib` → 609 passed / 0 failed / 5 ignored, exit 0 (canonical `target/`)
+- **`cargo test` (full, all 52 suites) → 1175 passed / 0 failed / 5 ignored, exit 0** — run under the controlled pause described below
 - `cargo run --bin gsv-loc-audit -- --stretch-96` → rust 99.68%
-- `cargo xtask sync` → exit 0 (also verified with an isolated `CARGO_TARGET_DIR`, rev 516, next PH-S3129)
+- `cargo xtask sync` → exit 0 (rev 516, next PH-S3129; also verified with an isolated `CARGO_TARGET_DIR`)
 
-**Known environment caveat, not a regression:** the full `cargo test` that rebuilds all targets fails with `Access is denied (os error 5)` while the resident daemon holds the bin. An isolated `CARGO_TARGET_DIR` bypasses the lock for `xtask sync`, but two watchdog tests — `boxes::watchdog::tests::telenetis_debug_exe_prefers_workspace_target` and `boxes::watchdog::tests::debug_newer_telenetis_sees_workspace_debug` — hard-code the canonical workspace `target/` path and therefore fail there (607 passed, 2 failed). Never "fix" this by killing processes or by changing those tests just to make a number green. If a full all-target suite is genuinely required, the owner schedules a controlled keep-live pause; agents never improvise it.
+**Controlled-pause procedure (owner go only):** verify by command line that the target PID is `...gsv-xtask.exe  cycle-watch --every 300 --count 0`; confirm `gsv_health` alive; stop only that PID; re-check hub health; run the full `cargo test`; then `cargo xtask cycle-watch-install` and relaunch `target/live/gsv_cycle_watch_start.vbs` via `wscript.exe` detached. Note: a freshly killed daemon leaves a gitignored `data/cycle_watch.lock` whose mtime is treated as "already running" for 1200 s — backdate **only that lock file's mtime** (content unchanged) before relaunching, otherwise the new daemon self-exits. Final verification: new cycle-watch PID alive + `gsv_health` ok. Executed 2026-11-28: PID 17940 stopped, PID 25268 restored, hub alive throughout.
+
+**Known environment caveat, not a regression:** an isolated `CARGO_TARGET_DIR` bypasses the lock for `xtask sync`, but two watchdog tests — `boxes::watchdog::tests::telenetis_debug_exe_prefers_workspace_target` and `boxes::watchdog::tests::debug_newer_telenetis_sees_workspace_debug` — hard-code the canonical workspace `target/` path and therefore fail there (607 passed, 2 failed). That configuration is NOT authoritative; never "fix" it by killing processes or by changing those tests just to make a number green. Use the controlled-pause procedure above for a real all-target gate.
