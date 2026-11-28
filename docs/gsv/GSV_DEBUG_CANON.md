@@ -63,7 +63,7 @@ f16 у WASM `mesh_dequant_q4_k`: починав `e = exp = 0` замість к�
 `e = 113` (bias-1) з GSV `wgpu_dequant::f16_to_f32`, через що `d`/`min`
 масштаби роздувались ~2^14. Виправлено, додано golden-тест проти GSV
 `dequant_q4_k` (subnormal `d=2^-24`, `min=0.5`, scales `0x21`, nibble 1..16 →
-`-16.499998…`), `.wasm` перезібрано (27 462 B). **Не workaround, а parity-фікс.**
+`-16.499998…`), `.wasm` перезібрано (27 462 B; FIX-3 `ce5a4bb` → 28 035 B). **Не workaround, а parity-фікс.**
 
 ## 7. Streaming MoE (канон 2026-11-26)
 

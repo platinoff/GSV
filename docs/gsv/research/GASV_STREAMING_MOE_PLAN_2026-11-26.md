@@ -31,7 +31,7 @@
    golden-тестом проти GSV `dequant_q4_k`. Повторний канар **`g-7362`: 8/8 shard,
    `ok:true`, `max_err_model 1.73e-18 … 3.47e-18`**; compute-time throughput
    **131.75 MFLOPS**, усі шарди на `#43`, wall ~282 c через послідовний
-   `concurrent_limit=1` і очікування claim. `.wasm` 27 462 B задеплоєно з `no-store`
+   `concurrent_limit=1` і очікування claim. `.wasm` 27 462 B задеплоєно з `no-store` (FIX-3 `ce5a4bb` → 28 035 B)
    (md5 `c6bb36f1…`), піри підхопили новий код після reload `/wgpu`.
 2. **Per-expert адресація.** `rusty artifact-chunks` вміє лише цілий тензор; треба
    `--expert N` / byte-range, інакше range-read читає 4 МБ chunkи замість 0.6–0.9 МБ експерта.

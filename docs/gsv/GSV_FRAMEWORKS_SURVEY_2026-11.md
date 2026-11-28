@@ -26,7 +26,7 @@ sport-forcast, telenetis, CoreBoard), std/memmap2 for the low-level engines.
 
 ## 2. Faster-candidate research (2026-02..2026-11 community + TechEmpower reality check)
 
-| Candidate | Measured claim | Rust 1.99.1 + eco formats compat | Verdict |
+| Candidate | Measured claim | Rust 1.100.x + eco formats compat | Verdict |
 |---|---|---|---|
 | actix-web 4.12.1 | +10–15% RPS vs axum 0.8 in synthetic benches (TechEmpower-class); p99 ~2ms | ✔ MSRV ≤1.8x; no new file formats. But own routing/middleware model — port cost for tower layers, SSE/MCP chunk filters (gsv `/mcp`), ws surfaces | **Candidate only** — not adopted; eco keeps axum (single stack, tower-http compression, MCP/SSE plumbing already battle-tested) |
 | Rocket 0.5.1 / Warp 0.4.1 / Salvo 0.89.1 | slower than or comparable to axum | ✔ | Not adopted (slower or marginal) |
@@ -38,9 +38,9 @@ Decision: **no HTTP framework swap.** The measurable gains already live in the
 allocator + parallel-scan + ripgrep lanes; framework churn would burn the
 tower-http/compression and MCP/SSE work without a real-workload win.
 
-## 3. Compatibility notes (Rust 1.99.1 + allowed formats)
+## 3. Compatibility notes (Rust 1.100.x + allowed formats)
 
-- Toolchain: rustc `stable-x86_64-pc-windows-gnu` 1.99.1 (ECO-1/ECO-5 final pin).
+- Toolchain: floating `stable-x86_64-pc-windows-gnu` channel, currently 1.100.x (ECO-1/ECO-5 pin policy; exact-version channel breaks the MSYS2 linker).
   All inventory crates compile on it; actix-web 4.12 would, if ever adopted.
 - Source formats stay in the allow-list: `.rs`, `.md`, `.mdc`, `.json`, `.js`,
   `.wasm`, `.sh` (eco standard from ECO-6.7). No framework introduced a new
